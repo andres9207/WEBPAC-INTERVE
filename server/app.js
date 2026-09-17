@@ -5,18 +5,21 @@ import { fileURLToPath } from "url";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import fileUpload from "express-fileupload";
+import helmetMiddleware from "./src/common/middlewares/helmet.middleware.js";
+import { defaultRateLimit } from "./src/common/middlewares/rateLimit.middleware.js";
+import httpLogger from "./src/common/middlewares/httpLogger.middleware.js";
 import compressionMiddleware from "./src/common/middlewares/compression.middleware.js";
 import cleanRequestData from "./src/common/middlewares/cleanRequestData.middleware.js";
 import errorMiddleware from "./src/common/middlewares/error.middleware.js";
 import mainRoutes from "./src/modules/main.routes.js";
-import morgan from "morgan";
 
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-app.use(morgan("dev"));
+app.use(helmetMiddleware);
+app.use(httpLogger);
 
 // ✅ CORS — antes de todo
 // ✅ CORS — antes de todo
@@ -55,7 +58,7 @@ app.use(fileUpload({
 }));
 
 app.use("/", express.static(path.join(__dirname, "../dist")));
-app.use("/api", mainRoutes);
+app.use("/api", defaultRateLimit, mainRoutes);
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "../dist/index.html"));
 });

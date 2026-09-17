@@ -1,5 +1,6 @@
 import express from "express";
 import { verifyToken } from "../../common/middlewares/authjwt.middleware.js";
+import { authRateLimit } from "../../common/middlewares/rateLimit.middleware.js";
 import {
   loginController,
   logoutController,
@@ -16,6 +17,10 @@ import {
 } from "./auth.controller.js";
 
 const authRoutes = express.Router();
+
+// Umbral de rate limit más estricto que el resto de la API: estas rutas son
+// el objetivo típico de fuerza bruta / credential stuffing.
+authRoutes.use(authRateLimit);
 
 authRoutes.post("/login", loginController);
 
