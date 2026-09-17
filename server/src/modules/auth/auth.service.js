@@ -360,25 +360,35 @@ export const getWindowsByProfile = async ({ proId }) => {
   }
 };
 
-export const validateCodePassword = async ({ token, codeTemp }) => {
+/**
+ * Identifica la solicitud de reset por email + código (los dos únicos datos
+ * que legítimamente conoce quien tiene acceso al correo), nunca por un token
+ * que hubiera viajado por la respuesta HTTP.
+ */
+const findValidPasswordReset = async ({ email, codeTemp }, connection) => {
+  const rows = await executeQuery(
+    `SELECT pr.use_id AS usuarioID
+     FROM tbl_password_resets pr
+     JOIN tbl_users u ON u.use_id = pr.use_id
+     WHERE u.use_email = ?
+       AND pr.par_code_temp = ?
+       AND pr.par_created_at >= NOW() - INTERVAL 15 MINUTE
+     LIMIT 1`,
+    [email, parseInt(codeTemp)],
+    connection
+  );
+
+  return rows[0] || null;
+};
+
+export const validateCodePassword = async ({ email, codeTemp }) => {
   let connection = null;
   try {
     connection = await getConnection();
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
+    const reset = await findValidPasswordReset({ email, codeTemp }, connection);
 
-    const { usuarioID } = decoded;
-
-    const result = await executeQuery(
-      `SELECT par_code_temp FROM tbl_password_resets WHERE use_id = ? AND par_token = ?`,
-      [usuarioID, token],
-      connection
-    );
-
-    if (!result.length || result[0].par_code_temp !== parseInt(codeTemp)) {
+    if (!reset) {
       const error = new Error("Código Incorrecto.");
       error.statusCode = 400;
       throw error;
@@ -388,30 +398,20 @@ export const validateCodePassword = async ({ token, codeTemp }) => {
   }
 };
 
-export const restorePassword = async ({ token, nuevaContrasena, codeTemp }) => {
+export const restorePassword = async ({ email, nuevaContrasena, codeTemp }) => {
   let connection = null;
   try {
     connection = await getConnection();
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
+    const reset = await findValidPasswordReset({ email, codeTemp }, connection);
 
-    const { usuarioID } = decoded;
-
-    const result = await executeQuery(
-      `SELECT par_code_temp FROM tbl_password_resets WHERE use_id = ? AND par_token = ?`,
-      [usuarioID, token],
-      connection
-    );
-
-    if (!result.length || result[0].par_code_temp !== parseInt(codeTemp)) {
+    if (!reset) {
       const error = new Error("Código Temporal Incorrecto.");
       error.statusCode = 400;
       throw error;
     }
 
+    const { usuarioID } = reset;
     const hashedPassword = await hashPassword(nuevaContrasena);
 
     await executeQuery(
@@ -489,8 +489,6 @@ export const forgotPassword = async ({ email }) => {
         </div>
       `,
     });
-
-    return { token };
   } finally {
     releaseConnection(connection);
   }

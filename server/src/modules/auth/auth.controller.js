@@ -104,8 +104,8 @@ export const getWindowsByProfileController = async (req, res, next) => {
 
 export const validateCodePasswordController = async (req, res, next) => {
   try {
-    const { token, codeTemp } = req.body;
-    await authService.validateCodePassword({ token, codeTemp });
+    const { email, codeTemp } = req.body;
+    await authService.validateCodePassword({ email, codeTemp });
     return res
       .status(200)
       .json({ success: true, message: "Código verificado." });
@@ -116,8 +116,8 @@ export const validateCodePasswordController = async (req, res, next) => {
 
 export const restorePasswordController = async (req, res, next) => {
   try {
-    const { token, nuevaContrasena, codeTemp } = req.body;
-    await authService.restorePassword({ token, nuevaContrasena, codeTemp });
+    const { email, nuevaContrasena, codeTemp } = req.body;
+    await authService.restorePassword({ email, nuevaContrasena, codeTemp });
     return res
       .status(200)
       .json({ success: true, message: "Contraseña actualizada con éxito." });
@@ -129,10 +129,9 @@ export const restorePasswordController = async (req, res, next) => {
 export const forgotPasswordController = async (req, res, next) => {
   try {
     const { email } = req.body;
-    const result = await authService.forgotPassword({ email });
+    await authService.forgotPassword({ email });
     return res.status(200).json({
       success: true,
-      token: result.token,
       message: "Correo enviado.",
     });
   } catch (err) {

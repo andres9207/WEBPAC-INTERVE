@@ -5,6 +5,12 @@ import { init } from "./socket.js";
 import { testConnection } from "./src/common/configs/db.config.js";
 // import { startCronJobs, stopCronJobs } from "./src/cron/index.js";
 
+if (!process.env.JWT_SECRET) {
+  throw new Error(
+    "Falta la variable de entorno JWT_SECRET. Defínela antes de iniciar el servidor."
+  );
+}
+
 const server = http.createServer(app);
 
 init(server);
