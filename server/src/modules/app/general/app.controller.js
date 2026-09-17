@@ -21,7 +21,7 @@ export const getProfilesController = async (_req, res, next) => {
 
 export const verifyTokenController = async (req, res, next) => {
   try {
-    const token = req.cookies.tokenTEMPLATE;
+    const token = req.cookies.token;
     const result = await appService.verifyToken(token);
     return res.status(200).json(result);
   } catch (err) {

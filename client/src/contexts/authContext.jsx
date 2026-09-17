@@ -10,7 +10,7 @@ export const AuthContext = createContext(undefined);
 // ─── Helpers para leer cookies ────────────────────────────────────────────────
 const getStoredUser = () => {
   try {
-    const raw = Cookies.get('idTEMPLATE');
+    const raw = Cookies.get('id');
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -32,15 +32,11 @@ const isAuthenticated = useMemo(
 );
 
   // ── Verificar sesión al montar ─────────────────────────────────────────────
+  // La cookie de sesión es httpOnly (no legible desde JS), así que no hay forma
+  // de saber de antemano si existe: siempre se pregunta al backend, que la
+  // recibe automáticamente (withCredentials) si el navegador la tiene.
   useEffect(() => {
     const verifySession = async () => {
-      const token = Cookies.get('tokenTEMPLATE');
-
-      if (!token) {
-        setInitializing(false); // ✅ sin token, termina inmediato
-        return;
-      }
-
       try {
         const { data } = await verifyTokenAPI();
         setUser({
@@ -52,7 +48,7 @@ const isAuthenticated = useMemo(
           proName: data.profileName,
         });
         setPermissions(data.permissions ?? []);
-        Cookies.set('idTEMPLATE', JSON.stringify({
+        Cookies.set('id', JSON.stringify({
           useId: data.useId,
           username: data.username,
           fullName: data.fullName,
@@ -61,8 +57,7 @@ const isAuthenticated = useMemo(
           proName: data.profileName,
         }), { expires: 1 });
       } catch {
-        Cookies.remove('tokenTEMPLATE');
-        Cookies.remove('idTEMPLATE');
+        Cookies.remove('id');
         setUser(null);
         setPermissions([]);
       } finally {
@@ -79,19 +74,16 @@ const isAuthenticated = useMemo(
     setError(null);
     try {
       const { data } = await loginAPI(credentials);
-      console.log('✅ Login data:', data);
 
-      // ✅ El backend devuelve: { token, useId, fullName, useEmail, proId, proName, permissions }
-      const { token, permissions, ...user } = data;
+      // El backend fija la sesión vía cookie httpOnly; el body solo trae los
+      // datos del usuario: { useId, username, fullName, email, proId, profileName, permissions }
+      const { permissions, ...user } = data;
 
-      //Cookies.set('tokenTEMPLATE',    token,                    { expires: 1 });
-      Cookies.set('idTEMPLATE',       JSON.stringify(user),     { expires: 1 });
+      Cookies.set('id', JSON.stringify(user), { expires: 1 });
 
       setUser(user);
       setPermissions(permissions ?? []);
 
-      console.log('✅ User seteado:', user);
-      console.log('✅ Token:', token);
       return data;
     } catch (err) {
       const msg = err.response?.data?.message ?? 'Error al iniciar sesión';
@@ -104,8 +96,7 @@ const isAuthenticated = useMemo(
   // ── Logout ─────────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
     try { await logoutAPI(); } catch { /* silencioso */ }
-    Cookies.remove('tokenTEMPLATE');
-    Cookies.remove('idTEMPLATE');
+    Cookies.remove('id');
     setUser(null);
     setPermissions([]);
   }, []);

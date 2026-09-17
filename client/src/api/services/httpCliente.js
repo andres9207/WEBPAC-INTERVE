@@ -10,12 +10,8 @@ const instance = axios.create({
 // ─── Interceptor de REQUEST ───────────────────────────────────────────────────
 instance.interceptors.request.use(
   (config) => {
-    const tokenSecurity = Cookies.get("tokenTEMPLATE");
-    const currenUserApp = Cookies.get("idTEMPLATE");
+    const currenUserApp = Cookies.get("id");
 
-    if (tokenSecurity) {
-      config.headers.Authorization = `Bearer ${tokenSecurity}`;
-    }
     if (currenUserApp) {
       config.headers.currenuserapp = currenUserApp;
     }
@@ -29,9 +25,8 @@ instance.interceptors.request.use(
 instance.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      Cookies.remove("tokenTEMPLATE");
-      Cookies.remove("idTEMPLATE");
+    if (error.response?.status === 401 && !error.config?.skipAuthRedirect) {
+      Cookies.remove("id");
 
       window.location.href = "/pages/login";
     }

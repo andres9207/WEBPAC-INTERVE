@@ -28,10 +28,13 @@ export const logoutAPI = () =>
   httpCliente.post('/auth/logout');
 
 /**
- * Verificar token activo (útil para proteger rutas en el frontend)
+ * Verificar token activo (útil para proteger rutas en el frontend).
+ * skipAuthRedirect: se llama en cada carga de la app, incluso sin sesión —
+ * un 401 aquí es un caso normal (visitante no autenticado), no debe forzar
+ * el redirect duro global; PrivateRoute ya maneja la redirección declarativa.
  */
 export const verifyTokenAPI = () =>
-  httpCliente.get('/app/verify_token');
+  httpCliente.get('/app/verify_token', {}, { skipAuthRedirect: true });
 
 export const registerAPI = (params) =>
   httpCliente.post('/auth/register', params);

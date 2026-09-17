@@ -1,20 +1,30 @@
 import * as authService from "./auth.service.js";
 
+const SESSION_COOKIE_NAME = "token";
+const sessionCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "Strict",
+};
+
 export const loginController = async (req, res, next) => {
   try {
     const { usuario, clave, password } = req.body;
-    const result = await authService.login({ usuario, clave, password });
+    const { token, ...result } = await authService.login({ usuario, clave, password });
 
-    res.cookie("tokenTEMPLATE", result.token, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict",
+    res.cookie(SESSION_COOKIE_NAME, token, {
+      ...sessionCookieOptions,
       maxAge: 86400000,
     });
     return res.json(result);
   } catch (err) {
     next(err);
   }
+};
+
+export const logoutController = (req, res) => {
+  res.clearCookie(SESSION_COOKIE_NAME, sessionCookieOptions);
+  return res.status(200).json({ success: true, message: "Sesión cerrada." });
 };
 
 export const registerUser = async (req, res, next) => {

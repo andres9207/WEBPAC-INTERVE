@@ -11,7 +11,7 @@ export const verifyToken = async (req, res, next) => {
     connection = await getConnection();
 
     // Leer token de cookie o del header Authorization
-    let token = req.cookies.tokenTEMPLATE;
+    let token = req.cookies.token;
     if (!token || token === "undefined" || token === "null") {
       const authHeader = req.headers.authorization;
       if (authHeader?.startsWith("Bearer ")) {

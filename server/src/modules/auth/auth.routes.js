@@ -2,6 +2,7 @@ import express from "express";
 import { verifyToken } from "../../common/middlewares/authjwt.middleware.js";
 import {
   loginController,
+  logoutController,
   registerUser,
   resendOtpCode,
   verifyOtpCode,
@@ -17,6 +18,8 @@ import {
 const authRoutes = express.Router();
 
 authRoutes.post("/login", loginController);
+
+authRoutes.post("/logout", logoutController);
 
 authRoutes.post("/register", registerUser);
 
