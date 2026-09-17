@@ -23,7 +23,7 @@ authRoutes.post("/login", loginController);
 
 authRoutes.post("/logout", logoutController);
 
-authRoutes.put("/update_password", updatePasswordController);
+authRoutes.put("/update_password", verifyToken, updatePasswordController);
 
 authRoutes.get("/get_basic_information", verifyToken, getSettlementController);
 

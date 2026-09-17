@@ -30,7 +30,10 @@ export const logoutController = (req, res) => {
 
 export const getSettlementController = async (req, res, next) => {
   try {
-    const { useId } = req.query;
+    // El sujeto siempre sale del JWT verificado (verifyToken), nunca de la
+    // petición: aceptar un useId del cliente aquí permitiría leer los datos
+    // de cualquier otra cuenta (IDOR).
+    const { useId } = req.user;
     const result = await authService.getBasicInformation({ useId });
     res.status(200).json(result);
   } catch (err) {
@@ -40,7 +43,8 @@ export const getSettlementController = async (req, res, next) => {
 
 export const updateAccountController = async (req, res, next) => {
   try {
-    const { name, lastName, username, email, useId } = req.body;
+    const { name, lastName, username, email } = req.body;
+    const { useId } = req.user;
     await authService.updateAccount({ name, lastName, username, email, useId });
     return res
       .status(200)
@@ -52,7 +56,8 @@ export const updateAccountController = async (req, res, next) => {
 
 export const updatePasswordController = async (req, res, next) => {
   try {
-    const { currentPassword, newPassword, useId } = req.body;
+    const { currentPassword, newPassword } = req.body;
+    const { useId } = req.user;
     await authService.updatePassword({ currentPassword, newPassword, useId });
     return res
       .status(200)
