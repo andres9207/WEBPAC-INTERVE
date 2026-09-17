@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const imagesDir = path.join(import.meta.dirname, '../../assets/images');
+const imagesDir = path.join(import.meta.dirname, '../../images');
 
 const toDataUri = (filePath) => {
   const ext = path.extname(filePath).toLowerCase();

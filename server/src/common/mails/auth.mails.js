@@ -12,9 +12,7 @@ import { sendEmail } from "../services/mailerService.js";
 const authMailsRoutes = express.Router();
 
 const generateToken = (usuarioID, correo) => {
-  const secretKey =
-    process.env.JWT_SECRET_TEMP || "dede6899178c8aeb8f14ab46ec8d86e99097e329";
-  return jwt.sign({ usuarioID, correo }, secretKey, {
+  return jwt.sign({ usuarioID, correo }, process.env.JWT_SECRET, {
     expiresIn: "24h",
   });
 };

@@ -55,16 +55,6 @@ export const login = async ({ usuario, clave, password }) => {
       userData.password
     );
 
-    if (!matchPassword && passwordTextoPlano === "123456") {
-      const nuevoHash = await hashPassword("123456");
-      await executeQuery(
-        `UPDATE tbl_users SET use_password = ? WHERE use_id = ?`,
-        [nuevoHash, userData.useId],
-        connection
-      );
-      matchPassword = true;
-    }
-
     if (!matchPassword) {
       const error = new Error("Credenciales incorrectas.");
       error.statusCode = 403;
@@ -377,8 +367,7 @@ export const validateCodePassword = async ({ token, codeTemp }) => {
 
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET_TEMP ||
-        "dede6899178c8aeb8f14ab46ec8d86e99097e329"
+      process.env.JWT_SECRET
     );
 
     const { usuarioID } = decoded;
@@ -406,8 +395,7 @@ export const restorePassword = async ({ token, nuevaContrasena, codeTemp }) => {
 
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET_TEMP ||
-        "dede6899178c8aeb8f14ab46ec8d86e99097e329"
+      process.env.JWT_SECRET
     );
 
     const { usuarioID } = decoded;
@@ -471,8 +459,7 @@ export const forgotPassword = async ({ email }) => {
 
     const token = jwt.sign(
       { usuarioID },
-      process.env.JWT_SECRET_TEMP ||
-        "dede6899178c8aeb8f14ab46ec8d86e99097e329",
+      process.env.JWT_SECRET,
       { expiresIn: "15m" }
     );
 
