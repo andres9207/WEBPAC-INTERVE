@@ -3,6 +3,7 @@ import {
   releaseConnection,
   executeQuery,
 } from "../../../common/configs/db.config.js";
+import { prisma } from "../../../common/configs/prismaClient.js";
 
 const SELECT_COLS = `
   SELECT
@@ -125,71 +126,46 @@ export const saveModuleDoc = async ({
   docUpdateBy,
   parentId = null,
 }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
-    await connection.beginTransaction();
+  const data = {
+    doc_type: docType,
+    doc_id_ref: Number(docIdRef),
+    doc_name: nombre,
+    doc_path_storage: docPathStorage,
+    doc_url: url,
+    doc_extension: extension,
+    doc_mime_type: mimeType,
+    doc_size: Number(tamanio),
+    sta_id: Number(estado),
+    doc_parent_id: parentId !== null ? Number(parentId) : null,
+  };
 
-    if (id > 0) {
-      const update = await executeQuery(
-        `UPDATE tbl_documents SET
-          doc_type = ?, doc_id_ref = ?, doc_name = ?, doc_path_storage = ?,
-          doc_url = ?, doc_extension = ?, doc_mime_type = ?, doc_size = ?,
-          sta_id = ?, doc_update_by = ?, doc_parent_id = ?
-         WHERE doc_id = ?`,
-        [
-          docType, docIdRef, nombre, docPathStorage,
-          url, extension, mimeType, tamanio,
-          estado, docUpdateBy, parentId,
-          id,
-        ],
-        connection,
-      );
+  if (id > 0) {
+    const updated = await prisma.tbl_documents.updateMany({
+      where: { doc_id: Number(id) },
+      data: { ...data, doc_update_by: Number(docUpdateBy) },
+    });
 
-      if (update.affectedRows === 0) {
-        const error = new Error("No se encontró el documento para actualizar.");
-        error.status = 400;
-        throw error;
-      }
-
-      await connection.commit();
-      return { message: "Documento actualizado correctamente." };
+    if (updated.count === 0) {
+      const error = new Error("No se encontró el documento para actualizar.");
+      error.status = 400;
+      throw error;
     }
 
-    const insert = await executeQuery(
-      `INSERT INTO tbl_documents (
-        doc_type, doc_id_ref, doc_name, doc_path_storage, doc_url,
-        doc_extension, doc_mime_type, doc_size, sta_id,
-        doc_create_by, doc_update_by, doc_parent_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        docType, docIdRef, nombre, docPathStorage, url,
-        extension, mimeType, tamanio, estado,
-        docCreateBy, docUpdateBy, parentId,
-      ],
-      connection,
-    );
-
-    console.log('[SAVE] insert result:', insert);
-
-    const verify = await executeQuery(
-      `SELECT doc_id, doc_name FROM tbl_documents WHERE doc_id = ?`,
-      [insert.insertId],
-      connection,
-    );
-    console.log('[SAVE] verify:', verify);
-
-    await connection.commit();
-    return {
-      message: "Documento registrado correctamente.",
-      id: insert.insertId,
-    };
-  } catch (err) {
-    if (connection) await connection.rollback();
-    throw err;
-  } finally {
-    releaseConnection(connection);
+    return { message: "Documento actualizado correctamente." };
   }
+
+  const created = await prisma.tbl_documents.create({
+    data: {
+      ...data,
+      doc_create_by: Number(docCreateBy),
+      doc_update_by: Number(docUpdateBy),
+    },
+  });
+
+  return {
+    message: "Documento registrado correctamente.",
+    id: created.doc_id,
+  };
 };
 
 export const deleteModuleDoc = async ({ id, usuAct }) => {

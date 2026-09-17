@@ -4,6 +4,7 @@ import {
   executeQuery,
 } from "../../../common/configs/db.config.js";
 import { hashPassword } from "../../../common/utils/funciones.js";
+import { prisma } from "../../../common/configs/prismaClient.js";
 
 export const getUsersByPermission = async ({ perId }) => {
   const permisos =
@@ -386,29 +387,16 @@ export const deleteUser = async ({ useId, updatedBy }) => {
     throw error;
   }
 
-  let connection = null;
-  try {
-    connection = await getConnection();
-    await connection.beginTransaction();
+  const result = await prisma.tbl_users.updateMany({
+    where: { use_id: Number(useId) },
+    data: { sta_id: 3, use_update_by: Number(updatedBy) },
+  });
 
-    const result = await executeQuery(
-      `UPDATE tbl_users SET sta_id = 3, use_update_by = ? WHERE use_id = ?`,
-      [updatedBy, useId],
-      connection
-    );
-
-    if (result.affectedRows > 0) {
-      await connection.commit();
-      return { message: "Usuario Eliminado Correctamente" };
-    }
-
-    const error = new Error("Usuario no encontrado o no se pudo eliminar");
-    error.status = 404;
-    throw error;
-  } catch (err) {
-    if (connection) await connection.rollback();
-    throw err;
-  } finally {
-    releaseConnection(connection);
+  if (result.count > 0) {
+    return { message: "Usuario Eliminado Correctamente" };
   }
+
+  const error = new Error("Usuario no encontrado o no se pudo eliminar");
+  error.status = 404;
+  throw error;
 };

@@ -4,9 +4,6 @@ import { authRateLimit } from "../../common/middlewares/rateLimit.middleware.js"
 import {
   loginController,
   logoutController,
-  registerUser,
-  resendOtpCode,
-  verifyOtpCode,
   getSettlementController,
   updateAccountController,
   updatePasswordController,
@@ -25,12 +22,6 @@ authRoutes.use(authRateLimit);
 authRoutes.post("/login", loginController);
 
 authRoutes.post("/logout", logoutController);
-
-authRoutes.post("/register", registerUser);
-
-authRoutes.post("/resend-otp", resendOtpCode);
-
-authRoutes.post("/verify-otp", verifyOtpCode);
 
 authRoutes.put("/update_password", updatePasswordController);
 

@@ -1,0 +1,196 @@
+// "prisma-client-js" (no el "prisma-client" nuevo, que genera .ts real):
+// produce JS plano + .d.ts solo para autocompletado del editor, ejecutable
+// tal cual con Node sin ningún paso de compilación/transpilación.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model tbl_documents {
+  doc_id           Int                    @id @default(autoincrement())
+  doc_type         tbl_documents_doc_type
+  doc_id_ref       Int
+  doc_name         String?                @db.VarChar(255)
+  doc_path_storage String                 @db.VarChar(255)
+  doc_url          String                 @db.VarChar(255)
+  doc_extension    String                 @db.VarChar(10)
+  doc_mime_type    String                 @db.VarChar(100)
+  doc_size         Int
+  doc_parent_id    Int?
+  sta_id           Int?                   @default(1)
+  doc_create_by    Int?
+  doc_create_at    DateTime?              @default(now()) @db.Timestamp(0)
+  doc_update_by    Int?
+  doc_update_at    DateTime?              @default(now()) @db.Timestamp(0)
+  tbl_status       tbl_status?            @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_documents_status")
+  // Auto-relación para el árbol de carpetas (doc_parent_id). Sin FK real en la
+  // BD (bdtemplate.sql no la declara), se agrega solo en Prisma para poder
+  // usar `include`/`_count` en las consultas del árbol de documentos.
+  parent           tbl_documents?         @relation("DocumentTree", fields: [doc_parent_id], references: [doc_id], onDelete: NoAction, onUpdate: NoAction)
+  children         tbl_documents[]        @relation("DocumentTree")
+
+  @@index([sta_id], map: "tbl_documents_status")
+  @@index([doc_parent_id])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model tbl_notifications {
+  not_id         Int       @id @default(autoincrement())
+  use_id         Int
+  not_priority   String?   @default("medium") @db.VarChar(50)
+  not_title      String    @db.VarChar(150)
+  not_message    String    @db.Text
+  not_type       String?   @default("info") @db.VarChar(50)
+  not_module     String?   @db.VarChar(100)
+  not_action     String?   @db.VarChar(100)
+  not_data       Json?
+  not_created_at DateTime? @default(now()) @db.Timestamp(0)
+  not_is_read    Boolean?  @default(false)
+  not_read_at    DateTime? @db.Timestamp(0)
+  not_updated_at DateTime? @default(now()) @db.Timestamp(0)
+  tbl_users      tbl_users @relation(fields: [use_id], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_notifications_users")
+
+  @@index([use_id], map: "idx_noti_user")
+}
+
+model tbl_page_permissions {
+  pap_id       Int           @id @default(autoincrement())
+  pro_id       Int?
+  pag_id       Int?
+  tbl_pages    tbl_pages?    @relation(fields: [pag_id], references: [pag_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_page_permissions_pages")
+  tbl_profiles tbl_profiles? @relation(fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_page_permissions_profiles")
+
+  @@unique([pro_id, pag_id], map: "uq_page_permissions_pro_pag")
+  @@index([pag_id], map: "tbl_page_permissions_pages")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model tbl_pages {
+  pag_id               Int                    @id @default(autoincrement())
+  pag_description      String                 @db.VarChar(255)
+  pag_parent           Int?
+  pag_url              String?                @db.VarChar(255)
+  pag_icon             String?                @db.VarChar(255)
+  pag_order            Int?
+  pag_name             String?                @db.VarChar(255)
+  pag_type             Int?
+  tbl_page_permissions tbl_page_permissions[]
+  tbl_permissions      tbl_permissions[]
+}
+
+model tbl_password_resets {
+  par_id         Int       @id @default(autoincrement())
+  use_id         Int
+  par_use_email  String    @db.VarChar(255)
+  par_token      String    @db.VarChar(255)
+  par_code_temp  Int
+  par_created_at DateTime? @default(now()) @db.Timestamp(0)
+  tbl_users      tbl_users @relation(fields: [use_id], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_password_resets_users")
+
+  @@index([use_id], map: "tbl_password_resets_users")
+}
+
+model tbl_permissions {
+  per_id                  Int                       @id @default(autoincrement())
+  per_name                String?                   @db.VarChar(255)
+  pag_id                  Int?
+  per_order               Int?
+  tbl_pages               tbl_pages?                @relation(fields: [pag_id], references: [pag_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_permissions_pages")
+  tbl_profile_permissions tbl_profile_permissions[]
+  tbl_user_permissions    tbl_user_permissions[]
+
+  @@index([pag_id], map: "tbl_permissions_pages")
+}
+
+model tbl_profile_permissions {
+  prp_id          Int             @id @default(autoincrement())
+  per_id          Int
+  pro_id          Int
+  tbl_permissions tbl_permissions @relation(fields: [per_id], references: [per_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_profile_permissions_permissions")
+  tbl_profiles    tbl_profiles    @relation(fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_profile_permissions_profiles")
+
+  @@unique([per_id, pro_id], map: "uq_profile_permissions_per_pro")
+  @@index([pro_id], map: "tbl_profile_permissions_profiles")
+}
+
+model tbl_profiles {
+  pro_id                  Int                       @id @default(autoincrement())
+  pro_name                String?                   @unique(map: "uq_profiles_pro_name") @db.VarChar(255)
+  sta_id                  Int?
+  pro_pages               String?                   @default("") @db.VarChar(255)
+  pro_create_by           Int?
+  pro_create_at           DateTime?                 @default(now()) @db.Timestamp(0)
+  pro_update_by           Int?
+  pro_update_at           DateTime?                 @default(now()) @db.Timestamp(0)
+  tbl_page_permissions    tbl_page_permissions[]
+  tbl_profile_permissions tbl_profile_permissions[]
+  tbl_status              tbl_status?               @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_profiles_status")
+  tbl_users               tbl_users[]
+
+  @@index([sta_id], map: "tbl_profiles_status")
+}
+
+model tbl_status {
+  sta_id        Int                  @id @default(autoincrement())
+  sta_name      String               @db.VarChar(100)
+  sta_scope     tbl_status_sta_scope @default(GENERAL)
+  sta_color     String?              @db.VarChar(20)
+  sta_order     Int?
+  tbl_documents tbl_documents[]
+  tbl_profiles  tbl_profiles[]
+  tbl_users     tbl_users[]
+}
+
+model tbl_user_permissions {
+  usp_id          Int             @id @default(autoincrement())
+  per_id          Int
+  use_id          Int
+  tbl_permissions tbl_permissions @relation(fields: [per_id], references: [per_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_user_permissions_permissions")
+  tbl_users       tbl_users       @relation(fields: [use_id], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_user_permissions_users")
+
+  @@unique([per_id, use_id], map: "uq_user_permissions_per_use")
+  @@index([use_id], map: "tbl_user_permissions_users")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model tbl_users {
+  use_id               Int                    @id @default(autoincrement())
+  use_name             String?                @db.VarChar(255)
+  use_last_name        String?                @db.VarChar(255)
+  use_identification   String?                @db.VarChar(255)
+  use_user             String?                @unique(map: "use_user") @db.VarChar(100)
+  use_email            String?                @unique(map: "use_email") @db.VarChar(255)
+  use_password         String?                @db.VarChar(255)
+  pro_id               Int?
+  sta_id               Int?                   @default(1)
+  use_access           Int?                   @default(1) @db.SmallInt
+  use_change_password  Int?                   @default(1) @db.SmallInt
+  use_pages            String?                @default("") @db.VarChar(255)
+  use_create_by        Int?
+  use_create_at        DateTime?              @default(now()) @db.Timestamp(0)
+  use_update_by        Int?
+  use_update_at        DateTime?              @default(now()) @db.Timestamp(0)
+  tbl_notifications    tbl_notifications[]
+  tbl_password_resets  tbl_password_resets[]
+  tbl_user_permissions tbl_user_permissions[]
+  tbl_profiles         tbl_profiles?          @relation(fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_profiles")
+  tbl_status           tbl_status?            @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_status")
+
+  @@index([pro_id], map: "tbl_users_profiles")
+  @@index([sta_id], map: "tbl_users_status")
+}
+
+enum tbl_documents_doc_type {
+  USERS
+  PROFILES
+  PAGINAS
+  PERMISOS
+}
+
+enum tbl_status_sta_scope {
+  GENERAL
+}

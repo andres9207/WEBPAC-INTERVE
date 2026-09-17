@@ -4,6 +4,7 @@ import {
   executeQuery,
 } from "../../../common/configs/db.config.js";
 import { getIO } from "../../../common/configs/socket.manager.js";
+import { prisma } from "../../../common/configs/prismaClient.js";
 
 export const getProfileWindows = async ({ proId, useId }) => {
   if (!proId && !useId) {
@@ -169,49 +170,32 @@ export const updateProfilePermissions = async ({ permissions, proId }) => {
     throw error;
   }
 
-  let connection = null;
-  try {
-    connection = await getConnection();
-    await connection.beginTransaction();
-
-    const currentPermissions = await executeQuery(
-      `SELECT per_id FROM tbl_profile_permissions WHERE pro_id = ?`,
-      [proId],
-      connection
-    );
+  await prisma.$transaction(async (tx) => {
+    const currentPermissions = await tx.tbl_profile_permissions.findMany({
+      where: { pro_id: Number(proId) },
+      select: { per_id: true },
+    });
 
     const currentSet = new Set(currentPermissions.map((p) => p.per_id));
     const toDelete = Array.from(currentSet).filter(
       (perId) => !permissions.includes(perId)
     );
-    const toInsert = permissions.filter(
-      (perId) => !currentSet.has(perId)
-    );
+    const toInsert = permissions.filter((perId) => !currentSet.has(perId));
 
     if (toDelete.length > 0) {
-      await executeQuery(
-        `DELETE FROM tbl_profile_permissions WHERE pro_id = ? AND per_id IN (${toDelete.join(",")})`,
-        [proId],
-        connection
-      );
+      await tx.tbl_profile_permissions.deleteMany({
+        where: { pro_id: Number(proId), per_id: { in: toDelete } },
+      });
     }
 
-    for (const perId of toInsert) {
-      await executeQuery(
-        `INSERT INTO tbl_profile_permissions (per_id, pro_id) VALUES (?, ?)`,
-        [perId, proId],
-        connection
-      );
+    if (toInsert.length > 0) {
+      await tx.tbl_profile_permissions.createMany({
+        data: toInsert.map((perId) => ({ per_id: perId, pro_id: Number(proId) })),
+      });
     }
+  });
 
-    await connection.commit();
-    return { message: "Permisos actualizados" };
-  } catch (err) {
-    if (connection) await connection.rollback();
-    throw err;
-  } finally {
-    releaseConnection(connection);
-  }
+  return { message: "Permisos actualizados" };
 };
 
 export const updateUserPermissions = async ({ permissions, useId }) => {
@@ -223,72 +207,56 @@ export const updateUserPermissions = async ({ permissions, useId }) => {
     throw error;
   }
 
-  let connection = null;
-  try {
-    connection = await getConnection();
-    await connection.beginTransaction();
-
-    const currentPermissions = await executeQuery(
-      `SELECT per_id FROM tbl_user_permissions WHERE use_id = ?`,
-      [useId],
-      connection
-    );
+  await prisma.$transaction(async (tx) => {
+    const currentPermissions = await tx.tbl_user_permissions.findMany({
+      where: { use_id: Number(useId) },
+      select: { per_id: true },
+    });
 
     const currentSet = new Set(currentPermissions.map((p) => p.per_id));
     const toDelete = Array.from(currentSet).filter(
       (perId) => !permissions.includes(perId)
     );
-    const toInsert = permissions.filter(
-      (perId) => !currentSet.has(perId)
-    );
+    const toInsert = permissions.filter((perId) => !currentSet.has(perId));
 
     if (toDelete.length > 0) {
-      await executeQuery(
-        `DELETE FROM tbl_user_permissions WHERE use_id = ? AND per_id IN (${toDelete.join(",")})`,
-        [useId],
-        connection
-      );
+      await tx.tbl_user_permissions.deleteMany({
+        where: { use_id: Number(useId), per_id: { in: toDelete } },
+      });
     }
 
-    for (const perId of toInsert) {
-      await executeQuery(
-        `INSERT INTO tbl_user_permissions (per_id, use_id) VALUES (?, ?)`,
-        [perId, useId],
-        connection
-      );
+    if (toInsert.length > 0) {
+      await tx.tbl_user_permissions.createMany({
+        data: toInsert.map((perId) => ({ per_id: perId, use_id: Number(useId) })),
+      });
     }
+  });
 
-    await connection.commit();
+  const updatedPermissions = await prisma.tbl_user_permissions.findMany({
+    where: { use_id: Number(useId) },
+    select: { per_id: true },
+  });
 
-    const updatedPermissions = await executeQuery(
-      `SELECT per_id AS perId FROM tbl_user_permissions WHERE use_id = ?`,
-      [useId],
-      connection
-    );
+  const io = getIO();
+  io.emit("update-permissions", {
+    useId,
+    updatedPermissions: updatedPermissions.map((p) => ({ perId: p.per_id })),
+  });
 
-    const io = getIO();
-    io.emit("update-permissions", { useId, updatedPermissions });
-
-    return { message: "Permisos actualizados" };
-  } catch (err) {
-    if (connection) await connection.rollback();
-    throw err;
-  } finally {
-    releaseConnection(connection);
-  }
+  return { message: "Permisos actualizados" };
 };
 
 export const getAllPages = async () => {
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const pages = await prisma.tbl_pages.findMany({
+    select: { pag_id: true, pag_description: true, pag_url: true },
+    orderBy: { pag_order: "asc" },
+  });
 
-    return await executeQuery(
-      `SELECT pag_id AS id, pag_description AS description, pag_url AS url FROM tbl_pages ORDER BY pag_order`,
-      [],
-      connection
-    );
-  } finally {
-    releaseConnection(connection);
-  }
+  // Prisma no soporta alias de columna en `select`; se remapea a mano para
+  // conservar el mismo contrato de respuesta ({ id, description, url }).
+  return pages.map((p) => ({
+    id: p.pag_id,
+    description: p.pag_description,
+    url: p.pag_url,
+  }));
 };

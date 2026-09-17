@@ -27,46 +27,6 @@ export const logoutController = (req, res) => {
   return res.status(200).json({ success: true, message: "Sesión cerrada." });
 };
 
-export const registerUser = async (req, res, next) => {
-  try {
-    const { nombre, telefono, correo, usuario, clave } = req.body;
-    const result = await authService.register({
-      nombre,
-      telefono,
-      correo,
-      usuario,
-      clave,
-    });
-    return res.status(201).json({
-      message: "Usuario registrado correctamente. Verifica tu correo.",
-      ...result,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const resendOtpCode = async (req, res, next) => {
-  try {
-    const { useId } = req.body;
-    await authService.resendOtp({ useId });
-    res
-      .status(200)
-      .json({ success: true, message: "Código reenviado correctamente." });
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const verifyOtpCode = async (req, res, next) => {
-  try {
-    const { useId, codigo } = req.body;
-    await authService.verifyOtp({ useId, codigo });
-    res.status(200).json({ success: true, message: "Verificación exitosa." });
-  } catch (err) {
-    next(err);
-  }
-};
 
 export const getSettlementController = async (req, res, next) => {
   try {

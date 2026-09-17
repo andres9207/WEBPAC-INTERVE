@@ -4,6 +4,7 @@ import {
   executeQuery,
 } from "../../../common/configs/db.config.js";
 import _ from "lodash";
+import { prisma } from "../../../common/configs/prismaClient.js";
 
 export const paginationProfiles = async ({
   useId,
@@ -110,19 +111,17 @@ export const saveProfile = async ({
   previousModules,
   useBy,
 }) => {
-  const wh = proId > 0 ? `AND pro_id != ${proId}` : "";
-  let connection = null;
-  try {
-    connection = await getConnection();
-    await connection.beginTransaction();
+  return prisma.$transaction(async (tx) => {
+    const duplicate = await tx.tbl_profiles.findFirst({
+      where: {
+        pro_name: name,
+        sta_id: { not: 3 },
+        ...(proId > 0 ? { pro_id: { not: Number(proId) } } : {}),
+      },
+      select: { pro_id: true },
+    });
 
-    const resultsQuery = await executeQuery(
-      `SELECT pro_id FROM tbl_profiles WHERE pro_name = ? AND sta_id != 3 ${wh} LIMIT 1`,
-      [name],
-      connection
-    );
-
-    if (resultsQuery.length > 0) {
+    if (duplicate) {
       const error = new Error(
         "Ya existe un Perfil con el nombre ingresado. Verificar"
       );
@@ -131,104 +130,73 @@ export const saveProfile = async ({
     }
 
     if (proId > 0) {
-      const updateProfile = await executeQuery(
-        `UPDATE tbl_profiles SET pro_name = ?, sta_id = ?, pro_update_by = ? WHERE pro_id = ?`,
-        [name, staId, useBy, proId],
-        connection
-      );
+      const updateProfile = await tx.tbl_profiles.updateMany({
+        where: { pro_id: Number(proId) },
+        data: { pro_name: name, sta_id: Number(staId), pro_update_by: Number(useBy) },
+      });
 
-      if (updateProfile.affectedRows > 0) {
-        const moddelete = _.difference(previousModules, modules);
-        const modinsert = _.difference(modules, previousModules);
-
-        if (moddelete.length > 0) {
-          await executeQuery(
-            `DELETE FROM tbl_page_permissions WHERE pro_id = ? AND pag_id IN(${moddelete.join(",")})`,
-            [proId],
-            connection
-          );
-        }
-
-        for (const pagId of modinsert) {
-          await executeQuery(
-            "INSERT INTO tbl_page_permissions(pro_id, pag_id) values(?, ?)",
-            [proId, pagId],
-            connection
-          );
-        }
-
-        await connection.commit();
-        return { message: `Perfil ${name} Modificado Correctamente` };
+      if (updateProfile.count === 0) {
+        const error = new Error("No se encontró el perfil para ser actualizado.");
+        error.status = 400;
+        throw error;
       }
 
-      const error = new Error("No se encontró el perfil para ser actualizado.");
-      error.status = 400;
-      throw error;
-    }
+      const moddelete = _.difference(previousModules, modules);
+      const modinsert = _.difference(modules, previousModules);
 
-    const insertProfile = await executeQuery(
-      `INSERT INTO tbl_profiles (pro_name, sta_id, pro_create_by, pro_update_by) VALUES(?,?,?,?)`,
-      [name, staId, useBy, useBy],
-      connection
-    );
-
-    if (insertProfile.insertId > 0) {
-      for (const pagId of modules) {
-        await executeQuery(
-          "INSERT INTO tbl_page_permissions(pro_id, pag_id) values(?, ?)",
-          [insertProfile.insertId, pagId],
-          connection
-        );
+      if (moddelete.length > 0) {
+        await tx.tbl_page_permissions.deleteMany({
+          where: { pro_id: Number(proId), pag_id: { in: moddelete } },
+        });
       }
 
-      await connection.commit();
-      return {
-        message: `Perfil ${name} Creado Correctamente`,
-        proId: insertProfile.insertId,
-      };
+      if (modinsert.length > 0) {
+        await tx.tbl_page_permissions.createMany({
+          data: modinsert.map((pagId) => ({ pro_id: Number(proId), pag_id: pagId })),
+        });
+      }
+
+      return { message: `Perfil ${name} Modificado Correctamente` };
     }
 
-    const error = new Error("Ocurrió un error al intentar registrar el perfil.");
-    error.status = 500;
-    throw error;
-  } catch (err) {
-    if (connection) await connection.rollback();
-    throw err;
-  } finally {
-    releaseConnection(connection);
-  }
+    const insertProfile = await tx.tbl_profiles.create({
+      data: {
+        pro_name: name,
+        sta_id: Number(staId),
+        pro_create_by: Number(useBy),
+        pro_update_by: Number(useBy),
+      },
+    });
+
+    if (modules.length > 0) {
+      await tx.tbl_page_permissions.createMany({
+        data: modules.map((pagId) => ({ pro_id: insertProfile.pro_id, pag_id: pagId })),
+      });
+    }
+
+    return {
+      message: `Perfil ${name} Creado Correctamente`,
+      proId: insertProfile.pro_id,
+    };
+  });
 };
 
 export const deleteProfile = async ({ proId, updatedBy }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
-    await connection.beginTransaction();
+  // prisma.$transaction hace rollback solo si el callback lanza — reemplaza
+  // el beginTransaction/commit/rollback manual de mysql2.
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.tbl_profiles.updateMany({
+      where: { pro_id: Number(proId) },
+      data: { sta_id: 3, pro_update_by: Number(updatedBy) },
+    });
 
-    const deleteProfile = await executeQuery(
-      "UPDATE tbl_profiles SET sta_id = 3, pro_update_by = ? WHERE pro_id = ?",
-      [updatedBy, proId],
-      connection
-    );
-
-    if (deleteProfile.affectedRows > 0) {
-      await executeQuery(
-        "DELETE FROM tbl_page_permissions WHERE pro_id = ?",
-        [proId],
-        connection
-      );
-
-      await connection.commit();
+    if (result.count > 0) {
+      await tx.tbl_page_permissions.deleteMany({ where: { pro_id: Number(proId) } });
       return { message: "Perfil Eliminado Correctamente" };
     }
 
     const error = new Error("Error al eliminar el perfil.");
     error.statusCode = 400;
     throw error;
-  } catch (err) {
-    if (connection) await connection.rollback();
-    throw err;
-  } finally {
-    releaseConnection(connection);
-  }
+  });
 };
