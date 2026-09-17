@@ -11,6 +11,7 @@ import httpLogger from "./src/common/middlewares/httpLogger.middleware.js";
 import compressionMiddleware from "./src/common/middlewares/compression.middleware.js";
 import cleanRequestData from "./src/common/middlewares/cleanRequestData.middleware.js";
 import errorMiddleware from "./src/common/middlewares/error.middleware.js";
+import { isOriginAllowed } from "./src/common/configs/cors.config.js";
 import mainRoutes from "./src/modules/main.routes.js";
 
 dotenv.config();
@@ -22,17 +23,9 @@ app.use(helmetMiddleware);
 app.use(httpLogger);
 
 // ✅ CORS — antes de todo
-// ✅ CORS — antes de todo
-const allowedOrigins = [
-  'http://localhost',
-  'http://127.0.0.1',
-  'https://pavastecnologia.com',
-  'https://www.pavastecnologia.com'
-];
-
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Bloqueado por políticas de CORS'));
