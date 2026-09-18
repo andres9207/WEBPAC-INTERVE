@@ -1,7 +1,6 @@
 import express from "express";
 import authRoutes from "./auth/auth.routes.js";
 import appRoutes from "./app/general/app.routes.js";
-import mailRoutes from "../common/mails/mails.routes.js";
 import microsoftGraphRoutes from "./microsoftGraph/microsoftGraph.routes.js";
 import masterTemplateRoutes from "./template/template.routes.js";
 import moduleDocsRoutes from "./app/documents/document.routes.js";
@@ -19,7 +18,6 @@ mainRoutes.use("/app/documents", moduleDocsRoutes);
 
 // App
 mainRoutes.use("/auth", authRoutes);
-mainRoutes.use("/mails", mailRoutes);
 mainRoutes.use("/app", appRoutes);
 mainRoutes.use("/app/notifications", notificationsRoutes);
 
