@@ -15,13 +15,6 @@ export const forgotPasswordAPI = (params) =>
   httpCliente.post('/auth/forgot_password', params);
 
 /**
- * Restablecer contraseña con token
- * @param {{ token: string, clave: string }} params
- */
-export const resetPasswordAPI = (params) =>
-  httpCliente.post('/auth/reset_password', params);
-
-/**
  * Cerrar sesión
  */
 export const logoutAPI = () =>
