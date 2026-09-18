@@ -212,6 +212,14 @@ export const restorePassword = async ({ email, nuevaContrasena, codeTemp }) => {
   ]);
 };
 
+// Piso de duración para forgot_password: sin esto, la rama "cuenta existe"
+// (dos escrituras en BD) sigue siendo más lenta que "no existe" (una
+// lectura), y esa diferencia es medible remotamente con suficientes
+// muestras aunque hoy sea de pocos milisegundos.
+const FORGOT_PASSWORD_MIN_MS = 300;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export const forgotPassword = async ({ email }) => {
   if (!email) {
     const error = new Error("El correo es requerido.");
@@ -219,50 +227,64 @@ export const forgotPassword = async ({ email }) => {
     throw error;
   }
 
+  const start = Date.now();
+
   const user = await prisma.tbl_users.findUnique({
     where: { use_email: email },
     select: { use_id: true, use_name: true },
   });
 
-  if (!user) {
-    const error = new Error("No existe una cuenta con ese correo.");
-    error.statusCode = 404;
-    throw error;
+  // Respuesta idéntica exista o no la cuenta: revelar la diferencia (404 vs
+  // 200, o el tiempo de respuesta) permite enumerar qué correos están
+  // registrados. Si no existe, no se genera ni se envía nada.
+  if (user) {
+    const usuarioID = user.use_id;
+    const name = user.use_name;
+    const codeTemp = Math.floor(100000 + Math.random() * 900000);
+
+    const token = jwt.sign(
+      { usuarioID },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    await prisma.tbl_password_resets.deleteMany({ where: { use_id: usuarioID } });
+
+    await prisma.tbl_password_resets.create({
+      data: {
+        use_id: usuarioID,
+        par_use_email: email,
+        par_token: token,
+        par_code_temp: codeTemp,
+      },
+    });
+
+    // No esperar el envío: un SMTP real tarda de milisegundos a varios
+    // segundos según la red, y bloquear la respuesta en eso sería una fuga
+    // de temporización mucho peor que la que se está cerrando acá. Además,
+    // si el envío falla, no debe cambiar la respuesta (antes un fallo de
+    // correo solo daba 500 cuando la cuenta SÍ existía — otra forma de
+    // filtrar su existencia).
+    sendEmail({
+      to: email,
+      subject: "Recuperación de contraseña",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto;">
+          <h2>Hola, ${name}</h2>
+          <p>Recibimos una solicitud para restablecer tu contraseña.</p>
+          <p>Tu código de verificación es:</p>
+          <h1 style="letter-spacing: 8px; color: #5e35b1;">${codeTemp}</h1>
+          <p>Este código expira en <strong>15 minutos</strong>.</p>
+          <p>Si no solicitaste esto, ignora este correo.</p>
+        </div>
+      `,
+    }).catch((err) => {
+      console.error("[forgotPassword] Error al enviar el correo de recuperación:", err.message);
+    });
   }
 
-  const usuarioID = user.use_id;
-  const name = user.use_name;
-  const codeTemp = Math.floor(100000 + Math.random() * 900000);
-
-  const token = jwt.sign(
-    { usuarioID },
-    process.env.JWT_SECRET,
-    { expiresIn: "15m" }
-  );
-
-  await prisma.tbl_password_resets.deleteMany({ where: { use_id: usuarioID } });
-
-  await prisma.tbl_password_resets.create({
-    data: {
-      use_id: usuarioID,
-      par_use_email: email,
-      par_token: token,
-      par_code_temp: codeTemp,
-    },
-  });
-
-  await sendEmail({
-    to: email,
-    subject: "Recuperación de contraseña",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto;">
-        <h2>Hola, ${name}</h2>
-        <p>Recibimos una solicitud para restablecer tu contraseña.</p>
-        <p>Tu código de verificación es:</p>
-        <h1 style="letter-spacing: 8px; color: #5e35b1;">${codeTemp}</h1>
-        <p>Este código expira en <strong>15 minutos</strong>.</p>
-        <p>Si no solicitaste esto, ignora este correo.</p>
-      </div>
-    `,
-  });
+  const elapsed = Date.now() - start;
+  if (elapsed < FORGOT_PASSWORD_MIN_MS) {
+    await sleep(FORGOT_PASSWORD_MIN_MS - elapsed);
+  }
 };
