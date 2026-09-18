@@ -3,7 +3,6 @@ import {
   releaseConnection,
   executeQuery,
 } from "../../../common/configs/db.config.js";
-import jwt from "jsonwebtoken";
 
 export const getMenu = async ({ per, idu }) => {
   let connection = null;
@@ -84,15 +83,11 @@ export const getProfiles = async () => {
   }
 };
 
-export const verifyToken = async (token) => {
-  if (!token) {
-    const error = new Error("Autorización inválida");
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
+// El JWT y el estado activo (sta_id = 1) ya los verificó el middleware
+// verifyToken (authjwt.middleware.js) antes de llegar aquí — esa es la única
+// verificación de sesión del sistema. Esta función solo arma la respuesta a
+// partir del useId ya autenticado, sin repetir el chequeo con otro criterio.
+export const getSessionInfo = async ({ useId }) => {
   let connection = null;
   try {
     connection = await getConnection();
@@ -108,8 +103,8 @@ export const verifyToken = async (token) => {
          p.pro_name AS profileName
        FROM tbl_users u
        LEFT JOIN tbl_profiles p ON u.pro_id = p.pro_id
-       WHERE u.use_id = ? AND u.use_email = ? AND u.sta_id IN (1,4) LIMIT 1`,
-      [decoded.useId, decoded.email],
+       WHERE u.use_id = ? LIMIT 1`,
+      [useId],
       connection
     );
 
@@ -128,7 +123,7 @@ export const verifyToken = async (token) => {
 
     const rowsPermisos = await executeQuery(
       `SELECT per_id AS perId FROM tbl_user_permissions WHERE use_id = ?`,
-      [decoded.useId],
+      [useId],
       connection
     );
     const permissions = rowsPermisos.map((row) => row.perId);
@@ -140,7 +135,6 @@ export const verifyToken = async (token) => {
       email: userData.email,
       proId: userData.proId,
       profileName: userData.profileName,
-      changePassword: decoded.changePassword,
       permissions,
     };
   } finally {

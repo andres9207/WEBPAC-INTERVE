@@ -21,8 +21,10 @@ export const getProfilesController = async (_req, res, next) => {
 
 export const verifyTokenController = async (req, res, next) => {
   try {
-    const token = req.cookies.token;
-    const result = await appService.verifyToken(token);
+    // El middleware verifyToken ya validó el JWT y el estado activo del
+    // usuario (sta_id = 1); req.user es de fiar, no se vuelve a verificar.
+    const { useId } = req.user;
+    const result = await appService.getSessionInfo({ useId });
     return res.status(200).json(result);
   } catch (err) {
     next(err);
