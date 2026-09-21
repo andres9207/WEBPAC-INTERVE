@@ -167,12 +167,24 @@ export const getProfilePermissions = async ({ pagIds, proId }) => {
   }
 };
 
-export const updateProfilePermissions = async ({ permissions, proId }) => {
+export const updateProfilePermissions = async ({ permissions, proId, actingProId }) => {
   if (!permissions || !proId) {
     const error = new Error(
       "Los permisos (permissions) y el perfil (proId) son obligatorios"
     );
     error.status = 400;
+    throw error;
+  }
+
+  // Impide la autoconcesión: quien edita los permisos de un perfil no puede
+  // ser alguien perteneciente a ESE MISMO perfil (se estaría concediendo
+  // permisos a sí mismo indirectamente, junto con todo el resto de usuarios
+  // de ese perfil). Sin excepción para ningún perfil, Superadmin incluido —
+  // no hay ningún caso especial de código que lo exima (ver
+  // requirePermission.middleware.js).
+  if (Number(proId) === Number(actingProId)) {
+    const error = new Error("No puedes modificar los permisos de tu propio perfil.");
+    error.status = 403;
     throw error;
   }
 
@@ -204,12 +216,21 @@ export const updateProfilePermissions = async ({ permissions, proId }) => {
   return { message: "Permisos actualizados" };
 };
 
-export const updateUserPermissions = async ({ permissions, useId }) => {
+export const updateUserPermissions = async ({ permissions, useId, actingUseId }) => {
   if (!permissions || !useId) {
     const error = new Error(
       "Los permisos (permissions) y el usuario (useId) son obligatorios"
     );
     error.status = 400;
+    throw error;
+  }
+
+  // Impide la autoconcesión: nadie puede modificar sus propios permisos,
+  // ni siquiera un usuario del perfil Superadmin — sin excepción de código
+  // para ningún useId (ver requirePermission.middleware.js).
+  if (Number(useId) === Number(actingUseId)) {
+    const error = new Error("No puedes modificar tus propios permisos.");
+    error.status = 403;
     throw error;
   }
 

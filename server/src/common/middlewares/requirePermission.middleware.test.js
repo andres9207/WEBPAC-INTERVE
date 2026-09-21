@@ -24,16 +24,33 @@ beforeEach(() => {
 });
 
 describe("requirePermission middleware", () => {
-  it("deja pasar al superadmin (useId===1) sin consultar la BD", async () => {
-    const req = { user: { useId: 1 }, body: {} };
+  it("useId=1 (perfil Superadmin) no tiene ningún bypass de código: se le deniega si su perfil no tiene el permiso", async () => {
+    prismaMock.tbl_user_permissions.findFirst.mockResolvedValue(null);
+    prismaMock.tbl_profile_permissions.findFirst.mockResolvedValue(null);
+    const req = { user: { useId: 1, proId: 1 }, body: {} };
     const res = buildRes();
     const next = jest.fn();
 
     await requirePermission(999)(req, res, next);
 
+    expect(prismaMock.tbl_profile_permissions.findFirst).toHaveBeenCalledWith({
+      where: { pro_id: 1, per_id: 999 },
+      select: { prp_id: true },
+    });
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("useId=1 pasa por la misma resolución que cualquier otro usuario: se le concede si su perfil tiene el permiso", async () => {
+    prismaMock.tbl_user_permissions.findFirst.mockResolvedValue(null);
+    prismaMock.tbl_profile_permissions.findFirst.mockResolvedValue({ prp_id: 1 });
+    const req = { user: { useId: 1, proId: 1 }, body: {} };
+    const res = buildRes();
+    const next = jest.fn();
+
+    await requirePermission(5)(req, res, next);
+
     expect(next).toHaveBeenCalledTimes(1);
-    expect(prismaMock.tbl_user_permissions.findFirst).not.toHaveBeenCalled();
-    expect(prismaMock.tbl_profile_permissions.findFirst).not.toHaveBeenCalled();
   });
 
   it("responde 401 si no hay req.user (verifyToken no corrió antes)", async () => {

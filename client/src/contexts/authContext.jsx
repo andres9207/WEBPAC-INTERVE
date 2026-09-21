@@ -106,7 +106,11 @@ const isAuthenticated = useMemo(
     (perId) => {
       if (perId === null || perId === undefined) return true;
       if (!user) return false;
-      if (user.useId === 1) return true; // superadmin     
+      // Sin caso especial para ningún useId: "superadmin" es solo un perfil
+      // (Superadmin, pro_id=1) al que se le otorgan todos los permisos que
+      // existen (ver server/prisma/seed.js) — su acceso total sale de los
+      // mismos datos que el de cualquier otro usuario, no de una excepción
+      // de código atada a un id fijo.
       return permissions.includes(perId);
     },
     [permissions, user]

@@ -1,15 +1,17 @@
 import { hasEffectivePermission } from "../services/effectivePermissions.service.js";
 
-// Mismo criterio que el bypass del cliente (authContext.jsx: `useId === 1`
-// se trata como superadmin). Sin este bypass, el superadmin quedaría
-// bloqueado por el servidor en acciones que el cliente ya le muestra como
-// disponibles: el perfil Superadmin sembrado no tiene por qué tener asignado
-// cada permiso puntual que exista.
-const SUPERADMIN_USE_ID = 1;
-
 /**
  * Middleware de autorización (paso 2 del pipeline, ver ENDPOINT_STANDARD.md).
  * Debe montarse siempre después de `verifyToken` (necesita `req.user`).
+ *
+ * Sin caso especial para ningún useId: "Superadmin" es solo un perfil
+ * (pro_id=1) al que el seed le otorga todos los permisos que existen (ver
+ * server/prisma/seed.js) — su acceso total sale de los mismos datos y la
+ * misma resolución que la de cualquier otro usuario, nunca de una excepción
+ * de código atada a un id fijo. Si se agrega un permiso nuevo, hay que
+ * otorgárselo también al perfil Superadmin en el seed — de lo contrario
+ * quedaría bloqueado en esa acción, igual que cualquier otro perfil al que
+ * no se le asigne.
  *
  * @param {number | ((req: import('express').Request) => number)} perIdOrResolver
  *   Un per_id fijo, o una función que lo calcule a partir del request —
@@ -18,10 +20,6 @@ const SUPERADMIN_USE_ID = 1;
  */
 export const requirePermission = (perIdOrResolver) => async (req, res, next) => {
   try {
-    if (req.user?.useId === SUPERADMIN_USE_ID) {
-      return next();
-    }
-
     const { useId, proId } = req.user || {};
 
     if (!useId) {
