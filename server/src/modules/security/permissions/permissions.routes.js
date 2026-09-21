@@ -14,27 +14,34 @@ import {
 const permissionsRoutes = express.Router();
 
 // RUTAS PRIVADAS
+// Lectura de asignaciones de permisos/páginas de OTRO perfil o usuario
+// (proId/useId arbitrario por query/body) — requiere permiso de ver, no solo
+// estar logueado (ver SECURITY.md).
 permissionsRoutes.get(
   "/get_windows_profile",
   verifyToken,
+  requirePermission(PERMISSIONS.security.permissions.view),
   getProfileWindowsController
 );
 
 permissionsRoutes.get(
   "/get_all_pages",
   verifyToken,
+  requirePermission(PERMISSIONS.security.permissions.view),
   getAllPagesController
 );
 
 permissionsRoutes.post(
   "/get_permissions_user_window",
   verifyToken,
+  requirePermission(PERMISSIONS.security.permissions.view),
   getUserPermissionsController
 );
 
 permissionsRoutes.post(
   "/get_permissions_profile",
   verifyToken,
+  requirePermission(PERMISSIONS.security.permissions.view),
   getProfilePermissionsController
 );
 

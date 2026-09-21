@@ -11,10 +11,16 @@ import {
 
 const masterTemplateRoutes = express.Router();
 
-masterTemplateRoutes.get("/get_templates", verifyToken, getMasterTemplate);
+masterTemplateRoutes.get(
+  "/get_templates",
+  verifyToken,
+  requirePermission(PERMISSIONS.templates.view),
+  getMasterTemplate
+);
 masterTemplateRoutes.post(
   "/pagination_templates",
   verifyToken,
+  requirePermission(PERMISSIONS.templates.view),
   paginationMasterTemplate
 );
 masterTemplateRoutes.post(

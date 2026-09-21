@@ -13,10 +13,25 @@ import {
 
 const usersRoutes = express.Router();
 
-usersRoutes.get("/get_users", verifyToken, getUsers);
-usersRoutes.post("/get_users_permision", verifyToken, getUsersByPermision);
-usersRoutes.post("/list_users", verifyToken, paginationUsersController);
-usersRoutes.get("/count_users", verifyToken, countUsersController);
+usersRoutes.get("/get_users", verifyToken, requirePermission(PERMISSIONS.security.users.view), getUsers);
+usersRoutes.post(
+  "/get_users_permision",
+  verifyToken,
+  requirePermission(PERMISSIONS.security.users.view),
+  getUsersByPermision
+);
+usersRoutes.post(
+  "/list_users",
+  verifyToken,
+  requirePermission(PERMISSIONS.security.users.view),
+  paginationUsersController
+);
+usersRoutes.get(
+  "/count_users",
+  verifyToken,
+  requirePermission(PERMISSIONS.security.users.view),
+  countUsersController
+);
 
 // save_user sirve tanto crear (sin useId) como editar (useId>0): el permiso
 // requerido depende del body, no es un valor fijo por ruta.

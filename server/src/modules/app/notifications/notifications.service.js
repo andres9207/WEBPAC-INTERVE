@@ -31,11 +31,13 @@ export const markAllAsRead = async ({ userId }) => {
   });
 };
 
-export const markAsRead = async ({ notificationId }) => {
+export const markAsRead = async ({ notificationId, userId }) => {
   // updateMany (no update): igual que el UPDATE original de mysql2, no lanza
-  // error si el ID no existe, solo no afecta ninguna fila.
+  // error si el ID no existe, solo no afecta ninguna fila. El filtro por
+  // use_id evita marcar como leída una notificación de otro usuario (antes
+  // solo filtraba por not_id, sin validar dueño — ver SECURITY.md).
   await prisma.tbl_notifications.updateMany({
-    where: { not_id: Number(notificationId) },
+    where: { not_id: Number(notificationId), use_id: Number(userId) },
     data: { not_is_read: true, not_read_at: new Date(), not_updated_at: new Date() },
   });
 };

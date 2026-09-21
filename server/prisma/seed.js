@@ -33,6 +33,20 @@ const PERMISSIONS_NO_PAGE = [
   { per_id: 10, per_name: "Gestionar plantillas", pag_id: null, per_order: 1 },
 ];
 
+// Permisos de "ver" (database/migrations/0003_seed_view_permissions.sql):
+// a diferencia de los de arriba (gestión, solo Superadmin), estos se
+// otorgan a TODOS los perfiles y usuarios existentes más abajo — de lo
+// contrario cualquier cuenta real (no superadmin) quedaría bloqueada con 403
+// al abrir listados que hoy podía ver sin ningún permiso especial.
+const VIEW_PERMISSIONS = [
+  { per_id: 11, per_name: "Ver perfiles", pag_id: 3, per_order: 5 },
+  { per_id: 12, per_name: "Ver usuarios", pag_id: 4, per_order: 5 },
+  { per_id: 13, per_name: "Ver permisos", pag_id: null, per_order: 1 },
+  { per_id: 14, per_name: "Ver documentos", pag_id: null, per_order: 1 },
+  { per_id: 15, per_name: "Ver plantillas", pag_id: null, per_order: 1 },
+  { per_id: 16, per_name: "Ver integración Microsoft Graph", pag_id: null, per_order: 1 },
+];
+
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). El
 // bypass de hasPermission() para useId===1 es solo del lado del cliente —
 // get_menu (app.service.js) no lo conoce, así que sin estas filas el
@@ -49,7 +63,7 @@ async function main() {
   }
   console.log(`tbl_pages: ${PAGES.length} páginas sembradas/actualizadas.`);
 
-  const allPermissions = [...PERMISSIONS, ...PERMISSIONS_NO_PAGE];
+  const allPermissions = [...PERMISSIONS, ...PERMISSIONS_NO_PAGE, ...VIEW_PERMISSIONS];
   for (const permission of allPermissions) {
     await prisma.tbl_permissions.upsert({
       where: { per_id: permission.per_id },
@@ -67,14 +81,45 @@ async function main() {
     });
   }
 
-  for (const permission of allPermissions) {
+  const superadminOnlyPermissions = [...PERMISSIONS, ...PERMISSIONS_NO_PAGE];
+  for (const permission of superadminOnlyPermissions) {
     await prisma.tbl_profile_permissions.upsert({
       where: { per_id_pro_id: { per_id: permission.per_id, pro_id: SUPERADMIN_PROFILE_ID } },
       update: {},
       create: { per_id: permission.per_id, pro_id: SUPERADMIN_PROFILE_ID },
     });
   }
-  console.log(`Perfil ${SUPERADMIN_PROFILE_ID}: páginas y permisos asignados.`);
+  console.log(`Perfil ${SUPERADMIN_PROFILE_ID}: páginas y permisos de gestión asignados.`);
+
+  // Permisos de "ver": a todos los perfiles existentes (plantilla para
+  // usuarios que se creen de ahora en adelante)...
+  const allProfiles = await prisma.tbl_profiles.findMany({ select: { pro_id: true } });
+  for (const profile of allProfiles) {
+    for (const permission of VIEW_PERMISSIONS) {
+      await prisma.tbl_profile_permissions.upsert({
+        where: { per_id_pro_id: { per_id: permission.per_id, pro_id: profile.pro_id } },
+        update: {},
+        create: { per_id: permission.per_id, pro_id: profile.pro_id },
+      });
+    }
+  }
+  console.log(`${allProfiles.length} perfil(es): permisos de ver asignados como plantilla.`);
+
+  // ...y a todos los usuarios YA EXISTENTES (tbl_profile_permissions no se
+  // copia retroactivamente a tbl_user_permissions, solo al crear un usuario
+  // nuevo — sin este paso, cualquier cuenta real ya creada quedaría con 403
+  // en listados que hoy podía ver sin problema).
+  const allUsers = await prisma.tbl_users.findMany({ select: { use_id: true } });
+  for (const user of allUsers) {
+    for (const permission of VIEW_PERMISSIONS) {
+      await prisma.tbl_user_permissions.upsert({
+        where: { per_id_use_id: { per_id: permission.per_id, use_id: user.use_id } },
+        update: {},
+        create: { per_id: permission.per_id, use_id: user.use_id },
+      });
+    }
+  }
+  console.log(`${allUsers.length} usuario(s) existente(s): permisos de ver otorgados directamente.`);
 }
 
 main()

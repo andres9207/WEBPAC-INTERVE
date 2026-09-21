@@ -12,18 +12,28 @@ export const PERMISSIONS = {
       edit: 2,
       delete: 3,
       assignPermission: 4,
+      view: 11, // listados/lectura: pagination_profiles, get_modules
     },
     users: {
       create: 5,
       edit: 6,
       delete: 7,
       assignPermission: 8,
+      view: 12, // listados/lectura: get_users, get_users_permision, list_users, count_users
+    },
+    permissions: {
+      view: 13, // lectura de asignaciones ajenas: get_windows_profile, get_all_pages, get_permissions_user_window, get_permissions_profile
     },
   },
   documents: {
     manage: 9, // crear/editar/eliminar documentos (save + delete de document.routes.js)
+    view: 14, // listar/paginar documentos
   },
   templates: {
     manage: 10, // crear/editar/eliminar plantillas (save_template + delete_template)
+    view: 15, // listar/paginar plantillas
+  },
+  microsoftGraph: {
+    view: 16, // integración con Microsoft Graph (SharePoint/M365) — antes sin verifyToken
   },
 };

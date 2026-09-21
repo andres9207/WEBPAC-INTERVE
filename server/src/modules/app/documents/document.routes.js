@@ -13,7 +13,12 @@ import {
 const moduleDocsRoutes = express.Router();
 
 // Paginación de documentos por módulo
-moduleDocsRoutes.post("/pagination", verifyToken, paginationModuleDocs);
+moduleDocsRoutes.post(
+  "/pagination",
+  verifyToken,
+  requirePermission(PERMISSIONS.documents.view),
+  paginationModuleDocs
+);
 
 // Guardar (crear/editar) documento o carpeta
 moduleDocsRoutes.post(

@@ -12,13 +12,22 @@ import {
 const profilesRoutes = express.Router();
 
 // RUTAS PRIVADAS
+// Bug preexistente corregido: el path estaba registrado como "/ " (un
+// espacio), por lo que /pagination_profiles (la ruta real que llama el
+// cliente, ver client/src/api/requests/profilesApi.js) devolvía 404 en vivo.
 profilesRoutes.post(
-  "/ ",
+  "/pagination_profiles",
   verifyToken,
+  requirePermission(PERMISSIONS.security.profiles.view),
   paginationProfilesController
 );
 
-profilesRoutes.get("/get_modules", verifyToken, getModulesController);
+profilesRoutes.get(
+  "/get_modules",
+  verifyToken,
+  requirePermission(PERMISSIONS.security.profiles.view),
+  getModulesController
+);
 
 // save_profile sirve tanto crear (proId=0) como editar (proId>0): el permiso
 // requerido depende del body, no es un valor fijo por ruta.
