@@ -3,6 +3,7 @@ import {
   releaseConnection,
   executeQuery,
 } from "../../../common/configs/db.config.js";
+import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 
 export const getMenu = async ({ per, idu }) => {
   let connection = null;
@@ -121,12 +122,9 @@ export const getSessionInfo = async ({ useId }) => {
       .join(" ")
       .trim();
 
-    const rowsPermisos = await executeQuery(
-      `SELECT per_id AS perId FROM tbl_user_permissions WHERE use_id = ?`,
-      [useId],
-      connection
-    );
-    const permissions = rowsPermisos.map((row) => row.perId);
+    // Unión de los permisos del perfil y las excepciones individuales —
+    // ver effectivePermissions.service.js.
+    const permissions = await getEffectivePermissionIds({ useId, proId: userData.proId });
 
     return {
       useId: userData.useId,

@@ -5,6 +5,7 @@ process.env.JWT_SECRET = "test-secret";
 const prismaMock = {
   tbl_users: { findFirst: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
   tbl_user_permissions: { findMany: jest.fn() },
+  tbl_profile_permissions: { findMany: jest.fn() },
   tbl_password_resets: { findFirst: jest.fn(), deleteMany: jest.fn(), create: jest.fn() },
   $transaction: jest.fn((ops) => Promise.all(ops)),
 };
@@ -65,14 +66,33 @@ describe("login", () => {
       tbl_profiles: { pro_name: "Superadmin" },
     });
     mockComparePassword.mockResolvedValue(true);
-    prismaMock.tbl_user_permissions.findMany.mockResolvedValue([{ per_id: 5 }]);
+    prismaMock.tbl_profile_permissions.findMany.mockResolvedValue([{ per_id: 5 }]);
+    prismaMock.tbl_user_permissions.findMany.mockResolvedValue([{ per_id: 9 }]);
 
     const result = await authService.login({ usuario: "admin", password: "buena" });
 
     expect(result.useId).toBe(1);
     expect(result.profileName).toBe("Superadmin");
-    expect(result.permissions).toEqual([5]);
+    // Unión de perfil (5) + excepción individual (9), sin duplicados.
+    expect(result.permissions).toEqual([5, 9]);
     expect(typeof result.token).toBe("string");
+  });
+
+  it("no duplica un permiso otorgado tanto por el perfil como individualmente", async () => {
+    prismaMock.tbl_users.findFirst.mockResolvedValue({
+      use_id: 1,
+      use_user: "admin",
+      use_password: "hash",
+      pro_id: 1,
+      tbl_profiles: { pro_name: "Superadmin" },
+    });
+    mockComparePassword.mockResolvedValue(true);
+    prismaMock.tbl_profile_permissions.findMany.mockResolvedValue([{ per_id: 5 }]);
+    prismaMock.tbl_user_permissions.findMany.mockResolvedValue([{ per_id: 5 }]);
+
+    const result = await authService.login({ usuario: "admin", password: "buena" });
+
+    expect(result.permissions).toEqual([5]);
   });
 });
 

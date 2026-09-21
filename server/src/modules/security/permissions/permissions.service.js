@@ -5,6 +5,7 @@ import {
 } from "../../../common/configs/db.config.js";
 import { getIO } from "../../../common/configs/socket.manager.js";
 import { prisma } from "../../../common/configs/prismaClient.js";
+import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 
 export const getProfileWindows = async ({ proId, useId }) => {
   if (!proId && !useId) {
@@ -114,17 +115,22 @@ export const getUserPermissions = async ({ pagIds, useId }) => {
 
     const placeholders = pagIds.map(() => "?").join(",");
 
+    // "assigned" refleja el permiso EFECTIVO (unión perfil + individual),
+    // no solo tbl_user_permissions — de lo contrario esta pantalla mostraría
+    // como "no asignado" un permiso que el usuario sí tiene vía su perfil.
     return await executeQuery(
       `SELECT
          p.pag_id AS pagId,
          p.per_id AS perId,
          p.per_name AS name,
-         CASE WHEN pu.use_id IS NOT NULL THEN 1 ELSE 0 END AS assigned
+         CASE WHEN pu.use_id IS NOT NULL OR pp.pro_id IS NOT NULL THEN 1 ELSE 0 END AS assigned
        FROM tbl_permissions p
        LEFT JOIN tbl_user_permissions pu ON p.per_id = pu.per_id AND pu.use_id = ?
+       LEFT JOIN tbl_users u ON u.use_id = ?
+       LEFT JOIN tbl_profile_permissions pp ON pp.per_id = p.per_id AND pp.pro_id = u.pro_id
        WHERE p.pag_id IN (${placeholders})
        ORDER BY p.per_order ASC`,
-      [useId, ...pagIds],
+      [useId, useId, ...pagIds],
       connection
     );
   } finally {
@@ -207,6 +213,32 @@ export const updateUserPermissions = async ({ permissions, useId }) => {
     throw error;
   }
 
+  // tbl_user_permissions guarda solo las EXCEPCIONES individuales del
+  // usuario, no su set completo de permisos (ese es el perfil + estas
+  // excepciones, ver effectivePermissions.service.js). El drawer del cliente
+  // sigue enviando el set completo deseado (incluye lo heredado del perfil,
+  // que llega marcado como "assigned"), así que hay que descartar de ahí lo
+  // que el perfil ya otorga — guardarlo igual sería una excepción redundante
+  // que sobrevive aunque luego se le quite el permiso al perfil.
+  //
+  // Limitación conocida y aceptada: como el permiso efectivo es una unión
+  // (nunca una resta), desde esta pantalla no se puede revocarle a un
+  // usuario puntual un permiso que su perfil ya le da — eso solo se quita
+  // editando el perfil (afecta a todos sus usuarios) o cambiándolo de perfil.
+  const user = await prisma.tbl_users.findUnique({
+    where: { use_id: Number(useId) },
+    select: { pro_id: true },
+  });
+
+  const profilePermissions = user?.pro_id
+    ? await prisma.tbl_profile_permissions.findMany({
+        where: { pro_id: user.pro_id },
+        select: { per_id: true },
+      })
+    : [];
+  const profileGrantedSet = new Set(profilePermissions.map((p) => p.per_id));
+  const desiredIndividual = permissions.filter((perId) => !profileGrantedSet.has(perId));
+
   await prisma.$transaction(async (tx) => {
     const currentPermissions = await tx.tbl_user_permissions.findMany({
       where: { use_id: Number(useId) },
@@ -215,9 +247,9 @@ export const updateUserPermissions = async ({ permissions, useId }) => {
 
     const currentSet = new Set(currentPermissions.map((p) => p.per_id));
     const toDelete = Array.from(currentSet).filter(
-      (perId) => !permissions.includes(perId)
+      (perId) => !desiredIndividual.includes(perId)
     );
-    const toInsert = permissions.filter((perId) => !currentSet.has(perId));
+    const toInsert = desiredIndividual.filter((perId) => !currentSet.has(perId));
 
     if (toDelete.length > 0) {
       await tx.tbl_user_permissions.deleteMany({
@@ -232,15 +264,14 @@ export const updateUserPermissions = async ({ permissions, useId }) => {
     }
   });
 
-  const updatedPermissions = await prisma.tbl_user_permissions.findMany({
-    where: { use_id: Number(useId) },
-    select: { per_id: true },
-  });
+  // Efectivo (unión), no solo las excepciones individuales que se acaban de
+  // escribir — es lo que realmente representa "los permisos del usuario".
+  const updatedPermissions = await getEffectivePermissionIds({ useId, proId: user?.pro_id });
 
   const io = getIO();
   io.emit("update-permissions", {
     useId,
-    updatedPermissions: updatedPermissions.map((p) => ({ perId: p.per_id })),
+    updatedPermissions: updatedPermissions.map((perId) => ({ perId })),
   });
 
   return { message: "Permisos actualizados" };

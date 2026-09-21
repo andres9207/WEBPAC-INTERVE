@@ -5,6 +5,7 @@ import {
 } from "../../common/utils/funciones.js";
 import { sendEmail } from "../../common/services/mailerService.js";
 import { prisma } from "../../common/configs/prismaClient.js";
+import { getEffectivePermissionIds } from "../../common/services/effectivePermissions.service.js";
 
 export const login = async ({ usuario, clave, password }) => {
   const passwordTextoPlano = clave || password;
@@ -49,12 +50,12 @@ export const login = async ({ usuario, clave, password }) => {
     throw error;
   }
 
-  const rowsPermisos = await prisma.tbl_user_permissions.findMany({
-    where: { use_id: userData.use_id },
-    select: { per_id: true },
+  // Unión de los permisos del perfil (plantilla) y las excepciones
+  // individuales del usuario — ver effectivePermissions.service.js.
+  const permissions = await getEffectivePermissionIds({
+    useId: userData.use_id,
+    proId: userData.pro_id,
   });
-
-  const permissions = rowsPermisos.map((row) => row.per_id);
 
   const token = jwt.sign(
     {

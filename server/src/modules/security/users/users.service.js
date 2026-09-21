@@ -358,13 +358,12 @@ export const saveUser = async ({
       throw error;
     }
 
-    await executeQuery(
-      `INSERT INTO tbl_user_permissions (per_id, use_id)
-       SELECT per_id, ? FROM tbl_profile_permissions WHERE pro_id = ?`,
-      [newUserId.insertId, proId],
-      connection
-    );
-
+    // Ya no se copian los permisos del perfil a tbl_user_permissions al
+    // crear el usuario: el permiso efectivo se resuelve en cada petición
+    // como unión de perfil + excepciones individuales (ver
+    // common/services/effectivePermissions.service.js). Copiarlos aquí
+    // hacía que un cambio posterior a los permisos del perfil nunca se
+    // propagara a los usuarios ya creados — ver SECURITY.md.
     await connection.commit();
     return {
       message: "Usuario Creado Correctamente",

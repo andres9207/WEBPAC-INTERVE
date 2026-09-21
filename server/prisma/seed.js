@@ -35,9 +35,13 @@ const PERMISSIONS_NO_PAGE = [
 
 // Permisos de "ver" (database/migrations/0003_seed_view_permissions.sql):
 // a diferencia de los de arriba (gestión, solo Superadmin), estos se
-// otorgan a TODOS los perfiles y usuarios existentes más abajo — de lo
-// contrario cualquier cuenta real (no superadmin) quedaría bloqueada con 403
-// al abrir listados que hoy podía ver sin ningún permiso especial.
+// otorgan a TODOS los perfiles existentes más abajo — de lo contrario
+// cualquier cuenta real (no superadmin) quedaría bloqueada con 403 al abrir
+// listados que hoy podía ver sin ningún permiso especial. Basta con
+// asignarlos al PERFIL: desde que el permiso efectivo se resuelve por
+// consulta como unión de perfil + excepciones individuales (ver
+// common/services/effectivePermissions.service.js), ya no hace falta además
+// copiarlos a mano a cada usuario existente — se propagan solos.
 const VIEW_PERMISSIONS = [
   { per_id: 11, per_name: "Ver perfiles", pag_id: 3, per_order: 5 },
   { per_id: 12, per_name: "Ver usuarios", pag_id: 4, per_order: 5 },
@@ -91,8 +95,10 @@ async function main() {
   }
   console.log(`Perfil ${SUPERADMIN_PROFILE_ID}: páginas y permisos de gestión asignados.`);
 
-  // Permisos de "ver": a todos los perfiles existentes (plantilla para
-  // usuarios que se creen de ahora en adelante)...
+  // Permisos de "ver": a todos los perfiles existentes. El permiso efectivo
+  // se resuelve en cada petición (unión perfil + excepciones individuales),
+  // así que esto solo alcanza para cubrir también a los usuarios YA
+  // creados de esos perfiles — no hace falta un paso aparte por usuario.
   const allProfiles = await prisma.tbl_profiles.findMany({ select: { pro_id: true } });
   for (const profile of allProfiles) {
     for (const permission of VIEW_PERMISSIONS) {
@@ -103,23 +109,7 @@ async function main() {
       });
     }
   }
-  console.log(`${allProfiles.length} perfil(es): permisos de ver asignados como plantilla.`);
-
-  // ...y a todos los usuarios YA EXISTENTES (tbl_profile_permissions no se
-  // copia retroactivamente a tbl_user_permissions, solo al crear un usuario
-  // nuevo — sin este paso, cualquier cuenta real ya creada quedaría con 403
-  // en listados que hoy podía ver sin problema).
-  const allUsers = await prisma.tbl_users.findMany({ select: { use_id: true } });
-  for (const user of allUsers) {
-    for (const permission of VIEW_PERMISSIONS) {
-      await prisma.tbl_user_permissions.upsert({
-        where: { per_id_use_id: { per_id: permission.per_id, use_id: user.use_id } },
-        update: {},
-        create: { per_id: permission.per_id, use_id: user.use_id },
-      });
-    }
-  }
-  console.log(`${allUsers.length} usuario(s) existente(s): permisos de ver otorgados directamente.`);
+  console.log(`${allProfiles.length} perfil(es): permisos de ver asignados (aplican a todos sus usuarios de inmediato).`);
 }
 
 main()
