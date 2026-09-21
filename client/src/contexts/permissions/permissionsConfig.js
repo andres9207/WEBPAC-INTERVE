@@ -32,4 +32,10 @@ export const config = {
       assignPermission: 8,  // Asignar permisos al usuario
     },
   },
+  documents: {
+    manage: 9,   // Gestionar documentos (crear/editar/eliminar)
+  },
+  templates: {
+    manage: 10,  // Gestionar plantillas (crear/editar/eliminar)
+  },
 };

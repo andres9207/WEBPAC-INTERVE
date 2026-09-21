@@ -9,6 +9,7 @@
     "start": "node server.js",
     "build": "prisma generate",
     "postinstall": "prisma generate",
+    "db:seed": "prisma db seed",
     "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:stop": "pm2 stop ecosystem.config.cjs",
     "pm2:restart": "pm2 restart ecosystem.config.cjs",
