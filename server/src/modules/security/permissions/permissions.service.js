@@ -289,8 +289,13 @@ export const updateUserPermissions = async ({ permissions, useId, actingUseId })
   // escribir — es lo que realmente representa "los permisos del usuario".
   const updatedPermissions = await getEffectivePermissionIds({ useId, proId: user?.pro_id });
 
+  // Dirigido a la sala del usuario afectado (misma convención que
+  // insertNotification en notifications.service.js), no a todos los
+  // clientes conectados — antes cualquier sesión abierta en cualquier
+  // navegador recibía el evento de CUALQUIER usuario cuyos permisos
+  // cambiaran (ver SECURITY.md).
   const io = getIO();
-  io.emit("update-permissions", {
+  io.to(`user:${useId}`).emit("update-permissions", {
     useId,
     updatedPermissions: updatedPermissions.map((perId) => ({ perId })),
   });

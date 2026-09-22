@@ -9,7 +9,7 @@ const mockGetBasicInformation = jest.fn();
 const mockUpdateAccount = jest.fn();
 const mockUpdatePassword = jest.fn();
 
-jest.unstable_mockModule("./auth.service.js", () => ({
+jest.unstable_mockModule("../../../src/modules/auth/auth.service.js", () => ({
   getBasicInformation: mockGetBasicInformation,
   updateAccount: mockUpdateAccount,
   updatePassword: mockUpdatePassword,
@@ -19,7 +19,7 @@ const {
   getSettlementController,
   updateAccountController,
   updatePasswordController,
-} = await import("./auth.controller.js");
+} = await import("../../../src/modules/auth/auth.controller.js");
 
 const buildRes = () => {
   const res = {};

@@ -1,4 +1,9 @@
 import * as permissionsService from "./permissions.service.js";
+import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
+
+export const getPermissionsCatalogController = (_req, res) => {
+  res.status(200).json(PERMISSIONS);
+};
 
 export const getProfileWindowsController = async (req, res, next) => {
   try {

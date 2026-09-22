@@ -4,13 +4,13 @@ process.env.JWT_SECRET = "test-secret";
 
 const mockExecuteQuery = jest.fn();
 
-jest.unstable_mockModule("../configs/db.config.js", () => ({
+jest.unstable_mockModule("../../../src/common/configs/db.config.js", () => ({
   getConnection: jest.fn().mockResolvedValue({}),
   releaseConnection: jest.fn(),
   executeQuery: mockExecuteQuery,
 }));
 
-const { verifyToken } = await import("./authjwt.middleware.js");
+const { verifyToken } = await import("../../../src/common/middlewares/authjwt.middleware.js");
 const { default: jwt } = await import("jsonwebtoken");
 
 const buildRes = () => {

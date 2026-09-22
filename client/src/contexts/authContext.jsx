@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import Cookies from 'js-cookie';
 import { loginAPI, logoutAPI, verifyTokenAPI } from 'api/requests/authAPI';
+import { getPermissionsCatalogAPI } from 'api/requests/permissionsApi';
 
 // ==============================|| AUTH CONTEXT ||============================== //
 
@@ -22,6 +23,7 @@ const getStoredUser = () => {
 export function AuthProvider({ children }) {
   const [user, setUser]                   = useState(getStoredUser);
   const [permissions, setPermissions]     = useState([]);
+  const [permissionsCatalog, setPermissionsCatalog] = useState({});
   const [loading, setLoading]             = useState(false);
   const [error, setError]                 = useState(null);
   const [initializing, setInitializing]   = useState(true); // ✅
@@ -30,6 +32,21 @@ const isAuthenticated = useMemo(
   () => !!user,
   [user]
 );
+
+  // ── Catálogo de permisos (server/common/constants/permissions.constants.js,
+  // única fuente de verdad) ────────────────────────────────────────────────
+  // Si falla, no se trata como fallo de sesión: se deja el catálogo vacío y
+  // hasPermission() sigue funcionando igual (compara contra `permissions`,
+  // no contra el catálogo) — solo se degrada la UI que necesita nombrar un
+  // per_id por su ruta semántica (ej. permissionsCatalog.security.users.create).
+  const fetchPermissionsCatalog = useCallback(async () => {
+    try {
+      const { data } = await getPermissionsCatalogAPI();
+      setPermissionsCatalog(data ?? {});
+    } catch {
+      /* silencioso: ver comentario arriba */
+    }
+  }, []);
 
   // ── Verificar sesión al montar ─────────────────────────────────────────────
   // La cookie de sesión es httpOnly (no legible desde JS), así que no hay forma
@@ -56,6 +73,10 @@ const isAuthenticated = useMemo(
           proId: data.proId,
           proName: data.profileName,
         }), { expires: 1 });
+        // Se espera antes de bajar `initializing`: PrivateRoute (y las
+        // páginas detrás de ella) no renderizan hasta que esto termine, así
+        // que ninguna pantalla llega a ver permissionsCatalog a medio cargar.
+        await fetchPermissionsCatalog();
       } catch {
         Cookies.remove('id');
         setUser(null);
@@ -66,7 +87,7 @@ const isAuthenticated = useMemo(
     };
 
     verifySession();
-  }, []);
+  }, [fetchPermissionsCatalog]);
 
   // ── Login ──────────────────────────────────────────────────────────────────
   const login = useCallback(async (credentials) => {
@@ -83,6 +104,7 @@ const isAuthenticated = useMemo(
 
       setUser(user);
       setPermissions(permissions ?? []);
+      await fetchPermissionsCatalog();
 
       return data;
     } catch (err) {
@@ -92,13 +114,14 @@ const isAuthenticated = useMemo(
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchPermissionsCatalog]);
   // ── Logout ─────────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
     try { await logoutAPI(); } catch { /* silencioso */ }
     Cookies.remove('id');
     setUser(null);
     setPermissions([]);
+    setPermissionsCatalog({});
   }, []);
 
   // ── Verificar permiso puntual ──────────────────────────────────────────────
@@ -120,6 +143,7 @@ const isAuthenticated = useMemo(
     () => ({
       user,
       permissions,
+      permissionsCatalog,
       loading,
       error,
       isAuthenticated,
@@ -128,7 +152,7 @@ const isAuthenticated = useMemo(
       logout,
       hasPermission,
     }),
-    [user, permissions, loading, error, isAuthenticated, initializing, login, logout, hasPermission]
+    [user, permissions, permissionsCatalog, loading, error, isAuthenticated, initializing, login, logout, hasPermission]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

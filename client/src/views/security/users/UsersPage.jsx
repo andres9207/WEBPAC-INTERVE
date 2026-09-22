@@ -14,11 +14,10 @@ import UserDialog from './components/UserDialog';
 import PermissionsDrawer from '../profiles/components/PermissionsDrawer';
 import { paginationUsersAPI, deleteUserAPI } from 'api/requests/usersApi';
 import { useAuth } from 'contexts/AuthContext';
-import { config as permConfig } from 'contexts/permissions/permissionsConfig';
 import { STATUS_OPTIONS } from 'utils/constants';
 
 export default function UsersPage() {
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, permissionsCatalog } = useAuth();
 
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -46,10 +45,15 @@ export default function UsersPage() {
     setFilterAnchorEl(null);
   };
 
-  const canCreate = hasPermission(permConfig.security.users.create);
-  const canEdit = hasPermission(permConfig.security.users.edit);
-  const canDelete = hasPermission(permConfig.security.users.delete);
-  const canAssignPermission = hasPermission(permConfig.security.users.assignPermission);
+  // perId != null antes de preguntar: hasPermission(undefined) es true por
+  // diseño (per_id null = "no requiere permiso", ver authContext.jsx), así
+  // que mientras el catálogo todavía no cargó no se debe confundir "no sé
+  // qué per_id es" con "esta acción no requiere permiso".
+  const canDo = (perId) => perId != null && hasPermission(perId);
+  const canCreate = canDo(permissionsCatalog.security?.users?.create);
+  const canEdit = canDo(permissionsCatalog.security?.users?.edit);
+  const canDelete = canDo(permissionsCatalog.security?.users?.delete);
+  const canAssignPermission = canDo(permissionsCatalog.security?.users?.assignPermission);
 
   // console.log({ canCreate, canEdit, canDelete, canAssignPermission })
 

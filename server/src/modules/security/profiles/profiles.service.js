@@ -185,18 +185,44 @@ export const deleteProfile = async ({ proId, updatedBy }) => {
   // prisma.$transaction hace rollback solo si el callback lanza — reemplaza
   // el beginTransaction/commit/rollback manual de mysql2.
   return prisma.$transaction(async (tx) => {
+    // Bloquear si hay usuarios activos con este perfil: antes no se
+    // verificaba, así que un perfil se podía "eliminar" (soft-delete) con
+    // usuarios todavía asignados — esos usuarios quedaban con pro_id
+    // apuntando a un perfil inactivo, y sus tbl_page_permissions se borraban
+    // en el mismo paso (ver abajo), dejándolos sin sidebar ni permisos de
+    // perfil de un momento a otro, sin ninguna advertencia. Ver SECURITY.md.
+    const dependentUsersCount = await tx.tbl_users.count({
+      where: { pro_id: Number(proId), sta_id: { not: 3 } },
+    });
+
+    if (dependentUsersCount > 0) {
+      const error = new Error(
+        `No se puede eliminar el perfil: tiene ${dependentUsersCount} usuario(s) activo(s) asociado(s). Reasígnalos a otro perfil primero.`
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+
     const result = await tx.tbl_profiles.updateMany({
       where: { pro_id: Number(proId) },
       data: { sta_id: 3, pro_update_by: Number(updatedBy) },
     });
 
-    if (result.count > 0) {
-      await tx.tbl_page_permissions.deleteMany({ where: { pro_id: Number(proId) } });
-      return { message: "Perfil Eliminado Correctamente" };
+    if (result.count === 0) {
+      const error = new Error("Error al eliminar el perfil.");
+      error.statusCode = 400;
+      throw error;
     }
 
-    const error = new Error("Error al eliminar el perfil.");
-    error.statusCode = 400;
-    throw error;
+    // Limpieza completa de dependientes en la misma transacción:
+    // tbl_page_permissions (páginas del sidebar) ya se limpiaba;
+    // tbl_profile_permissions (plantilla de permisos de acción) no se
+    // limpiaba y quedaba huérfana — si el perfil alguna vez se reactivara
+    // (sta_id vuelve a 1 vía saveProfile), esos permisos viejos resucitarían
+    // silenciosamente. Ver SECURITY.md.
+    await tx.tbl_page_permissions.deleteMany({ where: { pro_id: Number(proId) } });
+    await tx.tbl_profile_permissions.deleteMany({ where: { pro_id: Number(proId) } });
+
+    return { message: "Perfil Eliminado Correctamente" };
   });
 };

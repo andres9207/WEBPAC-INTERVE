@@ -108,7 +108,12 @@ const errorMiddleware = (err, req, res, next) => {
   }
 
   // **3. Errores generales no previstos**
-  const statusCode = err.status || 500;
+  // ENDPOINT_STANDARD.md documenta .statusCode y .status como equivalentes
+  // ("el service lanza new Error(msg) con .statusCode (o .status)"), pero
+  // hasta ahora solo se leía .status — cualquier error de negocio lanzado
+  // con .statusCode (la mayoría de los services, empezando por
+  // auth.service.js) devolvía 500 en vez de su código real. Ver SECURITY.md.
+  const statusCode = err.statusCode || err.status || 500;
 
   res.status(statusCode).json({
     success: false,

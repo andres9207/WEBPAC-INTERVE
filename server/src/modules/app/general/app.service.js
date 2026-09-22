@@ -21,10 +21,23 @@ export const getMenu = async ({ per, idu }) => {
 
     let rows, rows2;
 
-    if (ven && ven.trim() !== "") {
+    // use_pages es un CSV en columna (anti-patrón preexistente, ver
+    // server/CLAUDE.md) — nunca se interpola directo en el texto SQL: se
+    // parsea a una lista de enteros válidos y se arma un IN (?, ?, ...)
+    // parametrizado. Antes se interpolaba el CSV crudo (`IN(${ven})`), un
+    // vector de SQL injection si esa columna llegara a contener algo que no
+    // fueran ids separados por coma (ver SECURITY.md).
+    const pageIds = (ven ?? "")
+      .split(",")
+      .map((id) => Number(id.trim()))
+      .filter((id) => Number.isInteger(id) && id > 0);
+
+    if (pageIds.length > 0) {
+      const placeholders = pageIds.map(() => "?").join(",");
+
       rows = await executeQuery(
-        `SELECT v.pag_id id, v.pag_description, v.pag_url toa, v.pag_icon icon, v.pag_order, v.pag_name label FROM tbl_pages v WHERE pag_parent = 0 AND v.pag_id IN(${ven}) ORDER BY v.pag_order`,
-        [],
+        `SELECT v.pag_id id, v.pag_description, v.pag_url toa, v.pag_icon icon, v.pag_order, v.pag_name label FROM tbl_pages v WHERE pag_parent = 0 AND v.pag_id IN(${placeholders}) ORDER BY v.pag_order`,
+        pageIds,
         connection
       );
 
@@ -32,8 +45,8 @@ export const getMenu = async ({ per, idu }) => {
         datos.padres = rows;
 
         rows2 = await executeQuery(
-          `SELECT v.pag_id, v.pag_description, v.pag_parent padre, v.pag_url toa, v.pag_icon icon, v.pag_order, v.pag_name label FROM tbl_pages v WHERE pag_parent != 0 AND v.pag_id IN(${ven}) ORDER BY v.pag_order`,
-          [],
+          `SELECT v.pag_id, v.pag_description, v.pag_parent padre, v.pag_url toa, v.pag_icon icon, v.pag_order, v.pag_name label FROM tbl_pages v WHERE pag_parent != 0 AND v.pag_id IN(${placeholders}) ORDER BY v.pag_order`,
+          pageIds,
           connection
         );
 

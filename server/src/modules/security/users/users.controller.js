@@ -80,9 +80,6 @@ export const saveUserController = async (req, res, next) => {
       access,
       staId,
       changePassword,
-      ProfileMode,
-      field,
-      value,
       usePages,
     } = req.body;
     const useBy = req.user.useId;
@@ -99,12 +96,9 @@ export const saveUserController = async (req, res, next) => {
       staId,
       useBy,
       changePassword,
-      ProfileMode,
-      field,
-      value,
       usePages,
     });
-    const statusCode = ProfileMode || useId > 0 ? 200 : 201;
+    const statusCode = useId > 0 ? 200 : 201;
     return res.status(statusCode).json(result);
   } catch (err) {
     next(err);

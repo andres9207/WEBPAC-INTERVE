@@ -9,11 +9,24 @@ import {
   updateProfilePermissionsController,
   updateUserPermissionsController,
   getAllPagesController,
+  getPermissionsCatalogController,
 } from "./permissions.controller.js";
 
 const permissionsRoutes = express.Router();
 
 // RUTAS PRIVADAS
+
+// Catálogo estático (qué per_id significa qué acción) — no es información de
+// quién tiene qué permiso, es la misma tabla de nombres que hoy vive
+// hardcodeada en el bundle del cliente (permissionsConfig.js), así que no
+// hace falta requirePermission: cualquier autenticado ya podía leerla
+// abriendo el bundle JS. Ver SECURITY.md.
+permissionsRoutes.get(
+  "/get_catalog",
+  verifyToken,
+  getPermissionsCatalogController
+);
+
 // Lectura de asignaciones de permisos/páginas de OTRO perfil o usuario
 // (proId/useId arbitrario por query/body) — requiere permiso de ver, no solo
 // estar logueado (ver SECURITY.md).

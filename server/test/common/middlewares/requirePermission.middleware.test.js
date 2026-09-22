@@ -5,11 +5,11 @@ const prismaMock = {
   tbl_profile_permissions: { findFirst: jest.fn() },
 };
 
-jest.unstable_mockModule("../configs/prismaClient.js", () => ({
+jest.unstable_mockModule("../../../src/common/configs/prismaClient.js", () => ({
   prisma: prismaMock,
 }));
 
-const { requirePermission } = await import("./requirePermission.middleware.js");
+const { requirePermission } = await import("../../../src/common/middlewares/requirePermission.middleware.js");
 
 const buildRes = () => {
   const res = {};

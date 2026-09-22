@@ -1,6 +1,3 @@
-// "prisma-client-js" (no el "prisma-client" nuevo, que genera .ts real):
-// produce JS plano + .d.ts solo para autocompletado del editor, ejecutable
-// tal cual con Node sin ningún paso de compilación/transpilación.
 generator client {
   provider = "prisma-client-js"
 }
@@ -27,14 +24,8 @@ model tbl_documents {
   doc_update_by    Int?
   doc_update_at    DateTime?              @default(now()) @db.Timestamp(0)
   tbl_status       tbl_status?            @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_documents_status")
-  // Auto-relación para el árbol de carpetas (doc_parent_id). Sin FK real en la
-  // BD (bdtemplate.sql no la declara), se agrega solo en Prisma para poder
-  // usar `include`/`_count` en las consultas del árbol de documentos.
-  parent           tbl_documents?         @relation("DocumentTree", fields: [doc_parent_id], references: [doc_id], onDelete: NoAction, onUpdate: NoAction)
-  children         tbl_documents[]        @relation("DocumentTree")
 
   @@index([sta_id], map: "tbl_documents_status")
-  @@index([doc_parent_id])
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -121,7 +112,6 @@ model tbl_profiles {
   pro_id                  Int                       @id @default(autoincrement())
   pro_name                String?                   @unique(map: "uq_profiles_pro_name") @db.VarChar(255)
   sta_id                  Int?
-  pro_pages               String?                   @default("") @db.VarChar(255)
   pro_create_by           Int?
   pro_create_at           DateTime?                 @default(now()) @db.Timestamp(0)
   pro_update_by           Int?

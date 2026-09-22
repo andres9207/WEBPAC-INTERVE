@@ -249,31 +249,12 @@ export const saveUser = async ({
   staId: statusId,
   useBy,
   changePassword,
-  ProfileMode,
-  field,
-  value,
   usePages,
 }) => {
   let connection = null;
   try {
     connection = await getConnection();
     await connection.beginTransaction();
-
-    if (ProfileMode) {
-      if (!field) return;
-
-      await executeQuery(
-        `UPDATE tbl_users SET ${field} = ? WHERE use_id = ?`,
-        [value === "null" ? null : value, Number(useId)],
-        connection
-      );
-
-      await connection.commit();
-      return {
-        message:
-          "Modo perfil activado, Se actualizaron los cambios correctamente...",
-      };
-    }
 
     const existingUser = await checkIfUserExists({
       identification,

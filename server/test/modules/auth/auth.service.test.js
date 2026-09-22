@@ -10,23 +10,23 @@ const prismaMock = {
   $transaction: jest.fn((ops) => Promise.all(ops)),
 };
 
-jest.unstable_mockModule("../../common/configs/prismaClient.js", () => ({
+jest.unstable_mockModule("../../../src/common/configs/prismaClient.js", () => ({
   prisma: prismaMock,
 }));
 
 const mockSendEmail = jest.fn().mockResolvedValue({ success: true });
-jest.unstable_mockModule("../../common/services/mailerService.js", () => ({
+jest.unstable_mockModule("../../../src/common/services/mailerService.js", () => ({
   sendEmail: mockSendEmail,
 }));
 
 const mockHashPassword = jest.fn().mockResolvedValue("hashed:pw");
 const mockComparePassword = jest.fn();
-jest.unstable_mockModule("../../common/utils/funciones.js", () => ({
+jest.unstable_mockModule("../../../src/common/utils/funciones.js", () => ({
   hashPassword: mockHashPassword,
   comparePassword: mockComparePassword,
 }));
 
-const authService = await import("./auth.service.js");
+const authService = await import("../../../src/modules/auth/auth.service.js");
 
 beforeEach(() => {
   mockHashPassword.mockResolvedValue("hashed:pw");

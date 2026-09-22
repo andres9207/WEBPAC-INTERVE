@@ -5,12 +5,12 @@ const prismaMock = {
   tbl_user_permissions: { findFirst: jest.fn(), findMany: jest.fn() },
 };
 
-jest.unstable_mockModule("../configs/prismaClient.js", () => ({
+jest.unstable_mockModule("../../../src/common/configs/prismaClient.js", () => ({
   prisma: prismaMock,
 }));
 
 const { hasEffectivePermission, getEffectivePermissionIds } = await import(
-  "./effectivePermissions.service.js"
+  "../../../src/common/services/effectivePermissions.service.js"
 );
 
 beforeEach(() => {

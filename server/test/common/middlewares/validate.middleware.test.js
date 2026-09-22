@@ -6,7 +6,7 @@ jest.unstable_mockModule("express-validator", () => ({
   validationResult: mockValidationResult,
 }));
 
-const { validate } = await import("./validate.middleware.js");
+const { validate } = await import("../../../src/common/middlewares/validate.middleware.js");
 
 const buildRes = () => {
   const res = {};
