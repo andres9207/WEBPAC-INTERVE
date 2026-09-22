@@ -17,6 +17,7 @@ import { STATUS_OPTIONS } from 'utils/constants';
 import PermissionsDrawer from './components/PermissionsDrawer';
 import { paginationProfilesAPI, deleteProfileAPI } from 'api/requests/profilesApi';
 import { useAuth } from 'contexts/AuthContext';
+import { showError } from 'services/ToastService';
 
 export default function ProfilesPage() {
   const { user, hasPermission, permissionsCatalog } = useAuth();
@@ -93,7 +94,7 @@ export default function ProfilesPage() {
       setRows(data.results ?? []);
       setTotal(data.total ?? 0);
     } catch (err) {
-      console.error('Error cargando perfiles:', err);
+      showError(err.response?.data?.message || 'Error al cargar los perfiles');
     } finally {
       setLoading(false);
     }
@@ -112,7 +113,7 @@ export default function ProfilesPage() {
       await deleteProfileAPI({ proId });
       fetchProfiles();
     } catch (err) {
-      console.error('Error eliminando perfil:', err);
+      showError(err.response?.data?.message || 'Error al eliminar el perfil');
     }
   };
 

@@ -113,12 +113,25 @@ const errorMiddleware = (err, req, res, next) => {
   // hasta ahora solo se leía .status — cualquier error de negocio lanzado
   // con .statusCode (la mayoría de los services, empezando por
   // auth.service.js) devolvía 500 en vez de su código real. Ver SECURITY.md.
+  const hasExplicitStatus = err.statusCode != null || err.status != null;
   const statusCode = err.statusCode || err.status || 500;
+
+  // Un error con .statusCode/.status fue lanzado a propósito por nuestro
+  // código (service) con un mensaje ya curado para quien lo va a leer — es
+  // seguro devolverlo tal cual. Uno SIN esas propiedades es una excepción no
+  // clasificada (bug, error de un paquete de terceros, etc.) cuyo .message
+  // puede traer detalle interno (rutas de archivo, fragmentos de query,
+  // texto de un driver) — nunca se expone tal cual en producción, solo un
+  // mensaje genérico. En desarrollo se muestra igual, para no perder la
+  // señal mientras se depura (mismo criterio que el stack, más abajo).
+  const message =
+    hasExplicitStatus || process.env.NODE_ENV !== "production"
+      ? err.message || "Ha ocurrido un error inesperado. Contacta a sistemas."
+      : "Ha ocurrido un error inesperado. Contacta a sistemas.";
 
   res.status(statusCode).json({
     success: false,
-    message:
-      err.message || "Ha ocurrido un error inesperado. Contacta a sistemas.",
+    message,
     // Mostrar detalles adicionales en desarrollo
     ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
   });

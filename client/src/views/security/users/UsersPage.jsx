@@ -15,6 +15,7 @@ import PermissionsDrawer from '../profiles/components/PermissionsDrawer';
 import { paginationUsersAPI, deleteUserAPI } from 'api/requests/usersApi';
 import { useAuth } from 'contexts/AuthContext';
 import { STATUS_OPTIONS } from 'utils/constants';
+import { showError } from 'services/ToastService';
 
 export default function UsersPage() {
   const { user, hasPermission, permissionsCatalog } = useAuth();
@@ -98,7 +99,7 @@ export default function UsersPage() {
       setRows(data.results ?? []);
       setTotal(data.total ?? 0);
     } catch (err) {
-      console.error('Error cargando usuarios:', err);
+      showError(err.response?.data?.message || 'Error al cargar los usuarios');
     } finally {
       setLoading(false);
     }
@@ -123,7 +124,7 @@ export default function UsersPage() {
       await deleteUserAPI({ useId });
       fetchUsers();
     } catch (err) {
-      console.error('Error eliminando usuario:', err);
+      showError(err.response?.data?.message || 'Error al eliminar el usuario');
     }
   };
 
