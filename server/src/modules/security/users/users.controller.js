@@ -1,25 +1,5 @@
 import * as usersService from "./users.service.js";
 
-export const getUsersByPermision = async (req, res, next) => {
-  try {
-    const { perId } = req.body;
-    const result = await usersService.getUsersByPermission({ perId });
-    res.status(200).json(result);
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const getUsers = async (req, res, next) => {
-  try {
-    const { proId } = req.query;
-    const result = await usersService.getUsers({ proId });
-    res.status(200).json(result);
-  } catch (err) {
-    next(err);
-  }
-};
-
 export const paginationUsersController = async (req, res, next) => {
   try {
     const {

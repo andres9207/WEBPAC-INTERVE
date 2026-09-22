@@ -1,9 +1,8 @@
 /**
- * Espejo servidor de client/src/contexts/permissions/permissionsConfig.js.
- * Cada valor numérico es el per_id real en tbl_permissions (ver
- * database/migrations/0001_seed_pages_permissions.sql). Si agregas un
- * permiso nuevo, agrégalo en AMBOS lados con el mismo id — no hay una
- * fuente de verdad única automática entre cliente y servidor todavía.
+ * Única fuente de verdad del catálogo de permisos (qué per_id significa qué
+ * acción en tbl_permissions, ver database/migrations/0001_seed_pages_permissions.sql).
+ * El cliente ya no lo duplica: lo consume en runtime vía
+ * GET /security/permissions/get_catalog (ver authContext.jsx).
  */
 export const PERMISSIONS = {
   security: {
@@ -28,12 +27,5 @@ export const PERMISSIONS = {
   documents: {
     manage: 9, // crear/editar/eliminar documentos (save + delete de document.routes.js)
     view: 14, // listar/paginar documentos
-  },
-  templates: {
-    manage: 10, // crear/editar/eliminar plantillas (save_template + delete_template)
-    view: 15, // listar/paginar plantillas
-  },
-  microsoftGraph: {
-    view: 16, // integración con Microsoft Graph (SharePoint/M365) — antes sin verifyToken
   },
 };

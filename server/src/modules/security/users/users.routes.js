@@ -3,23 +3,14 @@ import { verifyToken } from "../../../common/middlewares/authjwt.middleware.js";
 import { requirePermission } from "../../../common/middlewares/requirePermission.middleware.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import {
-  getUsers,
   paginationUsersController,
   countUsersController,
   saveUserController,
   deleteUserController,
-  getUsersByPermision,
 } from "./users.controller.js";
 
 const usersRoutes = express.Router();
 
-usersRoutes.get("/get_users", verifyToken, requirePermission(PERMISSIONS.security.users.view), getUsers);
-usersRoutes.post(
-  "/get_users_permision",
-  verifyToken,
-  requirePermission(PERMISSIONS.security.users.view),
-  getUsersByPermision
-);
 usersRoutes.post(
   "/list_users",
   verifyToken,

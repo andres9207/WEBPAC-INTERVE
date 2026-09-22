@@ -26,11 +26,13 @@ const PERMISSIONS = [
   { per_id: 8, per_name: "Asignar permisos al usuario", pag_id: 4, per_order: 4 },
 ];
 
-// Sin pag_id: document.routes.js/template.routes.js no tienen página propia
-// en el sidebar (ver database/migrations/0002_seed_permissions_documents_templates.sql).
+// Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
+// database/migrations/0002_seed_permissions_documents_templates.sql). per_id
+// 10 ("Gestionar plantillas") se retiró junto con el módulo template/, que
+// nunca tuvo tablas reales (tbl_template/tbl_estados no existen) ni caller
+// en el cliente.
 const PERMISSIONS_NO_PAGE = [
   { per_id: 9, per_name: "Gestionar documentos", pag_id: null, per_order: 1 },
-  { per_id: 10, per_name: "Gestionar plantillas", pag_id: null, per_order: 1 },
 ];
 
 // Permisos de "ver" (database/migrations/0003_seed_view_permissions.sql):
@@ -42,19 +44,21 @@ const PERMISSIONS_NO_PAGE = [
 // consulta como unión de perfil + excepciones individuales (ver
 // common/services/effectivePermissions.service.js), ya no hace falta además
 // copiarlos a mano a cada usuario existente — se propagan solos.
+// per_id 15 ("Ver plantillas") y 16 ("Ver integración Microsoft Graph") se
+// retiraron junto con los módulos template/ y microsoftGraph/ — ninguno
+// tenía tablas reales que respaldaran su funcionalidad.
 const VIEW_PERMISSIONS = [
   { per_id: 11, per_name: "Ver perfiles", pag_id: 3, per_order: 5 },
   { per_id: 12, per_name: "Ver usuarios", pag_id: 4, per_order: 5 },
   { per_id: 13, per_name: "Ver permisos", pag_id: null, per_order: 1 },
   { per_id: 14, per_name: "Ver documentos", pag_id: null, per_order: 1 },
-  { per_id: 15, per_name: "Ver plantillas", pag_id: null, per_order: 1 },
-  { per_id: 16, per_name: "Ver integración Microsoft Graph", pag_id: null, per_order: 1 },
 ];
 
-// Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). El
-// bypass de hasPermission() para useId===1 es solo del lado del cliente —
-// get_menu (app.service.js) no lo conoce, así que sin estas filas el
-// superadmin también vería el sidebar vacío.
+// Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay
+// ningún bypass de código para este id en ningún lado (cliente ni
+// servidor) — su acceso total sale únicamente de que este seed le otorgue
+// todos los permisos existentes vía tbl_profile_permissions; sin estas
+// filas también vería el sidebar vacío, igual que cualquier otro perfil.
 const SUPERADMIN_PROFILE_ID = 1;
 
 async function main() {

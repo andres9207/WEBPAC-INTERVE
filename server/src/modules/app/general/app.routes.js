@@ -5,7 +5,6 @@ import {
   getProfilesController,
   verifyTokenController,
   getUserPermissionsController,
-  getModules,
   getStatusesByScope,
 } from "./app.controller.js";
 
@@ -23,7 +22,6 @@ appRoutes.get(
   getUserPermissionsController
 );
 
-appRoutes.get("/get_modules", verifyToken, getModules);
 appRoutes.get("/get_statuses_by_scope", verifyToken, getStatusesByScope);
 
 export default appRoutes;

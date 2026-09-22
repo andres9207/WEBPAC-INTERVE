@@ -1,8 +1,3 @@
-import {
-  getConnection,
-  releaseConnection,
-  executeQuery,
-} from "../../../common/configs/db.config.js";
 import { getIO } from "../../../common/configs/socket.manager.js";
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
@@ -16,92 +11,62 @@ export const getProfileWindows = async ({ proId, useId }) => {
     throw error;
   }
 
-  let connection = null;
-  try {
-    connection = await getConnection();
-    let rows = [];
+  let targetProId = proId ? Number(proId) : null;
 
-    if (useId) {
-      const ventanaRows = await executeQuery(
-        `SELECT pag_id FROM tbl_page_permissions WHERE pro_id = (SELECT pro_id FROM tbl_users WHERE use_id = ?)`,
-        [useId],
-        connection
-      );
-
-      if (!ventanaRows || ventanaRows.length === 0) {
-        return [];
-      }
-
-      const pagIds = ventanaRows.map((v) => v.pag_id);
-      if (pagIds.length === 0) return [];
-
-      const placeholders = pagIds.map(() => "?").join(",");
-
-      rows = await executeQuery(
-        `SELECT
-           v1.pag_id AS pagId,
-           v1.pag_description AS description,
-           v1.pag_parent AS parent,
-           v2.pag_description AS parentDescription,
-           COUNT(p.per_id) AS count,
-           v1.pag_order AS pagOrder
-         FROM tbl_pages v1
-         LEFT JOIN tbl_pages v2 ON v1.pag_parent = v2.pag_id
-         LEFT JOIN tbl_permissions p ON v1.pag_id = p.pag_id
-         WHERE v1.pag_id IN (${placeholders})
-         GROUP BY pagId, description, parent
-         ORDER BY v1.pag_parent DESC, v1.pag_order ASC`,
-        pagIds,
-        connection
-      );
-    } else if (proId) {
-      const pagRows = await executeQuery(
-        `SELECT pag_id FROM tbl_page_permissions WHERE pro_id = ?`,
-        [proId],
-        connection
-      );
-
-      if (!pagRows || pagRows.length === 0) {
-        return [];
-      }
-
-      const pagIds = pagRows.map((v) => v.pag_id);
-      const placeholders = pagIds.map(() => "?").join(",");
-
-      rows = await executeQuery(
-        `SELECT
-           v1.pag_id AS pagId,
-           v1.pag_description AS description,
-           v1.pag_parent AS parent,
-           v2.pag_description AS parentDescription,
-           COUNT(p.per_id) AS count,
-           v1.pag_order AS pagOrder
-         FROM tbl_pages v1
-         LEFT JOIN tbl_pages v2 ON v1.pag_parent = v2.pag_id
-         LEFT JOIN tbl_permissions p ON v1.pag_id = p.pag_id
-         WHERE v1.pag_id IN (${placeholders})
-         GROUP BY pagId, description, parent
-         ORDER BY v1.pag_parent DESC, v1.pag_order ASC`,
-        pagIds,
-        connection
-      );
-    }
-
-    const pagePermissions = await Promise.all(
-      rows.map(async (page) => {
-        const permissions = await executeQuery(
-          `SELECT per_id AS perId, per_name AS name FROM tbl_permissions WHERE pag_id = ? ORDER BY per_order ASC`,
-          [page.pagId],
-          connection
-        );
-        return { ...page, permissions };
-      })
-    );
-
-    return pagePermissions;
-  } finally {
-    releaseConnection(connection);
+  if (!targetProId && useId) {
+    const user = await prisma.tbl_users.findUnique({
+      where: { use_id: Number(useId) },
+      select: { pro_id: true },
+    });
+    if (!user?.pro_id) return [];
+    targetProId = user.pro_id;
   }
+
+  const pagePermissionRows = await prisma.tbl_page_permissions.findMany({
+    where: { pro_id: targetProId },
+    select: { pag_id: true },
+  });
+
+  if (pagePermissionRows.length === 0) return [];
+
+  const pagIds = pagePermissionRows.map((r) => r.pag_id);
+
+  const pages = await prisma.tbl_pages.findMany({
+    where: { pag_id: { in: pagIds } },
+    select: {
+      pag_id: true,
+      pag_description: true,
+      pag_parent: true,
+      pag_order: true,
+      tbl_permissions: {
+        select: { per_id: true, per_name: true },
+        orderBy: { per_order: "asc" },
+      },
+    },
+    orderBy: [{ pag_parent: "desc" }, { pag_order: "asc" }],
+  });
+
+  // tbl_pages.pag_parent no tiene una FK propia (pag_parent=0 = sin padre),
+  // así que Prisma no puede resolverlo como relación anidada — se busca la
+  // descripción del padre en una segunda consulta, en vez de un self-join.
+  const parentIds = [...new Set(pages.map((p) => p.pag_parent).filter((id) => id))];
+  const parents = parentIds.length
+    ? await prisma.tbl_pages.findMany({
+        where: { pag_id: { in: parentIds } },
+        select: { pag_id: true, pag_description: true },
+      })
+    : [];
+  const parentDescriptionById = new Map(parents.map((p) => [p.pag_id, p.pag_description]));
+
+  return pages.map((page) => ({
+    pagId: page.pag_id,
+    description: page.pag_description,
+    parent: page.pag_parent,
+    parentDescription: parentDescriptionById.get(page.pag_parent) ?? null,
+    count: page.tbl_permissions.length,
+    pagOrder: page.pag_order,
+    permissions: page.tbl_permissions.map((p) => ({ perId: p.per_id, name: p.per_name })),
+  }));
 };
 
 export const getUserPermissions = async ({ pagIds, useId }) => {
@@ -109,33 +74,40 @@ export const getUserPermissions = async ({ pagIds, useId }) => {
     return [];
   }
 
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const [permissions, individualRows, user] = await Promise.all([
+    prisma.tbl_permissions.findMany({
+      where: { pag_id: { in: pagIds } },
+      select: { pag_id: true, per_id: true, per_name: true },
+      orderBy: { per_order: "asc" },
+    }),
+    prisma.tbl_user_permissions.findMany({
+      where: { use_id: Number(useId) },
+      select: { per_id: true },
+    }),
+    prisma.tbl_users.findUnique({
+      where: { use_id: Number(useId) },
+      select: { pro_id: true },
+    }),
+  ]);
 
-    const placeholders = pagIds.map(() => "?").join(",");
+  const individualSet = new Set(individualRows.map((r) => r.per_id));
+  const profilePermissionRows = user?.pro_id
+    ? await prisma.tbl_profile_permissions.findMany({
+        where: { pro_id: user.pro_id },
+        select: { per_id: true },
+      })
+    : [];
+  const profileSet = new Set(profilePermissionRows.map((r) => r.per_id));
 
-    // "assigned" refleja el permiso EFECTIVO (unión perfil + individual),
-    // no solo tbl_user_permissions — de lo contrario esta pantalla mostraría
-    // como "no asignado" un permiso que el usuario sí tiene vía su perfil.
-    return await executeQuery(
-      `SELECT
-         p.pag_id AS pagId,
-         p.per_id AS perId,
-         p.per_name AS name,
-         CASE WHEN pu.use_id IS NOT NULL OR pp.pro_id IS NOT NULL THEN 1 ELSE 0 END AS assigned
-       FROM tbl_permissions p
-       LEFT JOIN tbl_user_permissions pu ON p.per_id = pu.per_id AND pu.use_id = ?
-       LEFT JOIN tbl_users u ON u.use_id = ?
-       LEFT JOIN tbl_profile_permissions pp ON pp.per_id = p.per_id AND pp.pro_id = u.pro_id
-       WHERE p.pag_id IN (${placeholders})
-       ORDER BY p.per_order ASC`,
-      [useId, useId, ...pagIds],
-      connection
-    );
-  } finally {
-    releaseConnection(connection);
-  }
+  // "assigned" refleja el permiso EFECTIVO (unión perfil + individual), no
+  // solo tbl_user_permissions — de lo contrario esta pantalla mostraría
+  // como "no asignado" un permiso que el usuario sí tiene vía su perfil.
+  return permissions.map((p) => ({
+    pagId: p.pag_id,
+    perId: p.per_id,
+    name: p.per_name,
+    assigned: individualSet.has(p.per_id) || profileSet.has(p.per_id) ? 1 : 0,
+  }));
 };
 
 export const getProfilePermissions = async ({ pagIds, proId }) => {
@@ -143,28 +115,26 @@ export const getProfilePermissions = async ({ pagIds, proId }) => {
     return [];
   }
 
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const [permissions, profileRows] = await Promise.all([
+    prisma.tbl_permissions.findMany({
+      where: { pag_id: { in: pagIds } },
+      select: { pag_id: true, per_id: true, per_name: true },
+      orderBy: { per_order: "asc" },
+    }),
+    prisma.tbl_profile_permissions.findMany({
+      where: { pro_id: Number(proId) },
+      select: { per_id: true },
+    }),
+  ]);
 
-    const placeholders = pagIds.map(() => "?").join(",");
+  const assignedSet = new Set(profileRows.map((r) => r.per_id));
 
-    return await executeQuery(
-      `SELECT
-         p.pag_id AS pagId,
-         p.per_id AS perId,
-         p.per_name AS name,
-         CASE WHEN pf.pro_id IS NOT NULL THEN 1 ELSE 0 END AS assigned
-       FROM tbl_permissions p
-       LEFT JOIN tbl_profile_permissions pf ON p.per_id = pf.per_id AND pf.pro_id = ?
-       WHERE p.pag_id IN (${placeholders})
-       ORDER BY p.per_order ASC`,
-      [proId, ...pagIds],
-      connection
-    );
-  } finally {
-    releaseConnection(connection);
-  }
+  return permissions.map((p) => ({
+    pagId: p.pag_id,
+    perId: p.per_id,
+    name: p.per_name,
+    assigned: assignedSet.has(p.per_id) ? 1 : 0,
+  }));
 };
 
 export const updateProfilePermissions = async ({ permissions, proId, actingProId }) => {

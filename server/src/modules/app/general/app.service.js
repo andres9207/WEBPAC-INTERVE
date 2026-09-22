@@ -1,100 +1,96 @@
-import {
-  getConnection,
-  releaseConnection,
-  executeQuery,
-} from "../../../common/configs/db.config.js";
+import { prisma } from "../../../common/configs/prismaClient.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 
+const PAGE_SELECT = {
+  pag_id: true,
+  pag_description: true,
+  pag_parent: true,
+  pag_url: true,
+  pag_icon: true,
+  pag_order: true,
+  pag_name: true,
+};
+
+const toParent = (p) => ({
+  id: p.pag_id,
+  pag_description: p.pag_description,
+  toa: p.pag_url,
+  icon: p.pag_icon,
+  pag_order: p.pag_order,
+  label: p.pag_name,
+});
+
+const toChild = (p) => ({
+  pag_id: p.pag_id,
+  pag_description: p.pag_description,
+  padre: p.pag_parent,
+  toa: p.pag_url,
+  icon: p.pag_icon,
+  pag_order: p.pag_order,
+  label: p.pag_name,
+});
+
 export const getMenu = async ({ per, idu }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const datos = { padres: [], hijos: [] };
 
-    const rowsv = await executeQuery(
-      `SELECT use_pages AS ven FROM tbl_users WHERE use_id = ? LIMIT 1`,
-      [idu],
-      connection
-    );
-    const ven = rowsv[0]?.ven;
+  // tbl_user_pages reemplaza el viejo CSV tbl_users.use_pages (ver
+  // database/migrations/0005_create_user_pages.sql) — páginas puntuales
+  // asignadas a este usuario, distintas de las de su perfil.
+  const userPages = await prisma.tbl_user_pages.findMany({
+    where: { use_id: idu },
+    select: { pag_id: true },
+  });
+  const pageIds = userPages.map((up) => up.pag_id);
 
-    const datos = { padres: [], hijos: [] };
+  if (pageIds.length > 0) {
+    const padres = await prisma.tbl_pages.findMany({
+      where: { pag_parent: 0, pag_id: { in: pageIds } },
+      select: PAGE_SELECT,
+      orderBy: { pag_order: "asc" },
+    });
 
-    let rows, rows2;
+    if (padres.length > 0) {
+      datos.padres = padres.map(toParent);
 
-    // use_pages es un CSV en columna (anti-patrón preexistente, ver
-    // server/CLAUDE.md) — nunca se interpola directo en el texto SQL: se
-    // parsea a una lista de enteros válidos y se arma un IN (?, ?, ...)
-    // parametrizado. Antes se interpolaba el CSV crudo (`IN(${ven})`), un
-    // vector de SQL injection si esa columna llegara a contener algo que no
-    // fueran ids separados por coma (ver SECURITY.md).
-    const pageIds = (ven ?? "")
-      .split(",")
-      .map((id) => Number(id.trim()))
-      .filter((id) => Number.isInteger(id) && id > 0);
+      const hijos = await prisma.tbl_pages.findMany({
+        where: { pag_parent: { not: 0 }, pag_id: { in: pageIds } },
+        select: PAGE_SELECT,
+        orderBy: { pag_order: "asc" },
+      });
 
-    if (pageIds.length > 0) {
-      const placeholders = pageIds.map(() => "?").join(",");
-
-      rows = await executeQuery(
-        `SELECT v.pag_id id, v.pag_description, v.pag_url toa, v.pag_icon icon, v.pag_order, v.pag_name label FROM tbl_pages v WHERE pag_parent = 0 AND v.pag_id IN(${placeholders}) ORDER BY v.pag_order`,
-        pageIds,
-        connection
-      );
-
-      if (rows.length > 0) {
-        datos.padres = rows;
-
-        rows2 = await executeQuery(
-          `SELECT v.pag_id, v.pag_description, v.pag_parent padre, v.pag_url toa, v.pag_icon icon, v.pag_order, v.pag_name label FROM tbl_pages v WHERE pag_parent != 0 AND v.pag_id IN(${placeholders}) ORDER BY v.pag_order`,
-          pageIds,
-          connection
-        );
-
-        if (rows2.length > 0) {
-          datos.hijos = rows2;
-        }
-      }
-    } else {
-      rows = await executeQuery(
-        `SELECT v.pag_id id, v.pag_description, v.pag_url toa, v.pag_icon icon, v.pag_order, v.pag_name label FROM tbl_pages v JOIN tbl_page_permissions p ON v.pag_id = p.pag_id WHERE pag_parent = 0 AND p.pro_id = ? ORDER BY v.pag_order`,
-        [per],
-        connection
-      );
-
-      if (rows.length > 0) {
-        datos.padres = rows;
-
-        rows2 = await executeQuery(
-          `SELECT v.pag_id, v.pag_description, v.pag_parent padre, v.pag_url toa, v.pag_icon icon, v.pag_order, v.pag_name label FROM tbl_pages v JOIN tbl_page_permissions p ON v.pag_id = p.pag_id WHERE pag_parent != 0 AND p.pro_id = ? ORDER BY v.pag_order`,
-          [per],
-          connection
-        );
-
-        if (rows2.length > 0) {
-          datos.hijos = rows2;
-        }
-      }
+      if (hijos.length > 0) datos.hijos = hijos.map(toChild);
     }
+  } else {
+    const padres = await prisma.tbl_pages.findMany({
+      where: { pag_parent: 0, tbl_page_permissions: { some: { pro_id: per } } },
+      select: PAGE_SELECT,
+      orderBy: { pag_order: "asc" },
+    });
 
-    return datos;
-  } finally {
-    releaseConnection(connection);
+    if (padres.length > 0) {
+      datos.padres = padres.map(toParent);
+
+      const hijos = await prisma.tbl_pages.findMany({
+        where: { pag_parent: { not: 0 }, tbl_page_permissions: { some: { pro_id: per } } },
+        select: PAGE_SELECT,
+        orderBy: { pag_order: "asc" },
+      });
+
+      if (hijos.length > 0) datos.hijos = hijos.map(toChild);
+    }
   }
+
+  return datos;
 };
 
 export const getProfiles = async () => {
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const profiles = await prisma.tbl_profiles.findMany({
+    where: { sta_id: 1 },
+    select: { pro_id: true, pro_name: true },
+    orderBy: { pro_name: "asc" },
+  });
 
-    return await executeQuery(
-      `SELECT pro_id value, pro_name label FROM tbl_profiles WHERE sta_id = 1 ORDER BY label`,
-      [],
-      connection
-    );
-  } finally {
-    releaseConnection(connection);
-  }
+  return profiles.map((p) => ({ value: p.pro_id, label: p.pro_name }));
 };
 
 // El JWT y el estado activo (sta_id = 1) ya los verificó el middleware
@@ -102,119 +98,73 @@ export const getProfiles = async () => {
 // verificación de sesión del sistema. Esta función solo arma la respuesta a
 // partir del useId ya autenticado, sin repetir el chequeo con otro criterio.
 export const getSessionInfo = async ({ useId }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const userData = await prisma.tbl_users.findUnique({
+    where: { use_id: Number(useId) },
+    select: {
+      use_id: true,
+      use_user: true,
+      use_name: true,
+      use_last_name: true,
+      use_email: true,
+      pro_id: true,
+      tbl_profiles: { select: { pro_name: true } },
+    },
+  });
 
-    const rows = await executeQuery(
-      `SELECT
-         u.use_id AS useId,
-         u.use_user AS username,
-         u.use_name AS name,
-         u.use_last_name AS lastName,
-         u.use_email AS email,
-         u.pro_id AS proId,
-         p.pro_name AS profileName
-       FROM tbl_users u
-       LEFT JOIN tbl_profiles p ON u.pro_id = p.pro_id
-       WHERE u.use_id = ? LIMIT 1`,
-      [useId],
-      connection
-    );
-
-    if (!rows || rows.length === 0) {
-      const error = new Error("Autorización inválida");
-      error.statusCode = 401;
-      throw error;
-    }
-
-    const userData = rows[0];
-
-    const fullName = [userData.name, userData.lastName]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-
-    // Unión de los permisos del perfil y las excepciones individuales —
-    // ver effectivePermissions.service.js.
-    const permissions = await getEffectivePermissionIds({ useId, proId: userData.proId });
-
-    return {
-      useId: userData.useId,
-      username: userData.username,
-      fullName,
-      email: userData.email,
-      proId: userData.proId,
-      profileName: userData.profileName,
-      permissions,
-    };
-  } finally {
-    releaseConnection(connection);
+  if (!userData) {
+    const error = new Error("Autorización inválida");
+    error.statusCode = 401;
+    throw error;
   }
+
+  const fullName = [userData.use_name, userData.use_last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  // Unión de los permisos del perfil y las excepciones individuales — ver
+  // effectivePermissions.service.js.
+  const permissions = await getEffectivePermissionIds({ useId, proId: userData.pro_id });
+
+  return {
+    useId: userData.use_id,
+    username: userData.use_user,
+    fullName,
+    email: userData.use_email,
+    proId: userData.pro_id,
+    profileName: userData.tbl_profiles?.pro_name ?? null,
+    permissions,
+  };
 };
 
 export const getUserPermissions = async ({ useId }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const permissionRows = await prisma.tbl_user_permissions.findMany({
+    where: { use_id: Number(useId) },
+    select: { per_id: true },
+  });
+  const permissions = permissionRows.map((p) => ({ perId: p.per_id }));
 
-    const permissions = await executeQuery(
-      `SELECT per_id perId FROM tbl_user_permissions WHERE use_id = ?`,
-      [useId],
-      connection
-    );
+  // tbl_user_pages reemplaza el FIND_IN_SET sobre el viejo CSV
+  // tbl_users.use_pages (ver database/migrations/0005_create_user_pages.sql).
+  const pageRows = await prisma.tbl_user_pages.findMany({
+    where: { use_id: Number(useId) },
+    select: { tbl_pages: { select: { pag_url: true } } },
+  });
+  const windows = pageRows.map((p) => ({ path: p.tbl_pages.pag_url }));
 
-    const windows = await executeQuery(
-      `SELECT v.pag_url AS path
-       FROM tbl_pages v
-       JOIN tbl_users u ON FIND_IN_SET(v.pag_id, u.use_pages) > 0
-       WHERE u.use_id = ?`,
-      [useId],
-      connection
-    );
-
-    return { permissions, windows };
-  } finally {
-    releaseConnection(connection);
-  }
+  return { permissions, windows };
 };
 
 export const getStatusesByScope = async ({ scope, excludesKeys = [] }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const statuses = await prisma.tbl_status.findMany({
+    where: {
+      sta_id: { not: 3 },
+      sta_scope: scope,
+      ...(excludesKeys && excludesKeys.length > 0 ? { sta_key: { notIn: excludesKeys } } : {}),
+    },
+    select: { sta_id: true, sta_name: true, sta_color: true },
+    orderBy: { sta_order: "asc" },
+  });
 
-    const whereConditions = ['sta_id != 3', 'sta_scope = ?'];
-    const params = [scope];
-
-    if (excludesKeys && excludesKeys.length > 0) {
-      whereConditions.push(`sta_key NOT IN (${excludesKeys.map(() => '?').join(',')})`);
-      params.push(...excludesKeys);
-    }
-
-    const whereClause = `WHERE ${whereConditions.join(" AND ")}`;
-
-    return await executeQuery(
-      `SELECT sta_id value, sta_name label, sta_color FROM tbl_status ${whereClause} ORDER BY sta_order ASC`,
-      params,
-      connection
-    );
-  } finally {
-    releaseConnection(connection);
-  }
-};
-
-export const getModules = async () => {
-  let connection = null;
-  try {
-    connection = await getConnection();
-
-    return await executeQuery(
-      `SELECT mod_id id, mod_nombre nombre FROM tbl_modulos`,
-      [],
-      connection
-    );
-  } finally {
-    releaseConnection(connection);
-  }
+  return statuses.map((s) => ({ value: s.sta_id, label: s.sta_name, sta_color: s.sta_color }));
 };

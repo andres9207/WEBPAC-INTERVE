@@ -1,20 +1,6 @@
 import httpCliente from '../services/httpCliente';
 
 /**
- * Obtener lista de usuarios (con filtro opcional por perfil)
- * @param {{ proId?: number }} params
- */
-export const getUsersAPI = (params) =>
-  httpCliente.get('security/users/get_users', params);
-
-/**
- * Obtener usuarios filtrados por permiso
- * @param {{ perId: number | string }} params
- */
-export const getUserByPermisionAPI = (params) =>
-  httpCliente.post('security/users/get_users_permision', params);
-
-/**
  * Conteo de usuarios agrupado por perfil
  * @param {{ idusuario: number }} params
  */

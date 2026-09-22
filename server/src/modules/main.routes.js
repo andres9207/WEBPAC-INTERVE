@@ -1,8 +1,6 @@
 import express from "express";
 import authRoutes from "./auth/auth.routes.js";
 import appRoutes from "./app/general/app.routes.js";
-import microsoftGraphRoutes from "./microsoftGraph/microsoftGraph.routes.js";
-import masterTemplateRoutes from "./template/template.routes.js";
 import moduleDocsRoutes from "./app/documents/document.routes.js";
 import notificationsRoutes from "./app/notifications/notifications.routes.js";
 
@@ -13,7 +11,6 @@ import permissionsRoutes from "./security/permissions/permissions.routes.js";
 
 const mainRoutes = express.Router();
 
-mainRoutes.use("/template", masterTemplateRoutes);
 mainRoutes.use("/app/documents", moduleDocsRoutes);
 
 // App
@@ -25,6 +22,5 @@ mainRoutes.use("/app/notifications", notificationsRoutes);
 mainRoutes.use("/security/profiles", profilesRoutes);
 mainRoutes.use("/security/users", usersRoutes);
 mainRoutes.use("/security/permissions", permissionsRoutes);
-mainRoutes.use("/security/microsoft-graph", microsoftGraphRoutes);
 
 export default mainRoutes;

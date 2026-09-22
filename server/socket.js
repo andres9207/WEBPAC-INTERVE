@@ -2,11 +2,7 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import { setIO } from "./src/common/configs/socket.manager.js";
 import { isOriginAllowed } from "./src/common/configs/cors.config.js";
-import {
-  getConnection,
-  releaseConnection,
-  executeQuery,
-} from "./src/common/configs/db.config.js";
+import { prisma } from "./src/common/configs/prismaClient.js";
 
 let io;
 
@@ -47,23 +43,18 @@ const authenticateHandshake = async (socket, next) => {
     return next(new Error("Autorización inválida"));
   }
 
-  let connection = null;
   try {
-    connection = await getConnection();
-    const rows = await executeQuery(
-      `SELECT use_id FROM tbl_users WHERE use_id = ? AND use_email = ? AND sta_id = 1 LIMIT 1`,
-      [decoded.useId, decoded.email],
-      connection
-    );
+    const user = await prisma.tbl_users.findFirst({
+      where: { use_id: decoded.useId, use_email: decoded.email, sta_id: 1 },
+      select: { use_id: true },
+    });
 
-    if (rows.length === 0) {
+    if (!user) {
       return next(new Error("Autorización inválida"));
     }
   } catch (error) {
     console.log(error);
     return next(new Error("Error en el servidor"));
-  } finally {
-    releaseConnection(connection);
   }
 
   socket.data.userId = decoded.useId;

@@ -2,12 +2,10 @@ import { jest } from "@jest/globals";
 
 process.env.JWT_SECRET = "test-secret";
 
-const mockExecuteQuery = jest.fn();
+const mockFindFirst = jest.fn();
 
-jest.unstable_mockModule("../../../src/common/configs/db.config.js", () => ({
-  getConnection: jest.fn().mockResolvedValue({}),
-  releaseConnection: jest.fn(),
-  executeQuery: mockExecuteQuery,
+jest.unstable_mockModule("../../../src/common/configs/prismaClient.js", () => ({
+  prisma: { tbl_users: { findFirst: mockFindFirst } },
 }));
 
 const { verifyToken } = await import("../../../src/common/middlewares/authjwt.middleware.js");
@@ -48,7 +46,7 @@ describe("verifyToken middleware", () => {
   });
 
   it("acepta el token desde el header Authorization si no hay cookie", async () => {
-    mockExecuteQuery.mockResolvedValue([{ use_id: 1 }]);
+    mockFindFirst.mockResolvedValue({ use_id: 1 });
     const token = signToken();
     const req = { cookies: {}, headers: { authorization: `Bearer ${token}` } };
 
@@ -77,7 +75,7 @@ describe("verifyToken middleware", () => {
   });
 
   it("responde 401 si el usuario no existe o está inactivo en BD (sta_id != 1)", async () => {
-    mockExecuteQuery.mockResolvedValue([]);
+    mockFindFirst.mockResolvedValue(null);
     const token = signToken();
     const { res, calledNext } = await runMiddleware({ cookies: { token }, headers: {} });
 
@@ -86,7 +84,7 @@ describe("verifyToken middleware", () => {
   });
 
   it("llama a next() y fija req.user si el token y el usuario son válidos", async () => {
-    mockExecuteQuery.mockResolvedValue([{ use_id: 1 }]);
+    mockFindFirst.mockResolvedValue({ use_id: 1 });
     const token = signToken();
     const req = { cookies: { token }, headers: {} };
 
@@ -94,5 +92,17 @@ describe("verifyToken middleware", () => {
 
     expect(calledNext).toBe(true);
     expect(req.user).toMatchObject(validPayload);
+  });
+
+  it("consulta tbl_users filtrando por use_id, use_email y sta_id=1 (activo)", async () => {
+    mockFindFirst.mockResolvedValue({ use_id: 1 });
+    const token = signToken();
+
+    await runMiddleware({ cookies: { token }, headers: {} });
+
+    expect(mockFindFirst).toHaveBeenCalledWith({
+      where: { use_id: validPayload.useId, use_email: validPayload.email, sta_id: 1 },
+      select: { use_id: true },
+    });
   });
 });

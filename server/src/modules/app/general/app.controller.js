@@ -56,11 +56,3 @@ export const getStatusesByScope = async (req, res, next) => {
   }
 };
 
-export const getModules = async (_req, res, next) => {
-  try {
-    const result = await appService.getModules();
-    return res.status(200).json(result);
-  } catch (err) {
-    next(err);
-  }
-};
