@@ -45,7 +45,6 @@ export default function ForgotPassword() {
 
   // ── Paso 1: email ────────────────────────────────────────────────────
   const [email, setEmail]   = useState('');
-  const [token, setToken]     = useState('');
 
   // ── Paso 2: código OTP ────────────────────────────────────────────────
   const [otp, setOtp]             = useState(['', '', '', '', '', '']);
@@ -101,8 +100,7 @@ export default function ForgotPassword() {
     setError(null);
     setLoading(true);
     try {
-      const { data } = await forgotPasswordAPI({ email });
-      setToken(data.token);
+      await forgotPasswordAPI({ email });
       setActiveStep(1);
     } catch (err) {
       setError(err.response?.data?.message ?? 'No encontramos una cuenta con ese email.');
@@ -120,7 +118,7 @@ export default function ForgotPassword() {
 
     setLoading(true);
     try {
-      await validateCodeAPI({ token, codeTemp });
+      await validateCodeAPI({ email, codeTemp });
       setActiveStep(2);
     } catch (err) {
       setError(err.response?.data?.message ?? 'Código incorrecto o expirado.');
@@ -135,8 +133,7 @@ export default function ForgotPassword() {
     setError(null);
     setLoading(true);
     try {
-      const { data } = await forgotPasswordAPI({ email });
-      setToken(data.token);
+      await forgotPasswordAPI({ email });
       setOtp(['', '', '', '', '', '']);
       // El useEffect reinicia el timer porque activeStep sigue en 1
       setResendTimer(60);
@@ -166,7 +163,7 @@ export default function ForgotPassword() {
     const codeTemp = otp.join('');
     setLoading(true);
     try {
-      await restorePasswordAPI({ token, nuevaContrasena: nuevaClave, codeTemp });
+      await restorePasswordAPI({ email, nuevaContrasena: nuevaClave, codeTemp });
       setActiveStep(3);
     } catch (err) {
       setError(err.response?.data?.message ?? 'Error al restablecer la contraseña.');

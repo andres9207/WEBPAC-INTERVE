@@ -1,9 +1,15 @@
-import {
-  getConnection,
-  releaseConnection,
-  executeQuery,
-} from "../../../common/configs/db.config.js";
 import _ from "lodash";
+import { prisma } from "../../../common/configs/prismaClient.js";
+
+const PROFILE_SORT_FIELDS = {
+  name: (order) => ({ pro_name: order }),
+  statusName: (order) => ({ tbl_status: { sta_name: order } }),
+  updatedAt: (order) => ({ pro_update_at: order }),
+  updatedBy: (order) => ({ pro_update_by: order }),
+  staId: (order) => ({ sta_id: order }),
+};
+
+const MAX_ROWS = 100;
 
 export const paginationProfiles = async ({
   useId,
@@ -14,92 +20,72 @@ export const paginationProfiles = async ({
   sortField,
   sortOrder,
 }) => {
-  const order = sortOrder === 1 ? "ASC" : "DESC";
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const order = sortOrder === 1 ? "asc" : "desc";
+  // sortField nunca se pasa directo a Prisma: solo columnas de esta lista
+  // fija pueden terminar en el ORDER BY (antes: ORDER BY ${sortField},
+  // interpolado sin validar — ver SECURITY.md).
+  const orderBy = (PROFILE_SORT_FIELDS[sortField] ?? PROFILE_SORT_FIELDS.name)(order);
 
-    const params = [];
-    const wheres = ["p.sta_id != 3"];
+  const take = Math.min(Math.max(Number(rows) || 10, 1), MAX_ROWS);
+  const skip = Math.max(Number(first) || 0, 0);
 
-    if (name) {
-      wheres.push("p.pro_name LIKE ?");
-      params.push(`%${name}%`);
-    }
+  const where = {
+    sta_id: { not: 3 },
+    ...(name ? { pro_name: { contains: name } } : {}),
+    ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}),
+    ...(Number(useId) !== 1 ? { NOT: { pro_id: 1 } } : {}),
+  };
 
-    if (staId) {
-      wheres.push("p.sta_id = ?");
-      params.push(staId);
-    }
+  const [profiles, total] = await Promise.all([
+    prisma.tbl_profiles.findMany({
+      where,
+      select: {
+        pro_id: true,
+        pro_name: true,
+        pro_update_by: true,
+        pro_update_at: true,
+        sta_id: true,
+        tbl_status: { select: { sta_name: true } },
+      },
+      orderBy,
+      take,
+      skip,
+    }),
+    prisma.tbl_profiles.count({ where }),
+  ]);
 
-    if (useId != 1) {
-      wheres.push("p.pro_id != 1");
-    }
+  const results = profiles.map((p) => ({
+    proId: p.pro_id,
+    name: p.pro_name,
+    statusName: p.tbl_status?.sta_name ?? null,
+    updatedBy: p.pro_update_by,
+    updatedAt: p.pro_update_at,
+    staId: p.sta_id,
+  }));
 
-    const whereClause = `WHERE ${wheres.join(" AND ")}`;
-
-    const mainQuery = `
-      SELECT
-        p.pro_id AS proId,
-        p.pro_name AS name,
-        e.sta_name AS statusName,
-        p.pro_update_by AS updatedBy,
-        p.pro_update_at AS updatedAt,
-        p.sta_id AS staId
-      FROM tbl_profiles p
-      JOIN tbl_status e ON p.sta_id = e.sta_id
-      ${whereClause}
-      ORDER BY ${sortField} ${order}
-      LIMIT ${rows} OFFSET ${first}
-    `;
-
-    const countQuery = `
-      SELECT COUNT(DISTINCT pro_id) tot
-      FROM tbl_profiles p
-      JOIN tbl_status e ON p.sta_id = e.sta_id
-      ${whereClause}
-    `;
-
-    const results = await executeQuery(mainQuery, params, connection);
-    const rowsc = await executeQuery(countQuery, params, connection);
-
-    return { results, total: rowsc[0].tot };
-  } finally {
-    releaseConnection(connection);
-  }
+  return { results, total };
 };
 
 export const getModules = async ({ proId }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const associatedPages = await prisma.tbl_pages.findMany({
+    where: { tbl_page_permissions: { some: { pro_id: Number(proId) } } },
+    select: { pag_id: true, pag_parent: true, pag_description: true },
+    orderBy: { pag_order: "asc" },
+  });
 
-    const resultsAso = await executeQuery(
-      `SELECT v.pag_parent AS parent, v.pag_id AS pagId, v.pag_description AS description
-       FROM tbl_pages v
-       JOIN tbl_page_permissions pp ON v.pag_id = pp.pag_id
-       WHERE pp.pro_id = ?
-       ORDER BY v.pag_order`,
-      [proId],
-      connection
-    );
+  const associatedIds = associatedPages.map((p) => p.pag_id);
 
-    const idasociados = resultsAso.length
-      ? resultsAso.map(({ pagId }) => pagId).join(",")
-      : "''";
+  const unassociatedPages = await prisma.tbl_pages.findMany({
+    where: { pag_id: { notIn: associatedIds } },
+    select: { pag_id: true, pag_parent: true, pag_description: true },
+  });
 
-    const results = await executeQuery(
-      `SELECT pag_parent AS parent, pag_id AS pagId, pag_description AS description
-       FROM tbl_pages
-       WHERE pag_id NOT IN (${idasociados})`,
-      [],
-      connection
-    );
+  const toShape = (p) => ({ parent: p.pag_parent, pagId: p.pag_id, description: p.pag_description });
 
-    return { associated: resultsAso, unassociated: results };
-  } finally {
-    releaseConnection(connection);
-  }
+  return {
+    associated: associatedPages.map(toShape),
+    unassociated: unassociatedPages.map(toShape),
+  };
 };
 
 export const saveProfile = async ({
@@ -110,19 +96,17 @@ export const saveProfile = async ({
   previousModules,
   useBy,
 }) => {
-  const wh = proId > 0 ? `AND pro_id != ${proId}` : "";
-  let connection = null;
-  try {
-    connection = await getConnection();
-    await connection.beginTransaction();
+  return prisma.$transaction(async (tx) => {
+    const duplicate = await tx.tbl_profiles.findFirst({
+      where: {
+        pro_name: name,
+        sta_id: { not: 3 },
+        ...(proId > 0 ? { pro_id: { not: Number(proId) } } : {}),
+      },
+      select: { pro_id: true },
+    });
 
-    const resultsQuery = await executeQuery(
-      `SELECT pro_id FROM tbl_profiles WHERE pro_name = ? AND sta_id != 3 ${wh} LIMIT 1`,
-      [name],
-      connection
-    );
-
-    if (resultsQuery.length > 0) {
+    if (duplicate) {
       const error = new Error(
         "Ya existe un Perfil con el nombre ingresado. Verificar"
       );
@@ -131,104 +115,99 @@ export const saveProfile = async ({
     }
 
     if (proId > 0) {
-      const updateProfile = await executeQuery(
-        `UPDATE tbl_profiles SET pro_name = ?, sta_id = ?, pro_update_by = ? WHERE pro_id = ?`,
-        [name, staId, useBy, proId],
-        connection
-      );
+      const updateProfile = await tx.tbl_profiles.updateMany({
+        where: { pro_id: Number(proId) },
+        data: { pro_name: name, sta_id: Number(staId), pro_update_by: Number(useBy) },
+      });
 
-      if (updateProfile.affectedRows > 0) {
-        const moddelete = _.difference(previousModules, modules);
-        const modinsert = _.difference(modules, previousModules);
-
-        if (moddelete.length > 0) {
-          await executeQuery(
-            `DELETE FROM tbl_page_permissions WHERE pro_id = ? AND pag_id IN(${moddelete.join(",")})`,
-            [proId],
-            connection
-          );
-        }
-
-        for (const pagId of modinsert) {
-          await executeQuery(
-            "INSERT INTO tbl_page_permissions(pro_id, pag_id) values(?, ?)",
-            [proId, pagId],
-            connection
-          );
-        }
-
-        await connection.commit();
-        return { message: `Perfil ${name} Modificado Correctamente` };
+      if (updateProfile.count === 0) {
+        const error = new Error("No se encontró el perfil para ser actualizado.");
+        error.status = 400;
+        throw error;
       }
 
-      const error = new Error("No se encontró el perfil para ser actualizado.");
-      error.status = 400;
-      throw error;
-    }
+      const moddelete = _.difference(previousModules, modules);
+      const modinsert = _.difference(modules, previousModules);
 
-    const insertProfile = await executeQuery(
-      `INSERT INTO tbl_profiles (pro_name, sta_id, pro_create_by, pro_update_by) VALUES(?,?,?,?)`,
-      [name, staId, useBy, useBy],
-      connection
-    );
-
-    if (insertProfile.insertId > 0) {
-      for (const pagId of modules) {
-        await executeQuery(
-          "INSERT INTO tbl_page_permissions(pro_id, pag_id) values(?, ?)",
-          [insertProfile.insertId, pagId],
-          connection
-        );
+      if (moddelete.length > 0) {
+        await tx.tbl_page_permissions.deleteMany({
+          where: { pro_id: Number(proId), pag_id: { in: moddelete } },
+        });
       }
 
-      await connection.commit();
-      return {
-        message: `Perfil ${name} Creado Correctamente`,
-        proId: insertProfile.insertId,
-      };
+      if (modinsert.length > 0) {
+        await tx.tbl_page_permissions.createMany({
+          data: modinsert.map((pagId) => ({ pro_id: Number(proId), pag_id: pagId })),
+        });
+      }
+
+      return { message: `Perfil ${name} Modificado Correctamente` };
     }
 
-    const error = new Error("Ocurrió un error al intentar registrar el perfil.");
-    error.status = 500;
-    throw error;
-  } catch (err) {
-    if (connection) await connection.rollback();
-    throw err;
-  } finally {
-    releaseConnection(connection);
-  }
+    const insertProfile = await tx.tbl_profiles.create({
+      data: {
+        pro_name: name,
+        sta_id: Number(staId),
+        pro_create_by: Number(useBy),
+        pro_update_by: Number(useBy),
+      },
+    });
+
+    if (modules.length > 0) {
+      await tx.tbl_page_permissions.createMany({
+        data: modules.map((pagId) => ({ pro_id: insertProfile.pro_id, pag_id: pagId })),
+      });
+    }
+
+    return {
+      message: `Perfil ${name} Creado Correctamente`,
+      proId: insertProfile.pro_id,
+    };
+  });
 };
 
 export const deleteProfile = async ({ proId, updatedBy }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
-    await connection.beginTransaction();
+  // prisma.$transaction hace rollback solo si el callback lanza — reemplaza
+  // el beginTransaction/commit/rollback manual de mysql2.
+  return prisma.$transaction(async (tx) => {
+    // Bloquear si hay usuarios activos con este perfil: antes no se
+    // verificaba, así que un perfil se podía "eliminar" (soft-delete) con
+    // usuarios todavía asignados — esos usuarios quedaban con pro_id
+    // apuntando a un perfil inactivo, y sus tbl_page_permissions se borraban
+    // en el mismo paso (ver abajo), dejándolos sin sidebar ni permisos de
+    // perfil de un momento a otro, sin ninguna advertencia. Ver SECURITY.md.
+    const dependentUsersCount = await tx.tbl_users.count({
+      where: { pro_id: Number(proId), sta_id: { not: 3 } },
+    });
 
-    const deleteProfile = await executeQuery(
-      "UPDATE tbl_profiles SET sta_id = 3, pro_update_by = ? WHERE pro_id = ?",
-      [updatedBy, proId],
-      connection
-    );
-
-    if (deleteProfile.affectedRows > 0) {
-      await executeQuery(
-        "DELETE FROM tbl_page_permissions WHERE pro_id = ?",
-        [proId],
-        connection
+    if (dependentUsersCount > 0) {
+      const error = new Error(
+        `No se puede eliminar el perfil: tiene ${dependentUsersCount} usuario(s) activo(s) asociado(s). Reasígnalos a otro perfil primero.`
       );
-
-      await connection.commit();
-      return { message: "Perfil Eliminado Correctamente" };
+      error.statusCode = 400;
+      throw error;
     }
 
-    const error = new Error("Error al eliminar el perfil.");
-    error.statusCode = 400;
-    throw error;
-  } catch (err) {
-    if (connection) await connection.rollback();
-    throw err;
-  } finally {
-    releaseConnection(connection);
-  }
+    const result = await tx.tbl_profiles.updateMany({
+      where: { pro_id: Number(proId) },
+      data: { sta_id: 3, pro_update_by: Number(updatedBy) },
+    });
+
+    if (result.count === 0) {
+      const error = new Error("Error al eliminar el perfil.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Limpieza completa de dependientes en la misma transacción:
+    // tbl_page_permissions (páginas del sidebar) ya se limpiaba;
+    // tbl_profile_permissions (plantilla de permisos de acción) no se
+    // limpiaba y quedaba huérfana — si el perfil alguna vez se reactivara
+    // (sta_id vuelve a 1 vía saveProfile), esos permisos viejos resucitarían
+    // silenciosamente. Ver SECURITY.md.
+    await tx.tbl_page_permissions.deleteMany({ where: { pro_id: Number(proId) } });
+    await tx.tbl_profile_permissions.deleteMany({ where: { pro_id: Number(proId) } });
+
+    return { message: "Perfil Eliminado Correctamente" };
+  });
 };

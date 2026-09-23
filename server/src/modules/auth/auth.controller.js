@@ -1,14 +1,19 @@
 import * as authService from "./auth.service.js";
 
+const SESSION_COOKIE_NAME = "token";
+const sessionCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "Strict",
+};
+
 export const loginController = async (req, res, next) => {
   try {
     const { usuario, clave, password } = req.body;
-    const result = await authService.login({ usuario, clave, password });
+    const { token, ...result } = await authService.login({ usuario, clave, password });
 
-    res.cookie("tokenTEMPLATE", result.token, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict",
+    res.cookie(SESSION_COOKIE_NAME, token, {
+      ...sessionCookieOptions,
       maxAge: 86400000,
     });
     return res.json(result);
@@ -17,50 +22,18 @@ export const loginController = async (req, res, next) => {
   }
 };
 
-export const registerUser = async (req, res, next) => {
-  try {
-    const { nombre, telefono, correo, usuario, clave } = req.body;
-    const result = await authService.register({
-      nombre,
-      telefono,
-      correo,
-      usuario,
-      clave,
-    });
-    return res.status(201).json({
-      message: "Usuario registrado correctamente. Verifica tu correo.",
-      ...result,
-    });
-  } catch (err) {
-    next(err);
-  }
+export const logoutController = (req, res) => {
+  res.clearCookie(SESSION_COOKIE_NAME, sessionCookieOptions);
+  return res.status(200).json({ success: true, message: "Sesión cerrada." });
 };
 
-export const resendOtpCode = async (req, res, next) => {
-  try {
-    const { useId } = req.body;
-    await authService.resendOtp({ useId });
-    res
-      .status(200)
-      .json({ success: true, message: "Código reenviado correctamente." });
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const verifyOtpCode = async (req, res, next) => {
-  try {
-    const { useId, codigo } = req.body;
-    await authService.verifyOtp({ useId, codigo });
-    res.status(200).json({ success: true, message: "Verificación exitosa." });
-  } catch (err) {
-    next(err);
-  }
-};
 
 export const getSettlementController = async (req, res, next) => {
   try {
-    const { useId } = req.query;
+    // El sujeto siempre sale del JWT verificado (verifyToken), nunca de la
+    // petición: aceptar un useId del cliente aquí permitiría leer los datos
+    // de cualquier otra cuenta (IDOR).
+    const { useId } = req.user;
     const result = await authService.getBasicInformation({ useId });
     res.status(200).json(result);
   } catch (err) {
@@ -70,7 +43,8 @@ export const getSettlementController = async (req, res, next) => {
 
 export const updateAccountController = async (req, res, next) => {
   try {
-    const { name, lastName, username, email, useId } = req.body;
+    const { name, lastName, username, email } = req.body;
+    const { useId } = req.user;
     await authService.updateAccount({ name, lastName, username, email, useId });
     return res
       .status(200)
@@ -82,7 +56,8 @@ export const updateAccountController = async (req, res, next) => {
 
 export const updatePasswordController = async (req, res, next) => {
   try {
-    const { currentPassword, newPassword, useId } = req.body;
+    const { currentPassword, newPassword } = req.body;
+    const { useId } = req.user;
     await authService.updatePassword({ currentPassword, newPassword, useId });
     return res
       .status(200)
@@ -104,8 +79,8 @@ export const getWindowsByProfileController = async (req, res, next) => {
 
 export const validateCodePasswordController = async (req, res, next) => {
   try {
-    const { token, codeTemp } = req.body;
-    await authService.validateCodePassword({ token, codeTemp });
+    const { email, codeTemp } = req.body;
+    await authService.validateCodePassword({ email, codeTemp });
     return res
       .status(200)
       .json({ success: true, message: "Código verificado." });
@@ -116,8 +91,8 @@ export const validateCodePasswordController = async (req, res, next) => {
 
 export const restorePasswordController = async (req, res, next) => {
   try {
-    const { token, nuevaContrasena, codeTemp } = req.body;
-    await authService.restorePassword({ token, nuevaContrasena, codeTemp });
+    const { email, nuevaContrasena, codeTemp } = req.body;
+    await authService.restorePassword({ email, nuevaContrasena, codeTemp });
     return res
       .status(200)
       .json({ success: true, message: "Contraseña actualizada con éxito." });
@@ -129,10 +104,9 @@ export const restorePasswordController = async (req, res, next) => {
 export const forgotPasswordController = async (req, res, next) => {
   try {
     const { email } = req.body;
-    const result = await authService.forgotPassword({ email });
+    await authService.forgotPassword({ email });
     return res.status(200).json({
       success: true,
-      token: result.token,
       message: "Correo enviado.",
     });
   } catch (err) {

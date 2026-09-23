@@ -1,5 +1,7 @@
 import express from "express";
 import { verifyToken } from "../../../common/middlewares/authjwt.middleware.js";
+import { requirePermission } from "../../../common/middlewares/requirePermission.middleware.js";
+import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import {
   paginationModuleDocs,
   saveModuleDoc,
@@ -11,13 +13,28 @@ import {
 const moduleDocsRoutes = express.Router();
 
 // Paginación de documentos por módulo
-moduleDocsRoutes.post("/pagination", verifyToken, paginationModuleDocs);
+moduleDocsRoutes.post(
+  "/pagination",
+  verifyToken,
+  requirePermission(PERMISSIONS.documents.view),
+  paginationModuleDocs
+);
 
 // Guardar (crear/editar) documento o carpeta
-moduleDocsRoutes.post("/save", verifyToken, saveModuleDoc);
+moduleDocsRoutes.post(
+  "/save",
+  verifyToken,
+  requirePermission(PERMISSIONS.documents.manage),
+  saveModuleDoc
+);
 
 // Eliminar lógica (soft delete con recursividad si es carpeta)
-moduleDocsRoutes.put("/delete", verifyToken, deleteModuleDoc);
+moduleDocsRoutes.put(
+  "/delete",
+  verifyToken,
+  requirePermission(PERMISSIONS.documents.manage),
+  deleteModuleDoc
+);
 
 // Obtener blob de archivo
 moduleDocsRoutes.get("/blob", verifyToken, getFileBlob);

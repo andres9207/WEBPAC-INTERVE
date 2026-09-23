@@ -1,17 +1,10 @@
-import {
-  getConnection,
-  releaseConnection,
-  executeQuery,
-} from "../../common/configs/db.config.js";
+import { prisma } from "../configs/prismaClient.js";
 import jwt from "jsonwebtoken";
 
 export const verifyToken = async (req, res, next) => {
-  let connection = null;
   try {
-    connection = await getConnection();
-
     // Leer token de cookie o del header Authorization
-    let token = req.cookies.tokenTEMPLATE;
+    let token = req.cookies.token;
     if (!token || token === "undefined" || token === "null") {
       const authHeader = req.headers.authorization;
       if (authHeader?.startsWith("Bearer ")) {
@@ -34,13 +27,12 @@ export const verifyToken = async (req, res, next) => {
         }
       }
 
-      const rows = await executeQuery(
-        `SELECT use_id FROM tbl_users WHERE use_id = ? AND use_email = ? AND sta_id = 1 LIMIT 1`,
-        [decoded.useId, decoded.email],
-        connection
-      );
+      const user = await prisma.tbl_users.findFirst({
+        where: { use_id: decoded.useId, use_email: decoded.email, sta_id: 1 },
+        select: { use_id: true },
+      });
 
-      if (rows.length > 0) {
+      if (user) {
         req.user = decoded;
         next();
       } else {
@@ -50,7 +42,5 @@ export const verifyToken = async (req, res, next) => {
   } catch (error) {
     console.log(error);
     return res.status(500).json({ message: "Error en el servidor" });
-  } finally {
-    releaseConnection(connection);
   }
 };

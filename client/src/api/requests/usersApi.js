@@ -1,20 +1,6 @@
 import httpCliente from '../services/httpCliente';
 
 /**
- * Obtener lista de usuarios (con filtro opcional por perfil)
- * @param {{ proId?: number }} params
- */
-export const getUsersAPI = (params) =>
-  httpCliente.get('security/users/get_users', params);
-
-/**
- * Obtener usuarios filtrados por permiso
- * @param {{ perId: number | string }} params
- */
-export const getUserByPermisionAPI = (params) =>
-  httpCliente.post('security/users/get_users_permision', params);
-
-/**
  * Conteo de usuarios agrupado por perfil
  * @param {{ idusuario: number }} params
  */
@@ -88,22 +74,22 @@ export const getNewnessUserAPI = (params) =>
   httpCliente.post('security/users/get_newness_user', params);
 
 /**
- * Obtener información básica del usuario autenticado
- * @param {{ useId: number }} params (query params)
+ * Obtener información básica del usuario autenticado (el sujeto lo determina
+ * el server a partir del JWT de sesión, no un parámetro del cliente)
  */
-export const getBasicInformationAPI = (params) =>
-  httpCliente.get('auth/get_basic_information', params);
+export const getBasicInformationAPI = () =>
+  httpCliente.get('auth/get_basic_information');
 
 /**
  * Actualizar datos de la cuenta del usuario autenticado
- * @param {{ name: string, username: string, email: string, useId: number }} params
+ * @param {{ name: string, lastName: string, username: string, email: string }} params
  */
 export const updateAccountAPI = (params) =>
   httpCliente.put('auth/update_account', params);
 
 /**
  * Actualizar contraseña del usuario autenticado
- * @param {{ currentPassword: string, newPassword: string, useId: number }} params
+ * @param {{ currentPassword: string, newPassword: string }} params
  */
 export const updatePasswordAPI = (params) =>
   httpCliente.put('auth/update_password', params);

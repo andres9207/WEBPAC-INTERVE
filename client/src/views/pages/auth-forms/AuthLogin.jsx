@@ -60,8 +60,10 @@ export default function AuthLogin() {
 
       // Redireccionar después del login
       navigate('/');
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // El mensaje de error ya lo expone authContext (estado `error`, mostrado
+      // arriba en el Alert). No loguear el error completo: incluye el body de
+      // la petición (usuario/contraseña en texto plano) en err.config.data.
     }
   };
 

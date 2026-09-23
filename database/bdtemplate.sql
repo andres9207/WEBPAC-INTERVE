@@ -2,6 +2,8 @@ CREATE TABLE `tbl_status` (
   `sta_id` int NOT NULL AUTO_INCREMENT,
   `sta_name` varchar(100) NOT NULL,
   `sta_scope` enum('GENERAL') NOT NULL DEFAULT 'GENERAL',
+  `sta_color` varchar(20) DEFAULT NULL,
+  `sta_order` int DEFAULT NULL,
   PRIMARY KEY (`sta_id`) USING BTREE
 );
 
@@ -20,19 +22,22 @@ CREATE TABLE `tbl_profiles` (
 ALTER TABLE `tbl_profiles`
 ADD CONSTRAINT `tbl_profiles_status` FOREIGN KEY (`sta_id`) REFERENCES `tbl_status` (`sta_id`);
 
+ALTER TABLE `tbl_profiles`
+ADD UNIQUE INDEX `uq_profiles_pro_name` (`pro_name`) USING BTREE;
+
 CREATE TABLE `tbl_users` (
   `use_id` int NOT NULL AUTO_INCREMENT,
-  `use_name` varchar(255) CHARACTER SET DEFAULT NULL,
-  `use_last_name` varchar(255) CHARACTER SET DEFAULT NULL,
-  `use_identification` varchar(255) CHARACTER SET DEFAULT NULL,
-  `use_user` varchar(100) CHARACTER SET DEFAULT NULL,
-  `use_email` varchar(255) CHARACTER SET DEFAULT NULL,
-  `use_password` varchar(255) CHARACTER SET DEFAULT NULL,
+  `use_name` varchar(255) DEFAULT NULL,
+  `use_last_name` varchar(255) DEFAULT NULL,
+  `use_identification` varchar(255) DEFAULT NULL,
+  `use_user` varchar(100) DEFAULT NULL,
+  `use_email` varchar(255) DEFAULT NULL,
+  `use_password` varchar(255) DEFAULT NULL,
   `pro_id` int DEFAULT NULL,
   `sta_id` int DEFAULT 1,
   `use_access` smallint DEFAULT 1 COMMENT 'acceso al sistema 1: SI, 0: NO',
   `use_change_password` smallint DEFAULT 1 COMMENT 'cambiar contraseña 1: SI, 0: NO',
-  `use_pages` varchar(255) CHARACTER SET DEFAULT '',
+  `use_pages` varchar(255) DEFAULT '',
   `use_create_by` int DEFAULT NULL,
   `use_create_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `use_update_by` int DEFAULT NULL,
@@ -45,8 +50,8 @@ ADD CONSTRAINT `tbl_users_profiles` FOREIGN KEY (`pro_id`) REFERENCES `tbl_profi
 ADD CONSTRAINT `tbl_users_status` FOREIGN KEY (`sta_id`) REFERENCES `tbl_status` (`sta_id`);
 
 ALTER TABLE `tbl_users`
-ADD INDEX `use_user` (`use_user`) USING BTREE,
-ADD INDEX `use_email` (`use_email`) USING BTREE;
+ADD UNIQUE INDEX `use_user` (`use_user`) USING BTREE,
+ADD UNIQUE INDEX `use_email` (`use_email`) USING BTREE;
 
 CREATE TABLE `tbl_pages` (
   `pag_id` int NOT NULL AUTO_INCREMENT,
@@ -82,6 +87,9 @@ ALTER TABLE `tbl_page_permissions`
 ADD CONSTRAINT `tbl_page_permissions_profiles` FOREIGN KEY (`pro_id`) REFERENCES `tbl_profiles` (`pro_id`),
 ADD CONSTRAINT `tbl_page_permissions_pages` FOREIGN KEY (`pag_id`) REFERENCES `tbl_pages` (`pag_id`);
 
+ALTER TABLE `tbl_page_permissions`
+ADD UNIQUE INDEX `uq_page_permissions_pro_pag` (`pro_id`, `pag_id`) USING BTREE;
+
 CREATE TABLE `tbl_profile_permissions` (
   `prp_id` int NOT NULL AUTO_INCREMENT,
   `per_id` int NOT NULL,
@@ -93,6 +101,9 @@ ALTER TABLE `tbl_profile_permissions`
 ADD CONSTRAINT `tbl_profile_permissions_permissions` FOREIGN KEY (`per_id`) REFERENCES `tbl_permissions` (`per_id`),
 ADD CONSTRAINT `tbl_profile_permissions_profiles` FOREIGN KEY (`pro_id`) REFERENCES `tbl_profiles` (`pro_id`);
 
+ALTER TABLE `tbl_profile_permissions`
+ADD UNIQUE INDEX `uq_profile_permissions_per_pro` (`per_id`, `pro_id`) USING BTREE;
+
 CREATE TABLE `tbl_user_permissions` (
   `usp_id` int NOT NULL AUTO_INCREMENT,
   `per_id` int NOT NULL,
@@ -103,6 +114,9 @@ CREATE TABLE `tbl_user_permissions` (
 ALTER TABLE `tbl_user_permissions`
 ADD CONSTRAINT `tbl_user_permissions_permissions` FOREIGN KEY (`per_id`) REFERENCES `tbl_permissions` (`per_id`),
 ADD CONSTRAINT `tbl_user_permissions_users` FOREIGN KEY (`use_id`) REFERENCES `tbl_users` (`use_id`);
+
+ALTER TABLE `tbl_user_permissions`
+ADD UNIQUE INDEX `uq_user_permissions_per_use` (`per_id`, `use_id`) USING BTREE;
 
 CREATE TABLE `tbl_documents` (
   `doc_id` int NOT NULL AUTO_INCREMENT,

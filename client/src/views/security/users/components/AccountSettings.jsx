@@ -23,7 +23,7 @@ export const AccountSettings = ({ visible, setVisible }) => {
 
   useEffect(() => {
     if (visible && user?.useId) {
-      getBasicInformationAPI({ useId: user.useId })
+      getBasicInformationAPI()
         .then(({ data }) => {
           reset({
             name: data.name || '',
@@ -52,7 +52,7 @@ export const AccountSettings = ({ visible, setVisible }) => {
   const onSubmit = async ({ name, lastName, username, email }) => {
     setSaving(true);
     try {
-      const { data } = await updateAccountAPI({ name, lastName, username, email, useId: user.useId });
+      const { data } = await updateAccountAPI({ name, lastName, username, email });
       showSuccess(data.message);
       setVisible(false);
     } catch (error) {

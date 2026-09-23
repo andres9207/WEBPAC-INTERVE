@@ -5,6 +5,7 @@ import { Navigate } from 'react-router';
 import MainLayout from 'layout/MainLayout';
 import Loadable from 'ui-component/Loadable';
 import PrivateRoute from './PrivateRoute';
+import ErrorBoundary from './ErrorBoundary';
 
 // dashboard routing
 const DashboardDefault = Loadable(lazy(() => import('views/dashboard/Default')));
@@ -18,6 +19,7 @@ const UsersPage    = Loadable(lazy(() => import('views/security/users/UsersPage'
 const MainRoutes = {
   path: '/',
   element: <PrivateRoute />,
+  errorElement: <ErrorBoundary />,
   children: [
     {
       element: <MainLayout />,

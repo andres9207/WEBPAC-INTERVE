@@ -13,7 +13,6 @@ export const SocketProvider = ({ children, userId }) => {
       upgrade: true,
       withCredentials: true,
       path: pathSocket,
-      auth: { userId },
       reconnection: true,
       reconnectionAttempts: 15,
       reconnectionDelay: 1000,
