@@ -5,7 +5,6 @@ import { auditContext } from "../../../common/services/audit.service.js";
 export const paginationUsersController = async (req, res, next) => {
   try {
     const {
-      useId,
       proId,
       name,
       lastName,
@@ -19,7 +18,6 @@ export const paginationUsersController = async (req, res, next) => {
       sortOrder,
     } = req.body;
     const result = await usersService.paginationUsers({
-      useId,
       proId,
       name,
       lastName,

@@ -4,7 +4,10 @@ import { auditContext } from "../../../common/services/audit.service.js";
 
 export const paginationProfilesController = async (req, res, next) => {
   try {
-    const { useId, name, staId, rows, first, sortField, sortOrder } = req.body;
+    const { name, staId, rows, first, sortField, sortOrder } = req.body;
+    // Del JWT, nunca del body: el service decide con este id si incluye el
+    // perfil Superadmin en el listado (mismo criterio que countUsers).
+    const { useId } = req.user;
     const result = await profilesService.paginationProfiles({
       useId,
       name,

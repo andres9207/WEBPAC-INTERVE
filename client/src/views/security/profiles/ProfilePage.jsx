@@ -20,7 +20,7 @@ import { useAuth } from 'contexts/AuthContext';
 import { showError } from 'services/ToastService';
 
 export default function ProfilesPage() {
-  const { user, hasPermission, permissionsCatalog } = useAuth();
+  const { hasPermission, permissionsCatalog } = useAuth();
 
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -83,7 +83,6 @@ export default function ProfilesPage() {
     setLoading(true);
     try {
       const { data } = await paginationProfilesAPI({
-        useId: user?.useId,
         name: filters.name,
         staId: filters.staId,
         rows: rowsPerPage,
@@ -98,7 +97,7 @@ export default function ProfilesPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, filters.name, filters.staId, page, rowsPerPage, sortField, sortOrder]);
+  }, [filters.name, filters.staId, page, rowsPerPage, sortField, sortOrder]);
 
   useEffect(() => { fetchProfiles(); }, [fetchProfiles]);
 
