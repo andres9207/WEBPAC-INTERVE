@@ -1,21 +1,31 @@
 import jwt from "jsonwebtoken";
 import * as authService from "./auth.service.js";
 import * as sessionService from "../../common/services/session.service.js";
+import { AUDIT_OPERATIONS, auditContext } from "../../common/services/audit.service.js";
 
 const requestContext = (req) => ({
   ip: req.ip,
   userAgent: req.get?.("user-agent"),
 });
 
+// El actor del logout lo completa session.service con el dueño de la sesión.
+const logoutAudit = (req) => ({ operation: AUDIT_OPERATIONS.LOGOUT, ctx: { ip: req.ip ?? null } });
+
 export const loginController = async (req, res, next) => {
   try {
     const { usuario, clave, password } = req.body;
-    const { sessionUser, ...result } = await authService.login({ usuario, clave, password });
+    const { sessionUser, ...result } = await authService.login({
+      usuario,
+      clave,
+      password,
+      ctx: auditContext(req),
+    });
 
     // Sesión única: abrir esta sesión cierra cualquier otra del usuario.
     const { accessToken, refreshToken } = await sessionService.createSession({
       user: sessionUser,
       ...requestContext(req),
+      auditOperation: AUDIT_OPERATIONS.LOGIN,
     });
 
     sessionService.setSessionCookies(res, { accessToken, refreshToken });
@@ -56,11 +66,15 @@ export const logoutController = async (req, res, next) => {
     const accessToken = req.cookies?.[sessionService.ACCESS_COOKIE_NAME];
 
     if (refreshToken) {
-      await sessionService.revokeSessionByRefreshToken({ refreshToken });
+      await sessionService.revokeSessionByRefreshToken({ refreshToken, audit: logoutAudit(req) });
     } else if (accessToken) {
       try {
         const decoded = jwt.verify(accessToken, process.env.JWT_SECRET, { ignoreExpiration: true });
-        await sessionService.revokeSessionByKey({ useId: decoded.useId, sessionKey: decoded.sid });
+        await sessionService.revokeSessionByKey({
+          useId: decoded.useId,
+          sessionKey: decoded.sid,
+          audit: logoutAudit(req),
+        });
       } catch {
         // Token inválido: no identifica ninguna sesión; basta con limpiar cookies.
       }
@@ -90,7 +104,14 @@ export const updateAccountController = async (req, res, next) => {
   try {
     const { name, lastName, username, email } = req.body;
     const { useId, sid } = req.user;
-    const updated = await authService.updateAccount({ name, lastName, username, email, useId });
+    const updated = await authService.updateAccount({
+      name,
+      lastName,
+      username,
+      email,
+      useId,
+      ctx: auditContext(req),
+    });
 
     // Misma sesión (mismo sid), token reemitido con el nombre/correo nuevos.
     sessionService.setSessionCookies(res, {
@@ -109,7 +130,12 @@ export const updatePasswordController = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const { useId } = req.user;
-    const user = await authService.updatePassword({ currentPassword, newPassword, useId });
+    const user = await authService.updatePassword({
+      currentPassword,
+      newPassword,
+      useId,
+      ctx: auditContext(req),
+    });
 
     // Rota la sesión: sesión nueva para este dispositivo, la anterior (y
     // cualquier copia de sus tokens) deja de servir.
@@ -140,7 +166,7 @@ export const getWindowsByProfileController = async (req, res, next) => {
 export const validateCodePasswordController = async (req, res, next) => {
   try {
     const { email, codeTemp } = req.body;
-    await authService.validateCodePassword({ email, codeTemp });
+    await authService.validateCodePassword({ email, codeTemp, ctx: auditContext(req) });
     return res
       .status(200)
       .json({ success: true, message: "Código verificado." });
@@ -152,7 +178,7 @@ export const validateCodePasswordController = async (req, res, next) => {
 export const restorePasswordController = async (req, res, next) => {
   try {
     const { email, nuevaContrasena, codeTemp } = req.body;
-    await authService.restorePassword({ email, nuevaContrasena, codeTemp });
+    await authService.restorePassword({ email, nuevaContrasena, codeTemp, ctx: auditContext(req) });
     return res
       .status(200)
       .json({ success: true, message: "Contraseña actualizada con éxito." });
@@ -164,7 +190,7 @@ export const restorePasswordController = async (req, res, next) => {
 export const forgotPasswordController = async (req, res, next) => {
   try {
     const { email } = req.body;
-    await authService.forgotPassword({ email });
+    await authService.forgotPassword({ email, ctx: auditContext(req) });
     return res.status(200).json({
       success: true,
       message: "Correo enviado.",

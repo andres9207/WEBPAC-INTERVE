@@ -1,6 +1,12 @@
 import { getIO } from "../../../common/configs/socket.manager.js";
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
+import {
+  AUDIT_ENTITIES,
+  AUDIT_OPERATIONS,
+  newOperationId,
+  writeAudit,
+} from "../../../common/services/audit.service.js";
 
 export const getProfileWindows = async ({ proId, useId }) => {
   if (!proId && !useId) {
@@ -137,7 +143,38 @@ export const getProfilePermissions = async ({ pagIds, proId }) => {
   }));
 };
 
-export const updateProfilePermissions = async ({ permissions, proId, actingProId }) => {
+/**
+ * Registra en la bitácora las asignaciones y revocaciones de permisos de un
+ * perfil o usuario (ADR-0013 decisión 6: quién otorgó un permiso y cuándo
+ * es una decisión con consecuencias de seguridad). Las tablas de unión no
+ * tienen columnas de autoría: la bitácora es su única evidencia. Una fila
+ * por permiso, todas con el mismo operationId.
+ */
+const auditPermissionChanges = async (tx, { entity, recordId, granted, revoked, ctx }) => {
+  const operationId = newOperationId();
+  if (granted.length > 0) {
+    await writeAudit(tx, {
+      operationId,
+      entity,
+      recordId,
+      operation: AUDIT_OPERATIONS.GRANT,
+      ctx,
+      changes: granted.map((perId) => ({ field: "permiso", oldValue: null, newValue: perId })),
+    });
+  }
+  if (revoked.length > 0) {
+    await writeAudit(tx, {
+      operationId,
+      entity,
+      recordId,
+      operation: AUDIT_OPERATIONS.REVOKE,
+      ctx,
+      changes: revoked.map((perId) => ({ field: "permiso", oldValue: perId, newValue: null })),
+    });
+  }
+};
+
+export const updateProfilePermissions = async ({ permissions, proId, actingProId, ctx = {} }) => {
   if (!permissions || !proId) {
     const error = new Error(
       "Los permisos (permissions) y el perfil (proId) son obligatorios"
@@ -181,12 +218,20 @@ export const updateProfilePermissions = async ({ permissions, proId, actingProId
         data: toInsert.map((perId) => ({ per_id: perId, pro_id: Number(proId) })),
       });
     }
+
+    await auditPermissionChanges(tx, {
+      entity: AUDIT_ENTITIES.PROFILE,
+      recordId: proId,
+      granted: toInsert,
+      revoked: toDelete,
+      ctx,
+    });
   });
 
   return { message: "Permisos actualizados" };
 };
 
-export const updateUserPermissions = async ({ permissions, useId, actingUseId }) => {
+export const updateUserPermissions = async ({ permissions, useId, actingUseId, ctx = { useId: actingUseId } }) => {
   if (!permissions || !useId) {
     const error = new Error(
       "Los permisos (permissions) y el usuario (useId) son obligatorios"
@@ -253,6 +298,14 @@ export const updateUserPermissions = async ({ permissions, useId, actingUseId })
         data: toInsert.map((perId) => ({ per_id: perId, use_id: Number(useId) })),
       });
     }
+
+    await auditPermissionChanges(tx, {
+      entity: AUDIT_ENTITIES.USER,
+      recordId: useId,
+      granted: toInsert,
+      revoked: toDelete,
+      ctx,
+    });
   });
 
   // Efectivo (unión), no solo las excepciones individuales que se acaban de

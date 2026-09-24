@@ -11,6 +11,8 @@ const prismaMock = {
     updateMany: jest.fn(),
     deleteMany: jest.fn(),
   },
+  tbl_audit_log: { createMany: jest.fn() },
+  $transaction: jest.fn((fn) => fn(prismaMock)),
 };
 
 jest.unstable_mockModule("../../../src/common/configs/prismaClient.js", () => ({
@@ -33,7 +35,10 @@ const inAWeek = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
 beforeEach(() => {
   jest.clearAllMocks();
+  prismaMock.$transaction.mockImplementation((fn) => fn(prismaMock));
 });
+
+const auditRows = () => prismaMock.tbl_audit_log.createMany.mock.calls.flatMap((c) => c[0].data);
 
 describe("createSession — sesión única", () => {
   it("guarda solo el hash del refresh token y firma el access token con sid", async () => {
@@ -58,6 +63,28 @@ describe("createSession — sesión única", () => {
     expect(sessionKey).not.toBe("sesion-vieja");
     expect(mockIn).toHaveBeenCalledWith("session:sesion-vieja");
     expect(mockDisconnectSockets).toHaveBeenCalledWith(true);
+  });
+
+  it("con auditOperation registra el LOGIN en la bitácora, y si reemplazó otra sesión lo deja constar", async () => {
+    prismaMock.tbl_sessions.findUnique.mockResolvedValue({ ses_key: "sesion-vieja" });
+
+    await sessionService.createSession({ user, ip: "1.1.1.1", auditOperation: "LOGIN" });
+
+    const [row] = auditRows();
+    expect(row).toMatchObject({
+      aud_operation: "LOGIN",
+      aud_entity: "USUARIO",
+      aud_record_id: 1,
+      use_id: 1,
+      aud_ip: "1.1.1.1",
+      aud_field: "sesion_anterior",
+    });
+  });
+
+  it("sin auditOperation no escribe en la bitácora", async () => {
+    prismaMock.tbl_sessions.findUnique.mockResolvedValue(null);
+    await sessionService.createSession({ user });
+    expect(prismaMock.tbl_audit_log.createMany).not.toHaveBeenCalled();
   });
 
   it("el access token dura 15 minutos por defecto", async () => {
@@ -139,6 +166,9 @@ describe("refreshSession — rotación", () => {
 
     await expect(sessionService.refreshSession({ refreshToken: "robado" })).rejects.toMatchObject({ statusCode: 401 });
     expect(prismaMock.tbl_sessions.deleteMany).toHaveBeenCalledWith({ where: { use_id: 1 } });
+    expect(auditRows()).toEqual([
+      expect.objectContaining({ aud_operation: "SESION_REVOCADA", aud_record_id: 1, aud_field: "motivo" }),
+    ]);
   });
 
   it("token desconocido: 401 sin tocar nada", async () => {
@@ -189,9 +219,16 @@ describe("revocación", () => {
       .mockResolvedValueOnce({ use_id: 1 })
       .mockResolvedValueOnce({ ses_key: "sesion-1" });
 
-    await sessionService.revokeSessionByRefreshToken({ refreshToken: "r1" });
+    await sessionService.revokeSessionByRefreshToken({
+      refreshToken: "r1",
+      audit: { operation: "LOGOUT", ctx: { ip: "1.1.1.1" } },
+    });
 
     expect(prismaMock.tbl_sessions.findUnique.mock.calls[0][0].where).toEqual({ ses_refresh_hash: sha256("r1") });
     expect(prismaMock.tbl_sessions.deleteMany).toHaveBeenCalledWith({ where: { use_id: 1 } });
+    // El actor del logout es el dueño de la sesión, no un valor del cliente.
+    expect(auditRows()).toEqual([
+      expect.objectContaining({ aud_operation: "LOGOUT", use_id: 1, aud_record_id: 1, aud_ip: "1.1.1.1" }),
+    ]);
   });
 });

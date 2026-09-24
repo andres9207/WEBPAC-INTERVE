@@ -1,5 +1,6 @@
 import * as permissionsService from "./permissions.service.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
+import { auditContext } from "../../../common/services/audit.service.js";
 
 export const getPermissionsCatalogController = (_req, res) => {
   res.status(200).json(PERMISSIONS);
@@ -42,7 +43,12 @@ export const updateProfilePermissionsController = async (req, res, next) => {
     // impedir la autoconcesión (no puede modificar los permisos de su
     // propio perfil, ver permissions.service.js).
     const { proId: actingProId } = req.user;
-    const result = await permissionsService.updateProfilePermissions({ permissions, proId, actingProId });
+    const result = await permissionsService.updateProfilePermissions({
+      permissions,
+      proId,
+      actingProId,
+      ctx: auditContext(req),
+    });
     res.status(200).json(result);
   } catch (err) {
     next(err);
@@ -54,7 +60,12 @@ export const updateUserPermissionsController = async (req, res, next) => {
     const { permissions, useId } = req.body;
     // Idem: impide que un usuario se conceda permisos a sí mismo.
     const { useId: actingUseId } = req.user;
-    const result = await permissionsService.updateUserPermissions({ permissions, useId, actingUseId });
+    const result = await permissionsService.updateUserPermissions({
+      permissions,
+      useId,
+      actingUseId,
+      ctx: auditContext(req),
+    });
     res.status(200).json(result);
   } catch (err) {
     next(err);

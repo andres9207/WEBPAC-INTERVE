@@ -2,8 +2,13 @@ import { jest } from "@jest/globals";
 
 process.env.JWT_SECRET = "test-secret";
 
+// $transaction admite las dos formas que usa el código: lote (arreglo) o
+// interactiva (callback que recibe el `tx`, aquí el mismo mock).
+const runTransaction = (arg) => (typeof arg === "function" ? arg(prismaMock) : Promise.all(arg));
+
 const prismaMock = {
-  tbl_users: { findFirst: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
+  tbl_users: { findFirst: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
+  tbl_audit_log: { createMany: jest.fn() },
   tbl_user_permissions: { findMany: jest.fn() },
   tbl_profile_permissions: { findMany: jest.fn() },
   tbl_password_resets: {
@@ -18,8 +23,10 @@ const prismaMock = {
     update: jest.fn(),
     deleteMany: jest.fn(),
   },
-  $transaction: jest.fn((ops) => Promise.all(ops)),
+  $transaction: jest.fn(runTransaction),
 };
+
+const auditRows = () => prismaMock.tbl_audit_log.createMany.mock.calls.flatMap((c) => c[0].data);
 
 jest.unstable_mockModule("../../../src/common/configs/prismaClient.js", () => ({
   prisma: prismaMock,
@@ -48,7 +55,7 @@ const { hashResetCode } = await import("../../../src/common/utils/resetCode.util
 beforeEach(() => {
   jest.clearAllMocks();
   mockHashPassword.mockResolvedValue("hashed:pw");
-  prismaMock.$transaction.mockImplementation((ops) => Promise.all(ops));
+  prismaMock.$transaction.mockImplementation(runTransaction);
   prismaMock.tbl_login_attempts.findUnique.mockResolvedValue(null);
   prismaMock.tbl_login_attempts.upsert.mockResolvedValue({ lat_failed_count: 1 });
 });
@@ -78,6 +85,10 @@ describe("login", () => {
     });
     expect(mockComparePassword).toHaveBeenCalledTimes(1);
     expect(prismaMock.tbl_login_attempts.upsert).not.toHaveBeenCalled();
+    // Se registra el intento, anónimo y sin el identificador tecleado.
+    const [row] = auditRows();
+    expect(row).toMatchObject({ aud_operation: "LOGIN_FALLIDO", aud_record_id: null, use_id: null });
+    expect(JSON.stringify(auditRows())).not.toContain("nadie");
   });
 
   it("lanza 403 y registra el intento fallido si la contraseña no coincide", async () => {
@@ -104,6 +115,11 @@ describe("login", () => {
       where: { use_id: 1 },
       data: { lat_locked_until: expect.any(Date) },
     });
+    // Fallo y bloqueo quedan como una sola operación en la bitácora.
+    const rows = auditRows();
+    expect(rows.map((r) => r.aud_operation)).toEqual(["LOGIN_FALLIDO", "CUENTA_BLOQUEADA"]);
+    expect(new Set(rows.map((r) => r.aud_operation_id)).size).toBe(1);
+    expect(JSON.stringify(rows)).not.toContain("mala");
   });
 
   it("con la cuenta bloqueada rechaza incluso la contraseña correcta, sin compararla", async () => {
@@ -189,21 +205,41 @@ describe("getBasicInformation", () => {
 });
 
 describe("updateAccount", () => {
-  it("lanza 400 si no se actualizó ninguna fila (id inexistente)", async () => {
-    prismaMock.tbl_users.updateMany.mockResolvedValue({ count: 0 });
+  it("lanza 400 si el usuario no existe", async () => {
+    prismaMock.tbl_users.findUnique.mockResolvedValue(null);
 
     await expect(
       authService.updateAccount({ useId: 999, name: "x", lastName: "y", username: "z", email: "e@e.com" })
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it("devuelve los datos actualizados para reemitir el token de sesión", async () => {
-    prismaMock.tbl_users.updateMany.mockResolvedValue({ count: 1 });
-    prismaMock.tbl_users.findUnique.mockResolvedValue({ use_id: 1, use_name: "x", use_email: "e@e.com", pro_id: 2 });
+  it("registra al propio usuario como autor, audita solo los campos que cambiaron y devuelve los datos nuevos", async () => {
+    prismaMock.tbl_users.findUnique.mockResolvedValue({
+      use_id: 1,
+      use_name: "viejo",
+      use_last_name: "y",
+      use_user: "z",
+      use_email: "e@e.com",
+      pro_id: 2,
+    });
 
     await expect(
-      authService.updateAccount({ useId: 1, name: "x", lastName: "y", username: "z", email: "e@e.com" })
-    ).resolves.toEqual({ useId: 1, name: "x", email: "e@e.com", proId: 2 });
+      authService.updateAccount({ useId: 1, name: "nuevo", lastName: "y", username: "z", email: "e@e.com" })
+    ).resolves.toEqual({ useId: 1, name: "nuevo", email: "e@e.com", proId: 2 });
+
+    expect(prismaMock.tbl_users.update).toHaveBeenCalledWith({
+      where: { use_id: 1 },
+      data: expect.objectContaining({ use_update_by: 1 }),
+    });
+    expect(auditRows()).toEqual([
+      expect.objectContaining({
+        aud_operation: "EDITAR",
+        aud_field: "use_name",
+        aud_old_value: "viejo",
+        aud_new_value: "nuevo",
+        use_id: 1,
+      }),
+    ]);
   });
 });
 
@@ -241,9 +277,13 @@ describe("updatePassword", () => {
     expect(mockHashPassword).toHaveBeenCalledWith("nueva12345");
     expect(prismaMock.tbl_users.updateMany).toHaveBeenCalledWith({
       where: { use_id: 1 },
-      data: { use_password: "hashed:pw" },
+      data: { use_password: "hashed:pw", use_update_by: 1 },
     });
     expect(user).toEqual({ useId: 1, name: "Admin", email: "a@a.com", proId: 1 });
+    // Queda constancia del cambio, nunca del valor ni del hash.
+    const rows = auditRows();
+    expect(rows).toEqual([expect.objectContaining({ aud_operation: "CONTRASENA_CAMBIADA", aud_new_value: "[oculto]" })]);
+    expect(JSON.stringify(rows)).not.toMatch(/hashed:pw|nueva12345|buena/);
   });
 });
 
@@ -278,6 +318,11 @@ describe("forgotPassword — no debe permitir enumerar cuentas", () => {
     const code = html.match(/>(\d{6})</)[1];
     expect(JSON.stringify(create)).not.toContain(code);
     expect(create.par_code_hash).toBe(hashResetCode({ code, useId: 1 }));
+
+    // La solicitud queda en la bitácora, sin el código.
+    const rows = auditRows();
+    expect(rows).toEqual([expect.objectContaining({ aud_operation: "RECUPERACION_SOLICITADA", aud_record_id: 1 })]);
+    expect(JSON.stringify(rows)).not.toContain(code);
   });
 
   it("tarda aproximadamente lo mismo exista o no la cuenta (piso de temporización)", async () => {
@@ -325,6 +370,9 @@ describe("validateCodePassword / restorePassword", () => {
       where: { par_id: 7, par_attempts: { lt: authService.RESET_CODE_MAX_ATTEMPTS } },
       data: { par_attempts: { increment: 1 } },
     });
+    expect(auditRows()).toEqual([
+      expect.objectContaining({ aud_operation: "CODIGO_RECUPERACION_FALLIDO", aud_record_id: 1 }),
+    ]);
   });
 
   it("agotados los intentos, invalida el código aunque sea el correcto", async () => {
@@ -367,5 +415,8 @@ describe("validateCodePassword / restorePassword", () => {
     expect(prismaMock.$transaction).toHaveBeenCalled();
     expect(prismaMock.tbl_login_attempts.deleteMany).toHaveBeenCalledWith({ where: { use_id: 1 } });
     expect(mockRevokeSession).toHaveBeenCalledWith({ useId: 1 });
+    expect(auditRows()).toEqual([
+      expect.objectContaining({ aud_operation: "CONTRASENA_RESTAURADA", use_id: 1, aud_new_value: "[oculto]" }),
+    ]);
   });
 });

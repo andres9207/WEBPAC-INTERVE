@@ -2,6 +2,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { prisma } from "../configs/prismaClient.js";
 import { getIO } from "../configs/socket.manager.js";
+import { AUDIT_ENTITIES, AUDIT_OPERATIONS, writeAudit } from "./audit.service.js";
 
 /**
  * Sesiones de usuario (ADR-0001, B14) — tbl_sessions.
@@ -105,7 +106,7 @@ export const clearSessionCookies = (res) => {
  * (política de sesión única). Devuelve el access token y el refresh token
  * en claro — este último solo existe aquí y en la cookie.
  */
-export const createSession = async ({ user, ip, userAgent }) => {
+export const createSession = async ({ user, ip, userAgent, auditOperation = null }) => {
   const sessionKey = crypto.randomUUID();
   const refreshToken = newRefreshToken();
 
@@ -120,15 +121,32 @@ export const createSession = async ({ user, ip, userAgent }) => {
     ses_create_at: new Date(),
   };
 
-  const previous = await prisma.tbl_sessions.findUnique({
-    where: { use_id: user.useId },
-    select: { ses_key: true },
-  });
+  // `auditOperation` (p. ej. LOGIN) se registra en la misma transacción que
+  // la sesión: no puede quedar una sesión abierta sin su evento, ni al revés.
+  const previous = await prisma.$transaction(async (tx) => {
+    const prev = await tx.tbl_sessions.findUnique({
+      where: { use_id: user.useId },
+      select: { ses_key: true },
+    });
 
-  await prisma.tbl_sessions.upsert({
-    where: { use_id: user.useId },
-    create: { use_id: user.useId, ...data },
-    update: data,
+    await tx.tbl_sessions.upsert({
+      where: { use_id: user.useId },
+      create: { use_id: user.useId, ...data },
+      update: data,
+    });
+
+    if (auditOperation) {
+      await writeAudit(tx, {
+        entity: AUDIT_ENTITIES.USER,
+        recordId: user.useId,
+        operation: auditOperation,
+        ctx: { useId: user.useId, ip },
+        // Sesión única: dejar constancia de que este login cerró otra.
+        changes: prev ? [{ field: "sesion_anterior", oldValue: "activa", newValue: "cerrada" }] : [],
+      });
+    }
+
+    return prev;
   });
 
   disconnectSessionSockets(previous?.ses_key);
@@ -196,7 +214,16 @@ export const refreshSession = async ({ refreshToken }) => {
       };
     }
 
-    await revokeSession({ useId: reused.tbl_users.use_id });
+    // Evento de seguridad relevante: alguien presentó un refresh token que
+    // ya había sido rotado (posible robo).
+    await revokeSession({
+      useId: reused.tbl_users.use_id,
+      audit: {
+        operation: AUDIT_OPERATIONS.SESSION_REVOKED,
+        ctx: { useId: null },
+        reason: "reutilización de un refresh token ya rotado",
+      },
+    });
     throw sessionError();
   }
 
@@ -228,17 +255,39 @@ export const refreshSession = async ({ refreshToken }) => {
   };
 };
 
-/** Cierra la sesión del usuario (logout, cambio/restauración de contraseña, desactivación). */
-export const revokeSession = async ({ useId }) => {
+/**
+ * Cierra la sesión del usuario (logout, cambio/restauración de contraseña,
+ * desactivación). `audit` opcional ({ operation, ctx, reason }) se registra
+ * en la misma transacción que el borrado de la sesión; se omite cuando la
+ * revocación es consecuencia de otra operación ya auditada (eliminar un
+ * usuario, restaurar la contraseña).
+ */
+export const revokeSession = async ({ useId, audit = null }) => {
   if (!useId) return;
-  const previous = await prisma.tbl_sessions.findUnique({
-    where: { use_id: Number(useId) },
-    select: { ses_key: true },
-  });
-  if (!previous) return;
 
-  await prisma.tbl_sessions.deleteMany({ where: { use_id: Number(useId) } });
-  disconnectSessionSockets(previous.ses_key);
+  const previous = await prisma.$transaction(async (tx) => {
+    const prev = await tx.tbl_sessions.findUnique({
+      where: { use_id: Number(useId) },
+      select: { ses_key: true },
+    });
+    if (!prev) return null;
+
+    await tx.tbl_sessions.deleteMany({ where: { use_id: Number(useId) } });
+
+    if (audit) {
+      await writeAudit(tx, {
+        entity: AUDIT_ENTITIES.USER,
+        recordId: useId,
+        operation: audit.operation,
+        ctx: audit.ctx,
+        changes: audit.reason ? [{ field: "motivo", newValue: audit.reason }] : [],
+      });
+    }
+
+    return prev;
+  });
+
+  if (previous) disconnectSessionSockets(previous.ses_key);
 };
 
 /**
@@ -246,24 +295,28 @@ export const revokeSession = async ({ useId }) => {
  * ses_key). Un access token viejo —de una sesión ya reemplazada— no debe
  * poder cerrar la sesión vigente del usuario.
  */
-export const revokeSessionByKey = async ({ useId, sessionKey }) => {
+export const revokeSessionByKey = async ({ useId, sessionKey, audit = null }) => {
   if (!useId || !sessionKey) return;
   const current = await prisma.tbl_sessions.findFirst({
     where: { use_id: Number(useId), ses_key: sessionKey },
     select: { use_id: true },
   });
-  if (current) await revokeSession({ useId: current.use_id });
+  if (current) await revokeSession({ useId: current.use_id, audit: withActor(audit, current.use_id) });
 };
 
 /** Cierra la sesión dueña de un refresh token (logout sin access token vigente). */
-export const revokeSessionByRefreshToken = async ({ refreshToken }) => {
+export const revokeSessionByRefreshToken = async ({ refreshToken, audit = null }) => {
   if (!refreshToken) return;
   const session = await prisma.tbl_sessions.findUnique({
     where: { ses_refresh_hash: sha256(refreshToken) },
     select: { use_id: true },
   });
-  if (session) await revokeSession({ useId: session.use_id });
+  if (session) await revokeSession({ useId: session.use_id, audit: withActor(audit, session.use_id) });
 };
+
+// En el logout el actor es el dueño de la sesión, identificado por su token
+// (la ruta no pasa por verifyToken, así que req.user no existe).
+const withActor = (audit, useId) => (audit ? { ...audit, ctx: { ...audit.ctx, useId } } : null);
 
 /**
  * ¿Sigue viva la sesión de este access token? La usan verifyToken y el

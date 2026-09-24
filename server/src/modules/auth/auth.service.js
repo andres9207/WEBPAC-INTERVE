@@ -7,6 +7,14 @@ import { prisma } from "../../common/configs/prismaClient.js";
 import { getEffectivePermissionIds } from "../../common/services/effectivePermissions.service.js";
 import { revokeSession } from "../../common/services/session.service.js";
 import {
+  AUDIT_ENTITIES,
+  AUDIT_OPERATIONS,
+  REDACTED,
+  diffFields,
+  newOperationId,
+  writeAudit,
+} from "../../common/services/audit.service.js";
+import {
   generateResetCode,
   hashResetCode,
   verifyResetCode,
@@ -44,27 +52,53 @@ export const lockDurationFor = (failedCount) => {
   return Math.min(LOCK_BASE_MS * 2 ** level, LOCK_MAX_MS);
 };
 
-const registerFailedLogin = async (useId) => {
-  const { lat_failed_count } = await prisma.tbl_login_attempts.upsert({
-    where: { use_id: useId },
-    create: { use_id: useId, lat_failed_count: 1, lat_last_failed_at: new Date() },
-    update: { lat_failed_count: { increment: 1 }, lat_last_failed_at: new Date() },
-    select: { lat_failed_count: true },
-  });
+// Eventos de login: el actor es anónimo (todavía no hay sesión), así que
+// use_id queda NULL y el usuario afectado va en aud_record_id. Nunca se
+// registra el identificador ni la contraseña tecleados: un usuario que
+// escribe su contraseña en el campo de usuario la dejaría en la bitácora.
+const anonymous = (ctx) => ({ useId: null, ip: ctx?.ip ?? null });
 
-  const lockMs = lockDurationFor(lat_failed_count);
-  if (lockMs > 0) {
-    await prisma.tbl_login_attempts.update({
+const registerFailedLogin = async (useId, ctx) =>
+  prisma.$transaction(async (tx) => {
+    const { lat_failed_count } = await tx.tbl_login_attempts.upsert({
       where: { use_id: useId },
-      data: { lat_locked_until: new Date(Date.now() + lockMs) },
+      create: { use_id: useId, lat_failed_count: 1, lat_last_failed_at: new Date() },
+      update: { lat_failed_count: { increment: 1 }, lat_last_failed_at: new Date() },
+      select: { lat_failed_count: true },
     });
-  }
-};
+
+    const operationId = newOperationId();
+    await writeAudit(tx, {
+      operationId,
+      entity: AUDIT_ENTITIES.USER,
+      recordId: useId,
+      operation: AUDIT_OPERATIONS.LOGIN_FAILED,
+      ctx: anonymous(ctx),
+      changes: [{ field: "intentos_fallidos", oldValue: lat_failed_count - 1, newValue: lat_failed_count }],
+    });
+
+    const lockMs = lockDurationFor(lat_failed_count);
+    if (lockMs > 0) {
+      const lockedUntil = new Date(Date.now() + lockMs);
+      await tx.tbl_login_attempts.update({
+        where: { use_id: useId },
+        data: { lat_locked_until: lockedUntil },
+      });
+      await writeAudit(tx, {
+        operationId,
+        entity: AUDIT_ENTITIES.USER,
+        recordId: useId,
+        operation: AUDIT_OPERATIONS.ACCOUNT_LOCKED,
+        ctx: anonymous(ctx),
+        changes: [{ field: "bloqueada_hasta", oldValue: null, newValue: lockedUntil }],
+      });
+    }
+  });
 
 const clearFailedLogins = (useId) =>
   prisma.tbl_login_attempts.deleteMany({ where: { use_id: useId } });
 
-export const login = async ({ usuario, clave, password }) => {
+export const login = async ({ usuario, clave, password, ctx = {} }) => {
   const passwordTextoPlano = clave || password;
 
   if (!passwordTextoPlano) {
@@ -92,6 +126,13 @@ export const login = async ({ usuario, clave, password }) => {
 
   if (!userData) {
     await comparePassword(passwordTextoPlano, DUMMY_PASSWORD_HASH);
+    // Sin registro afectado: solo queda constancia del intento y su IP.
+    await writeAudit(prisma, {
+      entity: AUDIT_ENTITIES.USER,
+      operation: AUDIT_OPERATIONS.LOGIN_FAILED,
+      ctx: anonymous(ctx),
+      changes: [{ field: "motivo", newValue: "usuario inexistente o inactivo" }],
+    });
     throw loginFailed();
   }
 
@@ -104,6 +145,13 @@ export const login = async ({ usuario, clave, password }) => {
   // una contraseña correcta entra mientras dure el bloqueo) y sin sumar
   // otro fallo, para que el bloqueo no se extienda solo con reintentos.
   if (attempts?.lat_locked_until && attempts.lat_locked_until.getTime() > Date.now()) {
+    await writeAudit(prisma, {
+      entity: AUDIT_ENTITIES.USER,
+      recordId: userData.use_id,
+      operation: AUDIT_OPERATIONS.LOGIN_FAILED,
+      ctx: anonymous(ctx),
+      changes: [{ field: "motivo", newValue: "cuenta bloqueada" }],
+    });
     throw loginFailed();
   }
 
@@ -112,7 +160,7 @@ export const login = async ({ usuario, clave, password }) => {
     : false;
 
   if (!matchPassword) {
-    await registerFailedLogin(userData.use_id);
+    await registerFailedLogin(userData.use_id, ctx);
     throw loginFailed();
   }
 
@@ -165,30 +213,46 @@ export const getBasicInformation = async ({ useId }) => {
   };
 };
 
-export const updateAccount = async ({ name, lastName, username, email, useId }) => {
-  const result = await prisma.tbl_users.updateMany({
-    where: { use_id: Number(useId) },
-    data: { use_name: name, use_last_name: lastName, use_user: username, use_email: email },
+const ACCOUNT_FIELDS = ["use_name", "use_last_name", "use_user", "use_email"];
+
+export const updateAccount = async ({ name, lastName, username, email, useId, ctx = { useId } }) =>
+  prisma.$transaction(async (tx) => {
+    const before = await tx.tbl_users.findUnique({
+      where: { use_id: Number(useId) },
+      select: { use_id: true, use_name: true, use_last_name: true, use_user: true, use_email: true, pro_id: true },
+    });
+
+    if (!before) {
+      const error = new Error("Error al actualizar la cuenta.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Autoedición: el autor de la modificación es el propio usuario.
+    const data = { use_name: name, use_last_name: lastName, use_user: username, use_email: email };
+    await tx.tbl_users.update({
+      where: { use_id: Number(useId) },
+      data: { ...data, use_update_by: Number(useId) },
+    });
+
+    const changes = diffFields(before, data, ACCOUNT_FIELDS);
+    if (changes.length > 0) {
+      await writeAudit(tx, {
+        entity: AUDIT_ENTITIES.USER,
+        recordId: useId,
+        operation: AUDIT_OPERATIONS.UPDATE,
+        ctx,
+        changes,
+      });
+    }
+
+    // El access token lleva name/email y verifyToken exige que el email del
+    // token coincida con el de la BD: el controller reemite el token con los
+    // datos nuevos para que cambiar el propio correo no cierre la sesión.
+    return { useId: before.use_id, name, email, proId: before.pro_id };
   });
 
-  if (result.count === 0) {
-    const error = new Error("Error al actualizar la cuenta.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  // El access token lleva name/email y verifyToken exige que el email del
-  // token coincida con el de la BD: el controller reemite el token con los
-  // datos nuevos para que cambiar el propio correo no cierre la sesión.
-  const updated = await prisma.tbl_users.findUnique({
-    where: { use_id: Number(useId) },
-    select: { use_id: true, use_name: true, use_email: true, pro_id: true },
-  });
-
-  return { useId: updated.use_id, name: updated.use_name, email: updated.use_email, proId: updated.pro_id };
-};
-
-export const updatePassword = async ({ currentPassword, newPassword, useId }) => {
+export const updatePassword = async ({ currentPassword, newPassword, useId, ctx = { useId } }) => {
   const user = await prisma.tbl_users.findUnique({
     where: { use_id: Number(useId) },
     select: { use_id: true, use_name: true, use_email: true, pro_id: true, use_password: true },
@@ -212,16 +276,26 @@ export const updatePassword = async ({ currentPassword, newPassword, useId }) =>
 
   const hash = await hashPassword(newPassword);
 
-  const result = await prisma.tbl_users.updateMany({
-    where: { use_id: Number(useId) },
-    data: { use_password: hash },
-  });
+  await prisma.$transaction(async (tx) => {
+    const result = await tx.tbl_users.updateMany({
+      where: { use_id: Number(useId) },
+      data: { use_password: hash, use_update_by: Number(useId) },
+    });
 
-  if (result.count === 0) {
-    const error = new Error("Hubo un problema al cambiar tu contraseña.");
-    error.statusCode = 400;
-    throw error;
-  }
+    if (result.count === 0) {
+      const error = new Error("Hubo un problema al cambiar tu contraseña.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    await writeAudit(tx, {
+      entity: AUDIT_ENTITIES.USER,
+      recordId: useId,
+      operation: AUDIT_OPERATIONS.PASSWORD_CHANGED,
+      ctx,
+      changes: [{ field: "use_password", oldValue: REDACTED, newValue: REDACTED }],
+    });
+  });
 
   // El controller abre una sesión nueva con estos datos: cambiar la
   // contraseña rota la sesión, así que cualquier copia robada del token o
@@ -266,7 +340,7 @@ const invalidCode = () => {
  * al mismo tiempo. Agotados los intentos, el código se invalida aunque no
  * haya vencido.
  */
-const consumeResetAttempt = async ({ email, codeTemp }) => {
+const consumeResetAttempt = async ({ email, codeTemp, ctx }) => {
   const reset = await prisma.tbl_password_resets.findFirst({
     where: {
       par_created_at: { gte: new Date(Date.now() - RESET_CODE_TTL_MS) },
@@ -277,41 +351,70 @@ const consumeResetAttempt = async ({ email, codeTemp }) => {
 
   if (!reset) throw invalidCode();
 
-  const consumed = await prisma.tbl_password_resets.updateMany({
-    where: { par_id: reset.par_id, par_attempts: { lt: RESET_CODE_MAX_ATTEMPTS } },
-    data: { par_attempts: { increment: 1 } },
+  // El intento consumido y su registro en la bitácora van juntos. La
+  // transacción no lanza en los casos de fallo (eso revertiría el intento
+  // consumido): devuelve el resultado y se lanza después de confirmarla.
+  const outcome = await prisma.$transaction(async (tx) => {
+    const failed = (motivo) =>
+      writeAudit(tx, {
+        entity: AUDIT_ENTITIES.USER,
+        recordId: reset.use_id,
+        operation: AUDIT_OPERATIONS.PASSWORD_RESET_CODE_FAILED,
+        ctx: anonymous(ctx),
+        changes: [{ field: "motivo", newValue: motivo }],
+      });
+
+    const consumed = await tx.tbl_password_resets.updateMany({
+      where: { par_id: reset.par_id, par_attempts: { lt: RESET_CODE_MAX_ATTEMPTS } },
+      data: { par_attempts: { increment: 1 } },
+    });
+
+    if (consumed.count === 0) {
+      await tx.tbl_password_resets.deleteMany({ where: { par_id: reset.par_id } });
+      await failed("intentos agotados");
+      return false;
+    }
+
+    if (!verifyResetCode({ code: codeTemp, useId: reset.use_id, hash: reset.par_code_hash })) {
+      await failed("código incorrecto");
+      return false;
+    }
+
+    return true;
   });
 
-  if (consumed.count === 0) {
-    await prisma.tbl_password_resets.deleteMany({ where: { par_id: reset.par_id } });
-    throw invalidCode();
-  }
-
-  if (!verifyResetCode({ code: codeTemp, useId: reset.use_id, hash: reset.par_code_hash })) {
-    throw invalidCode();
-  }
+  if (!outcome) throw invalidCode();
 
   return { usuarioID: reset.use_id };
 };
 
-export const validateCodePassword = async ({ email, codeTemp }) => {
-  await consumeResetAttempt({ email, codeTemp });
+export const validateCodePassword = async ({ email, codeTemp, ctx = {} }) => {
+  await consumeResetAttempt({ email, codeTemp, ctx });
 };
 
-export const restorePassword = async ({ email, nuevaContrasena, codeTemp }) => {
-  const { usuarioID } = await consumeResetAttempt({ email, codeTemp });
+export const restorePassword = async ({ email, nuevaContrasena, codeTemp, ctx = {} }) => {
+  const { usuarioID } = await consumeResetAttempt({ email, codeTemp, ctx });
   const hashedPassword = await hashPassword(nuevaContrasena);
 
   // Quien demuestra acceso al correo recupera la cuenta por completo: se
-  // levanta un posible bloqueo por intentos fallidos de login.
-  await prisma.$transaction([
-    prisma.tbl_users.updateMany({
+  // levanta un posible bloqueo por intentos fallidos de login. El autor es
+  // el propio usuario (demostró ser el dueño del correo), aunque no tenga
+  // sesión.
+  await prisma.$transaction(async (tx) => {
+    await tx.tbl_users.updateMany({
       where: { use_id: usuarioID },
-      data: { use_password: hashedPassword },
-    }),
-    prisma.tbl_password_resets.deleteMany({ where: { use_id: usuarioID } }),
-    prisma.tbl_login_attempts.deleteMany({ where: { use_id: usuarioID } }),
-  ]);
+      data: { use_password: hashedPassword, use_update_by: usuarioID },
+    });
+    await tx.tbl_password_resets.deleteMany({ where: { use_id: usuarioID } });
+    await tx.tbl_login_attempts.deleteMany({ where: { use_id: usuarioID } });
+    await writeAudit(tx, {
+      entity: AUDIT_ENTITIES.USER,
+      recordId: usuarioID,
+      operation: AUDIT_OPERATIONS.PASSWORD_RESET,
+      ctx: { useId: usuarioID, ip: ctx.ip },
+      changes: [{ field: "use_password", oldValue: REDACTED, newValue: REDACTED }],
+    });
+  });
 
   // Fuera de la transacción a propósito: también cierra los sockets de la
   // sesión, algo que no se puede deshacer con un rollback. Cualquier sesión
@@ -327,7 +430,7 @@ const FORGOT_PASSWORD_MIN_MS = 300;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export const forgotPassword = async ({ email }) => {
+export const forgotPassword = async ({ email, ctx = {} }) => {
   if (!email) {
     const error = new Error("El correo es requerido.");
     error.statusCode = 400;
@@ -361,10 +464,20 @@ export const forgotPassword = async ({ email }) => {
       par_created_at: new Date(),
     };
 
-    await prisma.tbl_password_resets.upsert({
-      where: { use_id: usuarioID },
-      create: { use_id: usuarioID, ...resetData },
-      update: resetData,
+    await prisma.$transaction(async (tx) => {
+      await tx.tbl_password_resets.upsert({
+        where: { use_id: usuarioID },
+        create: { use_id: usuarioID, ...resetData },
+        update: resetData,
+      });
+      // Solo cuando la cuenta existe: registrar también los correos
+      // inexistentes guardaría en la bitácora texto arbitrario del cliente.
+      await writeAudit(tx, {
+        entity: AUDIT_ENTITIES.USER,
+        recordId: usuarioID,
+        operation: AUDIT_OPERATIONS.PASSWORD_RESET_REQUESTED,
+        ctx: anonymous(ctx),
+      });
     });
 
     // No esperar el envío: un SMTP real tarda de milisegundos a varios

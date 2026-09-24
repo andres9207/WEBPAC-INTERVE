@@ -23,9 +23,17 @@ model tbl_documents {
   doc_create_at    DateTime?              @default(now()) @db.Timestamp(0)
   doc_update_by    Int?
   doc_update_at    DateTime?              @default(now()) @db.Timestamp(0)
+  doc_delete_by    Int?
+  doc_delete_at    DateTime?              @db.Timestamp(0)
+  created_by_user  tbl_users?             @relation("DocumentCreatedBy", fields: [doc_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_documents_create_by")
+  deleted_by_user  tbl_users?             @relation("DocumentDeletedBy", fields: [doc_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_documents_delete_by")
   tbl_status       tbl_status?            @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_documents_status")
+  updated_by_user  tbl_users?             @relation("DocumentUpdatedBy", fields: [doc_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_documents_update_by")
 
   @@index([sta_id], map: "tbl_documents_status")
+  @@index([doc_create_by], map: "tbl_documents_create_by")
+  @@index([doc_update_by], map: "tbl_documents_update_by")
+  @@index([doc_delete_by], map: "tbl_documents_delete_by")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -139,12 +147,20 @@ model tbl_profiles {
   pro_create_at           DateTime?                 @default(now()) @db.Timestamp(0)
   pro_update_by           Int?
   pro_update_at           DateTime?                 @default(now()) @db.Timestamp(0)
+  pro_delete_by           Int?
+  pro_delete_at           DateTime?                 @db.Timestamp(0)
   tbl_page_permissions    tbl_page_permissions[]
   tbl_profile_permissions tbl_profile_permissions[]
+  created_by_user         tbl_users?                @relation("ProfileCreatedBy", fields: [pro_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_profiles_create_by")
+  deleted_by_user         tbl_users?                @relation("ProfileDeletedBy", fields: [pro_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_profiles_delete_by")
   tbl_status              tbl_status?               @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_profiles_status")
-  tbl_users               tbl_users[]
+  updated_by_user         tbl_users?                @relation("ProfileUpdatedBy", fields: [pro_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_profiles_update_by")
+  tbl_users               tbl_users[]               @relation("UserProfile")
 
   @@index([sta_id], map: "tbl_profiles_status")
+  @@index([pro_create_by], map: "tbl_profiles_create_by")
+  @@index([pro_update_by], map: "tbl_profiles_update_by")
+  @@index([pro_delete_by], map: "tbl_profiles_delete_by")
 }
 
 model tbl_status {
@@ -186,17 +202,57 @@ model tbl_users {
   use_create_at        DateTime?              @default(now()) @db.Timestamp(0)
   use_update_by        Int?
   use_update_at        DateTime?              @default(now()) @db.Timestamp(0)
+  use_delete_by        Int?
+  use_delete_at        DateTime?              @db.Timestamp(0)
+  tbl_audit_log        tbl_audit_log[]
+  documents_created    tbl_documents[]        @relation("DocumentCreatedBy")
+  documents_deleted    tbl_documents[]        @relation("DocumentDeletedBy")
+  documents_updated    tbl_documents[]        @relation("DocumentUpdatedBy")
   tbl_login_attempts   tbl_login_attempts?
   tbl_notifications    tbl_notifications[]
   tbl_password_resets  tbl_password_resets?
+  profiles_created     tbl_profiles[]         @relation("ProfileCreatedBy")
+  profiles_deleted     tbl_profiles[]         @relation("ProfileDeletedBy")
+  profiles_updated     tbl_profiles[]         @relation("ProfileUpdatedBy")
   tbl_sessions         tbl_sessions?
   tbl_user_pages       tbl_user_pages[]
   tbl_user_permissions tbl_user_permissions[]
-  tbl_profiles         tbl_profiles?          @relation(fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_profiles")
+  created_by_user      tbl_users?             @relation("UserCreatedBy", fields: [use_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_create_by")
+  users_created        tbl_users[]            @relation("UserCreatedBy")
+  deleted_by_user      tbl_users?             @relation("UserDeletedBy", fields: [use_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_delete_by")
+  users_deleted        tbl_users[]            @relation("UserDeletedBy")
+  tbl_profiles         tbl_profiles?          @relation("UserProfile", fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_profiles")
   tbl_status           tbl_status?            @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_status")
+  updated_by_user      tbl_users?             @relation("UserUpdatedBy", fields: [use_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_update_by")
+  users_updated        tbl_users[]            @relation("UserUpdatedBy")
 
   @@index([pro_id], map: "tbl_users_profiles")
   @@index([sta_id], map: "tbl_users_status")
+  @@index([use_create_by], map: "tbl_users_create_by")
+  @@index([use_update_by], map: "tbl_users_update_by")
+  @@index([use_delete_by], map: "tbl_users_delete_by")
+}
+
+/// Bitácora de auditoría funcional (database/migrations/0013_create_audit_log.sql).
+/// Solo escritura: se inserta desde common/services/audit.service.js, nunca se actualiza ni se borra.
+model tbl_audit_log {
+  aud_id           BigInt     @id @default(autoincrement())
+  aud_operation_id String     @db.Char(36)
+  aud_entity       String     @db.VarChar(50)
+  aud_record_id    Int?
+  aud_field        String?    @db.VarChar(100)
+  aud_old_value    String?    @db.Text
+  aud_new_value    String?    @db.Text
+  aud_operation    String     @db.VarChar(30)
+  use_id           Int?
+  aud_ip           String?    @db.VarChar(45)
+  aud_create_at    DateTime   @default(now()) @db.Timestamp(3)
+  tbl_users        tbl_users? @relation(fields: [use_id], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_audit_log_users")
+
+  @@index([aud_entity, aud_record_id], map: "ix_audit_log_entity_record")
+  @@index([aud_operation_id], map: "ix_audit_log_operation_id")
+  @@index([use_id], map: "ix_audit_log_use_id")
+  @@index([aud_create_at], map: "ix_audit_log_create_at")
 }
 
 model tbl_user_pages {

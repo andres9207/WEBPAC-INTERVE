@@ -15,8 +15,13 @@ module.exports = {
       cwd: __dirname,
       instances: 1,
       exec_mode: "fork",
+      // TZ fija la zona del proceso Node (fechas locales de pm2 `time: true`,
+      // toLocaleString, etc.) sin depender de la configuración del servidor.
+      // No afecta a la BD: la sesión de Prisma va siempre en UTC
+      // (prismaClient.js) y el logger formatea con America/Bogota explícito.
       env: {
         NODE_ENV: "production",
+        TZ: "America/Bogota",
       },
       autorestart: true,
       max_memory_restart: "500M",

@@ -1,5 +1,6 @@
 import * as profilesService from "./profiles.service.js";
 import { getIO } from "../../../common/configs/socket.manager.js";
+import { auditContext } from "../../../common/services/audit.service.js";
 
 export const paginationProfilesController = async (req, res, next) => {
   try {
@@ -40,6 +41,7 @@ export const saveProfileController = async (req, res, next) => {
       modules,
       previousModules,
       useBy: useId,
+      ctx: auditContext(req),
     });
 
     getIO().emit("refresh-profiles", {});
@@ -53,7 +55,11 @@ export const saveProfileController = async (req, res, next) => {
 export const deleteProfileController = async (req, res, next) => {
   try {
     const { proId } = req.body;
-    const result = await profilesService.deleteProfile({ proId, updatedBy: req.user.useId });
+    const result = await profilesService.deleteProfile({
+      proId,
+      updatedBy: req.user.useId,
+      ctx: auditContext(req),
+    });
 
     getIO().emit("refresh-profiles", {});
 

@@ -4,9 +4,8 @@
 
 **Aceptado (implementado).**
 
-La arquitectura de autenticación existe, opera y cierra 17 de las 18 brechas identificadas en la versión inicial de este ADR. Quedan abiertas:
+La arquitectura de autenticación existe, opera y cierra las 18 brechas identificadas en la versión inicial de este ADR. Queda abierto:
 
-- **B15 — auditoría de eventos de seguridad**: depende de [ADR-0013](0013-auditoria-trazabilidad.md).
 - **MFA**: fuera del alcance de este ADR (ver Alternativa 2, pendiente de validación).
 
 ## Fecha
@@ -14,6 +13,7 @@ La arquitectura de autenticación existe, opera y cierra 17 de las 18 brechas id
 - 2026-09-10 — versión inicial (análisis del estado heredado: brechas B1–B18).
 - 2026-09-24 — la capa de datos pasa de `mysql2` (SQL crudo) a Prisma 7.
 - 2026-09-24 — se implementan las decisiones 1–8 y se cierran las brechas salvo B15 y MFA. El documento se reescribe para describir el estado real; el estado heredado queda resumido en "Brechas identificadas".
+- 2026-09-24 — se cierra B15: los eventos de autenticación se registran en la bitácora `tbl_audit_log` ([ADR-0013](0013-auditoria-trazabilidad.md)).
 
 ## Contexto
 
@@ -272,7 +272,7 @@ validate_code_password / restore_password (públicos)
 | 404 JSON en `/api/*` inexistente | Implementado |
 | Manejo de `uncaughtException` / `unhandledRejection` | Implementado |
 | Sanitización (`cleanRequestData`) | Implementado — solo normaliza espacios; **no** es defensa contra inyección |
-| Auditoría de eventos de seguridad | **No** — B15, ver [ADR-0013](0013-auditoria-trazabilidad.md) |
+| Auditoría de eventos de seguridad | Implementado — bitácora `tbl_audit_log` ([ADR-0013](0013-auditoria-trazabilidad.md)) |
 | MFA | **No** — fuera de alcance, ver Alternativa 2 |
 
 ## Autorización
@@ -300,15 +300,26 @@ La autorización en backend existe: `requirePermission(perId)` resuelve en cada 
 
 ## Auditoría
 
-`tbl_users` y `tbl_profiles` registran `*_create_by`, `*_create_at`, `*_update_by`, `*_update_at`. Es auditoría **técnica**: quién tocó el registro por última vez. El bloqueo de login vive en una tabla aparte (`tbl_login_attempts`) precisamente para no alterar `use_update_at` en cada intento fallido.
+**Auditoría técnica**: `tbl_users` y `tbl_profiles` registran `*_create_by/at`, `*_update_by/at` y `*_delete_by/at`, con FK a `tbl_users` y el autor siempre tomado de la sesión. El bloqueo de login vive en una tabla aparte (`tbl_login_attempts`) precisamente para no alterar `use_update_at` en cada intento fallido.
 
-Hay rastros operativos, pero **no son auditoría**:
+**Auditoría funcional de seguridad** (cierra B15): cada evento queda en la bitácora `tbl_audit_log` ([ADR-0013](0013-auditoria-trazabilidad.md)), dentro de la misma transacción que el cambio que lo produce, con IP e identificador de operación:
 
-- `tbl_sessions.ses_create_at` / `ses_ip` / `ses_user_agent`: la sesión vigente, sobrescrita en cada login.
-- `tbl_login_attempts.lat_last_failed_at`: el último fallo, borrado en el siguiente login exitoso.
-- El log HTTP (`logs/api.log`): peticiones, sin semántica de negocio.
+| Evento | Operación | Autor (`use_id`) |
+| --- | --- | --- |
+| Login exitoso (indica si cerró otra sesión) | `LOGIN` | El usuario |
+| Login fallido (usuario inexistente, contraseña incorrecta o cuenta bloqueada) | `LOGIN_FALLIDO` | Anónimo |
+| Bloqueo por intentos | `CUENTA_BLOQUEADA` (misma operación que el fallo que lo dispara) | Anónimo |
+| Logout | `LOGOUT` | El dueño de la sesión |
+| Reutilización de refresh token | `SESION_REVOCADA` | Anónimo |
+| Cambio de la propia contraseña | `CONTRASENA_CAMBIADA` | El usuario |
+| Solicitud de recuperación (solo si la cuenta existe) | `RECUPERACION_SOLICITADA` | Anónimo |
+| Código de recuperación incorrecto o agotado | `CODIGO_RECUPERACION_FALLIDO` | Anónimo |
+| Contraseña restaurada | `CONTRASENA_RESTAURADA` | El usuario |
+| Cambios de permisos, perfil o estado de usuarios | `ASIGNAR`, `REVOCAR`, `EDITAR`, `ELIMINAR`, `REACTIVAR` | Quien lo hizo |
 
-**Sigue sin existir** un registro inmutable de: inicios de sesión exitosos y fallidos, bloqueos, solicitudes de recuperación, cambios de contraseña, cierres de sesión, revocaciones y cambios de permisos o de estado. Es la brecha B15 y se aborda en [ADR-0013](0013-auditoria-trazabilidad.md).
+Nunca se registran la contraseña, su hash, el código de recuperación, los tokens ni el identificador tecleado en un login fallido.
+
+Siguen existiendo rastros operativos que **no son auditoría** y se sobrescriben: `tbl_sessions` (la sesión vigente), `tbl_login_attempts` (el contador actual) y el log HTTP.
 
 ## Validaciones
 
@@ -371,7 +382,7 @@ Se usan `prisma.$transaction(async (tx) => {...})` (interactiva, con rollback si
 | Riesgo | Severidad | Estado |
 | --- | --- | --- |
 | Compromiso de cuenta por contraseña filtrada | **Alto** | Mitigado parcialmente (bloqueo, sesión única visible). Se cierra con MFA |
-| Actividad maliciosa sin rastro auditable | **Medio** | Abierto — B15 / [ADR-0013](0013-auditoria-trazabilidad.md) |
+| Actividad maliciosa sin rastro auditable | **Medio** | Cerrado — eventos en la bitácora ([ADR-0013](0013-auditoria-trazabilidad.md)). Falta una vista para consultarlos (B16 de ADR-0013) |
 | Denegación de servicio a una cuenta por bloqueo | **Bajo** | Aceptado: rate limit por IP + restauración de contraseña |
 | Exposición de `JWT_SECRET` | **Crítico si ocurre** | Controlado: solo en variables de entorno. Rotarlo invalida todas las sesiones y los códigos pendientes |
 | Configuración de `JWT_EXPIRES_IN` demasiado larga | **Medio** | Controlado por despliegue: el valor recomendado es `15m` |
@@ -424,7 +435,7 @@ Se usan `prisma.$transaction(async (tx) => {...})` (interactiva, con rollback si
 | Socket.IO | Handshake autenticado por JWT + sesión | ✅ |
 | Registro / OTP | Retirado; alta solo administrativa | ✅ |
 | Validación de esquema | Todos los módulos | ✅ |
-| Auditoría de seguridad | Inexistente | Registro de eventos según [ADR-0013](0013-auditoria-trazabilidad.md) |
+| Auditoría de seguridad | Eventos de autenticación en `tbl_audit_log` | ✅ |
 | MFA | Inexistente | A evaluar con la Alternativa 2 |
 
 ## Brechas identificadas
@@ -447,7 +458,7 @@ Brechas encontradas en la versión inicial de este ADR y su resolución:
 | B12 | Sin `UNIQUE` en `use_user` / `use_email` | Media | ✅ Cerrada | Índices `UNIQUE` en el esquema |
 | B13 | Dos verificaciones de token con criterios distintos | Media | ✅ Cerrada | Un único `verifyToken` |
 | B14 | Sin refresh token, sin logout de servidor, sin control de sesión concurrente | Media | ✅ Cerrada | `tbl_sessions`: refresh rotado, logout que revoca, sesión única |
-| B15 | Sin auditoría de eventos de seguridad | Media | ⏳ Abierta | Depende de [ADR-0013](0013-auditoria-trazabilidad.md) |
+| B15 | Sin auditoría de eventos de seguridad | Media | ✅ Cerrada | Bitácora `tbl_audit_log` ([ADR-0013](0013-auditoria-trazabilidad.md)) |
 | B16 | Código muerto de recuperación sobre `tbl_recuperar_cuenta` | Baja | ✅ Cerrada | `common/mails/auth.mails.js` eliminado |
 | B17 | Sin validación de esquema | Media | ✅ Cerrada | `*.validation.js` en todos los módulos |
 | B18 | Datos de sesión impresos en la consola del navegador | Baja | ✅ Cerrada | Trazas retiradas de `authContext.jsx` |
@@ -456,10 +467,7 @@ Otras correcciones de la misma revisión (ver `SECURITY.md`): bloqueo de login p
 
 ## Plan de implementación
 
-Las fases 1 a 4 y 6 del plan original están **ejecutadas**. Queda:
-
-**Fase 5 (resto) — Trazabilidad (B15)**
-Registro de eventos de seguridad (login exitoso y fallido, bloqueo, recuperación, cambio de contraseña, logout, revocación, cambios de permisos y de estado) según [ADR-0013](0013-auditoria-trazabilidad.md). Los puntos de enganche ya existen: `auth.service.login`, `registerFailedLogin`, `forgotPassword`, `restorePassword`, `session.service` (`createSession`, `refreshSession`, `revokeSession`) y los services de `security/*`.
+Las fases 1 a 6 del plan original están **ejecutadas** (la trazabilidad, B15, con las migraciones `0011` a `0013` de [ADR-0013](0013-auditoria-trazabilidad.md)). Queda:
 
 **Fase 7 — MFA (pendiente de validación)**
 Decidir entre MFA propio (TOTP) y delegar en un proveedor de identidad (Alternativa 2).

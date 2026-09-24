@@ -161,7 +161,13 @@ export const saveModuleDoc = async ({
   if (id > 0) {
     const updated = await prisma.tbl_documents.updateMany({
       where: { doc_id: Number(id) },
-      data: { ...data, doc_update_by: Number(docUpdateBy) },
+      data: {
+        ...data,
+        doc_update_by: Number(docUpdateBy),
+        // Un documento que vuelve a un estado visible deja de estar
+        // eliminado: se limpia la evidencia de eliminación de la fila.
+        ...(data.sta_id !== 3 ? { doc_delete_by: null, doc_delete_at: null } : {}),
+      },
     });
 
     if (updated.count === 0) {
@@ -202,6 +208,17 @@ export const deleteModuleDoc = async ({ id, usuAct }) => {
 
     const esCarpeta = doc.doc_extension === "" && doc.doc_mime_type === "folder";
 
+    // sta_id = 3 sigue decidiendo la visibilidad; doc_delete_by/_at guardan
+    // quién y cuándo (ADR-0013). Misma marca para la carpeta y todo su
+    // contenido: son una sola eliminación. Documentos = auditoría técnica
+    // (ADR-0013, decisión 9): no se escribe en la bitácora.
+    const deletedData = {
+      sta_id: 3,
+      doc_update_by: Number(usuAct),
+      doc_delete_by: Number(usuAct),
+      doc_delete_at: new Date(),
+    };
+
     if (esCarpeta) {
       const deleteChildren = async (parentId) => {
         const children = await tx.tbl_documents.findMany({
@@ -212,7 +229,7 @@ export const deleteModuleDoc = async ({ id, usuAct }) => {
           await deleteChildren(child.doc_id);
           await tx.tbl_documents.update({
             where: { doc_id: child.doc_id },
-            data: { sta_id: 3, doc_update_by: Number(usuAct) },
+            data: deletedData,
           });
         }
       };
@@ -221,7 +238,7 @@ export const deleteModuleDoc = async ({ id, usuAct }) => {
 
     await tx.tbl_documents.update({
       where: { doc_id: Number(id) },
-      data: { sta_id: 3, doc_update_by: Number(usuAct) },
+      data: deletedData,
     });
 
     return { message: "Documento eliminado correctamente." };

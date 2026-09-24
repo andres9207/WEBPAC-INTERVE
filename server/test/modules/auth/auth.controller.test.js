@@ -81,6 +81,7 @@ describe("auth.controller — el sujeto siempre sale de req.user", () => {
       username: "c",
       email: "d@d.com",
       useId: 1,
+      ctx: { useId: 1, ip: null },
     });
     expect(sessionMock.signAccessToken).toHaveBeenCalledWith(
       expect.objectContaining({ email: "d@d.com", sessionKey: "sesion-1" })
@@ -106,6 +107,7 @@ describe("auth.controller — el sujeto siempre sale de req.user", () => {
       currentPassword: "x",
       newPassword: "y",
       useId: 1,
+      ctx: { useId: 1, ip: "1.2.3.4" },
     });
     expect(sessionMock.createSession).toHaveBeenCalledWith({ user, ip: "1.2.3.4", userAgent: "jest" });
     expect(sessionMock.setSessionCookies).toHaveBeenCalledWith(res, { accessToken: "a", refreshToken: "r" });
@@ -139,6 +141,7 @@ describe("auth.controller — sesión", () => {
     await loginController(req, res, jest.fn());
 
     expect(sessionMock.setSessionCookies).toHaveBeenCalledWith(res, { accessToken: "a", refreshToken: "r" });
+    expect(sessionMock.createSession).toHaveBeenCalledWith(expect.objectContaining({ auditOperation: "LOGIN" }));
     const body = res.json.mock.calls[0][0];
     expect(body).toEqual({ useId: 1, permissions: [5] });
     expect(JSON.stringify(body)).not.toMatch(/"a"|"r"|token/i);
@@ -172,7 +175,10 @@ describe("auth.controller — sesión", () => {
 
     await logoutController({ cookies: { refresh_token: "r1", token: "t" } }, res, jest.fn());
 
-    expect(sessionMock.revokeSessionByRefreshToken).toHaveBeenCalledWith({ refreshToken: "r1" });
+    expect(sessionMock.revokeSessionByRefreshToken).toHaveBeenCalledWith({
+      refreshToken: "r1",
+      audit: { operation: "LOGOUT", ctx: { ip: null } },
+    });
     expect(sessionMock.clearSessionCookies).toHaveBeenCalledWith(res);
   });
 
@@ -182,7 +188,11 @@ describe("auth.controller — sesión", () => {
 
     await logoutController({ cookies: { token: expired } }, res, jest.fn());
 
-    expect(sessionMock.revokeSessionByKey).toHaveBeenCalledWith({ useId: 1, sessionKey: "sesion-1" });
+    expect(sessionMock.revokeSessionByKey).toHaveBeenCalledWith({
+      useId: 1,
+      sessionKey: "sesion-1",
+      audit: { operation: "LOGOUT", ctx: { ip: null } },
+    });
     expect(sessionMock.clearSessionCookies).toHaveBeenCalledWith(res);
   });
 

@@ -1,5 +1,12 @@
 import { hashPassword } from "../../../common/utils/funciones.js";
 import { prisma } from "../../../common/configs/prismaClient.js";
+import {
+  AUDIT_ENTITIES,
+  AUDIT_OPERATIONS,
+  diffFields,
+  newOperationId,
+  writeAudit,
+} from "../../../common/services/audit.service.js";
 
 const USER_SORT_FIELDS = {
   name: (order) => ({ use_name: order }),
@@ -157,6 +164,24 @@ const parsePageIds = (usePages) => {
     .filter((id) => Number.isInteger(id) && id > 0);
 };
 
+// Campos de tbl_users que se registran en la bitácora (ADR-0013: "permisos,
+// perfiles y estado de usuarios" exigen auditoría funcional). use_password se
+// audita como "[oculto]": queda constancia de que cambió, nunca del valor.
+const AUDITED_USER_FIELDS = [
+  "use_name",
+  "use_last_name",
+  "use_identification",
+  "use_user",
+  "use_email",
+  "use_password",
+  "pro_id",
+  "sta_id",
+  "use_access",
+  "use_change_password",
+];
+
+const DELETED_STATUS = 3;
+
 export const saveUser = async ({
   useId,
   proId,
@@ -171,6 +196,7 @@ export const saveUser = async ({
   useBy,
   changePassword,
   usePages,
+  ctx = { useId: useBy },
 }) => {
   const existingUser = await checkIfUserExists({ identification, email, username, useId });
 
@@ -183,9 +209,24 @@ export const saveUser = async ({
   }
 
   const desiredPageIds = parsePageIds(usePages);
+  // bcrypt fuera de la transacción: es lento a propósito y no debe mantener
+  // abierta la transacción (ni sus bloqueos) mientras calcula.
+  const passwordHash = password ? await hashPassword(password) : null;
+  const operationId = newOperationId();
 
   if (useId > 0) {
     return prisma.$transaction(async (tx) => {
+      const before = await tx.tbl_users.findUnique({
+        where: { use_id: Number(useId) },
+        select: { ...Object.fromEntries(AUDITED_USER_FIELDS.map((f) => [f, true])) },
+      });
+
+      if (!before) {
+        const error = new Error("Usuario no encontrado.");
+        error.status = 404;
+        throw error;
+      }
+
       const updateData = {
         use_name: name,
         use_last_name: lastName,
@@ -195,12 +236,24 @@ export const saveUser = async ({
         pro_id: proId || null,
         sta_id: statusId,
         use_access: access,
-        use_change_password: changePassword || null,
+        // `??` y no `||`: 0 ("no exigir cambio") es un valor válido. Con
+        // `||` se guardaba NULL y cada edición registraba un cambio falso
+        // 0 → NULL en la bitácora.
+        use_change_password: changePassword ?? null,
         use_update_by: useBy,
       };
 
-      if (password) {
-        updateData.use_password = await hashPassword(password);
+      if (passwordHash) {
+        updateData.use_password = passwordHash;
+      }
+
+      // Un usuario eliminado que vuelve a un estado visible se reactiva: se
+      // limpia la evidencia de la eliminación en la fila (la bitácora la
+      // conserva).
+      const reactivated = before.sta_id === DELETED_STATUS && Number(statusId) !== DELETED_STATUS;
+      if (reactivated) {
+        updateData.use_delete_by = null;
+        updateData.use_delete_at = null;
       }
 
       await tx.tbl_users.update({ where: { use_id: Number(useId) }, data: updateData });
@@ -228,33 +281,63 @@ export const saveUser = async ({
         });
       }
 
+      const changes = diffFields(before, updateData, AUDITED_USER_FIELDS);
+      if (toDelete.length > 0 || toInsert.length > 0) {
+        changes.push({ field: "paginas", oldValue: [...currentSet], newValue: [...desiredSet] });
+      }
+
+      if (changes.length > 0) {
+        await writeAudit(tx, {
+          operationId,
+          entity: AUDIT_ENTITIES.USER,
+          recordId: useId,
+          operation: reactivated ? AUDIT_OPERATIONS.REACTIVATE : AUDIT_OPERATIONS.UPDATE,
+          ctx,
+          changes,
+        });
+      }
+
       return { message: "Usuario Actualizado Correctamente", useId };
     });
   }
 
   return prisma.$transaction(async (tx) => {
-    const created = await tx.tbl_users.create({
-      data: {
-        use_name: name,
-        use_last_name: lastName,
-        use_identification: identification === "null" ? null : identification,
-        use_user: username === "null" ? null : username,
-        use_email: email === "null" ? null : email,
-        use_password: password ? await hashPassword(password) : null,
-        pro_id: proId,
-        sta_id: statusId,
-        use_access: access ? 1 : 0,
-        use_change_password: changePassword || null,
-        use_create_by: useBy,
-        use_update_by: useBy,
-      },
-    });
+    const data = {
+      use_name: name,
+      use_last_name: lastName,
+      use_identification: identification === "null" ? null : identification,
+      use_user: username === "null" ? null : username,
+      use_email: email === "null" ? null : email,
+      use_password: passwordHash,
+      pro_id: proId,
+      sta_id: statusId,
+      use_access: access ? 1 : 0,
+      use_change_password: changePassword ?? null,
+      use_create_by: useBy,
+      use_update_by: useBy,
+    };
+
+    const created = await tx.tbl_users.create({ data });
 
     if (desiredPageIds.length > 0) {
       await tx.tbl_user_pages.createMany({
         data: desiredPageIds.map((pagId) => ({ use_id: created.use_id, pag_id: pagId })),
       });
     }
+
+    const changes = diffFields({}, data, AUDITED_USER_FIELDS);
+    if (desiredPageIds.length > 0) {
+      changes.push({ field: "paginas", oldValue: null, newValue: desiredPageIds });
+    }
+
+    await writeAudit(tx, {
+      operationId,
+      entity: AUDIT_ENTITIES.USER,
+      recordId: created.use_id,
+      operation: AUDIT_OPERATIONS.CREATE,
+      ctx,
+      changes,
+    });
 
     // Ya no se copian los permisos del perfil a tbl_user_permissions al
     // crear el usuario: el permiso efectivo se resuelve en cada petición
@@ -266,7 +349,7 @@ export const saveUser = async ({
   });
 };
 
-export const deleteUser = async ({ useId, updatedBy }) => {
+export const deleteUser = async ({ useId, updatedBy, ctx = { useId: updatedBy } }) => {
   if (!useId || !updatedBy) {
     const error = new Error(
       "El ID del usuario y el usuario actual son obligatorios"
@@ -275,16 +358,39 @@ export const deleteUser = async ({ useId, updatedBy }) => {
     throw error;
   }
 
-  const result = await prisma.tbl_users.updateMany({
-    where: { use_id: Number(useId) },
-    data: { sta_id: 3, use_update_by: Number(updatedBy) },
-  });
+  return prisma.$transaction(async (tx) => {
+    const before = await tx.tbl_users.findUnique({
+      where: { use_id: Number(useId) },
+      select: { sta_id: true },
+    });
 
-  if (result.count > 0) {
+    if (!before || before.sta_id === DELETED_STATUS) {
+      const error = new Error("Usuario no encontrado o no se pudo eliminar");
+      error.status = 404;
+      throw error;
+    }
+
+    // sta_id = 3 sigue decidiendo la visibilidad; use_delete_by/_at guardan
+    // quién y cuándo, separado de use_update_by/_at (ADR-0013).
+    await tx.tbl_users.update({
+      where: { use_id: Number(useId) },
+      data: {
+        sta_id: DELETED_STATUS,
+        use_update_by: Number(updatedBy),
+        use_delete_by: Number(updatedBy),
+        use_delete_at: new Date(),
+      },
+    });
+
+    await writeAudit(tx, {
+      entity: AUDIT_ENTITIES.USER,
+      recordId: useId,
+      operation: AUDIT_OPERATIONS.DELETE,
+      ctx,
+      changes: [{ field: "sta_id", oldValue: before.sta_id, newValue: DELETED_STATUS }],
+    });
+
     return { message: "Usuario Eliminado Correctamente" };
-  }
-
-  const error = new Error("Usuario no encontrado o no se pudo eliminar");
-  error.status = 404;
-  throw error;
+  });
 };
+

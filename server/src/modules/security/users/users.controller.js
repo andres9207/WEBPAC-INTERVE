@@ -1,5 +1,6 @@
 import * as usersService from "./users.service.js";
 import { revokeSession } from "../../../common/services/session.service.js";
+import { auditContext } from "../../../common/services/audit.service.js";
 
 export const paginationUsersController = async (req, res, next) => {
   try {
@@ -81,6 +82,7 @@ export const saveUserController = async (req, res, next) => {
       useBy,
       changePassword,
       usePages,
+      ctx: auditContext(req),
     });
     // Un usuario que queda inactivo, o al que un administrador le cambia la
     // contraseña, pierde su sesión de inmediato (verifyToken ya rechazaría
@@ -100,7 +102,11 @@ export const saveUserController = async (req, res, next) => {
 export const deleteUserController = async (req, res, next) => {
   try {
     const { useId } = req.body;
-    const result = await usersService.deleteUser({ useId, updatedBy: req.user.useId });
+    const result = await usersService.deleteUser({
+      useId,
+      updatedBy: req.user.useId,
+      ctx: auditContext(req),
+    });
     await revokeSession({ useId });
     return res.status(200).json(result);
   } catch (err) {

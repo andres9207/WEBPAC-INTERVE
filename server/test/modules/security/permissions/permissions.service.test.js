@@ -4,6 +4,7 @@ const prismaMock = {
   tbl_profile_permissions: { findMany: jest.fn(), deleteMany: jest.fn(), createMany: jest.fn() },
   tbl_user_permissions: { findMany: jest.fn(), deleteMany: jest.fn(), createMany: jest.fn() },
   tbl_users: { findUnique: jest.fn() },
+  tbl_audit_log: { createMany: jest.fn() },
   $transaction: jest.fn((fn) => fn(prismaMock)),
 };
 
@@ -76,5 +77,36 @@ describe("updateUserPermissions — impedir autoconcesión", () => {
 
     expect(ioInstance.to).toHaveBeenCalledWith("user:5");
     expect(ioInstance.emit).toHaveBeenCalledWith("update-permissions", expect.objectContaining({ useId: 5 }));
+  });
+});
+
+describe("bitácora de permisos (ADR-0013)", () => {
+  it("registra cada permiso asignado y revocado con el autor de la sesión y un mismo operationId", async () => {
+    prismaMock.tbl_user_permissions.findMany.mockResolvedValue([{ per_id: 3 }]);
+    prismaMock.tbl_profile_permissions.findMany.mockResolvedValue([]);
+
+    await permissionsService.updateUserPermissions({
+      permissions: [1, 2],
+      useId: 5,
+      actingUseId: 9,
+      ctx: { useId: 9, ip: "1.1.1.1" },
+    });
+
+    const rows = prismaMock.tbl_audit_log.createMany.mock.calls.flatMap((c) => c[0].data);
+    const granted = rows.filter((r) => r.aud_operation === "ASIGNAR").map((r) => r.aud_new_value);
+    const revoked = rows.filter((r) => r.aud_operation === "REVOCAR").map((r) => r.aud_old_value);
+
+    expect(granted).toEqual(["1", "2"]);
+    expect(revoked).toEqual(["3"]);
+    expect(new Set(rows.map((r) => r.aud_operation_id)).size).toBe(1);
+    expect(rows.every((r) => r.use_id === 9 && r.aud_entity === "USUARIO" && r.aud_record_id === 5)).toBe(true);
+  });
+
+  it("no escribe en la bitácora si no hubo cambios", async () => {
+    prismaMock.tbl_profile_permissions.findMany.mockResolvedValue([{ per_id: 1 }]);
+
+    await permissionsService.updateProfilePermissions({ permissions: [1], proId: 3, actingProId: 7, ctx: { useId: 9 } });
+
+    expect(prismaMock.tbl_audit_log.createMany).not.toHaveBeenCalled();
   });
 });
