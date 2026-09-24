@@ -2,10 +2,37 @@ import axios from "axios";
 import Cookies from "js-cookie";
 
 // ─── Instancia con baseURL desde .env ────────────────────────────────────────
+const baseURL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+
 const instance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:4000/api",
+  baseURL,
   withCredentials: true,
 });
+
+// ─── Renovación de sesión (refresh token) ─────────────────────────────────────
+// El access token (cookie httpOnly `token`) dura 15 minutos; al vencer, el
+// servidor responde 401 y se renueva con la cookie httpOnly `refresh_token`
+// vía POST /auth/refresh. Instancia aparte, sin interceptores, para que un
+// 401 del propio refresh no dispare otra renovación en bucle. Una sola
+// renovación en vuelo a la vez: si varias peticiones reciben 401 al mismo
+// tiempo, todas esperan la misma promesa.
+const refreshClient = axios.create({ baseURL, withCredentials: true });
+let refreshPromise = null;
+
+export const refreshSession = () => {
+  if (!refreshPromise) {
+    refreshPromise = refreshClient
+      .post("/auth/refresh")
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+};
+
+// Endpoints donde un 401 no significa "access token vencido" (credenciales
+// o sesión ya cerrada): no se intenta renovar.
+const NO_REFRESH_URLS = ["/auth/login", "auth/login", "/auth/refresh", "auth/refresh", "/auth/logout", "auth/logout"];
 
 // ─── Interceptor de REQUEST ───────────────────────────────────────────────────
 instance.interceptors.request.use(
@@ -27,6 +54,21 @@ instance.interceptors.response.use(
   async (error) => {
     const status = error.response?.status;
     const config = error.config;
+
+    // 401 con access token vencido: se renueva la sesión una vez y se
+    // reintenta la MISMA petición. Aplica también a las que llevan
+    // skipAuthRedirect (verifyTokenAPI al cargar la app): al volver después
+    // de 15 minutos, el access token ya venció pero la sesión sigue viva.
+    if (status === 401 && config && !config._retried401 && !NO_REFRESH_URLS.includes(config.url)) {
+      config._retried401 = true;
+      try {
+        await refreshSession();
+        return instance(config);
+      } catch {
+        // Refresh vencido o revocado (logout, login en otro dispositivo,
+        // cambio de contraseña): cae al manejo de 401 de abajo.
+      }
+    }
 
     // 401: sesión inválida/expirada — sí es un problema de autenticación,
     // se limpia el cache local y se fuerza el login.

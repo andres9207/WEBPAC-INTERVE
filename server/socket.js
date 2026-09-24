@@ -2,7 +2,7 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import { setIO } from "./src/common/configs/socket.manager.js";
 import { isOriginAllowed } from "./src/common/configs/cors.config.js";
-import { prisma } from "./src/common/configs/prismaClient.js";
+import { ACCESS_COOKIE_NAME, isSessionActive } from "./src/common/services/session.service.js";
 
 let io;
 
@@ -24,12 +24,13 @@ const getCookieValue = (cookieHeader, name) => {
  * `handshake.auth.userId`, así que cualquier cliente podía unirse a la sala
  * de notificaciones de cualquier otro usuario. Ahora se exige el mismo JWT
  * que usa la API (cookie `token`, o `auth.token` para clientes no navegador),
- * se valida igual que `authjwt.middleware.js` (firma + usuario activo en BD),
+ * se valida igual que `authjwt.middleware.js` (firma + sesión viva en
+ * tbl_sessions + usuario activo),
  * y la sala a unir sale del token, nunca de lo que el cliente diga.
  */
 const authenticateHandshake = async (socket, next) => {
   const token =
-    getCookieValue(socket.handshake.headers.cookie, "token") ||
+    getCookieValue(socket.handshake.headers.cookie, ACCESS_COOKIE_NAME) ||
     socket.handshake.auth?.token;
 
   if (!token) {
@@ -44,12 +45,13 @@ const authenticateHandshake = async (socket, next) => {
   }
 
   try {
-    const user = await prisma.tbl_users.findFirst({
-      where: { use_id: decoded.useId, use_email: decoded.email, sta_id: 1 },
-      select: { use_id: true },
+    const active = await isSessionActive({
+      sid: decoded.sid,
+      useId: decoded.useId,
+      email: decoded.email,
     });
 
-    if (!user) {
+    if (!active) {
       return next(new Error("Autorización inválida"));
     }
   } catch (error) {
@@ -58,6 +60,7 @@ const authenticateHandshake = async (socket, next) => {
   }
 
   socket.data.userId = decoded.useId;
+  socket.data.sessionKey = decoded.sid;
   next();
 };
 
@@ -76,6 +79,9 @@ const init = (httpServer) => {
 
   io.on("connection", (socket) => {
     socket.join(`user:${socket.data.userId}`);
+    // Sala por sesión: al revocarla (logout, login en otro dispositivo,
+    // cambio de contraseña) session.service.js desconecta estos sockets.
+    socket.join(`session:${socket.data.sessionKey}`);
     console.log(`Socket conectado: ${socket.id} | Usuario: ${socket.data.userId}`);
 
     socket.on("disconnect", (reason) => {

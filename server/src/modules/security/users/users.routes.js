@@ -1,7 +1,9 @@
 import express from "express";
 import { verifyToken } from "../../../common/middlewares/authjwt.middleware.js";
 import { requirePermission } from "../../../common/middlewares/requirePermission.middleware.js";
+import { validate } from "../../../common/middlewares/validate.middleware.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
+import { listUsersSchema, saveUserSchema, deleteUserSchema } from "./users.validation.js";
 import {
   paginationUsersController,
   countUsersController,
@@ -15,6 +17,8 @@ usersRoutes.post(
   "/list_users",
   verifyToken,
   requirePermission(PERMISSIONS.security.users.view),
+  listUsersSchema,
+  validate,
   paginationUsersController
 );
 usersRoutes.get(
@@ -32,6 +36,8 @@ usersRoutes.post(
   requirePermission((req) =>
     req.body.useId > 0 ? PERMISSIONS.security.users.edit : PERMISSIONS.security.users.create
   ),
+  saveUserSchema,
+  validate,
   saveUserController
 );
 
@@ -39,6 +45,8 @@ usersRoutes.put(
   "/delete_user",
   verifyToken,
   requirePermission(PERMISSIONS.security.users.delete),
+  deleteUserSchema,
+  validate,
   deleteUserController
 );
 

@@ -7,7 +7,6 @@ import ErrorBoundary from './ErrorBoundary';
 
 // maintenance routing
 const LoginPage = Loadable(lazy(() => import('views/pages/authentication/Login')));
-const RegisterPage = Loadable(lazy(() => import('views/pages/authentication/Register')));
 const ForgotPasswordPage = Loadable(lazy(() => import('views/pages/authentication/ForgotPassword')));
 
 
@@ -21,10 +20,6 @@ const AuthenticationRoutes = {
     {
       path: '/pages/login',
       element: <LoginPage />
-    },
-    {
-      path: '/pages/register',
-      element: <RegisterPage />
     },
     { 
       path: '/pages/forgot-password', element: <ForgotPasswordPage /> 

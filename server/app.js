@@ -52,6 +52,12 @@ app.use(fileUpload({
 
 app.use("/", express.static(path.join(__dirname, "../dist")));
 app.use("/api", defaultRateLimit, mainRoutes);
+// Una ruta /api inexistente responde 404 en JSON: antes caía en el fallback
+// de la SPA de abajo y devolvía 200 con el HTML de index.html, así que el
+// cliente recibía un "éxito" donde esperaba JSON.
+app.use("/api", (req, res) => {
+  res.status(404).json({ success: false, message: "Recurso no encontrado." });
+});
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "../dist/index.html"));
 });

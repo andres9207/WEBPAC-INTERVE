@@ -1,7 +1,14 @@
 import express from "express";
 import { verifyToken } from "../../../common/middlewares/authjwt.middleware.js";
 import { requirePermission } from "../../../common/middlewares/requirePermission.middleware.js";
+import { validate } from "../../../common/middlewares/validate.middleware.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
+import {
+  paginationProfilesSchema,
+  getModulesSchema,
+  saveProfileSchema,
+  deleteProfileSchema,
+} from "./profiles.validation.js";
 import {
   paginationProfilesController,
   getModulesController,
@@ -19,6 +26,8 @@ profilesRoutes.post(
   "/pagination_profiles",
   verifyToken,
   requirePermission(PERMISSIONS.security.profiles.view),
+  paginationProfilesSchema,
+  validate,
   paginationProfilesController
 );
 
@@ -26,6 +35,8 @@ profilesRoutes.get(
   "/get_modules",
   verifyToken,
   requirePermission(PERMISSIONS.security.profiles.view),
+  getModulesSchema,
+  validate,
   getModulesController
 );
 
@@ -37,6 +48,8 @@ profilesRoutes.post(
   requirePermission((req) =>
     req.body.proId > 0 ? PERMISSIONS.security.profiles.edit : PERMISSIONS.security.profiles.create
   ),
+  saveProfileSchema,
+  validate,
   saveProfileController
 );
 
@@ -44,6 +57,8 @@ profilesRoutes.put(
   "/delete_profile",
   verifyToken,
   requirePermission(PERMISSIONS.security.profiles.delete),
+  deleteProfileSchema,
+  validate,
   deleteProfileController
 );
 

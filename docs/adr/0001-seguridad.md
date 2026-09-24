@@ -2,24 +2,29 @@
 
 ## Estado
 
-**Aceptado (implementado) — con brechas críticas abiertas.**
+**Aceptado (implementado).**
 
-La arquitectura de autenticación existe y opera. Las decisiones documentadas en `Estado actual` son las realmente implementadas. Las secciones `Decisión` y `Brechas identificadas` marcan lo que debe corregirse.
+La arquitectura de autenticación existe, opera y cierra 17 de las 18 brechas identificadas en la versión inicial de este ADR. Quedan abiertas:
+
+- **B15 — auditoría de eventos de seguridad**: depende de [ADR-0013](0013-auditoria-trazabilidad.md).
+- **MFA**: fuera del alcance de este ADR (ver Alternativa 2, pendiente de validación).
 
 ## Fecha
 
-2026-09-10 — versión inicial.
+- 2026-09-10 — versión inicial (análisis del estado heredado: brechas B1–B18).
+- 2026-09-24 — la capa de datos pasa de `mysql2` (SQL crudo) a Prisma 7.
+- 2026-09-24 — se implementan las decisiones 1–8 y se cierran las brechas salvo B15 y MFA. El documento se reescribe para describir el estado real; el estado heredado queda resumido en "Brechas identificadas".
 
 ## Contexto
 
 El sistema es una aplicación web de dos capas desplegada bajo un mismo host:
 
 - **Frontend**: React 19 + Vite + MUI 7 (`client/`), SPA con enrutamiento en cliente.
-- **Backend**: Node.js + Express en módulos ESM (`server/`), SQL crudo sobre MySQL 8 vía `mysql2/promise` con pool de 10 conexiones.
-- **Base de datos**: MySQL 8 (`bdintervewebpack`).
+- **Backend**: Node.js + Express en módulos ESM (`server/`), acceso a datos sobre MySQL 8 vía **Prisma 7** (`server/src/common/configs/prismaClient.js`, cliente singleton con el driver adapter `@prisma/adapter-mariadb`). Ningún service usa SQL crudo; el pool de `mysql2` (`db.config.js`) queda solo para `testConnection` al arrancar `server.js`.
+- **Base de datos**: MySQL 8. Esquema base `database/bdtemplate.sql` + migraciones numeradas en `database/migrations/`.
 - **Tiempo real**: Socket.IO.
 
-La seguridad debe cubrir cuatro flujos: inicio de sesión, recuperación de contraseña, restauración con código previo (OTP) y registro de usuarios. Sobre esa base se apoyan todos los demás módulos del proceso de contratos.
+La seguridad cubre tres flujos: inicio de sesión, mantenimiento de la sesión (renovación y cierre) y recuperación de contraseña. El alta de usuarios es exclusivamente administrativa. Sobre esta base se apoyan todos los demás módulos del proceso de contratos.
 
 ## Problema
 
@@ -28,7 +33,7 @@ El proceso administrativo de contratos maneja información sensible: valores de 
 Se requiere definir:
 
 1. Cómo se prueba la identidad de un usuario (autenticación).
-2. Cómo se transporta y valida esa identidad en cada petición.
+2. Cómo se transporta, valida, renueva y revoca esa identidad.
 3. Cómo se recupera el acceso sin abrir una vía de suplantación.
 4. Qué separa la autenticación de la autorización.
 
@@ -36,441 +41,433 @@ Se requiere definir:
 
 ### Login
 
-Implementado en `server/src/modules/auth/auth.service.js` (`login`) y expuesto en `POST /api/auth/login` sin middleware previo.
+`POST /api/auth/login` → `auth.controller.loginController` → `auth.service.login`. La ruta tiene rate limit estricto (`authRateLimit`) y validación de esquema (`loginSchema`).
 
-| Aspecto | Implementación real |
+| Aspecto | Implementación |
 | --- | --- |
 | Identificador | `use_email` **o** `use_user`, indistintamente |
 | Filtro | Solo usuarios con `sta_id = 1` |
-| Contraseña | `bcrypt` con salt de 10 rondas (`common/utils/funciones.js`) |
-| Token | JWT firmado con `process.env.JWT_SECRET`, expiración `24h` |
-| Claims | `useId`, `name`, `email`, `proId` |
-| Transporte | Cookie `tokenTEMPLATE` (`httpOnly: false`, `sameSite: Strict`, `secure` solo en producción) **y** header `Authorization: Bearer` |
-| Respuesta | Además del token, devuelve `permissions` (arreglo de `per_id` de `tbl_user_permissions`) |
-| Intentos fallidos | **No existe control.** Sin contador, sin bloqueo, sin retardo |
-| Sesión concurrente | **No existe control.** Múltiples tokens simultáneos válidos |
-| Refresh token | **No existe** |
-| Logout | **No existe endpoint.** El frontend invoca `POST /auth/logout`, que no está registrado en `auth.routes.js`. El cierre de sesión es solo borrado de cookies en cliente |
+| Contraseña | `bcrypt`, 10 rondas (`common/utils/funciones.js`) |
+| Usuario inexistente | Se compara igual contra un hash bcrypt de relleno: misma duración que una contraseña incorrecta |
+| Mensaje de error | Único para usuario inexistente, contraseña incorrecta y cuenta bloqueada |
+| Intentos fallidos | Contador por cuenta en `tbl_login_attempts`. Cada 5 fallos consecutivos: bloqueo de 15 min, que se duplica en cada bloqueo (30 min, 1 h…) hasta 24 h. Mientras dura, ni la contraseña correcta entra |
+| Rate limit por IP | `/api/auth/*`: 10 peticiones fallidas / 15 min. `/api/*`: 50 / 5 min |
+| Sesión | Se abre en `tbl_sessions` (ver abajo). **Una sola sesión por usuario**: el login reemplaza cualquier sesión anterior |
+| Transporte | Cookies `token` (access) y `refresh_token`, ambas `httpOnly`, `sameSite: Strict`, `secure` en producción. El header `Authorization: Bearer` se acepta para clientes no navegador |
+| Respuesta | Datos del usuario y `permissions` (unión perfil + excepciones, ver [ADR-0014](0014-autorizacion-permisos.md)). **Ningún token en el cuerpo** |
 
-**Hallazgo crítico — puerta trasera de autenticación.** En `login`, si `bcrypt.compare` falla pero la contraseña enviada es literalmente `"123456"`, el sistema genera un hash nuevo de `"123456"`, lo persiste sobre `use_password` del usuario y concede el acceso:
+### Sesión: access token, refresh token y revocación
 
-```text
-if (!matchPassword && passwordTextoPlano === "123456") { ...; matchPassword = true; }
-```
+Implementado en `common/services/session.service.js` sobre `tbl_sessions` (`database/migrations/0007_create_sessions.sql`).
 
-Cualquier cuenta activa del sistema es accesible conociendo únicamente su correo o nombre de usuario. Además la operación **sobrescribe la contraseña real** del usuario.
+| Elemento | Implementación |
+| --- | --- |
+| Access token | JWT firmado con `JWT_SECRET`, vida `JWT_EXPIRES_IN` (15 min por defecto). Claims: `useId`, `name`, `email`, `proId`, `sid` |
+| Refresh token | 32 bytes aleatorios (`crypto.randomBytes`), vida `JWT_REFRESH_EXPIRES_IN` (`7d` por defecto, deslizante). En BD solo su SHA-256 |
+| Sesión única | `UNIQUE(use_id)` en `tbl_sessions`; login = upsert con un `ses_key` nuevo |
+| Renovación | `POST /api/auth/refresh`: rota el refresh token (el anterior deja de servir) y emite un access token nuevo con el mismo `sid` |
+| Pestañas concurrentes | Un refresh token recién rotado se acepta 30 s más, y solo emite un access token (no rota de nuevo) |
+| Reutilización | Un refresh token rotado presentado fuera de esa ventana se trata como robo: se revoca la sesión |
+| Logout | `POST /api/auth/logout` borra la fila de `tbl_sessions` (identificada por el refresh token, o por el `sid` del access token aunque esté vencido) y limpia las cookies |
+| Revocación | También al restaurar la contraseña, al cambiar la propia contraseña (se abre una sesión nueva) y cuando un administrador desactiva, elimina o cambia la contraseña de un usuario |
+| Sockets | Cada socket se une a la sala `session:<sid>`; revocar la sesión desconecta esos sockets |
 
 ### Validación de token en cada petición
 
-`common/middlewares/authjwt.middleware.js` (`verifyToken`):
+`common/middlewares/authjwt.middleware.js` (`verifyToken`), única implementación, usada por todas las rutas privadas (incluida `GET /api/app/verify_token`):
 
-1. Lee el token de la cookie `tokenTEMPLATE`; si no está, del header `Authorization`.
+1. Lee el token de la cookie `token`; si no está, del header `Authorization`.
 2. Verifica firma y expiración con `JWT_SECRET`.
-3. Reconsulta la base: el usuario debe existir con ese `use_id` **y** ese `use_email` **y** `sta_id = 1`.
-4. Adjunta el payload decodificado a `req.user`.
+3. `isSessionActive`: la sesión `sid` debe existir en `tbl_sessions`, no estar vencida, y su usuario debe tener ese `use_email` y `sta_id = 1`. Un JWT sin `sid` se rechaza.
+4. Adjunta el payload a `req.user`.
 
-La reconsulta a base de datos en cada petición es una decisión deliberada y correcta: permite revocar el acceso desactivando al usuario sin esperar la expiración del token.
-
-`app.service.js` implementa una **segunda** verificación de token (`verifyToken`, usada por `GET /api/app/verify_token`) con criterio distinto: acepta `sta_id IN (1,4)`. El estado `4` no existe en `tbl_status` (`AUTO_INCREMENT = 4`, es decir, ids 1 a 3).
+El handshake de Socket.IO (`server/socket.js`) aplica exactamente la misma verificación. La sala de notificaciones (`user:<id>`) sale del token, nunca de lo que envía el cliente.
 
 ### Recuperación de contraseña
 
 `POST /api/auth/forgot_password` → `forgotPassword`:
 
-1. Busca el usuario por `use_email`. **Si no existe, responde 404 con "No existe una cuenta con ese correo"**.
-2. Genera `codeTemp` de 6 dígitos con `Math.floor(100000 + Math.random() * 900000)`.
-3. Firma un JWT de 15 minutos con `JWT_SECRET_TEMP`, cuyo fallback está **hardcodeado en el código fuente**: `"dede6899178c8aeb8f14ab46ec8d86e99097e329"`.
-4. Borra los registros previos del usuario en `tbl_password_resets` e inserta el nuevo (token y código **en texto plano**).
-5. Envía el código por correo.
-6. **Devuelve el token en el cuerpo de la respuesta HTTP.**
+1. Busca un usuario **activo** por `use_email`. Si no existe, no hace nada.
+2. Genera un código de 6 dígitos con `crypto.randomInt`.
+3. Guarda en `tbl_password_resets` **solo** su HMAC-SHA256 atado al `use_id` (`common/utils/resetCode.utils.js`, clave derivada de `JWT_SECRET`). El upsert sobre `UNIQUE(use_id)` deja un único código vigente y reinicia intentos y vigencia.
+4. Envía el código por correo, sin esperar el envío.
+5. Responde **siempre lo mismo**, con un piso de 300 ms: no revela si la cuenta existe ni por contenido ni por tiempo.
 
-### Restauración con OTP previo
-
-Dos endpoints, ambos públicos:
-
-- `POST /api/auth/validate_code_password` → verifica JWT temporal + `par_code_temp`.
-- `POST /api/auth/restore_password` → repite la misma verificación, actualiza `use_password` y borra la fila de `tbl_password_resets`.
+`POST /api/auth/validate_code_password` y `POST /api/auth/restore_password` (públicos, con rate limit y validación de esquema):
 
 | Control | Estado |
 | --- | --- |
-| Expiración | 15 minutos, por expiración del JWT |
-| Uso único | Sí, por borrado de la fila tras el cambio efectivo |
-| Límite de intentos | **No existe** |
-| Rate limiting | **No existe** (ver más abajo) |
-| Almacenamiento | Token y código en texto plano en `tbl_password_resets` |
+| Identificación | Correo + código. Nunca un token que haya viajado por HTTP |
+| Expiración | 15 minutos desde `par_created_at` |
+| Intentos | 5 por código. El intento se consume con un incremento condicionado **antes** de comparar; agotados, el código se borra |
+| Comparación | `crypto.timingSafeEqual` sobre el HMAC |
+| Uso único | La restauración borra el código |
+| Efectos de restaurar | Cambia la contraseña, borra el código y el bloqueo por intentos (una sola transacción) y revoca la sesión |
 
-### Registro de usuarios y OTP de activación
+### Alta de usuarios
 
-Dos caminos distintos y no unificados:
+Solo administrativa: `POST /api/security/users/save_user`, con `verifyToken` + `requirePermission` (crear o editar según el body) + `saveUserSchema`. El autorregistro público y su flujo OTP se retiraron del backend y del cliente.
 
-**a) Autorregistro público** — `POST /api/auth/register`, sin autenticación. Verifica duplicados por `use_user` o `use_email`, inserta el usuario con `pro_id = 3` y `sta_id = 1` fijos, genera un OTP y lo inserta en la tabla `otp_codes`.
+### Controles de plataforma
 
-> **`otp_codes` no existe en `database/bdintervewebpack.sql`.** El flujo completo de registro, reenvío (`resend-otp`) y verificación (`verify-otp`) falla en ejecución. `pro_id = 3` tampoco es verificable: `tbl_profiles` tiene `AUTO_INCREMENT = 2`.
+`server/app.js` monta, en orden: `helmet` (CSP, HSTS, frameguard, referrer-policy), logger HTTP (winston → `logs/api.log`), CORS con allowlist (`cors.config.js`, compartida con Socket.IO), parsers de JSON/urlencoded, `cookie-parser`, compresión, `cleanRequestData`, `express-fileupload`, estáticos de la SPA, `/api` con `defaultRateLimit`, un **404 JSON** para cualquier `/api/*` inexistente, el fallback de la SPA y `errorMiddleware`.
 
-El OTP declarado en código expira a los 10 minutos, se genera con `Math.random()`, **no invalida los códigos anteriores** (cada reenvío hace `INSERT`, dejando varios códigos simultáneamente válidos) y **no limita intentos de verificación**.
+`server.js` no arranca sin `JWT_SECRET`, y registra manejadores de `unhandledRejection` (registrar y seguir) y `uncaughtException` (registrar, cerrar y salir con código 1 para que pm2 reinicie).
 
-**b) Alta administrativa** — `POST /api/security/users/save_user` (`users.service.js`), con `verifyToken`. Este es el camino operativo real: valida unicidad por documento, correo o usuario, asigna perfil y estado, y al crear copia los permisos del perfil hacia el usuario.
+### Identidad del sujeto
 
-### Controles de plataforma declarados pero no activos
-
-`server/app.js` monta: `morgan`, CORS con lista blanca, `express.json` (límite 50 MB), `cookie-parser`, compresión, `cleanRequestData` y `express-fileupload`.
-
-**No monta**, pese a estar implementados en el repositorio:
-
-| Archivo | Contenido | ¿Montado? |
-| --- | --- | --- |
-| `common/middlewares/helmet.middleware.js` | CSP, HSTS, frameguard, referrer-policy | **No** |
-| `common/middlewares/rateLimit.middleware.js` | 50 peticiones / 5 min por IP | **No** |
-| `common/middlewares/httpLogger.middleware.js` | Log HTTP a `logs/api.log` vía winston | **No** |
-
-`express-validator` figura en `package.json` y **no se usa en ninguna parte**.
-
-### Endpoints con exposición de identidad ajena (IDOR)
-
-| Endpoint | Middleware | Origen del `useId` |
-| --- | --- | --- |
-| `PUT /api/auth/update_password` | **Ninguno** | `req.body` |
-| `PUT /api/auth/update_account` | `verifyToken` | `req.body` |
-| `GET /api/auth/get_basic_information` | `verifyToken` | `req.query` |
-
-En los tres casos el identificador del sujeto proviene de la petición y no de `req.user`. Un usuario autenticado puede leer o modificar la cuenta de otro cambiando el parámetro. `update_password` además exige la contraseña actual, lo que lo mitiga parcialmente, pero no requiere sesión alguna.
+Toda operación sobre la propia cuenta toma el sujeto de `req.user`: `get_basic_information`, `update_account`, `update_password`, `count_users`, notificaciones, menú y permisos propios, y el autor de la auditoría de documentos (`doc_create_by`/`doc_update_by`).
 
 ## Decisión
 
-1. **La autenticación se basa en JWT stateless con revalidación en base de datos en cada petición.** Se conserva la decisión actual: es la que permite revocación inmediata por estado del usuario.
+1. **La autenticación se basa en JWT de vida corta respaldado por una sesión en base de datos.** El access token es stateless en su firma, pero cada petición verifica que su sesión (`sid`) siga viva. Esto permite revocar de inmediato sin esperar la expiración.
 
-2. **El token de sesión se transporta exclusivamente en cookie `httpOnly`, `secure`, `sameSite`.** El frontend no debe poder leer el token; el header `Authorization` se conserva únicamente para clientes no-navegador, si llegan a existir.
+2. **La sesión se renueva con un refresh token opaco, rotado en cada uso y guardado solo como hash.** La reutilización de un refresh token ya rotado revoca la sesión.
 
-3. **La identidad del sujeto de una operación se toma siempre de `req.user`, nunca del cuerpo, query o params de la petición.** Los identificadores enviados por el cliente solo se aceptan cuando designan un objeto distinto del sujeto y la autorización lo permite explícitamente.
+3. **Un usuario tiene como máximo una sesión viva.** Un login nuevo cierra la anterior.
 
-4. **No existen credenciales, secretos ni contraseñas por defecto en el código fuente.** Todo secreto proviene de variables de entorno, sin valor de reserva embebido. El arranque debe fallar si falta un secreto obligatorio.
+4. **Los tokens se transportan exclusivamente en cookies `httpOnly`, `secure` y `sameSite: Strict`.** El frontend no puede leerlos; el header `Authorization` queda solo para clientes no navegador.
 
-5. **Los flujos de recuperación no revelan si una cuenta existe.** La respuesta de `forgot_password` es idéntica para correo existente e inexistente.
+5. **La identidad del sujeto de una operación se toma siempre de `req.user`, nunca del cuerpo, query o params.** Los identificadores enviados por el cliente solo se aceptan cuando designan un objeto distinto del sujeto y la autorización lo permite explícitamente.
 
-6. **Los códigos OTP se generan con un generador criptográficamente seguro, se almacenan con hash, tienen un único código vigente por usuario, expiran y limitan intentos.** Un OTP nuevo invalida los anteriores.
+6. **No existen credenciales, secretos ni contraseñas por defecto en el código fuente.** Todo secreto proviene de variables de entorno, sin valor de reserva embebido, y el arranque falla si falta uno obligatorio.
 
-7. **Los controles de plataforma implementados se activan**: helmet, rate limiting diferenciado para los endpoints de autenticación, y logging HTTP persistente.
+7. **Los flujos de login y recuperación no revelan si una cuenta existe**, ni por contenido ni por tiempo de respuesta.
 
-8. **Autenticación y autorización son capas separadas.** `verifyToken` responde "quién eres". La verificación de permiso —definida en [ADR-0014](0014-autorizacion-permisos.md)— responde "puedes hacerlo". Ninguna ruta de negocio debe quedar solo con la primera.
+8. **Los códigos de recuperación se generan con un CSPRNG, se almacenan como HMAC, tienen un único código vigente por usuario, expiran a los 15 minutos y admiten 5 intentos.**
+
+9. **El login se protege en dos capas**: rate limit por IP y bloqueo progresivo por cuenta.
+
+10. **Toda entrada se valida por esquema** (`express-validator`) antes de llegar a la regla de negocio.
+
+11. **Autenticación y autorización son capas separadas.** `verifyToken` responde "quién eres"; `requirePermission` ([ADR-0014](0014-autorizacion-permisos.md)) responde "puedes hacerlo". Una ruta que solo tiene `verifyToken` debe operar únicamente sobre recursos del propio usuario o catálogos no sensibles.
 
 ## Justificación
 
-- **JWT + revalidación en BD** conserva el bajo acoplamiento de una sesión stateless sin renunciar a la revocación. Es lo ya construido y funciona; sustituirlo por sesiones en servidor exigiría almacenamiento compartido (Redis o similar) del que no se encontró evidencia en el proyecto.
-- **Cookie `httpOnly`** es la única defensa efectiva contra el robo de token por XSS. Con `httpOnly: false` cualquier script inyectado en la SPA exfiltra la sesión completa. El coste de cambiarlo es bajo: el frontend ya envía la cookie con `withCredentials: true`.
-- **Sujeto desde el token** elimina de raíz toda una familia de vulnerabilidades (IDOR y escalamiento horizontal) sin añadir lógica de validación por endpoint.
-- **Sin secretos en código** es requisito no negociable: el repositorio es versionado y el secreto de recuperación actual está expuesto en el historial de Git.
-- **Respuesta uniforme en recuperación** evita que el endpoint sirva como oráculo de enumeración de cuentas válidas, insumo típico de un ataque de credenciales.
-- **OTP con hash, único e intentos limitados**: un código de 6 dígitos tiene 900.000 combinaciones. Sin límite de intentos y sin rate limiting, es forzable por completo dentro de su ventana de 15 minutos.
+- **JWT corto + sesión en BD** conserva la verificación barata de la firma y agrega revocación inmediata sin infraestructura nueva (no hay Redis ni almacén de sesiones en el proyecto). La consulta por petición ya existía para revalidar el estado del usuario; ahora es la misma consulta, sobre `tbl_sessions`.
+- **Refresh token opaco y rotado**: un access token robado sirve como mucho 15 minutos. Un refresh token robado se detecta en cuanto su dueño legítimo o el atacante lo reutilizan. Guardarlo como SHA-256 es suficiente porque tiene 256 bits de entropía.
+- **Sesión única** (decisión del área usuaria): acota la exposición a un solo dispositivo y convierte cualquier login no autorizado en un cierre visible de la sesión legítima.
+- **Cookie `httpOnly`** es la única defensa efectiva contra el robo de token por XSS.
+- **Sujeto desde el token** elimina de raíz toda una familia de vulnerabilidades (IDOR y escalamiento horizontal).
+- **HMAC en lugar de hash simple para el código**: 900.000 combinaciones se invierten al instante con SHA-256; el HMAC exige además la clave del servidor, que no vive en la BD.
+- **Intentos por código + rate limit + bloqueo por cuenta**: el rate limit por IP se esquiva rotando IPs; los contadores por cuenta y por código no.
+- **Validación de esquema**: rechaza en el borde lo que el service nunca debería ver (tipos, rangos, longitudes; por ejemplo, contraseñas de más de 72 caracteres, que bcrypt truncaría en silencio).
 
 ## Alternativas consideradas
 
-### Alternativa 1 — Sesiones en servidor con almacén compartido
+### Alternativa 1 — Sesiones en servidor con identificador opaco en Redis o tabla
 
-Sustituir JWT por identificador de sesión opaco con estado en Redis o en tabla dedicada.
+Sustituir JWT por un identificador de sesión opaco consultado en cada petición.
 
-- **A favor**: revocación granular inmediata, invalidación masiva, control natural de sesión concurrente, sin datos en el cliente.
-- **En contra**: introduce una dependencia de infraestructura inexistente hoy. **No se encontró evidencia de utilización de Redis ni de ningún almacén de sesiones en el proyecto.** Obliga a reescribir el middleware y el contexto de autenticación del frontend.
-- **Descartada** por coste desproporcionado frente al beneficio: la revalidación en BD ya cubre el caso de revocación.
+- **A favor**: revocación granular inmediata, sin datos en el cliente.
+- **En contra**: exige reescribir el middleware y el cliente, y Redis no existe en el proyecto.
+- **Descartada** como sustituto completo. Sin embargo, el diseño seleccionado **toma su ventaja principal**: la sesión vive en `tbl_sessions` y el JWT solo lleva su `sid`.
 
 ### Alternativa 2 — Proveedor de identidad externo (Microsoft Entra ID)
 
-El proyecto ya integra `@azure/identity` y `@microsoft/microsoft-graph-client` en `modules/microsoftGraph/`.
-
-- **A favor**: delega credenciales, MFA y políticas de contraseña en la plataforma corporativa; elimina de un golpe login, recuperación y OTP propios.
-- **En contra**: la integración actual usa credenciales de aplicación (client credentials) para consumo de correo y archivos, **no para autenticación de usuarios finales**. Migrar exige que todo usuario del sistema tenga identidad corporativa, lo cual no está determinado.
-- **Estado: Pendiente de validación.** Es la alternativa más sólida a mediano plazo y debe reevaluarse antes de ampliar el modelo de usuarios.
+- **A favor**: delega credenciales, MFA y políticas de contraseña en la plataforma corporativa.
+- **En contra**: exige que todo usuario tenga identidad corporativa, lo cual no está determinado. La integración con Microsoft Graph que existía se retiró del repositorio (no tenía tablas que la respaldaran).
+- **Estado: Pendiente de validación.** Es el camino natural para MFA y debe reevaluarse antes de ampliar el modelo de usuarios.
 
 ### Alternativa 3 — Endurecer el modelo actual (seleccionada)
 
-Conservar JWT + revalidación en BD, y cerrar las brechas: eliminar la puerta trasera, `httpOnly`, sujeto desde el token, secretos fuera del código, respuestas uniformes, OTP con hash y límite de intentos, activar helmet y rate limit.
+Conservar JWT + revalidación en BD y cerrar las brechas: sesión en BD con refresh token rotado, sesión única, `httpOnly`, sujeto desde el token, secretos fuera del código, respuestas uniformes, códigos con HMAC e intentos limitados, bloqueo por cuenta, helmet, rate limit y validación de esquema.
 
-- **A favor**: sin cambio de paradigma, sin infraestructura nueva, alto impacto de seguridad por cambio acotado. Preserva todo el trabajo existente.
-- **En contra**: no resuelve por sí solo MFA ni política corporativa de contraseñas.
-- **Seleccionada.**
+- **A favor**: sin cambio de paradigma ni infraestructura nueva; alto impacto de seguridad con cambios acotados.
+- **En contra**: no resuelve MFA ni política corporativa de contraseñas.
+- **Seleccionada e implementada.**
 
 ## Modelo arquitectónico
 
 ```mermaid
 erDiagram
-    tbl_users ||--o{ tbl_password_resets : "solicita"
+    tbl_users ||--o| tbl_sessions : "sesión única"
+    tbl_users ||--o| tbl_password_resets : "código vigente"
+    tbl_users ||--o| tbl_login_attempts : "fallos de login"
     tbl_users }o--|| tbl_profiles : "pertenece a"
     tbl_users }o--|| tbl_status : "tiene"
     tbl_profiles }o--|| tbl_status : "tiene"
-    tbl_users ||--o{ tbl_user_permissions : "permisos directos"
+    tbl_users ||--o{ tbl_user_permissions : "excepciones"
     tbl_profiles ||--o{ tbl_profile_permissions : "permisos de perfil"
 ```
 
-Flujo de autenticación implementado:
+Flujo de sesión:
 
 ```text
-Cliente
-   │  POST /api/auth/login  { usuario, clave }
-   ▼
-auth.controller.loginController
-   │
-   ▼
-auth.service.login
-   ├── SELECT tbl_users WHERE (use_email = ? OR use_user = ?) AND sta_id = 1
-   ├── bcrypt.compare
-   ├── SELECT per_id FROM tbl_user_permissions
-   └── jwt.sign({ useId, name, email, proId }, JWT_SECRET, 24h)
-   │
-   ▼
-Set-Cookie: tokenTEMPLATE  +  body { token, permissions, ... }
-   │
-   ▼
-Peticiones posteriores → verifyToken
-   ├── lee cookie o header
+POST /api/auth/login  { usuario, clave }
+   ├── authRateLimit → loginSchema → validate
+   ├── auth.service.login
+   │     ├── tbl_users (activo, por correo o usuario)       ── no existe → bcrypt de relleno → 403
+   │     ├── tbl_login_attempts: ¿bloqueada?                 ── sí → 403 (sin comparar)
+   │     ├── bcrypt.compare                                  ── falla → +1 fallo (bloqueo cada 5) → 403
+   │     └── permisos efectivos (perfil ∪ excepciones)
+   └── session.createSession  (upsert tbl_sessions por use_id; desconecta la sesión anterior)
+         └── Set-Cookie: token (JWT 15m, sid)  +  refresh_token (opaco 7d)
+
+Petición privada → verifyToken
+   ├── cookie token | Authorization: Bearer
    ├── jwt.verify
-   └── SELECT use_id WHERE use_id = ? AND use_email = ? AND sta_id = 1
-        └── req.user = decoded  →  next()
+   └── tbl_sessions: ses_key = sid, no vencida, usuario activo con ese correo → req.user
+
+401 en el cliente → POST /api/auth/refresh (una sola en vuelo) → reintenta la petición
+   └── session.refreshSession
+         ├── hash vigente   → rota refresh, nuevo access
+         ├── hash anterior  → < 30 s: nuevo access sin rotar | ≥ 30 s: revoca sesión → 401
+         └── desconocido    → 401 → login
+
+POST /api/auth/logout → revoca sesión (refresh o sid) → limpia cookies
 ```
 
-Flujo de recuperación implementado:
+Flujo de recuperación:
 
 ```text
 forgot_password (público)
-   ├── SELECT por use_email   ──> 404 si no existe   ⚠ enumeración
-   ├── codeTemp = Math.random 6 dígitos              ⚠ no criptográfico
-   ├── jwt.sign(JWT_SECRET_TEMP, 15m)                ⚠ fallback hardcodeado
-   ├── DELETE + INSERT tbl_password_resets (texto plano)
-   ├── sendEmail(codeTemp)
-   └── return { token }                              ⚠ token en la respuesta
+   ├── tbl_users activo por correo           ── no existe → nada (misma respuesta, piso de 300 ms)
+   ├── code = crypto.randomInt(6 dígitos)
+   ├── upsert tbl_password_resets: HMAC(code, use_id), intentos = 0
+   └── sendEmail(code)  (sin esperar)
 
-validate_code_password (público)  →  compara par_code_temp   ⚠ sin límite de intentos
-restore_password       (público)  →  UPDATE use_password + DELETE reset
+validate_code_password / restore_password (públicos)
+   ├── código vigente (< 15 min) del usuario activo
+   ├── consume intento (par_attempts < 5)    ── agotados → borra código → 400
+   ├── timingSafeEqual(HMAC)                 ── no coincide → 400
+   └── restore: UPDATE password + DELETE código + DELETE bloqueo (transacción) → revoca sesión
 ```
 
 ## Reglas de negocio
 
 1. Un usuario puede autenticarse con su correo o con su nombre de usuario.
-2. Solo los usuarios con `sta_id = 1` (activo) pueden autenticarse.
-3. El token de sesión caduca a las 24 horas.
-4. Desactivar un usuario (`sta_id != 1`) invalida efectivamente sus sesiones vigentes en la siguiente petición, por la revalidación en base de datos.
-5. `sta_id = 3` es el estado de eliminación lógica en todo el sistema; los usuarios eliminados quedan excluidos de listados y de autenticación.
-6. La eliminación de usuarios y perfiles es lógica, nunca física.
-7. El código de recuperación tiene una vigencia de 15 minutos y se consume al cambiar la contraseña.
-8. El cambio de contraseña propia exige conocer la contraseña actual.
-9. Al crear un usuario por vía administrativa, sus permisos se inicializan copiando los del perfil asignado.
+2. Solo los usuarios con `sta_id = 1` (activo) pueden autenticarse, renovar sesión o recuperar su contraseña.
+3. El access token caduca a los 15 minutos; la sesión, a los 7 días sin uso (cada renovación la extiende).
+4. Un usuario tiene como máximo una sesión viva: iniciar sesión cierra la anterior.
+5. Desactivar, eliminar o cambiarle la contraseña a un usuario cierra su sesión de inmediato.
+6. `sta_id = 3` es el estado de eliminación lógica en todo el sistema; los usuarios eliminados quedan excluidos de listados y de autenticación.
+7. La eliminación de usuarios y perfiles es lógica, nunca física.
+8. Cada 5 intentos de login fallidos consecutivos la cuenta se bloquea temporalmente; el bloqueo se duplica en cada ocurrencia, hasta 24 horas.
+9. El código de recuperación vale 15 minutos y admite 5 intentos. Pedir uno nuevo invalida el anterior; usarlo lo consume.
+10. Restaurar la contraseña levanta el bloqueo por intentos fallidos.
+11. El cambio de contraseña propia exige conocer la contraseña actual. Las contraseñas tienen entre 8 y 72 caracteres.
+12. Al crear un usuario no se copian permisos: hereda los de su perfil por resolución en cada petición ([ADR-0014](0014-autorizacion-permisos.md)).
+13. Los estados base (1 activo, 2 inactivo, 3 eliminado) se siembran por migración (`0010_seed_status.sql`) y tienen ids fijos.
 
 ## Seguridad
-
-Resumen de la superficie de seguridad encontrada:
 
 | Control | Estado |
 | --- | --- |
 | Hash de contraseñas (bcrypt, 10 rondas) | Implementado |
-| Consultas parametrizadas en autenticación | Implementado |
-| Revalidación de usuario en cada petición | Implementado |
-| CORS con lista blanca de orígenes | Implementado |
-| Sanitización básica de entrada (`cleanRequestData`) | Implementado — solo normaliza espacios; **no** escapa ni valida |
-| Cabeceras de seguridad (helmet) | Implementado, **no activado** |
-| Rate limiting | Implementado, **no activado** |
-| Cookie `httpOnly` | **No** |
-| Bloqueo por intentos fallidos | **No** |
-| Contraseña por defecto / puerta trasera | **Presente — crítico** |
-| Secretos fuera del código | **No** (`JWT_SECRET_TEMP` con fallback embebido) |
-| MFA | **No** |
-| Validación de esquema de entrada | **No** (`express-validator` sin usar) |
-
-`cleanRequestData` merece precisión: recorre `body`, `query` y `params` aplicando `trim()` y colapsando espacios. **No es un mecanismo de sanitización de seguridad** y no debe considerarse defensa contra inyección.
+| Consultas parametrizadas (Prisma) | Implementado |
+| Sesión en BD con revocación inmediata | Implementado |
+| Access token corto + refresh token rotado con detección de reutilización | Implementado |
+| Sesión única por usuario | Implementado |
+| Cookies `httpOnly` / `secure` / `sameSite: Strict` | Implementado |
+| Secretos solo en variables de entorno | Implementado |
+| Respuesta uniforme en login y recuperación (contenido y tiempo) | Implementado |
+| Código de recuperación CSPRNG + HMAC + intentos + único | Implementado |
+| Rate limiting (general y estricto en `/auth`) | Implementado y activo |
+| Bloqueo progresivo por cuenta | Implementado |
+| Cabeceras de seguridad (helmet) | Implementado y activo |
+| CORS con allowlist (API y Socket.IO) | Implementado |
+| Socket.IO con handshake autenticado | Implementado |
+| Validación de esquema de entrada | Implementado en todos los módulos |
+| 404 JSON en `/api/*` inexistente | Implementado |
+| Manejo de `uncaughtException` / `unhandledRejection` | Implementado |
+| Sanitización (`cleanRequestData`) | Implementado — solo normaliza espacios; **no** es defensa contra inyección |
+| Auditoría de eventos de seguridad | **No** — B15, ver [ADR-0013](0013-auditoria-trazabilidad.md) |
+| MFA | **No** — fuera de alcance, ver Alternativa 2 |
 
 ## Autorización
 
 Fuera del alcance de este ADR salvo por su frontera. Ver [ADR-0014](0014-autorizacion-permisos.md).
 
-Lo relevante aquí: **la autenticación es hoy el único control activo en el backend.** Todas las rutas privadas se protegen con `verifyToken` y ninguna verifica permisos. Un usuario autenticado con el perfil más restrictivo puede invocar cualquier endpoint del sistema.
+La autorización en backend existe: `requirePermission(perId)` resuelve en cada petición el permiso efectivo (perfil ∪ excepciones individuales) y protege toda ruta que lee o modifica objetos ajenos. Las rutas que solo tienen `verifyToken` operan sobre recursos propios o catálogos no sensibles:
 
-La distinción conceptual que este ADR fija:
+| Ruta | Por qué no exige permiso |
+| --- | --- |
+| `app/get_menu`, `app/verify_token`, `app/get_permissions_user` | Menú, sesión y permisos del propio usuario (`req.user`) |
+| `app/get_profiles`, `app/get_statuses_by_scope` | Catálogos para combos (nombres de perfiles y estados) |
+| `app/notifications/*` | El service filtra siempre por `use_id = req.user.useId` |
+| `auth/get_basic_information`, `auth/update_account`, `auth/update_password` | Cuenta propia (`req.user`) |
+| `security/permissions/get_catalog` | Catálogo estático de `per_id` |
 
-| Concepto | Pregunta que responde | Dónde vive hoy |
+`auth/get_windows_by_profile` recibe un `proId` arbitrario, así que exige `security.users.view`.
+
+| Concepto | Pregunta que responde | Dónde vive |
 | --- | --- | --- |
-| **Autenticación** | ¿Quién eres? | `verifyToken` (backend) — implementado |
-| **Autorización** | ¿Puedes hacer esta operación? | Solo frontend (`hasPermission`) — **no implementado en backend** |
+| **Autenticación** | ¿Quién eres? | `verifyToken` + `tbl_sessions` |
+| **Autorización** | ¿Puedes hacer esta operación? | `requirePermission` (backend) + `hasPermission` (UX en el frontend) |
 | **Rol / Perfil** | Agrupación nombrada de permisos | `tbl_profiles` + `tbl_profile_permissions` |
-| **Permiso** | Capacidad atómica sobre una acción de una página | `tbl_permissions` (ligado a `tbl_pages`) |
+| **Permiso** | Capacidad atómica sobre una acción | `tbl_permissions` + `common/constants/permissions.constants.js` |
 
 ## Auditoría
 
-`tbl_users` y `tbl_profiles` registran `*_create_by`, `*_create_at`, `*_update_by`, `*_update_at`. Es auditoría **técnica**: quién tocó el registro por última vez.
+`tbl_users` y `tbl_profiles` registran `*_create_by`, `*_create_at`, `*_update_by`, `*_update_at`. Es auditoría **técnica**: quién tocó el registro por última vez. El bloqueo de login vive en una tabla aparte (`tbl_login_attempts`) precisamente para no alterar `use_update_at` en cada intento fallido.
 
-No existe auditoría de eventos de seguridad. **No se encontró evidencia** de registro de:
+Hay rastros operativos, pero **no son auditoría**:
 
-- Inicios de sesión exitosos ni fallidos.
-- Cambios de contraseña.
-- Solicitudes de recuperación.
-- Cambios de permisos o de perfil.
-- Activación o desactivación de usuarios.
-- Cierres de sesión.
+- `tbl_sessions.ses_create_at` / `ses_ip` / `ses_user_agent`: la sesión vigente, sobrescrita en cada login.
+- `tbl_login_attempts.lat_last_failed_at`: el último fallo, borrado en el siguiente login exitoso.
+- El log HTTP (`logs/api.log`): peticiones, sin semántica de negocio.
 
-`tbl_password_resets` conserva `par_created_at`, pero la fila se **borra** al completar la restauración, por lo que no queda rastro del evento.
-
-Ver [ADR-0013](0013-auditoria-trazabilidad.md).
+**Sigue sin existir** un registro inmutable de: inicios de sesión exitosos y fallidos, bloqueos, solicitudes de recuperación, cambios de contraseña, cierres de sesión, revocaciones y cambios de permisos o de estado. Es la brecha B15 y se aborda en [ADR-0013](0013-auditoria-trazabilidad.md).
 
 ## Validaciones
 
 | Validación | Frontend | Backend | Base de datos | Clasificación |
 | --- | --- | --- | --- | --- |
-| Campos obligatorios de login | Sí | Sí (solo contraseña) | `NULL` permitido | UX + Regla de negocio |
-| Formato de correo | Sí | **No** | **No** | UX |
-| Fortaleza de contraseña | Sí (`utils/password-strength.js`) | **No** | **No** | UX |
-| Unicidad de usuario/correo | **No** | Sí, `SELECT` previo | **No — sin UNIQUE** | Integridad, mal ubicada |
-| Vigencia del OTP | **No** | Sí | **No** | Seguridad |
-| Intentos de OTP | **No** | **No** | **No** | Seguridad — ausente |
+| Campos obligatorios de login | Sí | Sí (`loginSchema`) | — | UX + Regla de negocio |
+| Formato de correo | Sí | Sí (`isEmail`) | No | UX + Integridad |
+| Longitud de contraseña (8–72) | Parcial (`utils/password-strength.js`) | Sí | No aplica (se guarda el hash) | Seguridad |
+| Unicidad de usuario/correo | No | Sí, consulta previa | **Sí — `UNIQUE`** (`use_user`, `use_email`) | Integridad |
+| Formato del código (6 dígitos) | Sí | Sí | — | UX + Seguridad |
+| Vigencia del código | No | Sí | — | Seguridad |
+| Intentos del código | No | Sí (condicionado, atómico) | `par_attempts` | Seguridad |
+| Un código vigente por usuario | — | Upsert | **Sí — `UNIQUE(use_id)`** | Integridad |
+| Una sesión por usuario | — | Upsert | **Sí — `UNIQUE(use_id)`** | Seguridad |
 | Contraseña actual al cambiarla | Sí | Sí | No aplica | Seguridad |
+| Esquema de entrada del resto de endpoints | Parcial | Sí (`*.validation.js`) | — | Seguridad + Integridad |
 
-La validación de unicidad de usuario y correo se hace con un `SELECT` previo al `INSERT` dentro de la transacción. **`tbl_users` no tiene ningún índice `UNIQUE`**: `use_user` y `use_email` tienen índices no únicos. Dos peticiones concurrentes pueden superar ambas la verificación e insertar duplicados. Ver [ADR-0012](0012-proveedores.md), donde el mismo patrón aparece con consecuencias mayores.
+Un duplicado que supere la consulta previa por concurrencia choca contra el índice `UNIQUE` y el `errorMiddleware` lo traduce a 409 (`P2002`).
 
 ## Integridad de datos
 
-- `tbl_password_resets.use_id` → `tbl_users.use_id`, `ON DELETE RESTRICT`.
-- `tbl_users.pro_id` → `tbl_profiles.pro_id`, `ON DELETE RESTRICT`.
-- `tbl_users.sta_id` → `tbl_status.sta_id`, `ON DELETE RESTRICT`.
-- **Cero restricciones `UNIQUE` en todo el esquema.**
-- `tbl_status` no tiene datos sembrados en el volcado; los valores `1`, `2` y `3` están codificados en el backend y en `client/src/utils/constants.js`.
-- Mezcla de juegos de caracteres en el mismo esquema: `tbl_users` y `tbl_profiles` en `latin1`, `tbl_permissions` en `utf8mb3`, el resto en `utf8mb4`. Las comparaciones entre columnas de collations distintas pueden fallar o degradar el uso de índices.
+- `tbl_sessions.use_id`, `tbl_password_resets.use_id`, `tbl_login_attempts.use_id` → `tbl_users.use_id`.
+- `tbl_users.pro_id` → `tbl_profiles.pro_id`; `tbl_users.sta_id` → `tbl_status.sta_id`.
+- Restricciones `UNIQUE`: `use_user`, `use_email`, `pro_name`, (`pro_id`, `pag_id`), (`per_id`, `pro_id`), (`per_id`, `use_id`), (`use_id`, `pag_id`), y las de este ADR: `tbl_sessions.use_id` / `ses_key` / `ses_refresh_hash`, `tbl_password_resets.use_id`.
+- `tbl_status` se siembra con ids fijos 1–3 (`0010_seed_status.sql` y `prisma/seed.js`).
 
 ## Transacciones
 
-`register`, `saveUser`, `saveProfile` y `deleteUser` abren transacción explícita con `beginTransaction` / `commit` / `rollback`.
+Se usan `prisma.$transaction(async (tx) => {...})` (interactiva, con rollback si el callback lanza) o `prisma.$transaction([...])` (lote atómico).
 
-Un problema real en `register`: la transacción se confirma **antes** de enviar el correo con el OTP. Si el envío falla, el usuario queda creado sin poder activarse. Dado que la operación de correo es externa y no transaccional, es la secuencia correcta, pero exige un mecanismo de reintento o reenvío — que existe (`resend-otp`) aunque apunta a una tabla inexistente.
-
-`login`, `updatePassword`, `restorePassword` y `forgotPassword` **no** usan transacción. En `forgotPassword` esto importa: ejecuta `DELETE` + `INSERT` sobre `tbl_password_resets` sin atomicidad; una falla intermedia deja al usuario sin código vigente y sin registro.
+- `restorePassword`: lote atómico con el `UPDATE` de la contraseña, el `DELETE` del código y el `DELETE` del bloqueo. La revocación de la sesión va **después**, fuera de la transacción, porque también desconecta sockets y eso no se puede deshacer con un rollback.
+- `forgotPassword`: un único upsert (antes era DELETE + INSERT sin transacción).
+- Consumo de intentos del código: `updateMany` condicionado (`par_attempts < 5`), atómico sin transacción explícita.
+- Rotación del refresh token: `updateMany` condicionado al hash vigente. Si otra petición rotó antes, esta no pisa la rotación ajena.
+- `createSession`: upsert por `use_id`.
+- `saveUser`, `saveProfile`, `deleteProfile`: transacción interactiva. `deleteUser`: un solo `updateMany` (borrado lógico).
 
 ## Consecuencias
 
 ### Positivas
 
-- Autenticación funcional, con hash robusto y expiración de sesión.
-- La revalidación en base de datos permite revocación inmediata sin infraestructura adicional.
-- Separación limpia de capas (`routes` → `controller` → `service`) que facilita insertar la verificación de permisos sin reescribir servicios.
-- El manejo centralizado de errores traduce códigos MySQL a respuestas HTTP coherentes.
-- El pool de conexiones con `getConnection` / `releaseConnection` en `finally` está aplicado consistentemente en todos los servicios.
+- Un token robado sirve como mucho 15 minutos, y un refresh token robado se detecta al reutilizarse.
+- El logout, la desactivación y los cambios de contraseña cortan el acceso en la siguiente petición, también en tiempo real (sockets).
+- La sesión única hace visible cualquier login no autorizado: la sesión legítima se cierra.
+- Ni el login ni la recuperación revelan qué cuentas existen.
+- El código de recuperación ya no es forzable por fuerza bruta ni legible desde la BD.
+- El acceso a datos se centraliza en un único cliente Prisma: las consultas quedan parametrizadas por construcción y los `orderBy`/`where` que dependen del cliente pasan por mapas fijos.
+- La separación de capas (`routes` → `controller` → `service`) permitió incorporar sesión, autorización y validación sin reescribir los servicios.
 
 ### Negativas
 
-- La puerta trasera de `"123456"` anula por completo la autenticación del sistema.
-- Sin `httpOnly`, cualquier XSS equivale a robo de sesión.
-- Sin autorización en backend, la autenticación protege el "quién" pero no el "qué".
-- El secreto de recuperación embebido está en el historial de Git y no se elimina rotando la variable de entorno.
-- Los flujos de registro y OTP no funcionan: dependen de `otp_codes`, tabla ausente del esquema.
-- Sin bloqueo por intentos, el login es un objetivo directo de credential stuffing.
+- Cada petición autenticada hace una consulta a `tbl_sessions` (antes ya consultaba `tbl_users`: el costo no aumenta).
+- La sesión única impide usar la aplicación en dos dispositivos a la vez. Es una decisión explícita del área usuaria.
+- Todos los usuarios deben volver a iniciar sesión una vez desplegado el cambio: los JWT emitidos antes no tienen `sid`.
+- El bloqueo por cuenta puede usarse para bloquear a un usuario legítimo si se conoce su correo o usuario. Lo mitigan el rate limit por IP y la restauración de contraseña, que levanta el bloqueo.
+- Sin MFA, una contraseña filtrada sigue dando acceso completo hasta que se detecta.
 
 ## Riesgos
 
-| Riesgo | Severidad | Descripción |
+| Riesgo | Severidad | Estado |
 | --- | --- | --- |
-| Acceso universal con `"123456"` | **Crítico** | Compromiso total de cualquier cuenta conociendo solo el usuario o correo; además destruye la contraseña legítima |
-| Ausencia de autorización en backend | **Crítico** | Cualquier usuario autenticado ejecuta cualquier operación por invocación directa del endpoint |
-| Secreto `JWT_SECRET_TEMP` en el código | **Crítico** | Permite forjar tokens de restablecimiento para cualquier `usuarioID` |
-| Token de restablecimiento en la respuesta HTTP | **Crítico** | Combinado con fuerza bruta del código de 6 dígitos sin límite, permite tomar cuentas sin acceso al correo |
-| Robo de sesión por XSS | **Alto** | `httpOnly: false` expone `tokenTEMPLATE` a cualquier script |
-| Enumeración de usuarios | **Alto** | `forgot_password` distingue correo existente de inexistente |
-| Fuerza bruta de OTP y de login | **Alto** | Sin rate limiting activo ni contador de intentos |
-| IDOR en cuentas de usuario | **Alto** | `useId` desde body/query en `update_account`, `get_basic_information`, `update_password` |
-| Flujo de registro inoperante | **Alto** | `otp_codes` no existe en el esquema |
-| Duplicados por concurrencia | **Medio** | Sin `UNIQUE` en `use_user` / `use_email` |
-| Deriva entre las dos verificaciones de token | **Medio** | `authjwt.middleware` exige `sta_id = 1`; `app.service` acepta `IN (1,4)`, con `4` inexistente |
+| Compromiso de cuenta por contraseña filtrada | **Alto** | Mitigado parcialmente (bloqueo, sesión única visible). Se cierra con MFA |
+| Actividad maliciosa sin rastro auditable | **Medio** | Abierto — B15 / [ADR-0013](0013-auditoria-trazabilidad.md) |
+| Denegación de servicio a una cuenta por bloqueo | **Bajo** | Aceptado: rate limit por IP + restauración de contraseña |
+| Exposición de `JWT_SECRET` | **Crítico si ocurre** | Controlado: solo en variables de entorno. Rotarlo invalida todas las sesiones y los códigos pendientes |
+| Configuración de `JWT_EXPIRES_IN` demasiado larga | **Medio** | Controlado por despliegue: el valor recomendado es `15m` |
 
 ## Impacto técnico
 
 ### Frontend
 
-- `contexts/authContext.jsx` mantiene sesión, permisos y estado de inicialización; persiste el perfil de usuario en la cookie `idTEMPLATE`.
-- `isAuthenticated` se deriva de `!!user`, y `user` se hidrata desde la cookie `idTEMPLATE`, legible y escribible desde JavaScript. El guardia de ruta `PrivateRoute` es, por tanto, **exclusivamente de experiencia de usuario**.
-- `api/services/httpCliente.js` inyecta `Authorization: Bearer` y la cabecera `currenuserapp` desde cookies; ante un `401` limpia cookies y redirige a `/pages/login`.
-- Vistas de autenticación en `views/pages/authentication/` (Login, Register, ForgotPassword) con formularios en `views/pages/auth-forms/`.
-- `logoutAPI` y `resetPasswordAPI` apuntan a `/auth/logout` y `/auth/reset_password`, **endpoints que no existen en el backend**.
-- `authContext` imprime en consola datos de sesión y token (`console.log('✅ Login data:', data)`).
+- `contexts/authContext.jsx`: sesión, permisos y estado de inicialización. La cookie `id` (no httpOnly) es solo un cache del perfil para la UI, nunca la fuente de verdad.
+- `api/services/httpCliente.js`: ante un 401, renueva la sesión una vez (`refreshSession`, una sola renovación en vuelo) y reintenta; si falla, limpia el cache y redirige a `/pages/login`.
+- `socket/SocketProvider.jsx`: si el handshake es rechazado, renueva la sesión y reconecta (máximo 2 intentos).
+- Vistas de autenticación: Login y ForgotPassword. El registro público se retiró.
 
 ### Backend
 
-- `modules/auth/` con la tríada `routes` / `controller` / `service`.
-- `common/middlewares/authjwt.middleware.js` como único guardián activo.
-- `common/utils/funciones.js` (bcrypt) y `common/utils/otp.utils.js` (generación OTP).
-- `common/services/mailerService.js` y plantillas HTML en `common/templates/`.
-- `common/mails/auth.mails.js` contiene una implementación **paralela y obsoleta** de recuperación que opera sobre `tbl_recuperar_cuenta` y columnas `usu_*`, inexistentes en el esquema actual. Es código muerto que duplica el flujo.
+- `modules/auth/`: rutas, controller, service y `auth.validation.js`.
+- `common/services/session.service.js`: creación, renovación, verificación y revocación de sesiones.
+- `common/middlewares/authjwt.middleware.js`: `verifyToken`.
+- `common/utils/resetCode.utils.js`: código de recuperación.
+- `common/utils/validation.utils.js` + un `*.validation.js` por módulo.
+- `common/middlewares/error.middleware.js`: traduce errores de Prisma y MySQL sin exponer detalle interno.
 
 ### Base de datos
 
-- `tbl_users`, `tbl_profiles`, `tbl_status`, `tbl_password_resets`, `tbl_user_permissions`, `tbl_profile_permissions`, `tbl_pages`, `tbl_permissions`, `tbl_page_permissions`.
-- **Faltante y requerida por el código**: `otp_codes`.
-- Sin restricciones `UNIQUE`. Sin disparadores, procedimientos, funciones, vistas ni eventos programados en todo el esquema.
+- Tablas: `tbl_users`, `tbl_profiles`, `tbl_status`, `tbl_sessions`, `tbl_password_resets`, `tbl_login_attempts`, `tbl_user_permissions`, `tbl_profile_permissions`, `tbl_pages`, `tbl_permissions`, `tbl_page_permissions`, `tbl_user_pages`.
+- Migraciones de este ADR: `0007_create_sessions.sql`, `0008_password_resets_hash.sql`, `0009_create_login_attempts.sql`, `0010_seed_status.sql`.
 
 ### Infraestructura
 
-- CORS restringido a `localhost`, `127.0.0.1` y `pavastecnologia.com`.
-- Socket.IO con lista de orígenes propia, **desalineada** con la de CORS (incluye `localhost:3000` / `:3001`, no incluye `www.pavastecnologia.com`).
-- La conexión de socket recibe `userId` desde `socket.handshake.auth` **sin validar el token**: cualquier cliente puede unirse a la sala `user:<id>` de otro usuario y recibir sus notificaciones.
-- El servidor sirve el build de la SPA desde `../dist` y hace fallback a `index.html`.
-- Cron implementado (`src/cron/index.js`) pero **con la lista de jobs vacía** y su arranque comentado en `server.js`.
-- **No se encontró evidencia** de Redis, colas de mensajes, almacenamiento de objetos externo ni WAF.
+- Variables de entorno: `JWT_SECRET` (obligatoria), `JWT_EXPIRES_IN` (`15m`), `JWT_REFRESH_EXPIRES_IN` (`7d`).
+- CORS y Socket.IO comparten la allowlist de `common/configs/cors.config.js`.
+- pm2 (`ecosystem.config.cjs`) reinicia el proceso tras un `uncaughtException`.
+- No hay Redis, colas de mensajes ni WAF; el diseño no los requiere.
 
 ## Estado actual vs arquitectura objetivo
 
 | Aspecto | Estado actual | Arquitectura objetivo |
 | --- | --- | --- |
-| Contraseña de respaldo | `"123456"` concede acceso a cualquier cuenta | Ninguna credencial embebida |
-| Cookie de sesión | `httpOnly: false` | `httpOnly`, `secure`, `sameSite` |
-| Sujeto de la operación | Desde `body` / `query` | Siempre desde `req.user` |
-| Secretos | `JWT_SECRET_TEMP` con fallback en código | Solo variables de entorno, arranque falla si faltan |
-| Recuperación | 404 revela existencia; token en la respuesta | Respuesta uniforme; token solo por correo |
-| OTP | Texto plano, múltiples vigentes, sin límite de intentos | Con hash, uno vigente, expiración e intentos limitados |
-| Intentos de login | Sin control | Contador + bloqueo temporal progresivo |
-| Rate limiting | Implementado, sin montar | Activo, con límite más estricto en `/auth` |
-| Helmet | Implementado, sin montar | Activo |
-| Logout | Inexistente | Endpoint que invalida la cookie del lado del servidor |
-| Auditoría de seguridad | Inexistente | Registro de eventos de autenticación y de cambios de credenciales |
-| Socket.IO | Sala por `userId` sin verificar | Handshake autenticado por JWT |
-| Registro / OTP | Inoperante (`otp_codes` ausente) | Tabla existente o flujo retirado |
+| Credenciales embebidas | Ninguna | Ninguna ✅ |
+| Cookies de sesión | `httpOnly`, `secure`, `sameSite` | ✅ |
+| Sujeto de la operación | Siempre `req.user` | ✅ |
+| Secretos | Solo variables de entorno; el arranque falla si falta | ✅ |
+| Recuperación | Respuesta uniforme; código solo por correo | ✅ |
+| Código de recuperación | CSPRNG, HMAC, único, 15 min, 5 intentos | ✅ |
+| Intentos de login | Contador por cuenta + bloqueo progresivo | ✅ |
+| Rate limiting | Activo, más estricto en `/auth` | ✅ |
+| Helmet | Activo | ✅ |
+| Logout | Revoca la sesión en el servidor | ✅ |
+| Refresh token / sesión concurrente | Rotado, con detección de reutilización; sesión única | ✅ |
+| Socket.IO | Handshake autenticado por JWT + sesión | ✅ |
+| Registro / OTP | Retirado; alta solo administrativa | ✅ |
+| Validación de esquema | Todos los módulos | ✅ |
+| Auditoría de seguridad | Inexistente | Registro de eventos según [ADR-0013](0013-auditoria-trazabilidad.md) |
+| MFA | Inexistente | A evaluar con la Alternativa 2 |
 
 ## Brechas identificadas
 
-| # | Brecha | Severidad | Evidencia |
-| --- | --- | --- | --- |
-| B1 | Puerta trasera con contraseña `"123456"` que además sobrescribe la contraseña real | **Crítica** | `modules/auth/auth.service.js` |
-| B2 | Ninguna ruta del backend verifica permisos | **Crítica** | Todos los `*.routes.js` |
-| B3 | Secreto de restablecimiento embebido en el código | **Crítica** | `auth.service.js` (`forgotPassword`, `validateCodePassword`, `restorePassword`) |
-| B4 | `forgot_password` devuelve el token en el cuerpo de la respuesta | **Crítica** | `auth.controller.js` |
-| B5 | Cookie de sesión sin `httpOnly` | **Alta** | `auth.controller.js` (`loginController`) |
-| B6 | Helmet, rate limit y logger HTTP implementados pero no montados | **Alta** | `app.js` |
-| B7 | Enumeración de usuarios en recuperación | **Alta** | `auth.service.js` (`forgotPassword`) |
-| B8 | OTP sin límite de intentos, sin invalidación de códigos previos, con `Math.random()` | **Alta** | `auth.service.js`, `common/utils/otp.utils.js` |
-| B9 | IDOR en `update_account`, `get_basic_information`, `update_password`; este último sin `verifyToken` | **Alta** | `auth.routes.js`, `auth.controller.js` |
-| B10 | Tabla `otp_codes` inexistente: registro y verificación fallan | **Alta** | `auth.service.js` vs. `bdintervewebpack.sql` |
-| B11 | Socket.IO admite `userId` arbitrario sin verificar el token | **Alta** | `server/socket.js` |
-| B12 | Sin `UNIQUE` en `use_user` / `use_email`: duplicados por concurrencia | **Media** | `bdintervewebpack.sql` |
-| B13 | Dos verificaciones de token con criterios distintos (`sta_id = 1` vs `IN (1,4)`; estado `4` inexistente) | **Media** | `authjwt.middleware.js`, `app.service.js` |
-| B14 | Sin refresh token, sin logout de servidor, sin control de sesión concurrente | **Media** | `auth.routes.js` |
-| B15 | Sin auditoría de eventos de seguridad | **Media** | Todo el esquema |
-| B16 | Código muerto de recuperación sobre `tbl_recuperar_cuenta` | **Baja** | `common/mails/auth.mails.js` |
-| B17 | `express-validator` como dependencia sin uso; sin validación de esquema | **Media** | `server/package.json` |
-| B18 | Datos de sesión y token impresos en consola del navegador | **Baja** | `contexts/authContext.jsx` |
+Brechas encontradas en la versión inicial de este ADR y su resolución:
+
+| # | Brecha | Severidad | Estado | Resolución |
+| --- | --- | --- | --- | --- |
+| B1 | Contraseña maestra `"123456"` que además sobrescribía la contraseña real | Crítica | ✅ Cerrada | Eliminada de `auth.service.js` |
+| B2 | Ninguna ruta del backend verificaba permisos | Crítica | ✅ Cerrada | `requirePermission` en toda ruta sobre objetos ajenos ([ADR-0014](0014-autorizacion-permisos.md)); `get_windows_by_profile` exige `security.users.view` |
+| B3 | Secreto de restablecimiento embebido en el código | Crítica | ✅ Cerrada | Sin fallback; `JWT_SECRET_TEMP` retirado; secreto rotado |
+| B4 | `forgot_password` devolvía el token en la respuesta | Crítica | ✅ Cerrada | La solicitud se identifica por correo + código; `par_token` eliminado |
+| B5 | Cookie de sesión sin `httpOnly` | Alta | ✅ Cerrada | Cookies `token` y `refresh_token` httpOnly |
+| B6 | Helmet, rate limit y logger HTTP sin montar | Alta | ✅ Cerrada | Montados en `app.js` |
+| B7 | Enumeración de usuarios en recuperación | Alta | ✅ Cerrada | Respuesta y tiempo uniformes; también en el login |
+| B8 | Código sin límite de intentos, sin invalidación y con `Math.random()` | Alta | ✅ Cerrada | CSPRNG, HMAC, 5 intentos atómicos, único por usuario |
+| B9 | IDOR en `update_account`, `get_basic_information`, `update_password` | Alta | ✅ Cerrada | Sujeto desde `req.user`; también en `count_users` y en la auditoría de documentos |
+| B10 | Tabla `otp_codes` inexistente: registro roto | Alta | ✅ Cerrada | Autorregistro retirado de backend y cliente |
+| B11 | Socket.IO admitía `userId` arbitrario | Alta | ✅ Cerrada | Handshake autenticado con JWT + sesión |
+| B12 | Sin `UNIQUE` en `use_user` / `use_email` | Media | ✅ Cerrada | Índices `UNIQUE` en el esquema |
+| B13 | Dos verificaciones de token con criterios distintos | Media | ✅ Cerrada | Un único `verifyToken` |
+| B14 | Sin refresh token, sin logout de servidor, sin control de sesión concurrente | Media | ✅ Cerrada | `tbl_sessions`: refresh rotado, logout que revoca, sesión única |
+| B15 | Sin auditoría de eventos de seguridad | Media | ⏳ Abierta | Depende de [ADR-0013](0013-auditoria-trazabilidad.md) |
+| B16 | Código muerto de recuperación sobre `tbl_recuperar_cuenta` | Baja | ✅ Cerrada | `common/mails/auth.mails.js` eliminado |
+| B17 | Sin validación de esquema | Media | ✅ Cerrada | `*.validation.js` en todos los módulos |
+| B18 | Datos de sesión impresos en la consola del navegador | Baja | ✅ Cerrada | Trazas retiradas de `authContext.jsx` |
+
+Otras correcciones de la misma revisión (ver `SECURITY.md`): bloqueo de login por cuenta, retiro de `GET /documents/blob` (SSRF) y `DELETE /documents/temp/:filename` (path traversal sin sesión), 404 JSON en `/api/*`, manejadores de errores de proceso, traducción de errores de Prisma y seed de `tbl_status`.
 
 ## Plan de implementación
 
-Orden por riesgo, no por esfuerzo. Este plan **no fue ejecutado**: es la recomendación derivada del análisis.
+Las fases 1 a 4 y 6 del plan original están **ejecutadas**. Queda:
 
-**Fase 1 — Contención inmediata (B1, B3, B4)**
-Eliminar la puerta trasera. Retirar el fallback del secreto y rotar `JWT_SECRET_TEMP` en todos los entornos, asumiendo el actual como comprometido. Dejar de devolver el token de restablecimiento en la respuesta HTTP.
+**Fase 5 (resto) — Trazabilidad (B15)**
+Registro de eventos de seguridad (login exitoso y fallido, bloqueo, recuperación, cambio de contraseña, logout, revocación, cambios de permisos y de estado) según [ADR-0013](0013-auditoria-trazabilidad.md). Los puntos de enganche ya existen: `auth.service.login`, `registerFailedLogin`, `forgotPassword`, `restorePassword`, `session.service` (`createSession`, `refreshSession`, `revokeSession`) y los services de `security/*`.
 
-**Fase 2 — Endurecimiento de plataforma (B5, B6, B11)**
-Montar helmet y rate limit —con umbral más estricto en `/auth`— y el logger HTTP. Cambiar la cookie a `httpOnly`. Autenticar el handshake de Socket.IO. Alinear las listas de orígenes de CORS y Socket.IO.
+**Fase 7 — MFA (pendiente de validación)**
+Decidir entre MFA propio (TOTP) y delegar en un proveedor de identidad (Alternativa 2).
 
-**Fase 3 — Corrección del modelo de identidad (B9, B13, B14)**
-Tomar el sujeto siempre de `req.user`. Unificar las dos verificaciones de token en una sola implementación. Añadir endpoint de logout que limpie la cookie del lado del servidor.
-
-**Fase 4 — Flujos de credenciales (B7, B8, B10, B17)**
-Respuesta uniforme en recuperación. Rediseñar el OTP: generación criptográfica, almacenamiento con hash, un único código vigente, expiración y límite de intentos. Decidir si `otp_codes` se crea o si el autorregistro se retira. Introducir validación de esquema en los endpoints públicos.
-
-**Fase 5 — Integridad y trazabilidad (B12, B15)**
-Restricciones `UNIQUE` sobre `use_user` y `use_email`. Registro de eventos de seguridad según [ADR-0013](0013-auditoria-trazabilidad.md).
-
-**Fase 6 — Limpieza (B16, B18)**
-Retirar el código muerto de recuperación y las trazas de consola con datos de sesión.
-
-La autorización en backend (B2) se aborda en [ADR-0014](0014-autorizacion-permisos.md) y debe ejecutarse en paralelo desde la Fase 2.
+**Despliegue de este cambio**
+1. Aplicar las migraciones `0007` a `0010` en orden.
+2. Fijar `JWT_EXPIRES_IN=15m` y `JWT_REFRESH_EXPIRES_IN=7d`.
+3. Desplegar backend y frontend a la vez: todos los usuarios deberán iniciar sesión de nuevo.
 
 ## ADR relacionados
 
@@ -480,10 +477,10 @@ La autorización en backend (B2) se aborda en [ADR-0014](0014-autorizacion-permi
 ## Referencias
 
 - `server/app.js`, `server/server.js`, `server/socket.js`
-- `server/src/modules/auth/` (`auth.routes.js`, `auth.controller.js`, `auth.service.js`)
-- `server/src/common/middlewares/` (`authjwt.middleware.js`, `helmet.middleware.js`, `rateLimit.middleware.js`, `cleanRequestData.middleware.js`, `error.middleware.js`, `httpLogger.middleware.js`)
-- `server/src/common/utils/funciones.js`, `server/src/common/utils/otp.utils.js`
-- `server/src/common/mails/auth.mails.js`
-- `server/src/modules/app/general/app.service.js`
-- `client/src/contexts/authContext.jsx`, `client/src/routes/PrivateRoute.jsx`, `client/src/api/services/httpCliente.js`, `client/src/api/requests/authAPI.js`
-- `database/bdintervewebpack.sql`
+- `server/src/modules/auth/` (`auth.routes.js`, `auth.controller.js`, `auth.service.js`, `auth.validation.js`)
+- `server/src/common/services/session.service.js`
+- `server/src/common/middlewares/` (`authjwt.middleware.js`, `helmet.middleware.js`, `rateLimit.middleware.js`, `validate.middleware.js`, `error.middleware.js`, `httpLogger.middleware.js`, `cleanRequestData.middleware.js`)
+- `server/src/common/utils/` (`funciones.js`, `resetCode.utils.js`, `validation.utils.js`)
+- `client/src/contexts/authContext.jsx`, `client/src/api/services/httpCliente.js`, `client/src/socket/SocketProvider.jsx`, `client/src/api/requests/authAPI.js`
+- `database/bdtemplate.sql`, `database/migrations/0007_create_sessions.sql` a `0010_seed_status.sql`
+- `SECURITY.md`

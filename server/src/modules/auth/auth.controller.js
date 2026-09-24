@@ -1,32 +1,77 @@
+import jwt from "jsonwebtoken";
 import * as authService from "./auth.service.js";
+import * as sessionService from "../../common/services/session.service.js";
 
-const SESSION_COOKIE_NAME = "token";
-const sessionCookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "Strict",
-};
+const requestContext = (req) => ({
+  ip: req.ip,
+  userAgent: req.get?.("user-agent"),
+});
 
 export const loginController = async (req, res, next) => {
   try {
     const { usuario, clave, password } = req.body;
-    const { token, ...result } = await authService.login({ usuario, clave, password });
+    const { sessionUser, ...result } = await authService.login({ usuario, clave, password });
 
-    res.cookie(SESSION_COOKIE_NAME, token, {
-      ...sessionCookieOptions,
-      maxAge: 86400000,
+    // Sesión única: abrir esta sesión cierra cualquier otra del usuario.
+    const { accessToken, refreshToken } = await sessionService.createSession({
+      user: sessionUser,
+      ...requestContext(req),
     });
+
+    sessionService.setSessionCookies(res, { accessToken, refreshToken });
     return res.json(result);
   } catch (err) {
     next(err);
   }
 };
 
-export const logoutController = (req, res) => {
-  res.clearCookie(SESSION_COOKIE_NAME, sessionCookieOptions);
-  return res.status(200).json({ success: true, message: "Sesión cerrada." });
+/**
+ * Renueva el access token con el refresh token de la cookie (rotándolo).
+ * Pública a propósito: se llama justamente cuando el access token ya venció.
+ * Si falla, se limpian ambas cookies para que el cliente vuelva al login.
+ */
+export const refreshController = async (req, res, next) => {
+  try {
+    const refreshToken = req.cookies?.[sessionService.REFRESH_COOKIE_NAME];
+    const tokens = await sessionService.refreshSession({ refreshToken });
+    sessionService.setSessionCookies(res, tokens);
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    if (err.statusCode === 401) sessionService.clearSessionCookies(res);
+    next(err);
+  }
 };
 
+/**
+ * Cierra la sesión en el servidor (borra la fila de tbl_sessions), no solo
+ * las cookies: el refresh token deja de servir y los access tokens ya
+ * emitidos fallan en verifyToken en la siguiente petición. Sin verifyToken a
+ * propósito: debe funcionar aunque el access token ya haya vencido, así que
+ * identifica la sesión por el refresh token o, si no hay, por el access
+ * token (aun vencido: la firma sigue probando a quién pertenece).
+ */
+export const logoutController = async (req, res, next) => {
+  try {
+    const refreshToken = req.cookies?.[sessionService.REFRESH_COOKIE_NAME];
+    const accessToken = req.cookies?.[sessionService.ACCESS_COOKIE_NAME];
+
+    if (refreshToken) {
+      await sessionService.revokeSessionByRefreshToken({ refreshToken });
+    } else if (accessToken) {
+      try {
+        const decoded = jwt.verify(accessToken, process.env.JWT_SECRET, { ignoreExpiration: true });
+        await sessionService.revokeSessionByKey({ useId: decoded.useId, sessionKey: decoded.sid });
+      } catch {
+        // Token inválido: no identifica ninguna sesión; basta con limpiar cookies.
+      }
+    }
+
+    sessionService.clearSessionCookies(res);
+    return res.status(200).json({ success: true, message: "Sesión cerrada." });
+  } catch (err) {
+    next(err);
+  }
+};
 
 export const getSettlementController = async (req, res, next) => {
   try {
@@ -44,8 +89,14 @@ export const getSettlementController = async (req, res, next) => {
 export const updateAccountController = async (req, res, next) => {
   try {
     const { name, lastName, username, email } = req.body;
-    const { useId } = req.user;
-    await authService.updateAccount({ name, lastName, username, email, useId });
+    const { useId, sid } = req.user;
+    const updated = await authService.updateAccount({ name, lastName, username, email, useId });
+
+    // Misma sesión (mismo sid), token reemitido con el nombre/correo nuevos.
+    sessionService.setSessionCookies(res, {
+      accessToken: sessionService.signAccessToken({ ...updated, sessionKey: sid }),
+    });
+
     return res
       .status(200)
       .json({ message: "Cuenta Modificada Correctamente" });
@@ -58,7 +109,16 @@ export const updatePasswordController = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const { useId } = req.user;
-    await authService.updatePassword({ currentPassword, newPassword, useId });
+    const user = await authService.updatePassword({ currentPassword, newPassword, useId });
+
+    // Rota la sesión: sesión nueva para este dispositivo, la anterior (y
+    // cualquier copia de sus tokens) deja de servir.
+    const { accessToken, refreshToken } = await sessionService.createSession({
+      user,
+      ...requestContext(req),
+    });
+    sessionService.setSessionCookies(res, { accessToken, refreshToken });
+
     return res
       .status(200)
       .json({ message: "Contraseña Actualizada Correctamente" });

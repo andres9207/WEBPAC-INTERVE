@@ -1,4 +1,5 @@
 import * as usersService from "./users.service.js";
+import { revokeSession } from "../../../common/services/session.service.js";
 
 export const paginationUsersController = async (req, res, next) => {
   try {
@@ -38,7 +39,10 @@ export const paginationUsersController = async (req, res, next) => {
 
 export const countUsersController = async (req, res, next) => {
   try {
-    const { useId } = req.query;
+    // Del JWT, nunca de req.query: el service decide con este id si incluye
+    // el perfil Superadmin en el conteo, y ese filtro no puede quedar en
+    // manos de un parámetro del cliente (ADR-0001).
+    const { useId } = req.user;
     const result = await usersService.countUsers({ useId });
     return res.status(200).json(result);
   } catch (err) {
@@ -78,6 +82,14 @@ export const saveUserController = async (req, res, next) => {
       changePassword,
       usePages,
     });
+    // Un usuario que queda inactivo, o al que un administrador le cambia la
+    // contraseña, pierde su sesión de inmediato (verifyToken ya rechazaría
+    // un inactivo por sta_id, pero así también muere su refresh token y se
+    // cierran sus sockets).
+    if (useId > 0 && (Number(staId) !== 1 || password)) {
+      await revokeSession({ useId });
+    }
+
     const statusCode = useId > 0 ? 200 : 201;
     return res.status(statusCode).json(result);
   } catch (err) {
@@ -89,6 +101,7 @@ export const deleteUserController = async (req, res, next) => {
   try {
     const { useId } = req.body;
     const result = await usersService.deleteUser({ useId, updatedBy: req.user.useId });
+    await revokeSession({ useId });
     return res.status(200).json(result);
   } catch (err) {
     next(err);

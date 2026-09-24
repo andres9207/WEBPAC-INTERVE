@@ -5,7 +5,7 @@ process.env.JWT_SECRET = "test-secret";
 const mockFindFirst = jest.fn();
 
 jest.unstable_mockModule("../../../src/common/configs/prismaClient.js", () => ({
-  prisma: { tbl_users: { findFirst: mockFindFirst } },
+  prisma: { tbl_sessions: { findFirst: mockFindFirst } },
 }));
 
 const { verifyToken } = await import("../../../src/common/middlewares/authjwt.middleware.js");
@@ -33,9 +33,13 @@ const runMiddleware = (req) =>
     verifyToken(req, res, next);
   });
 
-const validPayload = { useId: 1, email: "admin@test.com" };
+const validPayload = { useId: 1, email: "admin@test.com", sid: "sesion-1" };
 const signToken = (payload = validPayload, opts = {}) =>
   jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1h", ...opts });
+
+beforeEach(() => {
+  mockFindFirst.mockReset();
+});
 
 describe("verifyToken middleware", () => {
   it("responde 401 si no hay token en cookie ni en el header Authorization", async () => {
@@ -74,7 +78,7 @@ describe("verifyToken middleware", () => {
     expect(res.json).toHaveBeenCalledWith({ message: "Token inválido" });
   });
 
-  it("responde 401 si el usuario no existe o está inactivo en BD (sta_id != 1)", async () => {
+  it("responde 401 si la sesión no existe o el usuario está inactivo (logout, login en otro dispositivo, sta_id != 1)", async () => {
     mockFindFirst.mockResolvedValue(null);
     const token = signToken();
     const { res, calledNext } = await runMiddleware({ cookies: { token }, headers: {} });
@@ -94,15 +98,29 @@ describe("verifyToken middleware", () => {
     expect(req.user).toMatchObject(validPayload);
   });
 
-  it("consulta tbl_users filtrando por use_id, use_email y sta_id=1 (activo)", async () => {
-    mockFindFirst.mockResolvedValue({ use_id: 1 });
+  it("exige que la sesión (sid) siga viva, no vencida, y el usuario activo con ese correo", async () => {
+    mockFindFirst.mockResolvedValue({ ses_id: 1 });
     const token = signToken();
 
     await runMiddleware({ cookies: { token }, headers: {} });
 
     expect(mockFindFirst).toHaveBeenCalledWith({
-      where: { use_id: validPayload.useId, use_email: validPayload.email, sta_id: 1 },
-      select: { use_id: true },
+      where: {
+        ses_key: validPayload.sid,
+        use_id: validPayload.useId,
+        ses_expires_at: { gt: expect.any(Date) },
+        tbl_users: { use_email: validPayload.email, sta_id: 1 },
+      },
+      select: { ses_id: true },
     });
+  });
+
+  it("responde 401 a un token sin sid (emitido antes de las sesiones) sin consultar la BD", async () => {
+    const token = signToken({ useId: 1, email: "admin@test.com" });
+    const { res, calledNext } = await runMiddleware({ cookies: { token }, headers: {} });
+
+    expect(calledNext).toBe(false);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(mockFindFirst).not.toHaveBeenCalled();
   });
 });

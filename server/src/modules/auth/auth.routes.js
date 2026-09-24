@@ -2,7 +2,10 @@ import express from "express";
 import { verifyToken } from "../../common/middlewares/authjwt.middleware.js";
 import { authRateLimit } from "../../common/middlewares/rateLimit.middleware.js";
 import { validate } from "../../common/middlewares/validate.middleware.js";
+import { requirePermission } from "../../common/middlewares/requirePermission.middleware.js";
+import { PERMISSIONS } from "../../common/constants/permissions.constants.js";
 import {
+  getWindowsByProfileSchema,
   loginSchema,
   forgotPasswordSchema,
   validateCodePasswordSchema,
@@ -12,6 +15,7 @@ import {
 } from "./auth.validation.js";
 import {
   loginController,
+  refreshController,
   logoutController,
   getSettlementController,
   updateAccountController,
@@ -34,6 +38,8 @@ authRoutes.use(authRateLimit);
 
 authRoutes.post("/login", loginSchema, validate, loginController);
 
+authRoutes.post("/refresh", refreshController);
+
 authRoutes.post("/logout", logoutController);
 
 authRoutes.put(
@@ -46,9 +52,16 @@ authRoutes.put(
 
 authRoutes.get("/get_basic_information", verifyToken, getSettlementController);
 
+// Páginas de un perfil ARBITRARIO (proId por query): lo usa UserDialog.jsx
+// para mostrar las páginas del perfil que se le está asignando a otro
+// usuario. Al ser lectura de datos ajenos exige el permiso de ver usuarios,
+// no solo estar autenticado (ADR-0001, B2).
 authRoutes.get(
   "/get_windows_by_profile",
   verifyToken,
+  requirePermission(PERMISSIONS.security.users.view),
+  getWindowsByProfileSchema,
+  validate,
   getWindowsByProfileController
 );
 

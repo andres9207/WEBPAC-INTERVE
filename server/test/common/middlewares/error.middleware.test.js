@@ -79,3 +79,52 @@ describe("errorMiddleware — mensaje expuesto al cliente", () => {
     expect(body).not.toHaveProperty("stack");
   });
 });
+
+describe("errorMiddleware — errores de Prisma", () => {
+  const prismaError = (code) => Object.assign(new Error(`Invalid prisma call ${code}`), { code });
+
+  it.each([
+    ["P2002", 409],
+    ["P2003", 400],
+    ["P2025", 404],
+    ["P2024", 503],
+    ["P1001", 503],
+  ])("%s responde %i con un mensaje propio, sin el detalle del driver", (code, status) => {
+    const res = buildRes();
+
+    errorMiddleware(prismaError(code), {}, res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(status);
+    const body = res.json.mock.calls[0][0];
+    expect(body.success).toBe(false);
+    expect(body.message).not.toContain("Invalid prisma call");
+  });
+
+  it("un código de Prisma no mapeado responde 500 genérico", () => {
+    const res = buildRes();
+
+    errorMiddleware(prismaError("P2999"), {}, res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
+
+  it("PrismaClientInitializationError (BD caída al conectar) responde 503", () => {
+    const err = Object.assign(new Error("Can't reach database server"), { name: "PrismaClientInitializationError" });
+    const res = buildRes();
+
+    errorMiddleware(err, {}, res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(503);
+  });
+
+  it("un .code que no es de MySQL ni de Prisma no se trata como error de base de datos", () => {
+    process.env.NODE_ENV = "production";
+    const err = Object.assign(new Error("Archivo demasiado grande"), { code: "LIMIT_FILE_SIZE", statusCode: 413 });
+    const res = buildRes();
+
+    errorMiddleware(err, {}, res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(413);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: "Archivo demasiado grande" }));
+  });
+});

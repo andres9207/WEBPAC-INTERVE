@@ -11,7 +11,3 @@ export const saveDocApi = (params) => {
 export const deleteDocApi = (params) => {
     return httpCliente.put(`app/documents/delete`, params);
 };
-
-export const getBlobApi = (params) => {
-    return httpCliente.get(`app/documents/blob`, { params });
-};

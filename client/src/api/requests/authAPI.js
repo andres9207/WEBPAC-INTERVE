@@ -29,15 +29,6 @@ export const logoutAPI = () =>
 export const verifyTokenAPI = () =>
   httpCliente.get('/app/verify_token', {}, { skipAuthRedirect: true });
 
-export const registerAPI = (params) =>
-  httpCliente.post('/auth/register', params);
-
-export const verifyOtpAPI = (params) =>
-  httpCliente.post('/auth/verify-otp', params);
-
-export const resendOtpAPI = (params) =>
-  httpCliente.post('/auth/resend-otp', params);
-
 export const validateCodeAPI = (params) =>
   httpCliente.post('/auth/validate_code_password', params);
 

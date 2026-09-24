@@ -1,9 +1,55 @@
+// Errores conocidos de Prisma (todos los services usan Prisma desde la
+// migración, ver SECURITY.md). Antes caían en el `default` del bloque de
+// MySQL de abajo, porque también traen `.code`, y todos respondían 500
+// "Error desconocido de base de datos" — p. ej. un duplicado (P2002) no
+// daba 409, que es lo que el cliente espera para mostrar el conflicto.
+// Referencia: https://www.prisma.io/docs/orm/reference/error-reference
+const PRISMA_ERRORS = {
+  P2002: [409, "Intento de duplicar un valor único en la base de datos."],
+  P2003: [400, "Violación de integridad referencial en la base de datos."],
+  P2025: [404, "El registro solicitado no existe."],
+  P2000: [400, "Uno de los valores supera la longitud permitida."],
+  P2011: [400, "Uno o más campos obligatorios están vacíos."],
+  P2006: [400, "Uno de los valores no tiene el tipo esperado."],
+  P1001: [503, "No se pudo conectar con la base de datos. Contacta a sistemas."],
+  P1002: [503, "La base de datos no respondió a tiempo. Contacta a sistemas."],
+  P1008: [503, "La operación en la base de datos superó el tiempo límite. Contacta a sistemas."],
+  P1017: [503, "La base de datos cerró la conexión. Contacta a sistemas."],
+  P2024: [503, "No hay conexiones disponibles con la base de datos. Contacta a sistemas."],
+  P2034: [409, "Conflicto de concurrencia en la base de datos. Intenta de nuevo."],
+};
+
+const isMySqlCode = (code) =>
+  typeof code === "string" && (code.startsWith("ER_") || code === "PROTOCOL_CONNECTION_LOST");
+
 const errorMiddleware = (err, req, res, next) => {
   // Registrar el error para depuración
   console.error(`[ERROR]: ${err.stack || err.message}`);
 
-  // **1. Manejo específico de errores de MySQL**
-  if (err.code) {
+  // **0. Errores de Prisma**
+  if (typeof err.code === "string" && PRISMA_ERRORS[err.code]) {
+    const [status, message] = PRISMA_ERRORS[err.code];
+    return res.status(status).json({ success: false, message });
+  }
+
+  if (err.name === "PrismaClientInitializationError") {
+    return res.status(503).json({
+      success: false,
+      message: "No se pudo conectar con la base de datos. Contacta a sistemas.",
+    });
+  }
+
+  if (typeof err.code === "string" && /^P\d{4}$/.test(err.code)) {
+    return res.status(500).json({
+      success: false,
+      message: "Error desconocido de base de datos. Contacta a sistemas.",
+    });
+  }
+
+  // **1. Manejo específico de errores de MySQL** (mysql2 o el adapter de
+  // MariaDB). Solo códigos de MySQL: otros `.code` (p. ej. de
+  // express-fileupload o de Node) siguen al manejo general de abajo.
+  if (isMySqlCode(err.code)) {
     switch (err.code) {
       case "ER_WRONG_VALUE_COUNT_ON_ROW":
         return res.status(400).json({

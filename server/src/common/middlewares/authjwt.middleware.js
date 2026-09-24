@@ -1,10 +1,10 @@
-import { prisma } from "../configs/prismaClient.js";
 import jwt from "jsonwebtoken";
+import { ACCESS_COOKIE_NAME, isSessionActive } from "../services/session.service.js";
 
 export const verifyToken = async (req, res, next) => {
   try {
     // Leer token de cookie o del header Authorization
-    let token = req.cookies.token;
+    let token = req.cookies?.[ACCESS_COOKIE_NAME];
     if (!token || token === "undefined" || token === "null") {
       const authHeader = req.headers.authorization;
       if (authHeader?.startsWith("Bearer ")) {
@@ -27,16 +27,26 @@ export const verifyToken = async (req, res, next) => {
         }
       }
 
-      const user = await prisma.tbl_users.findFirst({
-        where: { use_id: decoded.useId, use_email: decoded.email, sta_id: 1 },
-        select: { use_id: true },
-      });
+      try {
+        // Además de firma y vencimiento: la sesión (sid) debe seguir viva en
+        // tbl_sessions y el usuario activo. Así un logout, un login en otro
+        // dispositivo (sesión única) o una desactivación cortan el acceso en
+        // la siguiente petición, sin esperar a que el JWT venza.
+        const active = await isSessionActive({
+          sid: decoded.sid,
+          useId: decoded.useId,
+          email: decoded.email,
+        });
 
-      if (user) {
+        if (!active) {
+          return res.status(401).json({ message: "Autorización inválida" });
+        }
+
         req.user = decoded;
         next();
-      } else {
-        return res.status(401).json({ message: "Autorización inválida" });
+      } catch (error) {
+        console.log(error);
+        return res.status(500).json({ message: "Error en el servidor" });
       }
     });
   } catch (error) {

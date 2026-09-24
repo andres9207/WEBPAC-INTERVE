@@ -27,13 +27,6 @@ const pages = {
           type: 'item',
           url: '/pages/login',
           target: true
-        },
-        {
-          id: 'register',
-          title: 'Register',
-          type: 'item',
-          url: '/pages/register',
-          target: true
         }
       ]
     }

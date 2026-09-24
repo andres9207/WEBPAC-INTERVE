@@ -1,7 +1,15 @@
 import express from "express";
 import { verifyToken } from "../../../common/middlewares/authjwt.middleware.js";
 import { requirePermission } from "../../../common/middlewares/requirePermission.middleware.js";
+import { validate } from "../../../common/middlewares/validate.middleware.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
+import {
+  getProfileWindowsSchema,
+  getUserPermissionsSchema,
+  getProfilePermissionsSchema,
+  updateProfilePermissionsSchema,
+  updateUserPermissionsSchema,
+} from "./permissions.validation.js";
 import {
   getProfileWindowsController,
   getUserPermissionsController,
@@ -34,6 +42,8 @@ permissionsRoutes.get(
   "/get_windows_profile",
   verifyToken,
   requirePermission(PERMISSIONS.security.permissions.view),
+  getProfileWindowsSchema,
+  validate,
   getProfileWindowsController
 );
 
@@ -48,6 +58,8 @@ permissionsRoutes.post(
   "/get_permissions_user_window",
   verifyToken,
   requirePermission(PERMISSIONS.security.permissions.view),
+  getUserPermissionsSchema,
+  validate,
   getUserPermissionsController
 );
 
@@ -55,6 +67,8 @@ permissionsRoutes.post(
   "/get_permissions_profile",
   verifyToken,
   requirePermission(PERMISSIONS.security.permissions.view),
+  getProfilePermissionsSchema,
+  validate,
   getProfilePermissionsController
 );
 
@@ -62,6 +76,8 @@ permissionsRoutes.post(
   "/update_permissions_profile",
   verifyToken,
   requirePermission(PERMISSIONS.security.profiles.assignPermission),
+  updateProfilePermissionsSchema,
+  validate,
   updateProfilePermissionsController
 );
 
@@ -69,6 +85,8 @@ permissionsRoutes.post(
   "/update_permissions_user",
   verifyToken,
   requirePermission(PERMISSIONS.security.users.assignPermission),
+  updateUserPermissionsSchema,
+  validate,
   updateUserPermissionsController
 );
 

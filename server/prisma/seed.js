@@ -61,7 +61,26 @@ const VIEW_PERMISSIONS = [
 // filas también vería el sidebar vacío, igual que cualquier otro perfil.
 const SUPERADMIN_PROFILE_ID = 1;
 
+// Catálogo de estados (database/migrations/0010_seed_status.sql). Ids fijos:
+// 1 = activo, 2 = inactivo, 3 = eliminado lógico — codificados en el backend
+// y en client/src/utils/constants.js. `update: {}` para no pisar nombres o
+// colores ya personalizados en una BD existente.
+const STATUSES = [
+  { sta_id: 1, sta_name: "Activo", sta_scope: "GENERAL", sta_color: "success", sta_order: 1 },
+  { sta_id: 2, sta_name: "Inactivo", sta_scope: "GENERAL", sta_color: "warning", sta_order: 2 },
+  { sta_id: 3, sta_name: "Eliminado", sta_scope: "GENERAL", sta_color: "error", sta_order: 3 },
+];
+
 async function main() {
+  for (const status of STATUSES) {
+    await prisma.tbl_status.upsert({
+      where: { sta_id: status.sta_id },
+      update: {},
+      create: status,
+    });
+  }
+  console.log(`tbl_status: ${STATUSES.length} estados sembrados (los existentes no se modifican).`);
+
   for (const page of PAGES) {
     await prisma.tbl_pages.upsert({
       where: { pag_id: page.pag_id },
