@@ -311,6 +311,8 @@ La autorización en backend existe: `requirePermission(perId)` resuelve en cada 
 | Bloqueo por intentos | `CUENTA_BLOQUEADA` (misma operación que el fallo que lo dispara) | Anónimo |
 | Logout | `LOGOUT` | El dueño de la sesión |
 | Reutilización de refresh token | `SESION_REVOCADA` | Anónimo |
+| Sesión cerrada a la fuerza (usuario inactivado, eliminado o con contraseña cambiada por un administrador) | `SESION_REVOCADA` con motivo | Administrador |
+| Sesión cerrada al restaurar la contraseña | `SESION_REVOCADA` con motivo | El propio usuario |
 | Cambio de la propia contraseña | `CONTRASENA_CAMBIADA` | El usuario |
 | Solicitud de recuperación (solo si la cuenta existe) | `RECUPERACION_SOLICITADA` | Anónimo |
 | Código de recuperación incorrecto o agotado | `CODIGO_RECUPERACION_FALLIDO` | Anónimo |

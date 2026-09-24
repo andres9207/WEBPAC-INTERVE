@@ -6,7 +6,7 @@ const prismaMock = {
   tbl_page_permissions: { findMany: jest.fn(), deleteMany: jest.fn(), createMany: jest.fn() },
   tbl_profile_permissions: { findMany: jest.fn(), deleteMany: jest.fn() },
   tbl_audit_log: { createMany: jest.fn() },
-  $transaction: jest.fn((fn) => fn(prismaMock)),
+  $transaction: jest.fn((fn) => fn({ ...prismaMock })),
 };
 
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({
@@ -20,7 +20,7 @@ const ctx = { useId: 9, ip: "1.1.1.1" };
 
 beforeEach(() => {
   jest.clearAllMocks();
-  prismaMock.$transaction.mockImplementation((fn) => fn(prismaMock));
+  prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
   prismaMock.tbl_users.count.mockResolvedValue(0);
   prismaMock.tbl_profiles.findFirst.mockResolvedValue(null);
 });

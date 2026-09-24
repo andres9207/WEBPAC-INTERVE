@@ -12,7 +12,7 @@ const prismaMock = {
     deleteMany: jest.fn(),
   },
   tbl_audit_log: { createMany: jest.fn() },
-  $transaction: jest.fn((fn) => fn(prismaMock)),
+  $transaction: jest.fn((fn) => fn({ ...prismaMock })),
 };
 
 jest.unstable_mockModule("../../../src/common/configs/prismaClient.js", () => ({
@@ -35,7 +35,7 @@ const inAWeek = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
 beforeEach(() => {
   jest.clearAllMocks();
-  prismaMock.$transaction.mockImplementation((fn) => fn(prismaMock));
+  prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
 });
 
 const auditRows = () => prismaMock.tbl_audit_log.createMany.mock.calls.flatMap((c) => c[0].data);

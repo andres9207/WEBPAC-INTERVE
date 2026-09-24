@@ -13,6 +13,7 @@ import {
   diffFields,
   newOperationId,
   writeAudit,
+  writeAuditEvent,
 } from "../../common/services/audit.service.js";
 import {
   generateResetCode,
@@ -127,7 +128,7 @@ export const login = async ({ usuario, clave, password, ctx = {} }) => {
   if (!userData) {
     await comparePassword(passwordTextoPlano, DUMMY_PASSWORD_HASH);
     // Sin registro afectado: solo queda constancia del intento y su IP.
-    await writeAudit(prisma, {
+    await writeAuditEvent({
       entity: AUDIT_ENTITIES.USER,
       operation: AUDIT_OPERATIONS.LOGIN_FAILED,
       ctx: anonymous(ctx),
@@ -145,7 +146,7 @@ export const login = async ({ usuario, clave, password, ctx = {} }) => {
   // una contraseña correcta entra mientras dure el bloqueo) y sin sumar
   // otro fallo, para que el bloqueo no se extienda solo con reintentos.
   if (attempts?.lat_locked_until && attempts.lat_locked_until.getTime() > Date.now()) {
-    await writeAudit(prisma, {
+    await writeAuditEvent({
       entity: AUDIT_ENTITIES.USER,
       recordId: userData.use_id,
       operation: AUDIT_OPERATIONS.LOGIN_FAILED,
@@ -418,8 +419,16 @@ export const restorePassword = async ({ email, nuevaContrasena, codeTemp, ctx = 
 
   // Fuera de la transacción a propósito: también cierra los sockets de la
   // sesión, algo que no se puede deshacer con un rollback. Cualquier sesión
-  // abierta (posiblemente la de quien tenía la contraseña anterior) cae.
-  await revokeSession({ useId: usuarioID });
+  // abierta (posiblemente la de quien tenía la contraseña anterior) cae, y
+  // queda en la bitácora si había una.
+  await revokeSession({
+    useId: usuarioID,
+    audit: {
+      operation: AUDIT_OPERATIONS.SESSION_REVOKED,
+      ctx: { useId: usuarioID, ip: ctx.ip },
+      reason: "contraseña restaurada",
+    },
+  });
 };
 
 // Piso de duración para forgot_password: sin esto, la rama "cuenta existe"

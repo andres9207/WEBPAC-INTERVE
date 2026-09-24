@@ -3,8 +3,9 @@ import { jest } from "@jest/globals";
 process.env.JWT_SECRET = "test-secret";
 
 // $transaction admite las dos formas que usa el código: lote (arreglo) o
-// interactiva (callback que recibe el `tx`, aquí el mismo mock).
-const runTransaction = (arg) => (typeof arg === "function" ? arg(prismaMock) : Promise.all(arg));
+// interactiva (callback que recibe el `tx`: una copia del mock, con los mismos
+// métodos pero distinto objeto, como el tx real; writeAudit rechaza `prisma`).
+const runTransaction = (arg) => (typeof arg === "function" ? arg({ ...prismaMock }) : Promise.all(arg));
 
 const prismaMock = {
   tbl_users: { findFirst: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
@@ -417,7 +418,11 @@ describe("validateCodePassword / restorePassword", () => {
     expect(mockHashPassword).toHaveBeenCalledWith("nueva12345");
     expect(prismaMock.$transaction).toHaveBeenCalled();
     expect(prismaMock.tbl_login_attempts.deleteMany).toHaveBeenCalledWith({ where: { use_id: 1 } });
-    expect(mockRevokeSession).toHaveBeenCalledWith({ useId: 1 });
+    // La sesión que cae queda en la bitácora, con el motivo.
+    expect(mockRevokeSession).toHaveBeenCalledWith({
+      useId: 1,
+      audit: { operation: "SESION_REVOCADA", ctx: { useId: 1, ip: undefined }, reason: "contraseña restaurada" },
+    });
     expect(auditRows()).toEqual([
       expect.objectContaining({ aud_operation: "CONTRASENA_RESTAURADA", use_id: 1, aud_new_value: "[oculto]" }),
     ]);

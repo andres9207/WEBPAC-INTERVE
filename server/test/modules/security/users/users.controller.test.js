@@ -12,8 +12,9 @@ const usersServiceMock = {
 };
 
 jest.unstable_mockModule("../../../../src/modules/security/users/users.service.js", () => usersServiceMock);
+const mockRevokeSession = jest.fn();
 jest.unstable_mockModule("../../../../src/common/services/session.service.js", () => ({
-  revokeSession: jest.fn(),
+  revokeSession: mockRevokeSession,
 }));
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: {} }));
 
@@ -70,5 +71,48 @@ describe("users.controller — autor desde req.user", () => {
     await paginationUsersController(req, buildRes(), jest.fn());
 
     expect(usersServiceMock.paginationUsers.mock.calls[0][0]).not.toHaveProperty("useId");
+  });
+});
+
+describe("users.controller — cierre forzado de sesión queda en la bitácora", () => {
+  const revokedWith = (reason) => ({
+    useId: 5,
+    audit: { operation: "SESION_REVOCADA", ctx: { useId: 7, ip: "10.0.0.1" }, reason },
+  });
+
+  it("inactivar un usuario revoca su sesión con motivo y autor", async () => {
+    usersServiceMock.saveUser.mockResolvedValue({});
+    const req = { user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 5, name: "Ana", staId: 2 } };
+
+    await saveUserController(req, buildRes(), jest.fn());
+
+    expect(mockRevokeSession).toHaveBeenCalledWith(revokedWith("usuario inactivado"));
+  });
+
+  it("cambiarle la contraseña a un usuario activo revoca su sesión con motivo y autor", async () => {
+    usersServiceMock.saveUser.mockResolvedValue({});
+    const req = { user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 5, name: "Ana", staId: 1, password: "Nueva12345*" } };
+
+    await saveUserController(req, buildRes(), jest.fn());
+
+    expect(mockRevokeSession).toHaveBeenCalledWith(revokedWith("contraseña cambiada por un administrador"));
+  });
+
+  it("editar un usuario activo sin cambiar la contraseña no toca su sesión", async () => {
+    usersServiceMock.saveUser.mockResolvedValue({});
+    const req = { user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 5, name: "Ana", staId: 1 } };
+
+    await saveUserController(req, buildRes(), jest.fn());
+
+    expect(mockRevokeSession).not.toHaveBeenCalled();
+  });
+
+  it("eliminar un usuario revoca su sesión con motivo y autor", async () => {
+    usersServiceMock.deleteUser.mockResolvedValue({});
+    const req = { user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 5 } };
+
+    await deleteUserController(req, buildRes(), jest.fn());
+
+    expect(mockRevokeSession).toHaveBeenCalledWith(revokedWith("usuario eliminado"));
   });
 });

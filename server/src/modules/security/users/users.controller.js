@@ -1,6 +1,6 @@
 import * as usersService from "./users.service.js";
 import { revokeSession } from "../../../common/services/session.service.js";
-import { auditContext } from "../../../common/services/audit.service.js";
+import { AUDIT_OPERATIONS, auditContext } from "../../../common/services/audit.service.js";
 
 export const paginationUsersController = async (req, res, next) => {
   try {
@@ -87,7 +87,14 @@ export const saveUserController = async (req, res, next) => {
     // un inactivo por sta_id, pero así también muere su refresh token y se
     // cierran sus sockets).
     if (useId > 0 && (Number(staId) !== 1 || password)) {
-      await revokeSession({ useId });
+      await revokeSession({
+        useId,
+        audit: {
+          operation: AUDIT_OPERATIONS.SESSION_REVOKED,
+          ctx: auditContext(req),
+          reason: Number(staId) !== 1 ? "usuario inactivado" : "contraseña cambiada por un administrador",
+        },
+      });
     }
 
     const statusCode = useId > 0 ? 200 : 201;
@@ -105,7 +112,10 @@ export const deleteUserController = async (req, res, next) => {
       updatedBy: req.user.useId,
       ctx: auditContext(req),
     });
-    await revokeSession({ useId });
+    await revokeSession({
+      useId,
+      audit: { operation: AUDIT_OPERATIONS.SESSION_REVOKED, ctx: auditContext(req), reason: "usuario eliminado" },
+    });
     return res.status(200).json(result);
   } catch (err) {
     next(err);

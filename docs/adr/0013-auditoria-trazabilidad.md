@@ -86,7 +86,11 @@ La eliminación sigue siendo lógica (`sta_id = 3`) y sigue siendo lo único que
 
 `aud_operation` es texto y no `ENUM` a propósito: el catálogo vive en el código y crecerá con los módulos de negocio sin exigir una migración por operación.
 
-**Escritura**: exclusivamente con `writeAudit(tx, …)` de `server/src/common/services/audit.service.js`, dentro de la transacción de la operación. `diffFields(before, after, campos)` calcula qué cambió; cada service declara explícitamente qué campos audita.
+**Escritura**: exclusivamente con `writeAudit(tx, …)` de `server/src/common/services/audit.service.js`, dentro de la transacción de la operación. `diffFields(before, after, campos)` calcula qué cambió; cada service declara explícitamente qué campos audita. La utilidad hace cumplir estas reglas en tiempo de ejecución:
+
+- `writeAudit` lanza un error si no recibe el `tx` o si recibe el cliente `prisma` global.
+- Lanza también si la entidad o la operación no están en `AUDIT_ENTITIES` / `AUDIT_OPERATIONS`.
+- La única excepción es `writeAuditEvent`, para eventos de autenticación que no cambian datos (hoy solo `LOGIN_FALLIDO` de un usuario inexistente o bloqueado): no hay escritura a la cual atarlos. Rechaza cualquier otra operación.
 
 **Qué se registra hoy:**
 
@@ -96,7 +100,7 @@ La eliminación sigue siendo lógica (`sta_id = 3`) y sigue siendo lo único que
 | `USUARIO` | `ASIGNAR` / `REVOCAR` de permisos individuales, una fila por permiso | `permissions.service.updateUserPermissions` |
 | `PERFIL` | `CREAR`, `EDITAR` (nombre, estado, páginas), `ELIMINAR` (con las páginas que se borran), `REACTIVAR` | `profiles.service.js` |
 | `PERFIL` | `ASIGNAR` / `REVOCAR` de permisos; al eliminar el perfil, `REVOCAR` de todos sus permisos en la misma operación | `permissions.service.updateProfilePermissions`, `profiles.service.deleteProfile` |
-| `USUARIO` (autenticación) | `LOGIN` (indica si cerró otra sesión), `LOGIN_FALLIDO` (con motivo o contador), `CUENTA_BLOQUEADA`, `LOGOUT`, `SESION_REVOCADA` (reutilización de refresh token), `CONTRASENA_CAMBIADA`, `RECUPERACION_SOLICITADA`, `CODIGO_RECUPERACION_FALLIDO`, `CONTRASENA_RESTAURADA` | `auth.service.js`, `session.service.js` |
+| `USUARIO` (autenticación) | `LOGIN` (indica si cerró otra sesión), `LOGIN_FALLIDO` (con motivo o contador), `CUENTA_BLOQUEADA`, `LOGOUT`, `SESION_REVOCADA` (reutilización de refresh token; cierre forzado al inactivar, eliminar o cambiarle la contraseña a un usuario, y al restaurar la contraseña, siempre con motivo y solo si había una sesión abierta), `CONTRASENA_CAMBIADA`, `RECUPERACION_SOLICITADA`, `CODIGO_RECUPERACION_FALLIDO`, `CONTRASENA_RESTAURADA` | `auth.service.js`, `session.service.js` |
 
 Los documentos adjuntos son auditoría **técnica** (decisión 9): tienen columnas de autoría y de eliminación, pero no escriben en la bitácora.
 
@@ -324,7 +328,7 @@ Cuando una revocación de sesión es consecuencia de otra operación ya auditada
 
 ### Backend
 
-- `common/services/audit.service.js`: `writeAudit`, `diffFields`, `auditContext`, `newOperationId`, catálogos `AUDIT_ENTITIES` / `AUDIT_OPERATIONS`, `SENSITIVE_FIELDS`.
+- `common/services/audit.service.js`: `writeAudit`, `writeAuditEvent`, `diffFields`, `auditContext`, `newOperationId`, catálogos `AUDIT_ENTITIES` / `AUDIT_OPERATIONS`, `SENSITIVE_FIELDS`.
 - Los controllers construyen `ctx = auditContext(req)` y lo pasan al service.
 - `session.service.js`: `createSession({ auditOperation })` y `revokeSession({ audit })` escriben el evento en su transacción.
 

@@ -94,18 +94,25 @@ export const diffFields = (before, after, fields) => {
   return changes;
 };
 
-/**
- * Escribe en la bitácora. `db` debe ser el `tx` de la transacción de la
- * operación (o `prisma` solo cuando la operación es de una sola sentencia ya
- * confirmada, como un evento de autenticación sin cambio de datos).
- *
- * - `changes` vacío o ausente → una fila de evento, sin campo.
- * - Cada change → una fila, todas con el mismo operationId.
- */
-export const writeAudit = async (
-  db,
-  { operationId = newOperationId(), entity, recordId = null, operation, ctx = {}, changes = [] }
-) => {
+const VALID_ENTITIES = new Set(Object.values(AUDIT_ENTITIES));
+const VALID_OPERATIONS = new Set(Object.values(AUDIT_OPERATIONS));
+
+// Eventos de autenticación que NO cambian datos (no hay escritura a la cual
+// atar la auditoría): los únicos que pueden ir fuera de una transacción.
+const STANDALONE_EVENTS = new Set([AUDIT_OPERATIONS.LOGIN_FAILED]);
+
+// Errores de programación, no de la petición: sin `status`, así que
+// error.middleware responde 500 genérico y el detalle queda en el log.
+const auditMisuse = (message) => new Error(`[audit] ${message}`);
+
+const buildRows = ({ operationId, entity, recordId, operation, ctx, changes }) => {
+  if (!VALID_ENTITIES.has(entity)) {
+    throw auditMisuse(`entidad desconocida "${entity}": agrégala a AUDIT_ENTITIES`);
+  }
+  if (!VALID_OPERATIONS.has(operation)) {
+    throw auditMisuse(`operación desconocida "${operation}": agrégala a AUDIT_OPERATIONS`);
+  }
+
   const base = {
     aud_operation_id: operationId,
     aud_entity: entity,
@@ -115,7 +122,7 @@ export const writeAudit = async (
     aud_ip: ctx.ip ? String(ctx.ip).slice(0, 45) : null,
   };
 
-  const rows = changes.length
+  return changes.length
     ? changes.map(({ field, oldValue = null, newValue = null }) => ({
         ...base,
         aud_field: field,
@@ -123,7 +130,43 @@ export const writeAudit = async (
         aud_new_value: protect(field, toText(newValue)),
       }))
     : [{ ...base, aud_field: null, aud_old_value: null, aud_new_value: null }];
+};
 
-  await (db ?? prisma).tbl_audit_log.createMany({ data: rows });
+/**
+ * Escribe en la bitácora dentro de la transacción de la operación auditada.
+ * `tx` es el cliente que Prisma entrega en `prisma.$transaction(async (tx) =>
+ * ...)`: si la operación se revierte, su auditoría se revierte con ella, y
+ * viceversa. Pasar `prisma` (o nada) lanza: escribiría fuera de la
+ * transacción y podría quedar una auditoría sin operación o al revés.
+ *
+ * - `changes` vacío o ausente → una fila de evento, sin campo.
+ * - Cada change `{ field, oldValue, newValue }` → una fila; todas comparten
+ *   el operationId (se genera si no se pasa; se devuelve para reutilizarlo en
+ *   otras escrituras de la misma operación).
+ * - La fecha la pone la BD (aud_create_at, milisegundos, UTC).
+ */
+export const writeAudit = async (
+  tx,
+  { operationId = newOperationId(), entity, recordId = null, operation, ctx = {}, changes = [] }
+) => {
+  if (!tx || tx === prisma) {
+    throw auditMisuse("writeAudit requiere el tx de prisma.$transaction, no el cliente global");
+  }
+  const rows = buildRows({ operationId, entity, recordId, operation, ctx, changes });
+  await tx.tbl_audit_log.createMany({ data: rows });
+  return operationId;
+};
+
+/**
+ * Evento de autenticación sin cambio de datos (p. ej. login fallido de un
+ * usuario inexistente): no hay operación a la cual atarse, así que va solo.
+ * Restringido a STANDALONE_EVENTS para que no sirva de atajo a writeAudit.
+ */
+export const writeAuditEvent = async ({ operationId = newOperationId(), entity, recordId = null, operation, ctx = {}, changes = [] }) => {
+  if (!STANDALONE_EVENTS.has(operation)) {
+    throw auditMisuse(`"${operation}" cambia datos: usa writeAudit dentro de la transacción`);
+  }
+  const rows = buildRows({ operationId, entity, recordId, operation, ctx, changes });
+  await prisma.tbl_audit_log.createMany({ data: rows });
   return operationId;
 };
