@@ -1,10 +1,10 @@
 import { prisma } from "../src/common/configs/prismaClient.js";
 
-// Ids explícitos y fijos a propósito: coinciden 1:1 con
-// client/src/contexts/permissions/permissionsConfig.js (hardcodea per_id) y
-// con las rutas reales en client/src/routes/MainRoutes.jsx. Cambiar estos
-// valores rompe permisos ya asignados y la navegación de cualquier ambiente
-// que ya tenga datos.
+// Ids explícitos y fijos a propósito: coinciden 1:1 con las rutas reales en
+// client/src/routes/MainRoutes.jsx y con el catálogo que expone la API
+// (permissions.constants.js / get_permissions_user), que el cliente consume
+// en vez de hardcodear un mapa propio. Cambiar estos valores rompe permisos
+// ya asignados y la navegación de cualquier ambiente que ya tenga datos.
 //
 // pag_type: 1 = página padre (grupo en el sidebar), 2 = página hija (item).
 
