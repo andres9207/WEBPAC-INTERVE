@@ -40,7 +40,8 @@ Obligatorio para toda tabla nueva del **dominio de negocio** (obras, contratos, 
 3. **Eliminación lógica** con `sta_id` (FK a `tbl_status`; `3` = eliminado). El service que elimina pobla `<pre>_delete_by` (autor de la sesión) y `<pre>_delete_at`, y los limpia si el registro se reactiva. No hay borrado físico de registros de negocio.
 4. **Bitácora**: si la tabla guarda información de auditoría funcional (valores económicos, plazos, estados, vigencias, relaciones proveedor-obra, configuración de tipos de contrato; ver la tabla de alcance del ADR-0013, decisión 9), sus services escriben en `tbl_audit_log` con `writeAudit` (`server/src/common/services/audit.service.js`) dentro de la misma transacción. Se agrega la entidad a `AUDIT_ENTITIES`.
 5. **Tablas de unión** que expresan una decisión (asignar X a Y): sin columnas de autoría; cada asignación o revocación va a la bitácora (`ASIGNAR` / `REVOCAR`).
-6. **Exentas**: tablas de catálogo estable versionadas con el código (`tbl_status`, `tbl_pages`, `tbl_permissions`) y registros transitorios (sesiones, códigos de recuperación).
+6. **Exentas**: tablas de catálogo estable versionadas con el código (`tbl_status`, `tbl_pages`, `tbl_permissions`). Los registros transitorios (sesiones, códigos de recuperación) no llevan columnas de eliminación porque se borran físicamente. Sí llevan las cuatro de creación y actualización (`<pre>_create_by/_at`, `<pre>_update_by/_at`), y los `*_by` quedan en `NULL` cuando la acción es sin sesión. Ver `0015_password_resets_audit_columns.sql`.
+7. **Prefijo único por tabla**: cada tabla usa un prefijo de tres letras propio, y todas sus columnas lo llevan (`<pre>_create_at`, nunca `<pre>_created_at`). Antes de crear una tabla, verifica que el prefijo no esté en uso. Por ejemplo, `pro_` ya es de `tbl_profiles`, así que proveedores usa `prv_`.
 
 ## Relación con Prisma
 

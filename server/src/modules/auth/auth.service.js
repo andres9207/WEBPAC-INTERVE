@@ -343,7 +343,7 @@ const invalidCode = () => {
 const consumeResetAttempt = async ({ email, codeTemp, ctx }) => {
   const reset = await prisma.tbl_password_resets.findFirst({
     where: {
-      par_created_at: { gte: new Date(Date.now() - RESET_CODE_TTL_MS) },
+      par_create_at: { gte: new Date(Date.now() - RESET_CODE_TTL_MS) },
       tbl_users: { use_email: email, sta_id: 1 },
     },
     select: { par_id: true, use_id: true, par_code_hash: true },
@@ -456,12 +456,15 @@ export const forgotPassword = async ({ email, ctx = {} }) => {
     // Upsert sobre UNIQUE(use_id): un solo código vigente por usuario y en
     // una sola sentencia (antes era DELETE + INSERT sin transacción: una
     // falla entre ambas dejaba al usuario sin código). Un código nuevo
-    // invalida el anterior y reinicia intentos y vigencia.
+    // invalida el anterior y reinicia intentos y vigencia: par_create_at es
+    // la creación del código VIGENTE, por eso también se reescribe en el
+    // update. par_create_by/par_update_by quedan NULL: la solicitud es sin
+    // sesión y no tiene autor verificable (migración 0015).
     const resetData = {
       par_use_email: email,
       par_code_hash: hashResetCode({ code: codeTemp, useId: usuarioID }),
       par_attempts: 0,
-      par_created_at: new Date(),
+      par_create_at: new Date(),
     };
 
     await prisma.$transaction(async (tx) => {

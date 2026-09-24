@@ -46,7 +46,7 @@ Se requiere definir:
 | `tbl_users` | `use_create_by` / `use_create_at` | `use_update_by` / `use_update_at` | `use_delete_by` / `use_delete_at` | Sí (autorreferencia) |
 | `tbl_profiles` | `pro_create_by` / `pro_create_at` | `pro_update_by` / `pro_update_at` | `pro_delete_by` / `pro_delete_at` | Sí |
 | `tbl_documents` | `doc_create_by` / `doc_create_at` | `doc_update_by` / `doc_update_at` | `doc_delete_by` / `doc_delete_at` | Sí |
-| `tbl_password_resets` | — / `par_created_at` | — | — | No aplica (registro transitorio) |
+| `tbl_password_resets` | `par_create_by` / `par_create_at` | `par_update_by` / `par_update_at` | — (transitorio, borrado físico) | Sí; los `*_by` quedan `NULL`: solicitud sin sesión |
 | `tbl_sessions` | — / `ses_create_at` | — | — | No aplica (registro transitorio) |
 | `tbl_pages`, `tbl_permissions`, `tbl_status` | — | — | — | Exentas (catálogo, decisión 5) |
 | `tbl_page_permissions`, `tbl_profile_permissions`, `tbl_user_permissions`, `tbl_user_pages` | — | — | — | Auditadas en la bitácora (decisión 6) |
@@ -370,8 +370,8 @@ Cuando una revocación de sesión es consecuencia de otra operación ya auditada
 | B8 | Zona horaria no explícita en la conexión | Media | ✅ Cerrada — sesión en UTC + migración 0014 |
 | B9 | El módulo `template` propagaba otra convención | Media | ✅ No aplica — módulo retirado |
 | B10 | Sin migraciones versionadas | Media | ✅ Cerrada — `database/migrations/` |
-| B11 | `tbl_providers.pro_update_at` con prefijo incorrecto | Baja | No aplica — la tabla no existe en este repositorio; al crearla, usar `prv_update_at` |
-| B12 | `tbl_password_resets.par_created_at` fuera de convención | Baja | ⏳ Abierta — registro transitorio, sin impacto en auditoría |
+| B11 | `tbl_providers.pro_update_at` con prefijo incorrecto | Baja | ✅ No aplica — la tabla no existe en este repositorio ni en `bdtemplate.sql`; al crearla, usar `prv_` (regla de prefijo único en `database/migrations/README.md`) |
+| B12 | `tbl_password_resets.par_created_at` fuera de convención | Baja | ✅ Cerrada — migración 0015: `par_create_at` + `par_create_by`, `par_update_by`, `par_update_at` |
 | B13 | `JOIN` interno ocultaba documentos con autor nulo | Baja | ✅ Cerrada — lookup con `Map` |
 | B14 | `tbl_status` sin datos sembrados | Media | ✅ Cerrada — migración 0010 + seed |
 | B15 | Sin política de retención de auditoría | Baja | ⏳ Abierta |
@@ -383,7 +383,7 @@ Ejecutado: fases 1 (autor verídico), 2 (FK, `tbl_status`), 3 (migraciones, logg
 
 Pendiente:
 
-1. **Despliegue**: aplicar las migraciones `0011` a `0014` en orden; la `0014` junto con el despliegue del cambio de zona horaria.
+1. **Despliegue**: aplicar las migraciones `0011` a `0015` en orden; la `0014` junto con el despliegue del cambio de zona horaria.
 2. **Infraestructura**: restringir el usuario de BD de la aplicación a `INSERT`/`SELECT` sobre `tbl_audit_log`.
 3. **Módulos de negocio**: cada módulo nuevo aplica el estándar de seis columnas y audita en la bitácora los campos de la decisión 9.
 4. **B16**: endpoint de consulta de la bitácora (filtrado por entidad/registro, usuario, operación y fecha), con `requirePermission` de un `per_id` nuevo, y su vista en el cliente.
@@ -400,7 +400,7 @@ Pendiente:
 
 ## Referencias
 
-- `database/migrations/0011_fk_audit_columns.sql`, `0012_add_delete_columns.sql`, `0013_create_audit_log.sql`, `0014_fix_prisma_timezone_data.sql`
+- `database/migrations/0011_fk_audit_columns.sql`, `0012_add_delete_columns.sql`, `0013_create_audit_log.sql`, `0014_fix_prisma_timezone_data.sql`, `0015_password_resets_audit_columns.sql`
 - `server/src/common/configs/prismaClient.js` — sesión MySQL en UTC
 - `database/migrations/README.md` — estándar de auditoría para tablas nuevas
 - `server/src/common/services/audit.service.js`

@@ -83,13 +83,21 @@ model tbl_pages {
 }
 
 model tbl_password_resets {
-  par_id         Int       @id @default(autoincrement())
-  use_id         Int       @unique(map: "uq_password_resets_use_id")
-  par_use_email  String    @db.VarChar(255)
-  par_code_hash  String    @db.Char(64)
-  par_attempts   Int       @default(0)
-  par_created_at DateTime? @default(now()) @db.Timestamp(0)
-  tbl_users      tbl_users @relation(fields: [use_id], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_password_resets_users")
+  par_id          Int        @id @default(autoincrement())
+  use_id          Int        @unique(map: "uq_password_resets_use_id")
+  par_use_email   String     @db.VarChar(255)
+  par_code_hash   String     @db.Char(64)
+  par_attempts    Int        @default(0)
+  par_create_by   Int?
+  par_create_at   DateTime?  @default(now()) @db.Timestamp(0)
+  par_update_by   Int?
+  par_update_at   DateTime?  @default(now()) @db.Timestamp(0)
+  tbl_users       tbl_users  @relation("PasswordResetUser", fields: [use_id], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_password_resets_users")
+  created_by_user tbl_users? @relation("PasswordResetCreatedBy", fields: [par_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_password_resets_create_by")
+  updated_by_user tbl_users? @relation("PasswordResetUpdatedBy", fields: [par_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_password_resets_update_by")
+
+  @@index([par_create_by], map: "tbl_password_resets_create_by")
+  @@index([par_update_by], map: "tbl_password_resets_update_by")
 }
 
 model tbl_sessions {
@@ -187,44 +195,46 @@ model tbl_user_permissions {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model tbl_users {
-  use_id               Int                    @id @default(autoincrement())
-  use_name             String?                @db.VarChar(255)
-  use_last_name        String?                @db.VarChar(255)
-  use_identification   String?                @db.VarChar(255)
-  use_user             String?                @unique(map: "use_user") @db.VarChar(100)
-  use_email            String?                @unique(map: "use_email") @db.VarChar(255)
-  use_password         String?                @db.VarChar(255)
-  pro_id               Int?
-  sta_id               Int?                   @default(1)
-  use_access           Int?                   @default(1) @db.SmallInt
-  use_change_password  Int?                   @default(1) @db.SmallInt
-  use_create_by        Int?
-  use_create_at        DateTime?              @default(now()) @db.Timestamp(0)
-  use_update_by        Int?
-  use_update_at        DateTime?              @default(now()) @db.Timestamp(0)
-  use_delete_by        Int?
-  use_delete_at        DateTime?              @db.Timestamp(0)
-  tbl_audit_log        tbl_audit_log[]
-  documents_created    tbl_documents[]        @relation("DocumentCreatedBy")
-  documents_deleted    tbl_documents[]        @relation("DocumentDeletedBy")
-  documents_updated    tbl_documents[]        @relation("DocumentUpdatedBy")
-  tbl_login_attempts   tbl_login_attempts?
-  tbl_notifications    tbl_notifications[]
-  tbl_password_resets  tbl_password_resets?
-  profiles_created     tbl_profiles[]         @relation("ProfileCreatedBy")
-  profiles_deleted     tbl_profiles[]         @relation("ProfileDeletedBy")
-  profiles_updated     tbl_profiles[]         @relation("ProfileUpdatedBy")
-  tbl_sessions         tbl_sessions?
-  tbl_user_pages       tbl_user_pages[]
-  tbl_user_permissions tbl_user_permissions[]
-  created_by_user      tbl_users?             @relation("UserCreatedBy", fields: [use_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_create_by")
-  users_created        tbl_users[]            @relation("UserCreatedBy")
-  deleted_by_user      tbl_users?             @relation("UserDeletedBy", fields: [use_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_delete_by")
-  users_deleted        tbl_users[]            @relation("UserDeletedBy")
-  tbl_profiles         tbl_profiles?          @relation("UserProfile", fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_profiles")
-  tbl_status           tbl_status?            @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_status")
-  updated_by_user      tbl_users?             @relation("UserUpdatedBy", fields: [use_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_update_by")
-  users_updated        tbl_users[]            @relation("UserUpdatedBy")
+  use_id                  Int                    @id @default(autoincrement())
+  use_name                String?                @db.VarChar(255)
+  use_last_name           String?                @db.VarChar(255)
+  use_identification      String?                @db.VarChar(255)
+  use_user                String?                @unique(map: "use_user") @db.VarChar(100)
+  use_email               String?                @unique(map: "use_email") @db.VarChar(255)
+  use_password            String?                @db.VarChar(255)
+  pro_id                  Int?
+  sta_id                  Int?                   @default(1)
+  use_access              Int?                   @default(1) @db.SmallInt
+  use_change_password     Int?                   @default(1) @db.SmallInt
+  use_create_by           Int?
+  use_create_at           DateTime?              @default(now()) @db.Timestamp(0)
+  use_update_by           Int?
+  use_update_at           DateTime?              @default(now()) @db.Timestamp(0)
+  use_delete_by           Int?
+  use_delete_at           DateTime?              @db.Timestamp(0)
+  tbl_audit_log           tbl_audit_log[]
+  documents_created       tbl_documents[]        @relation("DocumentCreatedBy")
+  documents_deleted       tbl_documents[]        @relation("DocumentDeletedBy")
+  documents_updated       tbl_documents[]        @relation("DocumentUpdatedBy")
+  tbl_login_attempts      tbl_login_attempts?
+  tbl_notifications       tbl_notifications[]
+  tbl_password_resets     tbl_password_resets?   @relation("PasswordResetUser")
+  password_resets_created tbl_password_resets[]  @relation("PasswordResetCreatedBy")
+  password_resets_updated tbl_password_resets[]  @relation("PasswordResetUpdatedBy")
+  profiles_created        tbl_profiles[]         @relation("ProfileCreatedBy")
+  profiles_deleted        tbl_profiles[]         @relation("ProfileDeletedBy")
+  profiles_updated        tbl_profiles[]         @relation("ProfileUpdatedBy")
+  tbl_sessions            tbl_sessions?
+  tbl_user_pages          tbl_user_pages[]
+  tbl_user_permissions    tbl_user_permissions[]
+  created_by_user         tbl_users?             @relation("UserCreatedBy", fields: [use_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_create_by")
+  users_created           tbl_users[]            @relation("UserCreatedBy")
+  deleted_by_user         tbl_users?             @relation("UserDeletedBy", fields: [use_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_delete_by")
+  users_deleted           tbl_users[]            @relation("UserDeletedBy")
+  tbl_profiles            tbl_profiles?          @relation("UserProfile", fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_profiles")
+  tbl_status              tbl_status?            @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_status")
+  updated_by_user         tbl_users?             @relation("UserUpdatedBy", fields: [use_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_update_by")
+  users_updated           tbl_users[]            @relation("UserUpdatedBy")
 
   @@index([pro_id], map: "tbl_users_profiles")
   @@index([sta_id], map: "tbl_users_status")

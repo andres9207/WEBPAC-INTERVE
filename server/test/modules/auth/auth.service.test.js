@@ -310,6 +310,9 @@ describe("forgotPassword — no debe permitir enumerar cuentas", () => {
     const { where, create, update } = prismaMock.tbl_password_resets.upsert.mock.calls[0][0];
     expect(where).toEqual({ use_id: 1 });
     expect(update.par_attempts).toBe(0);
+    // La vigencia se reinicia con cada código nuevo, también en el update.
+    expect(update.par_create_at).toBeInstanceOf(Date);
+    expect(create.par_create_by).toBeUndefined();
     expect(create.par_code_hash).toMatch(/^[0-9a-f]{64}$/);
 
     // El código enviado por correo no aparece en claro en lo que se guarda,
