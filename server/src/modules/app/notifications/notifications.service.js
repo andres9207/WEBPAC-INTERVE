@@ -1,4 +1,5 @@
 import { prisma } from '../../../common/configs/prismaClient.js';
+import { paginate } from '../../../common/utils/pagination.utils.js';
 import { getIO } from '../../../common/configs/socket.manager.js';
 
 export const getNotificationCount = async ({ userId }) => {
@@ -8,20 +9,17 @@ export const getNotificationCount = async ({ userId }) => {
 };
 
 export const listNotifications = async ({ userId, page = 1, limit = 10 }) => {
-  const offset = (page - 1) * limit;
-
-  if (!userId || isNaN(limit) || isNaN(offset)) {
+  if (!userId) {
     throw new Error('Parámetros no válidos');
   }
 
   // Prisma deserializa la columna JSON `not_data` solo, no requiere el
   // JSON.parse manual que hacía falta con el resultado crudo de mysql2.
-  return prisma.tbl_notifications.findMany({
-    where: { use_id: Number(userId) },
-    orderBy: { not_created_at: 'desc' },
-    take: +limit,
-    skip: +offset,
-  });
+  return paginate(
+    prisma.tbl_notifications,
+    { where: { use_id: Number(userId) }, orderBy: { not_created_at: 'desc' } },
+    { page, limit }
+  );
 };
 
 export const markAllAsRead = async ({ userId }) => {

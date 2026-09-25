@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { prisma } from "../../../common/configs/prismaClient.js";
+import { paginate } from "../../../common/utils/pagination.utils.js";
 import { withLockedTransaction, withTransaction } from "../../../common/services/transaction.service.js";
 import {
   AUDIT_ENTITIES,
@@ -17,7 +18,6 @@ const PROFILE_SORT_FIELDS = {
   staId: (order) => ({ sta_id: order }),
 };
 
-const MAX_ROWS = 100;
 
 export const paginationProfiles = async ({
   useId,
@@ -34,9 +34,6 @@ export const paginationProfiles = async ({
   // interpolado sin validar — ver SECURITY.md).
   const orderBy = (PROFILE_SORT_FIELDS[sortField] ?? PROFILE_SORT_FIELDS.name)(order);
 
-  const take = Math.min(Math.max(Number(rows) || 10, 1), MAX_ROWS);
-  const skip = Math.max(Number(first) || 0, 0);
-
   const where = {
     sta_id: { not: 3 },
     ...(name ? { pro_name: { contains: name } } : {}),
@@ -44,8 +41,9 @@ export const paginationProfiles = async ({
     ...(Number(useId) !== 1 ? { NOT: { pro_id: 1 } } : {}),
   };
 
-  const [profiles, total] = await Promise.all([
-    prisma.tbl_profiles.findMany({
+  const page = await paginate(
+    prisma.tbl_profiles,
+    {
       where,
       select: {
         pro_id: true,
@@ -56,13 +54,11 @@ export const paginationProfiles = async ({
         tbl_status: { select: { sta_name: true } },
       },
       orderBy,
-      take,
-      skip,
-    }),
-    prisma.tbl_profiles.count({ where }),
-  ]);
+    },
+    { first, rows }
+  );
 
-  const results = profiles.map((p) => ({
+  const results = page.results.map((p) => ({
     proId: p.pro_id,
     name: p.pro_name,
     statusName: p.tbl_status?.sta_name ?? null,
@@ -71,7 +67,7 @@ export const paginationProfiles = async ({
     staId: p.sta_id,
   }));
 
-  return { results, total };
+  return { ...page, results };
 };
 
 export const getModules = async ({ proId }) => {

@@ -57,7 +57,7 @@ export default function NotificationSection() {
     if (!user?.useId) return;
     try {
       const response = await paginationNotificationsAPI({ userId: user.useId, page: 1, limit: 10 });
-      setNotifications(response.data);
+      setNotifications(response.data?.results ?? []);
     } catch (err) {
       console.error('Error fetching notifications:', err);
     }

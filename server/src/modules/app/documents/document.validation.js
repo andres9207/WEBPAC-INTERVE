@@ -13,7 +13,6 @@ export const paginationDocsSchema = [
   optionalNullableId("docIdRef"),
   optionalNullableId("parentId"),
   optionalText("nombre"),
-  body("paginate").optional().isBoolean().withMessage("paginate debe ser booleano."),
 ];
 
 export const saveDocSchema = [

@@ -1,4 +1,5 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
+import { paginate } from "../../../common/utils/pagination.utils.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 
 const DOC_SELECT = {
@@ -27,7 +28,6 @@ const DOC_SORT_FIELDS = {
   doc_update_at: (order) => ({ doc_update_at: order }),
 };
 
-const MAX_ROWS = 100;
 
 // tbl_documents.doc_create_by (autor) y doc_parent_id (árbol de carpetas) no
 // tienen FK declarada en la BD (confirmado: schema.prisma introspectado no
@@ -87,7 +87,6 @@ export const paginationModuleDocs = async ({
   sortField = "doc_name",
   sortOrder,
   parentId = null,
-  paginate = true,
 }) => {
   const order = sortOrder === 1 ? "asc" : "desc";
   // sortField nunca se pasa directo a Prisma: solo columnas de esta lista
@@ -108,25 +107,25 @@ export const paginationModuleDocs = async ({
       : {}),
   };
 
-  const take = paginate ? Math.min(Math.max(Number(rows) || 10, 1), MAX_ROWS) : undefined;
-  const skip = paginate ? Math.max(Number(first) || 0, 0) : undefined;
-
-  const [docs, total, currentFolderDoc] = await Promise.all([
-    prisma.tbl_documents.findMany({ where, select: DOC_SELECT, orderBy, take, skip }),
-    prisma.tbl_documents.count({ where }),
+  // Siempre paginado (tope MAX_ROWS de pagination.utils.js). Antes,
+  // `paginate: false` en el body devolvía todos los documentos del filtro
+  // sin límite: ningún cliente lo usaba y bastaba para pedir la tabla
+  // completa de una vez.
+  const [page, currentFolderDoc] = await Promise.all([
+    paginate(prisma.tbl_documents, { where, select: DOC_SELECT, orderBy }, { first, rows }),
     parentId !== null
       ? prisma.tbl_documents.findUnique({ where: { doc_id: Number(parentId) }, select: DOC_SELECT })
       : Promise.resolve(null),
   ]);
 
   const [enrichedDocs, enrichedFolder] = await Promise.all([
-    enrichDocs(docs),
+    enrichDocs(page.results),
     currentFolderDoc ? enrichDocs([currentFolderDoc]) : Promise.resolve([null]),
   ]);
 
   return {
+    ...page,
     results: enrichedDocs,
-    total,
     currentFolder: enrichedFolder[0] ?? null,
   };
 };

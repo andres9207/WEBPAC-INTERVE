@@ -1,5 +1,6 @@
 import { hashPassword } from "../../../common/utils/funciones.js";
 import { prisma } from "../../../common/configs/prismaClient.js";
+import { paginate } from "../../../common/utils/pagination.utils.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import {
   AUDIT_ENTITIES,
@@ -24,7 +25,6 @@ const USER_SORT_FIELDS = {
   statusName: (order) => ({ tbl_status: { sta_name: order } }),
 };
 
-const MAX_ROWS = 100;
 
 export const paginationUsers = async ({
   proId,
@@ -46,9 +46,6 @@ export const paginationUsers = async ({
   // (ORDER BY ${sortField}) — ver SECURITY.md.
   const orderBy = (USER_SORT_FIELDS[sortField] ?? USER_SORT_FIELDS.name)(order);
 
-  const take = Math.min(Math.max(Number(rows) || 10, 1), MAX_ROWS);
-  const skip = Math.max(Number(first) || 0, 0);
-
   // Antes: name/lastName/email/identification/username se interpolaban
   // crudos en cláusulas LIKE (`LIKE REPLACE('%${name}%', ...)`), sin
   // parametrizar — inyección SQL explotable vía el body de list_users. El
@@ -67,8 +64,9 @@ export const paginationUsers = async ({
     tbl_profiles: { sta_id: 1 },
   };
 
-  const [users, total] = await Promise.all([
-    prisma.tbl_users.findMany({
+  const page = await paginate(
+    prisma.tbl_users,
+    {
       where,
       select: {
         use_id: true,
@@ -88,13 +86,11 @@ export const paginationUsers = async ({
         tbl_user_pages: { select: { pag_id: true } },
       },
       orderBy,
-      take,
-      skip,
-    }),
-    prisma.tbl_users.count({ where }),
-  ]);
+    },
+    { first, rows }
+  );
 
-  const results = users.map((u) => ({
+  const results = page.results.map((u) => ({
     useId: u.use_id,
     name: u.use_name,
     lastName: u.use_last_name,
@@ -115,7 +111,7 @@ export const paginationUsers = async ({
     usePages: u.tbl_user_pages.map((p) => p.pag_id).join(","),
   }));
 
-  return { results, total };
+  return { ...page, results };
 };
 
 export const countUsers = async ({ useId }) => {
