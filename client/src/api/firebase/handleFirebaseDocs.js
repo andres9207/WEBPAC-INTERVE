@@ -2,7 +2,10 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { saveDocApi, deleteDocApi } from "api/requests/documentsAPI";
 import { storage } from "./firebaseConfig";
 
-export const uploadFile = async (moduloId, file, userId, userName, modulo) => {
+// El autor (doc_create_by / doc_update_by) lo pone el backend desde la sesión:
+// el cliente no lo envía. userName solo se usa para mostrar el archivo recién
+// subido en la lista local, antes de recargarla.
+export const uploadFile = async (moduloId, file, userName, modulo) => {
     const path = `TEMPLATE/${modulo}/${moduloId}/${file.name}`;
     const fileRef = ref(storage, path);
     await uploadBytes(fileRef, file);
@@ -17,8 +20,6 @@ export const uploadFile = async (moduloId, file, userId, userName, modulo) => {
         tamanio: file.size,
         docPathStorage: path,
         url,
-        docCreateBy: userId,
-        docUpdateBy: userId,
     });
 
     return {
@@ -39,8 +40,8 @@ export const uploadFile = async (moduloId, file, userId, userName, modulo) => {
     };
 };
 
-export const deleteFileByPath = async (fullPath, id, userId) => {
+export const deleteFileByPath = async (fullPath, id) => {
     const fileRef = ref(storage, fullPath);
     await deleteObject(fileRef).catch(() => {});
-    await deleteDocApi({ id, usuAct: userId });
+    await deleteDocApi({ id });
 };

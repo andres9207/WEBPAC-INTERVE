@@ -34,19 +34,10 @@ export const refreshSession = () => {
 // o sesión ya cerrada): no se intenta renovar.
 const NO_REFRESH_URLS = ["/auth/login", "auth/login", "/auth/refresh", "auth/refresh", "/auth/logout", "auth/logout"];
 
-// ─── Interceptor de REQUEST ───────────────────────────────────────────────────
-instance.interceptors.request.use(
-  (config) => {
-    const currenUserApp = Cookies.get("id");
-
-    if (currenUserApp) {
-      config.headers.currenuserapp = currenUserApp;
-    }
-
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+// Sin interceptor de REQUEST a propósito: antes cada petición llevaba el
+// encabezado `currenuserapp` con los datos del usuario (cookie `id`). El
+// backend nunca lo leyó: la identidad sale solo de la cookie de sesión
+// httpOnly (req.user). Enviarlo hacía parecer que el cliente decide quién es.
 
 // ─── Interceptor de RESPONSE ──────────────────────────────────────────────────
 instance.interceptors.response.use(

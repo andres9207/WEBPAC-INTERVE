@@ -75,7 +75,6 @@ export default function DocumentManagement({
     multipleFiles = true,
 }) {
     const { user } = useAuth();
-    const userId = user?.useId;
     const userName = user?.fullName;
 
     const [files, setFiles] = useState([]);
@@ -146,7 +145,7 @@ export default function DocumentManagement({
 
         const deleteTask = (async () => {
             if (moduloId > 0) {
-                await deleteFileByPath(target.docPathStorage, target.id, userId);
+                await deleteFileByPath(target.docPathStorage, target.id);
             }
             setFiles((prev) => prev.filter((f) => f.id !== target.id));
             if (typeof setDocs === "function") setDocs((prev) => prev.filter((d) => d.id !== target.id));
@@ -174,7 +173,7 @@ export default function DocumentManagement({
 
             if (moduloId > 0) {
                 const uploads = await Promise.all(
-                    newFiles.map((file) => uploadFile(moduloId, file, userId, userName, modulo))
+                    newFiles.map((file) => uploadFile(moduloId, file, userName, modulo))
                 );
                 const nuevos = uploads.map(({ savedDoc }) => savedDoc);
                 setFiles((prev) => [...nuevos, ...prev]);

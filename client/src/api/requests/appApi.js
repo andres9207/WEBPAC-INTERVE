@@ -13,10 +13,11 @@ export const validateTokenAPI = () => {
     });
 };
 
-export const getMenuAPI = (params) => {
+// El menú es siempre el del usuario de la sesión: no se envía perfil ni id.
+export const getMenuAPI = () => {
     return new Promise((resolve, reject) => {
         httpCliente
-            .get("app/get_menu", params)
+            .get("app/get_menu")
             .then((response) => {
                 resolve(response);
             })

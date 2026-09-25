@@ -2,21 +2,21 @@ import httpCliente from '../services/httpCliente';
 
 /**
  * Conteo de usuarios agrupado por perfil
- * @param {{ idusuario: number }} params
+ * Sin parámetros de identidad: el backend decide según el usuario de la sesión.
  */
 export const countUsersAPI = (params) =>
   httpCliente.get('security/users/count_users', params);
 
 /**
  * Paginación de usuarios con filtros
- * @param {{ useId, proId, name, lastName, email, phone, identification, username, staId, rows, first, sortField, sortOrder }} params
+ * @param {{ proId, name, lastName, email, identification, username, staId, rows, first, sortField, sortOrder }} params
  */
 export const paginationUsersAPI = (params) =>
   httpCliente.post('security/users/list_users', params);
 
 /**
  * Eliminar usuario (soft delete — cambia sta_id a 3)
- * @param {{ useId: number, updatedBy: string }} params
+ * @param {{ useId: number }} params  (useId = usuario a eliminar; el autor lo pone el backend desde la sesión)
  */
 export const deleteUserAPI = (params) =>
   httpCliente.put('security/users/delete_user', params);

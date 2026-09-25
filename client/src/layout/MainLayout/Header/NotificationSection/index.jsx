@@ -46,7 +46,7 @@ export default function NotificationSection() {
   const fetchUnreadCount = useCallback(async () => {
     if (!user?.useId) return;
     try {
-      const response = await getNotificationCountAPI({ userId: user.useId });
+      const response = await getNotificationCountAPI();
       setUnreadCount(response.data);
     } catch (err) {
       console.error('Error fetching notification count:', err);
@@ -56,7 +56,7 @@ export default function NotificationSection() {
   const fetchNotifications = useCallback(async () => {
     if (!user?.useId) return;
     try {
-      const response = await paginationNotificationsAPI({ userId: user.useId, page: 1, limit: 10 });
+      const response = await paginationNotificationsAPI({ page: 1, limit: 10 });
       setNotifications(response.data?.results ?? []);
     } catch (err) {
       console.error('Error fetching notifications:', err);
@@ -122,7 +122,7 @@ export default function NotificationSection() {
   const handleMarkAllAsRead = async () => {
     if (!user?.useId) return;
     try {
-      await markAllAsReadAPI({ userId: user.useId }).then((r) => r.data);
+      await markAllAsReadAPI().then((r) => r.data);
       setNotifications((prev) =>
         prev.map((n) => (n.not_is_read ? n : { ...n, not_is_read: 1 })),
       );

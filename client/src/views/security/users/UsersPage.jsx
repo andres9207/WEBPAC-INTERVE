@@ -18,7 +18,7 @@ import { STATUS_OPTIONS } from 'utils/constants';
 import { showError } from 'services/ToastService';
 
 export default function UsersPage() {
-  const { user, hasPermission, permissionsCatalog } = useAuth();
+  const { hasPermission, permissionsCatalog } = useAuth();
 
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -83,7 +83,6 @@ export default function UsersPage() {
     setLoading(true);
     try {
       const { data } = await paginationUsersAPI({
-        useId: user?.useId,
         name: filters.name,
         email: filters.email,
         lastName: filters.lastName,
@@ -103,7 +102,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, filters.name, filters.lastName, filters.identification, filters.email, page, rowsPerPage, sortField, sortOrder]);
+  }, [filters.name, filters.lastName, filters.identification, filters.email, page, rowsPerPage, sortField, sortOrder]);
 
   useEffect(() => {
     fetchUsers();
