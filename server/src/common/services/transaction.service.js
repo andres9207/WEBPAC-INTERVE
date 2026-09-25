@@ -1,5 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../configs/prismaClient.js";
+import logger from "../configs/winston.config.js";
+import { isDeadlock } from "../utils/dbErrors.utils.js";
 
 /**
  * Utilidad única de transacciones (ADR-0027, decisiones 2, 3 y 4).
@@ -98,12 +100,25 @@ export const buildLockPlan = (locks) => {
     .map((entity) => ({ entity, ...LOCKABLE[entity], ids: toSortedIds(entity, locks[entity]) }));
 };
 
-/**
- * Transacción con REPEATABLE READ declarado. Para operaciones que no afectan
- * a un registro existente (crear) o que ya son atómicas por una sola
- * sentencia condicionada.
- */
-export const withTransaction = (fn) =>
+// ── Interbloqueos (ADR-0027, decisión 8) ────────────────────────────────────
+// InnoDB resuelve un interbloqueo abortando una de las transacciones, que se
+// revierte entera. Repetirla es seguro solo si la operación es idempotente
+// (fija un estado final: "estos son los permisos", "estos son los datos").
+// Una operación que crea o que suma sin clave de idempotencia NO se repite,
+// porque no se puede distinguir un reintento de una segunda petición.
+// La espera de bloqueo agotada (1205) nunca se reintenta: ya esperó
+// LOCK_WAIT_TIMEOUT_SECONDS y reintentar solo alarga la retención de la
+// conexión; error.middleware responde 503. Un interbloqueo que persiste tras
+// los reintentos responde 409.
+export const MAX_DEADLOCK_RETRIES = 2;
+const RETRY_BASE_DELAY_MS = 25;
+
+// Espera corta y aleatoria antes de reintentar: si las dos transacciones del
+// interbloqueo reintentan a la vez, lo más probable es que vuelvan a chocar.
+const backoff = (attempt) =>
+  new Promise((resolve) => setTimeout(resolve, RETRY_BASE_DELAY_MS * attempt + Math.random() * RETRY_BASE_DELAY_MS));
+
+const runTransaction = (fn) =>
   prisma.$transaction(
     async (tx) => {
       // Un SET no es una lectura: no fija la instantánea de REPEATABLE READ.
@@ -112,6 +127,29 @@ export const withTransaction = (fn) =>
     },
     { isolationLevel: ISOLATION_LEVEL }
   );
+
+/**
+ * Transacción con REPEATABLE READ declarado. Para operaciones que no afectan
+ * a un registro existente (crear) o que ya son atómicas por una sola
+ * sentencia condicionada.
+ *
+ * `{ idempotent: true }` habilita el reintento ante interbloqueo (hasta
+ * MAX_DEADLOCK_RETRIES veces). Declararlo solo si repetir la operación
+ * completa deja exactamente el mismo resultado.
+ */
+export const withTransaction = async (fn, { idempotent = false } = {}) => {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await runTransaction(fn);
+    } catch (err) {
+      if (!idempotent || !isDeadlock(err) || attempt >= MAX_DEADLOCK_RETRIES) throw err;
+      logger.warn(
+        `[transaction] interbloqueo, reintento ${attempt + 1}/${MAX_DEADLOCK_RETRIES} de una operación idempotente`
+      );
+      await backoff(attempt + 1);
+    }
+  }
+};
 
 /**
  * Transacción que bloquea las filas indicadas como primeras sentencias y
@@ -123,7 +161,7 @@ export const withTransaction = (fn) =>
  *   withLockedTransaction({ FACTURA: [9], CONTRATO: [7, 3] }, …)
  *     → bloquea contrato 3, contrato 7 y después factura 9.
  */
-export const withLockedTransaction = (locks, fn) => {
+export const withLockedTransaction = (locks, fn, options) => {
   const plan = buildLockPlan(locks);
 
   return withTransaction(async (tx) => {
@@ -138,5 +176,5 @@ export const withLockedTransaction = (locks, fn) => {
       locked[entity] = rows.map((row) => Number(row.id));
     }
     return fn(tx, locked);
-  });
+  }, options);
 };

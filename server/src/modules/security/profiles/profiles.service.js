@@ -110,7 +110,9 @@ export const saveProfile = async ({
 
   // Editar bloquea el perfil antes de leer nada (ADR-0027); crear no tiene
   // fila que bloquear.
-  const run = proId > 0 ? (fn) => withLockedTransaction({ PERFIL: proId }, fn) : withTransaction;
+  // Editar es idempotente (fija nombre, estado y páginas): se puede reintentar
+  // ante un interbloqueo. Crear no, porque repetirlo crearía otro perfil.
+  const run = proId > 0 ? (fn) => withLockedTransaction({ PERFIL: proId }, fn, { idempotent: true }) : withTransaction;
 
   return run(async (tx) => {
     const duplicate = await tx.tbl_profiles.findFirst({

@@ -315,7 +315,7 @@ export const saveUser = async ({
       }
 
       return { message: "Usuario Actualizado Correctamente", useId };
-    });
+    }, { idempotent: true });
   }
 
   return withLockedTransaction({ PERFIL: proId }, async (tx, locked) => {

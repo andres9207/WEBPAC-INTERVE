@@ -227,7 +227,7 @@ export const updateProfilePermissions = async ({ permissions, proId, actingProId
       revoked: toDelete,
       ctx,
     });
-  });
+  }, { idempotent: true });
 
   return { message: "Permisos actualizados" };
 };
@@ -313,7 +313,7 @@ export const updateUserPermissions = async ({ permissions, useId, actingUseId, c
     });
 
     return target;
-  });
+  }, { idempotent: true });
 
   // Efectivo (unión), no solo las excepciones individuales que se acaban de
   // escribir — es lo que realmente representa "los permisos del usuario".

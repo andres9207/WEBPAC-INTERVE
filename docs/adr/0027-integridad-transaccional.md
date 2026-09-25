@@ -9,7 +9,7 @@ Estado de implementación por decisión:
 | Decisión | Implementación |
 | --- | --- |
 | 1, 2, 3, 4, 5, 9 | ✅ Vigentes en código: `server/src/common/services/transaction.service.js`, aplicado a todos los services actuales |
-| 8 | ✅ Parcial: espera agotada → `503`, interbloqueo → `409`. El reintento acotado llega con la idempotencia (7) |
+| 8 | ✅ Vigente: reintento acotado del interbloqueo (2 reintentos) solo en operaciones marcadas `{ idempotent: true }`; si persiste → `409`; espera agotada → `503`, sin reintento |
 | 6, 7, 10, 11 | Obligatorias al construir el CORE: saldos validados, idempotencia, invariantes y conciliación. No hay aún tablas del CORE donde aplicarlas |
 
 ADR **transversal**. Nació para las operaciones críticas del CORE ([ADR-0015](0015-contratos.md) a [ADR-0026](0026-calculos-facturacion.md)), pero la utilidad de transacción, el aislamiento y el protocolo de bloqueo rigen para **todo** el backend.
@@ -228,7 +228,7 @@ No define permisos propios. Cada operación del catálogo exige el permiso de su
 
 - Toda auditoría funcional del CORE se escribe **dentro** de la transacción de la operación que audita ([ADR-0013](0013-auditoria-trazabilidad.md)).
 - Los rechazos por invariante durante la aprobación se registran —fuera de la transacción revertida, en una escritura propia—, porque son la evidencia de concurrencia.
-- Los reintentos por interbloqueo y los incumplimientos detectados por la conciliación quedan en el registro técnico. `winston.config.js` define `logs/api.log` y `logs/error-api.log`, pero **el logger no está montado** en `app.js`.
+- Los reintentos por interbloqueo quedan en el registro técnico (`logs/api.log`, nivel `warn`, vía winston). Los incumplimientos detectados por la conciliación irán al mismo registro cuando exista la conciliación.
 
 ## Validaciones
 
@@ -438,7 +438,7 @@ Tabla completa de datos financieros en [ADR-0026](0026-calculos-facturacion.md),
 | B2 | Ningún bloqueo de filas en el backend | **Alta** — ✅ Cerrada: `withLockedTransaction` (`SELECT … FOR UPDATE` como primeras sentencias, orden fijo) |
 | B3 | Sin idempotencia en ninguna operación | **Alta** |
 | B4 | Sin restricciones `UNIQUE`, `CHECK` ni columnas generadas | **Alta** |
-| B5 | Sin tratamiento de interbloqueos ni esperas de bloqueo | **Media** — ✅ Parcial: espera agotada → `503`, interbloqueo → `409`; falta el reintento acotado en operaciones idempotentes (depende de B3) |
+| B5 | Sin tratamiento de interbloqueos ni esperas de bloqueo | **Media** — ✅ Cerrada: reintento acotado en operaciones idempotentes, `409` si persiste, `503` ante espera agotada. Verificado con un interbloqueo real ([DEC-015](../decisiones/DEC-015-reintento-interbloqueo.md)) |
 | B6 | Nivel de aislamiento implícito | **Media** — ✅ Cerrada: `REPEATABLE READ` declarado en cada transacción |
 | B7 | Transacciones ausentes en `verifyOtp`, `restorePassword` y `forgotPassword` | **Media** — ✅ Cerrada: `verifyOtp` ya no existe; `restorePassword` y `forgotPassword` usan `withTransaction` |
 | B8 | `rollback` en `catch` puede ocultar el error original | **Baja** — ✅ No aplica: Prisma revierte la transacción interactiva y propaga el error original |
@@ -483,7 +483,9 @@ Carreras que esto cerró:
 - `updatePassword` podía pisar un cambio de contraseña simultáneo. Ahora el `UPDATE` se condiciona al hash verificado y responde `409` si cambió.
 - En las ediciones, la lectura "antes" de la bitácora (ADR-0013) ya no puede ser una instantánea vieja: los valores anteriores registrados son los reales.
 
-**Pendiente de esta base**: el reintento acotado por interbloqueo (decisión 8) exige idempotencia (B3). Hoy un interbloqueo responde `409` sin reintentar. `saveProfile` (crear) valida que el nombre no esté repetido sin `UNIQUE` en la BD. Dos creaciones simultáneas con el mismo nombre pueden pasar ambas, porque no hay fila que bloquear. Se resuelve con la restricción `UNIQUE` (B4).
+**Reintento por interbloqueo** (decisión 8, [DEC-015](../decisiones/DEC-015-reintento-interbloqueo.md)): `withTransaction`/`withLockedTransaction` aceptan `{ idempotent: true }` y solo entonces reintentan un interbloqueo, hasta 2 veces. Hoy lo declaran editar usuario, editar perfil, permisos de perfil y de usuario, y editar la cuenta propia. Crear, eliminar y los contadores de login no se reintentan hasta que exista la idempotencia por clave (B3).
+
+**Pendiente de esta base**: `saveProfile` (crear) valida que el nombre no esté repetido sin `UNIQUE` en la BD. Dos creaciones simultáneas con el mismo nombre pueden pasar ambas, porque no hay fila que bloquear. Se resuelve con la restricción `UNIQUE` (B4).
 
 ## Plan de implementación
 

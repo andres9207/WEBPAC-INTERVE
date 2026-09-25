@@ -35,7 +35,7 @@ Una espera de bloqueo agotada respondía el error 500 genérico.
 
 - Tabla nueva que sea raíz de un agregado: se registra en `LOCKABLE` de la utilidad. Su posición en el orden ya está fijada.
 - En los tests, el mock de Prisma incluye `...transactionRawMocks()` (`test/helpers/transaction.mock.js`).
-- **Pendiente**: idempotencia y reintento automático ante interbloqueo (B3, B5); `UNIQUE` en el nombre de perfil (B4).
+- **Pendiente**: idempotencia por clave (B3) y `UNIQUE` en el nombre de perfil (B4). El reintento ante interbloqueo se agregó después, en [DEC-015](DEC-015-reintento-interbloqueo.md).
 
 ## Dónde
 

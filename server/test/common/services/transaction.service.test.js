@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "fs";
 import { join, relative, sep } from "path";
 import { fileURLToPath } from "url";
 import { transactionRawMocks } from "../../helpers/transaction.mock.js";
+import { realDeadlock, realLockWaitTimeout } from "../../helpers/dbErrors.fixtures.js";
 
 const prismaMock = {
   ...transactionRawMocks(),
@@ -10,8 +11,17 @@ const prismaMock = {
 };
 
 jest.unstable_mockModule("../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
+const loggerMock = { warn: jest.fn(), info: jest.fn(), error: jest.fn() };
+jest.unstable_mockModule("../../../src/common/configs/winston.config.js", () => ({ default: loggerMock }));
 
-const { buildLockPlan, withTransaction, withLockedTransaction, ISOLATION_LEVEL, LOCK_WAIT_TIMEOUT_SECONDS } =
+const {
+  buildLockPlan,
+  withTransaction,
+  withLockedTransaction,
+  ISOLATION_LEVEL,
+  LOCK_WAIT_TIMEOUT_SECONDS,
+  MAX_DEADLOCK_RETRIES,
+} =
   await import("../../../src/common/services/transaction.service.js");
 
 beforeEach(() => {
@@ -134,5 +144,59 @@ describe("estándar: nadie abre transacciones ni conexiones por fuera de la util
   it("ningún archivo importa mysql2 ni usa executeQuery / getConnection", () => {
     expect(offenders(/from\s+["']mysql2|require\(\s*["']mysql2/)).toEqual([]);
     expect(offenders(/\b(executeQuery|getConnection|releaseConnection)\b/)).toEqual([]);
+  });
+});
+
+describe("interbloqueos y esperas (ADR-0027, decisión 8)", () => {
+  // Formas reales capturadas contra MySQL (test/helpers/dbErrors.fixtures.js).
+  const deadlock = realDeadlock;
+  const lockWait = realLockWaitTimeout;
+
+  it("operación idempotente: reintenta el interbloqueo y devuelve el resultado del reintento", async () => {
+    prismaMock.$transaction.mockRejectedValueOnce(deadlock());
+    const fn = jest.fn().mockResolvedValue("ok");
+
+    await expect(withTransaction(fn, { idempotent: true })).resolves.toBe("ok");
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(2);
+    expect(loggerMock.warn).toHaveBeenCalledWith(expect.stringContaining("reintento 1/"));
+  });
+
+  it("operación idempotente: si el interbloqueo persiste, se rinde tras MAX_DEADLOCK_RETRIES y propaga el error (→ 409)", async () => {
+    const err = deadlock();
+    prismaMock.$transaction.mockRejectedValue(err);
+
+    await expect(withTransaction(jest.fn(), { idempotent: true })).rejects.toBe(err);
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(MAX_DEADLOCK_RETRIES + 1);
+  });
+
+  it("operación NO idempotente: el interbloqueo no se reintenta nunca", async () => {
+    const err = deadlock();
+    prismaMock.$transaction.mockRejectedValueOnce(err);
+
+    await expect(withTransaction(jest.fn())).rejects.toBe(err);
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(loggerMock.warn).not.toHaveBeenCalled();
+  });
+
+  it("la espera de bloqueo agotada no se reintenta ni siendo idempotente (→ 503)", async () => {
+    const err = lockWait();
+    prismaMock.$transaction.mockRejectedValueOnce(err);
+
+    await expect(withTransaction(jest.fn(), { idempotent: true })).rejects.toBe(err);
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("withLockedTransaction pasa la opción idempotent y vuelve a bloquear en cada reintento", async () => {
+    prismaMock.$transaction.mockRejectedValueOnce(deadlock());
+
+    await withLockedTransaction({ USUARIO: 5 }, jest.fn().mockResolvedValue("ok"), { idempotent: true });
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(2);
+    // El primer intento se rechazó antes de ejecutar el callback; el segundo bloqueó.
+    expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
   });
 });

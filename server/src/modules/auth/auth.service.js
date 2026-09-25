@@ -250,7 +250,7 @@ export const updateAccount = async ({ name, lastName, username, email, useId, ct
     // token coincida con el de la BD: el controller reemite el token con los
     // datos nuevos para que cambiar el propio correo no cierre la sesión.
     return { useId: before.use_id, name, email, proId: before.pro_id };
-  });
+  }, { idempotent: true });
 
 export const updatePassword = async ({ currentPassword, newPassword, useId, ctx = { useId } }) => {
   const user = await prisma.tbl_users.findUnique({

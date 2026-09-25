@@ -28,6 +28,7 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 | [DEC-012](DEC-012-transacciones-bloqueos.md) | 2026-09-25 | Transacciones con utilidad única, `REPEATABLE READ` y protocolo de bloqueo | Obligatoria | [0027](../adr/0027-integridad-transaccional.md) |
 | [DEC-013](DEC-013-paginacion.md) | 2026-09-25 | Paginación con helper único y tope de 100 filas | Obligatoria | — |
 | [DEC-014](DEC-014-autor-por-nombre.md) | 2026-09-25 | Los listados muestran el autor por nombre, resuelto en el backend | Obligatoria | [0013](../adr/0013-auditoria-trazabilidad.md) |
+| [DEC-015](DEC-015-reintento-interbloqueo.md) | 2026-09-25 | Reintento acotado del interbloqueo solo en operaciones idempotentes; 409 si persiste, 503 ante espera agotada | Obligatoria | [0027](../adr/0027-integridad-transaccional.md) |
 
 **Tipo:**
 - **Obligatoria**: regla para todo código nuevo. El checklist de `ENDPOINT_STANDARD.md` la exige y, donde se puede, un test la hace cumplir.
@@ -45,7 +46,7 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 | --- | --- |
 | Pantalla y endpoint para consultar la bitácora, con permiso propio (`per_id` 17) | ADR-0013, B16 |
 | Política de retención de la bitácora | ADR-0013, B15 |
-| Idempotencia y reintento acotado ante interbloqueo | ADR-0027, B3 y B5 |
+| Idempotencia por clave en crear y transiciones (permitiría reintentar también esas operaciones) | ADR-0027, B3 |
 | `UNIQUE` en el nombre de perfil: dos creaciones simultáneas con el mismo nombre pueden pasar | ADR-0027, B4 |
 | MFA | ADR-0001 |
 

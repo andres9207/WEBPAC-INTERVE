@@ -1,4 +1,5 @@
 import { jest } from "@jest/globals";
+import { realDeadlock, realLockWaitTimeout } from "../../helpers/dbErrors.fixtures.js";
 
 const { default: errorMiddleware } = await import(
   "../../../src/common/middlewares/error.middleware.js"
@@ -130,18 +131,11 @@ describe("errorMiddleware — errores de Prisma", () => {
 });
 
 describe("errorMiddleware — concurrencia (ADR-0027)", () => {
-  // Forma real verificada contra MySQL: un SELECT … FOR UPDATE que agota la
-  // espera llega por el adapter como P2010 con el 1205 en meta.
-  const adapterError = (code, driverCode) =>
-    Object.assign(new Error(`Raw query failed. Code: \`${driverCode}\``), {
-      code,
-      meta: { driverAdapterError: { cause: { kind: "mysql", code: driverCode } } },
-    });
-
+  // Formas reales capturadas contra MySQL (test/helpers/dbErrors.fixtures.js).
   it.each([
-    ["espera de bloqueo agotada (adapter, P2010 + 1205)", adapterError("P2010", 1205), 503],
+    ["espera de bloqueo agotada (adapter, P2010 + 1205)", realLockWaitTimeout(), 503],
     ["espera de bloqueo agotada (código del driver)", Object.assign(new Error("Lock wait"), { code: "ER_LOCK_WAIT_TIMEOUT" }), 503],
-    ["interbloqueo (adapter)", adapterError("P2010", 1213), 409],
+    ["interbloqueo (adapter, P2010 + TransactionWriteConflict)", realDeadlock(), 409],
     ["interbloqueo (código del driver)", Object.assign(new Error("Deadlock"), { code: "ER_LOCK_DEADLOCK" }), 409],
   ])("%s no cae en el 500 genérico", (_name, err, status) => {
     const res = buildRes();

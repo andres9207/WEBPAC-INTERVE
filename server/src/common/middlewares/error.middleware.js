@@ -1,3 +1,5 @@
+import { isDeadlock, isLockWaitTimeout } from "../utils/dbErrors.utils.js";
+
 // Errores conocidos de Prisma (todos los services usan Prisma desde la
 // migración, ver SECURITY.md). Antes caían en el `default` del bloque de
 // MySQL de abajo, porque también traen `.code`, y todos respondían 500
@@ -22,16 +24,16 @@ const PRISMA_ERRORS = {
 // Concurrencia (ADR-0027, decisión 8). Con los bloqueos de
 // transaction.service.js, una espera agotada (1205) o un interbloqueo (1213)
 // son situaciones esperables, no fallos de sistema. Por el adapter llegan
-// envueltos en un error de Prisma (1205 como P2010 en una consulta cruda; el
-// 1213 ya se traduce a P2034), y directo del driver con su código ER_*.
+// envueltos en un P2010 genérico, así que se reconocen con dbErrors.utils.js
+// (la misma clasificación que decide el reintento en transaction.service.js).
+// Un interbloqueo llega aquí solo si la operación no era idempotente o si
+// persistió tras los reintentos.
 const LOCK_WAIT_TIMEOUT = [503, "Otra operación está usando este registro. Intenta de nuevo en unos segundos."];
 const DEADLOCK = PRISMA_ERRORS.P2034;
 
-const driverErrorCode = (err) => err.meta?.driverAdapterError?.cause?.code;
-
 const concurrencyError = (err) => {
-  if (err.code === "ER_LOCK_WAIT_TIMEOUT" || driverErrorCode(err) === 1205) return LOCK_WAIT_TIMEOUT;
-  if (err.code === "ER_LOCK_DEADLOCK" || driverErrorCode(err) === 1213) return DEADLOCK;
+  if (isLockWaitTimeout(err)) return LOCK_WAIT_TIMEOUT;
+  if (isDeadlock(err)) return DEADLOCK;
   return null;
 };
 
