@@ -87,7 +87,7 @@ Por eso casi todos los ADR están en estado `Propuesto`:
 | [0024](0024-amortizacion-anticipo.md) | Saldo único por contrato, calculado; amortiza contra lo facturado | Facturación | Propuesto | 0016, 0021, 0027 |
 | [0025](0025-retenciones.md) | Retenido simétrico al anticipo; distinto de retenciones tributarias | Facturación | Propuesto | 0016, 0021, 0024, 0027 |
 | [0026](0026-calculos-facturacion.md) | Módulo de cálculo único, versionado, con aritmética exacta | **Transversal del CORE** | Propuesto | 0006, 0016, 0019, 0020 |
-| [0027](0027-integridad-transaccional.md) | Transacción por operación, bloqueo del contrato, idempotencia | **Transversal del CORE** | Propuesto | 0013, 0014 |
+| [0027](0027-integridad-transaccional.md) | Transacción por operación, bloqueo del contrato, idempotencia | **Transversal del CORE** | **Aceptado — estándar obligatorio** para todo service (utilidad de transacción, `REPEATABLE READ`, protocolo de bloqueo); idempotencia e invariantes se aplican al construir el CORE | 0013, 0014 |
 
 ---
 

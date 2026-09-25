@@ -1,4 +1,5 @@
 import { jest } from "@jest/globals";
+import { transactionRawMocks } from "../../helpers/transaction.mock.js";
 
 process.env.JWT_SECRET = "test-secret";
 
@@ -24,6 +25,7 @@ const prismaMock = {
     update: jest.fn(),
     deleteMany: jest.fn(),
   },
+  ...transactionRawMocks(),
   $transaction: jest.fn(runTransaction),
 };
 
@@ -277,7 +279,7 @@ describe("updatePassword", () => {
 
     expect(mockHashPassword).toHaveBeenCalledWith("nueva12345");
     expect(prismaMock.tbl_users.updateMany).toHaveBeenCalledWith({
-      where: { use_id: 1 },
+      where: { use_id: 1, use_password: "hash" },
       data: { use_password: "hashed:pw", use_update_by: 1 },
     });
     expect(user).toEqual({ useId: 1, name: "Admin", email: "a@a.com", proId: 1 });

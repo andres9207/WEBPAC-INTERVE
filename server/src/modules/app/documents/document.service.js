@@ -1,4 +1,5 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
+import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 
 const DOC_SELECT = {
   doc_id: true,
@@ -194,7 +195,7 @@ export const saveModuleDoc = async ({
 };
 
 export const deleteModuleDoc = async ({ id, usuAct }) => {
-  return prisma.$transaction(async (tx) => {
+  return withLockedTransaction({ DOCUMENTO: id }, async (tx) => {
     const doc = await tx.tbl_documents.findUnique({
       where: { doc_id: Number(id) },
       select: { doc_id: true, doc_extension: true, doc_mime_type: true },

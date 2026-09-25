@@ -1,4 +1,5 @@
 import { jest } from "@jest/globals";
+import { transactionRawMocks } from "../../helpers/transaction.mock.js";
 import crypto from "crypto";
 
 process.env.JWT_SECRET = "test-secret";
@@ -12,6 +13,7 @@ const prismaMock = {
     deleteMany: jest.fn(),
   },
   tbl_audit_log: { createMany: jest.fn() },
+  ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
 };
 

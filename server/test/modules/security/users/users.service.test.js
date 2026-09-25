@@ -1,9 +1,12 @@
 import { jest } from "@jest/globals";
+import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
 
 const prismaMock = {
   tbl_users: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
   tbl_user_pages: { findMany: jest.fn(), deleteMany: jest.fn(), createMany: jest.fn() },
+  tbl_profiles: { findUnique: jest.fn() },
   tbl_audit_log: { createMany: jest.fn() },
+  ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
 };
 
@@ -25,6 +28,7 @@ beforeEach(() => {
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
   prismaMock.tbl_users.findFirst.mockResolvedValue(null);
   prismaMock.tbl_user_pages.findMany.mockResolvedValue([]);
+  prismaMock.tbl_profiles.findUnique.mockResolvedValue({ sta_id: 1 });
 });
 
 const baseUser = {
@@ -120,5 +124,32 @@ describe("saveUser — bitácora", () => {
     expect(rows.find((r) => r.aud_field === "paginas").aud_new_value).toBe("3,4");
     expect(rows.find((r) => r.aud_field === "use_password").aud_new_value).toBe("[oculto]");
     expect(new Set(rows.map((r) => r.aud_operation_id)).size).toBe(1);
+  });
+});
+
+describe("saveUser — protocolo de bloqueo (ADR-0027)", () => {
+  const lockedTables = () =>
+    prismaMock.$queryRaw.mock.calls.map(([strings, ...values]) => {
+      const sql = strings.join("?") + values.map((v) => v?.strings?.join("") ?? "").join(" ");
+      return /tbl_profiles/.test(sql) ? "PERFIL" : /tbl_users/.test(sql) ? "USUARIO" : "?";
+    });
+
+  it("al editar bloquea primero el perfil asignado y después el usuario, antes de leer nada", async () => {
+    prismaMock.tbl_users.findUnique.mockResolvedValue(baseUser);
+
+    await usersService.saveUser({ ...editPayload, name: "Ana María" });
+
+    expect(lockedTables()).toEqual(["PERFIL", "USUARIO"]);
+    const firstLock = prismaMock.$queryRaw.mock.invocationCallOrder[0];
+    expect(prismaMock.tbl_users.findUnique.mock.invocationCallOrder[0]).toBeGreaterThan(firstLock);
+    expect(prismaMock.tbl_profiles.findUnique.mock.invocationCallOrder[0]).toBeGreaterThan(firstLock);
+  });
+
+  it("rechaza asignar un perfil eliminado (verificado con el perfil bloqueado) y no escribe nada", async () => {
+    prismaMock.tbl_profiles.findUnique.mockResolvedValue({ sta_id: 3 });
+
+    await expect(usersService.saveUser({ ...editPayload, useId: 0 })).rejects.toMatchObject({ status: 400 });
+    expect(prismaMock.tbl_users.create).not.toHaveBeenCalled();
+    expect(auditRows()).toEqual([]);
   });
 });

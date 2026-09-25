@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { prisma } from "../../../common/configs/prismaClient.js";
+import { withLockedTransaction, withTransaction } from "../../../common/services/transaction.service.js";
 import {
   AUDIT_ENTITIES,
   AUDIT_OPERATIONS,
@@ -108,7 +109,11 @@ export const saveProfile = async ({
 }) => {
   const operationId = newOperationId();
 
-  return prisma.$transaction(async (tx) => {
+  // Editar bloquea el perfil antes de leer nada (ADR-0027); crear no tiene
+  // fila que bloquear.
+  const run = proId > 0 ? (fn) => withLockedTransaction({ PERFIL: proId }, fn) : withTransaction;
+
+  return run(async (tx) => {
     const duplicate = await tx.tbl_profiles.findFirst({
       where: {
         pro_name: name,
@@ -226,9 +231,10 @@ export const saveProfile = async ({
 };
 
 export const deleteProfile = async ({ proId, updatedBy, ctx = { useId: updatedBy } }) => {
-  // prisma.$transaction hace rollback solo si el callback lanza — reemplaza
-  // el beginTransaction/commit/rollback manual de mysql2.
-  return prisma.$transaction(async (tx) => {
+  // La transacción hace rollback si el callback lanza. El perfil se bloquea
+  // primero: saveUser bloquea el perfil que asigna, así que la verificación
+  // de "sin usuarios" de abajo no se cruza con una asignación (ADR-0027).
+  return withLockedTransaction({ PERFIL: proId }, async (tx) => {
     // Bloquear si hay usuarios activos con este perfil: antes no se
     // verificaba, así que un perfil se podía "eliminar" (soft-delete) con
     // usuarios todavía asignados — esos usuarios quedaban con pro_id

@@ -1,10 +1,12 @@
 import { jest } from "@jest/globals";
+import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
 
 const prismaMock = {
   tbl_profile_permissions: { findMany: jest.fn(), deleteMany: jest.fn(), createMany: jest.fn() },
   tbl_user_permissions: { findMany: jest.fn(), deleteMany: jest.fn(), createMany: jest.fn() },
   tbl_users: { findUnique: jest.fn() },
   tbl_audit_log: { createMany: jest.fn() },
+  ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
 };
 

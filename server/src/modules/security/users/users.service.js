@@ -1,5 +1,6 @@
 import { hashPassword } from "../../../common/utils/funciones.js";
 import { prisma } from "../../../common/configs/prismaClient.js";
+import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import {
   AUDIT_ENTITIES,
   AUDIT_OPERATIONS,
@@ -182,6 +183,20 @@ const AUDITED_USER_FIELDS = [
 
 const DELETED_STATUS = 3;
 
+// El perfil asignado se verifica con su fila ya bloqueada: deleteProfile
+// bloquea el mismo perfil antes de comprobar que no tenga usuarios, así que
+// asignar un perfil y eliminarlo no pueden cruzarse (ADR-0027).
+const assertAssignableProfile = async (tx, locked, proId) => {
+  const profile = locked.PERFIL.length
+    ? await tx.tbl_profiles.findUnique({ where: { pro_id: Number(proId) }, select: { sta_id: true } })
+    : null;
+  if (!profile || profile.sta_id === DELETED_STATUS) {
+    const error = new Error("El perfil seleccionado no existe.");
+    error.status = 400;
+    throw error;
+  }
+};
+
 export const saveUser = async ({
   useId,
   proId,
@@ -215,7 +230,9 @@ export const saveUser = async ({
   const operationId = newOperationId();
 
   if (useId > 0) {
-    return prisma.$transaction(async (tx) => {
+    return withLockedTransaction({ PERFIL: proId, USUARIO: useId }, async (tx, locked) => {
+      await assertAssignableProfile(tx, locked, proId);
+
       const before = await tx.tbl_users.findUnique({
         where: { use_id: Number(useId) },
         select: { ...Object.fromEntries(AUDITED_USER_FIELDS.map((f) => [f, true])) },
@@ -301,7 +318,9 @@ export const saveUser = async ({
     });
   }
 
-  return prisma.$transaction(async (tx) => {
+  return withLockedTransaction({ PERFIL: proId }, async (tx, locked) => {
+    await assertAssignableProfile(tx, locked, proId);
+
     const data = {
       use_name: name,
       use_last_name: lastName,
@@ -358,7 +377,7 @@ export const deleteUser = async ({ useId, updatedBy, ctx = { useId: updatedBy } 
     throw error;
   }
 
-  return prisma.$transaction(async (tx) => {
+  return withLockedTransaction({ USUARIO: useId }, async (tx) => {
     const before = await tx.tbl_users.findUnique({
       where: { use_id: Number(useId) },
       select: { sta_id: true },

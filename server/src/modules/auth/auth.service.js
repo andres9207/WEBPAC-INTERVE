@@ -6,6 +6,7 @@ import { sendEmail } from "../../common/services/mailerService.js";
 import { prisma } from "../../common/configs/prismaClient.js";
 import { getEffectivePermissionIds } from "../../common/services/effectivePermissions.service.js";
 import { revokeSession } from "../../common/services/session.service.js";
+import { withLockedTransaction, withTransaction } from "../../common/services/transaction.service.js";
 import {
   AUDIT_ENTITIES,
   AUDIT_OPERATIONS,
@@ -60,7 +61,7 @@ export const lockDurationFor = (failedCount) => {
 const anonymous = (ctx) => ({ useId: null, ip: ctx?.ip ?? null });
 
 const registerFailedLogin = async (useId, ctx) =>
-  prisma.$transaction(async (tx) => {
+  withTransaction(async (tx) => {
     const { lat_failed_count } = await tx.tbl_login_attempts.upsert({
       where: { use_id: useId },
       create: { use_id: useId, lat_failed_count: 1, lat_last_failed_at: new Date() },
@@ -217,7 +218,7 @@ export const getBasicInformation = async ({ useId }) => {
 const ACCOUNT_FIELDS = ["use_name", "use_last_name", "use_user", "use_email"];
 
 export const updateAccount = async ({ name, lastName, username, email, useId, ctx = { useId } }) =>
-  prisma.$transaction(async (tx) => {
+  withLockedTransaction({ USUARIO: useId }, async (tx) => {
     const before = await tx.tbl_users.findUnique({
       where: { use_id: Number(useId) },
       select: { use_id: true, use_name: true, use_last_name: true, use_user: true, use_email: true, pro_id: true },
@@ -277,15 +278,19 @@ export const updatePassword = async ({ currentPassword, newPassword, useId, ctx 
 
   const hash = await hashPassword(newPassword);
 
-  await prisma.$transaction(async (tx) => {
+  // bcrypt (compare + hash) queda FUERA de la transacción a propósito: tarda
+  // decenas de ms y no debe retener el bloqueo (ADR-0027, decisión 9). A
+  // cambio, el update se condiciona al hash que se verificó: si otra petición
+  // cambió la contraseña en medio, no se pisa ese cambio.
+  await withLockedTransaction({ USUARIO: useId }, async (tx) => {
     const result = await tx.tbl_users.updateMany({
-      where: { use_id: Number(useId) },
+      where: { use_id: Number(useId), use_password: user.use_password },
       data: { use_password: hash, use_update_by: Number(useId) },
     });
 
     if (result.count === 0) {
-      const error = new Error("Hubo un problema al cambiar tu contraseña.");
-      error.statusCode = 400;
+      const error = new Error("Tu contraseña cambió mientras se procesaba la solicitud. Intenta de nuevo.");
+      error.statusCode = 409;
       throw error;
     }
 
@@ -355,7 +360,7 @@ const consumeResetAttempt = async ({ email, codeTemp, ctx }) => {
   // El intento consumido y su registro en la bitácora van juntos. La
   // transacción no lanza en los casos de fallo (eso revertiría el intento
   // consumido): devuelve el resultado y se lanza después de confirmarla.
-  const outcome = await prisma.$transaction(async (tx) => {
+  const outcome = await withTransaction(async (tx) => {
     const failed = (motivo) =>
       writeAudit(tx, {
         entity: AUDIT_ENTITIES.USER,
@@ -401,7 +406,7 @@ export const restorePassword = async ({ email, nuevaContrasena, codeTemp, ctx = 
   // levanta un posible bloqueo por intentos fallidos de login. El autor es
   // el propio usuario (demostró ser el dueño del correo), aunque no tenga
   // sesión.
-  await prisma.$transaction(async (tx) => {
+  await withTransaction(async (tx) => {
     await tx.tbl_users.updateMany({
       where: { use_id: usuarioID },
       data: { use_password: hashedPassword, use_update_by: usuarioID },
@@ -476,7 +481,7 @@ export const forgotPassword = async ({ email, ctx = {} }) => {
       par_create_at: new Date(),
     };
 
-    await prisma.$transaction(async (tx) => {
+    await withTransaction(async (tx) => {
       await tx.tbl_password_resets.upsert({
         where: { use_id: usuarioID },
         create: { use_id: usuarioID, ...resetData },

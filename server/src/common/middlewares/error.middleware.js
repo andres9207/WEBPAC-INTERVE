@@ -19,6 +19,22 @@ const PRISMA_ERRORS = {
   P2034: [409, "Conflicto de concurrencia en la base de datos. Intenta de nuevo."],
 };
 
+// Concurrencia (ADR-0027, decisión 8). Con los bloqueos de
+// transaction.service.js, una espera agotada (1205) o un interbloqueo (1213)
+// son situaciones esperables, no fallos de sistema. Por el adapter llegan
+// envueltos en un error de Prisma (1205 como P2010 en una consulta cruda; el
+// 1213 ya se traduce a P2034), y por mysql2 con su código ER_*.
+const LOCK_WAIT_TIMEOUT = [503, "Otra operación está usando este registro. Intenta de nuevo en unos segundos."];
+const DEADLOCK = PRISMA_ERRORS.P2034;
+
+const driverErrorCode = (err) => err.meta?.driverAdapterError?.cause?.code;
+
+const concurrencyError = (err) => {
+  if (err.code === "ER_LOCK_WAIT_TIMEOUT" || driverErrorCode(err) === 1205) return LOCK_WAIT_TIMEOUT;
+  if (err.code === "ER_LOCK_DEADLOCK" || driverErrorCode(err) === 1213) return DEADLOCK;
+  return null;
+};
+
 const isMySqlCode = (code) =>
   typeof code === "string" && (code.startsWith("ER_") || code === "PROTOCOL_CONNECTION_LOST");
 
@@ -26,7 +42,15 @@ const errorMiddleware = (err, req, res, next) => {
   // Registrar el error para depuración
   console.error(`[ERROR]: ${err.stack || err.message}`);
 
-  // **0. Errores de Prisma**
+  // **0. Concurrencia** (antes que Prisma: el 1205 llega como un P2010
+  // genérico y caería en el 500).
+  const concurrency = concurrencyError(err);
+  if (concurrency) {
+    const [status, message] = concurrency;
+    return res.status(status).json({ success: false, message });
+  }
+
+  // **0.1 Errores de Prisma**
   if (typeof err.code === "string" && PRISMA_ERRORS[err.code]) {
     const [status, message] = PRISMA_ERRORS[err.code];
     return res.status(status).json({ success: false, message });

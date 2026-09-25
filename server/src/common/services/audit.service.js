@@ -134,8 +134,8 @@ const buildRows = ({ operationId, entity, recordId, operation, ctx, changes }) =
 
 /**
  * Escribe en la bitácora dentro de la transacción de la operación auditada.
- * `tx` es el cliente que Prisma entrega en `prisma.$transaction(async (tx) =>
- * ...)`: si la operación se revierte, su auditoría se revierte con ella, y
+ * `tx` es el cliente que entrega withTransaction / withLockedTransaction
+ * (ADR-0027): si la operación se revierte, su auditoría se revierte con ella, y
  * viceversa. Pasar `prisma` (o nada) lanza: escribiría fuera de la
  * transacción y podría quedar una auditoría sin operación o al revés.
  *

@@ -1,5 +1,6 @@
 import { getIO } from "../../../common/configs/socket.manager.js";
 import { prisma } from "../../../common/configs/prismaClient.js";
+import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 import {
   AUDIT_ENTITIES,
@@ -195,7 +196,7 @@ export const updateProfilePermissions = async ({ permissions, proId, actingProId
     throw error;
   }
 
-  await prisma.$transaction(async (tx) => {
+  await withLockedTransaction({ PERFIL: proId }, async (tx) => {
     const currentPermissions = await tx.tbl_profile_permissions.findMany({
       where: { pro_id: Number(proId) },
       select: { per_id: true },
@@ -261,21 +262,25 @@ export const updateUserPermissions = async ({ permissions, useId, actingUseId, c
   // (nunca una resta), desde esta pantalla no se puede revocarle a un
   // usuario puntual un permiso que su perfil ya le da — eso solo se quita
   // editando el perfil (afecta a todos sus usuarios) o cambiándolo de perfil.
-  const user = await prisma.tbl_users.findUnique({
-    where: { use_id: Number(useId) },
-    select: { pro_id: true },
-  });
+  //
+  // Todo se lee DESPUÉS de bloquear al usuario (ADR-0027): con REPEATABLE
+  // READ, leer antes fijaría una instantánea que no vería un cambio de
+  // perfil confirmado mientras se esperaba el bloqueo.
+  const user = await withLockedTransaction({ USUARIO: useId }, async (tx) => {
+    const target = await tx.tbl_users.findUnique({
+      where: { use_id: Number(useId) },
+      select: { pro_id: true },
+    });
 
-  const profilePermissions = user?.pro_id
-    ? await prisma.tbl_profile_permissions.findMany({
-        where: { pro_id: user.pro_id },
-        select: { per_id: true },
-      })
-    : [];
-  const profileGrantedSet = new Set(profilePermissions.map((p) => p.per_id));
-  const desiredIndividual = permissions.filter((perId) => !profileGrantedSet.has(perId));
+    const profilePermissions = target?.pro_id
+      ? await tx.tbl_profile_permissions.findMany({
+          where: { pro_id: target.pro_id },
+          select: { per_id: true },
+        })
+      : [];
+    const profileGrantedSet = new Set(profilePermissions.map((p) => p.per_id));
+    const desiredIndividual = permissions.filter((perId) => !profileGrantedSet.has(perId));
 
-  await prisma.$transaction(async (tx) => {
     const currentPermissions = await tx.tbl_user_permissions.findMany({
       where: { use_id: Number(useId) },
       select: { per_id: true },
@@ -306,6 +311,8 @@ export const updateUserPermissions = async ({ permissions, useId, actingUseId, c
       revoked: toDelete,
       ctx,
     });
+
+    return target;
   });
 
   // Efectivo (unión), no solo las excepciones individuales que se acaban de

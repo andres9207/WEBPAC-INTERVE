@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../configs/prismaClient.js";
 import { getIO } from "../configs/socket.manager.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, writeAudit } from "./audit.service.js";
+import { withTransaction } from "./transaction.service.js";
 
 /**
  * Sesiones de usuario (ADR-0001, B14) — tbl_sessions.
@@ -123,7 +124,7 @@ export const createSession = async ({ user, ip, userAgent, auditOperation = null
 
   // `auditOperation` (p. ej. LOGIN) se registra en la misma transacción que
   // la sesión: no puede quedar una sesión abierta sin su evento, ni al revés.
-  const previous = await prisma.$transaction(async (tx) => {
+  const previous = await withTransaction(async (tx) => {
     const prev = await tx.tbl_sessions.findUnique({
       where: { use_id: user.useId },
       select: { ses_key: true },
@@ -265,7 +266,7 @@ export const refreshSession = async ({ refreshToken }) => {
 export const revokeSession = async ({ useId, audit = null }) => {
   if (!useId) return;
 
-  const previous = await prisma.$transaction(async (tx) => {
+  const previous = await withTransaction(async (tx) => {
     const prev = await tx.tbl_sessions.findUnique({
       where: { use_id: Number(useId) },
       select: { ses_key: true },

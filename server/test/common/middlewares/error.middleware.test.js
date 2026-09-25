@@ -128,3 +128,27 @@ describe("errorMiddleware — errores de Prisma", () => {
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: "Archivo demasiado grande" }));
   });
 });
+
+describe("errorMiddleware — concurrencia (ADR-0027)", () => {
+  // Forma real verificada contra MySQL: un SELECT … FOR UPDATE que agota la
+  // espera llega por el adapter como P2010 con el 1205 en meta.
+  const adapterError = (code, driverCode) =>
+    Object.assign(new Error(`Raw query failed. Code: \`${driverCode}\``), {
+      code,
+      meta: { driverAdapterError: { cause: { kind: "mysql", code: driverCode } } },
+    });
+
+  it.each([
+    ["espera de bloqueo agotada (adapter, P2010 + 1205)", adapterError("P2010", 1205), 503],
+    ["espera de bloqueo agotada (mysql2)", Object.assign(new Error("Lock wait"), { code: "ER_LOCK_WAIT_TIMEOUT" }), 503],
+    ["interbloqueo (adapter)", adapterError("P2010", 1213), 409],
+    ["interbloqueo (mysql2)", Object.assign(new Error("Deadlock"), { code: "ER_LOCK_DEADLOCK" }), 409],
+  ])("%s no cae en el 500 genérico", (_name, err, status) => {
+    const res = buildRes();
+
+    errorMiddleware(err, {}, res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(status);
+    expect(res.json.mock.calls[0][0].message).not.toMatch(/Raw query|Lock wait|Deadlock/);
+  });
+});
