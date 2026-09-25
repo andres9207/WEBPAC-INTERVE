@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
-import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Badge from '@mui/material/Badge';
-import Typography from '@mui/material/Typography';
 
 import { IconEdit, IconTrash, IconKey, IconPlus, IconFilter } from '@tabler/icons-react';
 
@@ -12,6 +10,7 @@ import MainCard from 'ui-component/cards/MainCard';
 import FilterPopper from 'ui-component/extended/FilterPopper';
 import DataTable from 'ui-component/extended/DataTable';
 import StatusChip from 'ui-component/extended/StatusChip';
+import LastModifiedCell from 'ui-component/extended/LastModifiedCell';
 import ProfileDialog from './components/ProfileDialog';
 import { STATUS_OPTIONS } from 'utils/constants';
 import PermissionsDrawer from './components/PermissionsDrawer';
@@ -142,14 +141,7 @@ export default function ProfilesPage() {
     {
       id: 'modified',
       label: 'Últ. modificación',
-      render: (row) => (
-        <Box>
-          <Typography variant="caption">{row.updatedBy}</Typography>
-          <Typography variant="caption" display="block" color="text.secondary">
-            {row.updatedAt}
-          </Typography>
-        </Box>
-      ),
+      render: (row) => <LastModifiedCell name={row.updatedByName} date={row.updatedAt} />,
     },
   ];
 

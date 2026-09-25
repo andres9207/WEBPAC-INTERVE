@@ -21,6 +21,7 @@ import {
   hashResetCode,
   verifyResetCode,
 } from "../../common/utils/resetCode.utils.js";
+import { userFullName } from "../../common/utils/user.utils.js";
 
 // ── Bloqueo por intentos fallidos de login (por cuenta) ─────────────────────
 // Complementa el rate limit por IP (authRateLimit), que se esquiva rotando
@@ -175,10 +176,7 @@ export const login = async ({ usuario, clave, password, ctx = {} }) => {
     proId: userData.pro_id,
   });
 
-  const fullName = [userData.use_name, userData.use_last_name]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  const fullName = userFullName(userData) ?? "";
 
   // La sesión (tbl_sessions + cookies) la abre el controller con estos
   // datos: el service no conoce la request (IP, user-agent) ni la respuesta.

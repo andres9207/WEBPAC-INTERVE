@@ -10,6 +10,7 @@ import MainCard from 'ui-component/cards/MainCard';
 import FilterPopper from 'ui-component/extended/FilterPopper';
 import DataTable from 'ui-component/extended/DataTable';
 import StatusChip from 'ui-component/extended/StatusChip';
+import LastModifiedCell from 'ui-component/extended/LastModifiedCell';
 import UserDialog from './components/UserDialog';
 import PermissionsDrawer from '../profiles/components/PermissionsDrawer';
 import { paginationUsersAPI, deleteUserAPI } from 'api/requests/usersApi';
@@ -156,6 +157,11 @@ export default function UsersPage() {
       render: (row) => (
         <StatusChip staId={row.staId} label={row.statusName} />
       ),
+    },
+    {
+      id: 'modified',
+      label: 'Últ. modificación',
+      render: (row) => <LastModifiedCell name={row.updatedByName} date={row.updatedAt} />,
     },
   ];
 

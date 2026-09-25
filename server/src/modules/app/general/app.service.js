@@ -1,5 +1,6 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
+import { userFullName } from "../../../common/utils/user.utils.js";
 
 const PAGE_SELECT = {
   pag_id: true,
@@ -117,10 +118,7 @@ export const getSessionInfo = async ({ useId }) => {
     throw error;
   }
 
-  const fullName = [userData.use_name, userData.use_last_name]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  const fullName = userFullName(userData) ?? "";
 
   // Unión de los permisos del perfil y las excepciones individuales — ver
   // effectivePermissions.service.js.

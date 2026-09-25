@@ -1,6 +1,7 @@
 import { hashPassword } from "../../../common/utils/funciones.js";
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { paginate } from "../../../common/utils/pagination.utils.js";
+import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import {
   AUDIT_ENTITIES,
@@ -84,6 +85,7 @@ export const paginationUsers = async ({
         tbl_profiles: { select: { pro_name: true } },
         tbl_status: { select: { sta_name: true } },
         tbl_user_pages: { select: { pag_id: true } },
+        updated_by_user: USER_NAME_SELECT,
       },
       orderBy,
     },
@@ -103,6 +105,8 @@ export const paginationUsers = async ({
     changePassword: u.use_change_password,
     updatedAt: u.use_update_at,
     updatedBy: u.use_update_by,
+    // Nombre del autor resuelto aquí: el cliente no tiene por qué traducir ids.
+    updatedByName: userFullName(u.updated_by_user),
     staId: u.sta_id,
     proId: u.pro_id,
     // Contrato sin cambios hacia el cliente (UserDialog.jsx sigue

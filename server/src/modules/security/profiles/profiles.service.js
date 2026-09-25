@@ -1,6 +1,7 @@
 import _ from "lodash";
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { paginate } from "../../../common/utils/pagination.utils.js";
+import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { withLockedTransaction, withTransaction } from "../../../common/services/transaction.service.js";
 import {
   AUDIT_ENTITIES,
@@ -52,6 +53,7 @@ export const paginationProfiles = async ({
         pro_update_at: true,
         sta_id: true,
         tbl_status: { select: { sta_name: true } },
+        updated_by_user: USER_NAME_SELECT,
       },
       orderBy,
     },
@@ -63,6 +65,7 @@ export const paginationProfiles = async ({
     name: p.pro_name,
     statusName: p.tbl_status?.sta_name ?? null,
     updatedBy: p.pro_update_by,
+    updatedByName: userFullName(p.updated_by_user),
     updatedAt: p.pro_update_at,
     staId: p.sta_id,
   }));
