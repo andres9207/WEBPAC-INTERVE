@@ -1,4 +1,7 @@
 import { jest } from "@jest/globals";
+import { readdirSync, readFileSync } from "fs";
+import { join, relative, sep } from "path";
+import { fileURLToPath } from "url";
 import { transactionRawMocks } from "../../helpers/transaction.mock.js";
 
 const prismaMock = {
@@ -84,5 +87,52 @@ describe("withLockedTransaction", () => {
   it("un plan inválido falla antes de abrir la transacción", () => {
     expect(() => withLockedTransaction({ CONTRATO: 1 }, jest.fn())).toThrow(/sin tabla registrada/);
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("withTransaction — errores", () => {
+  it("propaga el error original de la operación, sin envolverlo ni reemplazarlo", async () => {
+    // El rollback lo hace Prisma: si falla, lo registra y vuelve a lanzar el
+    // error de la operación (runtime de @prisma/client, _transactionWithCallback).
+    const original = Object.assign(new Error("regla de negocio"), { statusCode: 409 });
+
+    await expect(withTransaction(async () => { throw original; })).rejects.toBe(original);
+  });
+});
+
+// ── Regla del estándar (ADR-0027, decisión 2) ──────────────────────────────
+// La utilidad es la ÚNICA puerta a una transacción. Este test recorre src/ y
+// falla si alguien vuelve a abrir la puerta de al lado: prisma.$transaction
+// directo, o el pool de mysql2 con executeQuery (que tomaba una conexión
+// nueva si se omitía el parámetro y dejaba escapar escrituras de la
+// transacción).
+describe("estándar: nadie abre transacciones ni conexiones por fuera de la utilidad", () => {
+
+  const srcDir = join(fileURLToPath(new URL(".", import.meta.url)), "..", "..", "..", "src");
+  const walk = (dir) =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+      entry.isDirectory() ? walk(join(dir, entry.name)) : entry.name.endsWith(".js") ? [join(dir, entry.name)] : []
+    );
+  // Sin comentarios: la regla aplica al código, no a su documentación.
+  const code = (file) =>
+    readFileSync(file, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+  const sources = walk(srcDir).map((file) => ({ file: relative(srcDir, file).split(sep).join("/"), text: code(file) }));
+  const offenders = (pattern, allowed = []) =>
+    sources.filter(({ file, text }) => pattern.test(text) && !allowed.includes(file)).map(({ file }) => file);
+
+  it("recorre de verdad src/ (si no encuentra archivos, las demás aserciones no prueban nada)", () => {
+    expect(sources.length).toBeGreaterThan(20);
+    expect(sources.map((s) => s.file)).toContain("common/services/transaction.service.js");
+  });
+
+  it("prisma.$transaction solo se llama desde common/services/transaction.service.js", () => {
+    expect(offenders(/\.\$transaction\s*\(/, ["common/services/transaction.service.js"])).toEqual([]);
+  });
+
+  it("ningún archivo importa mysql2 ni usa executeQuery / getConnection", () => {
+    expect(offenders(/from\s+["']mysql2|require\(\s*["']mysql2/)).toEqual([]);
+    expect(offenders(/\b(executeQuery|getConnection|releaseConnection)\b/)).toEqual([]);
   });
 });

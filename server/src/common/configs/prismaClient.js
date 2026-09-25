@@ -4,7 +4,11 @@ import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
 // Prisma 7 ya no trae motor de conexión propio: requiere un "driver adapter"
 // explícito. MySQL usa el adapter de MariaDB (misma librería de cliente wire
-// protocol), independiente del pool de mysql2 que sigue usando db.config.js.
+// protocol). Es el ÚNICO acceso a la base de datos del backend: el pool de
+// mysql2 (db.config.js, con executeQuery/getConnection) se eliminó porque
+// executeQuery tomaba una conexión nueva si se omitía el parámetro, y una
+// escritura "dentro" de una transacción podía escapar de ella (ADR-0027, B1).
+// Las transacciones se abren con common/services/transaction.service.js.
 //
 // Zona horaria (ADR-0013, B8): el adapter escribe las fechas como texto UTC y
 // lee lo que devuelve MySQL como si fuera UTC, sin importar process.env.TZ.
@@ -24,9 +28,29 @@ const withUtcSession = (databaseUrl) => {
 
 const adapter = new PrismaMariaDb(withUtcSession(process.env.DATABASE_URL));
 
-// Instancia única, igual que el pool de mysql2 en db.config.js: evitar abrir
-// un cliente/pool de conexiones nuevo en cada import (nodemon recarga el
-// proceso completo, así que un solo módulo = una sola instancia por proceso).
+// Instancia única: evitar abrir un cliente/pool de conexiones nuevo en cada
+// import (nodemon recarga el proceso completo, así que un solo módulo = una
+// sola instancia por proceso).
 const prisma = new PrismaClient({ adapter });
 
-export { prisma };
+// Destino de la conexión para el log de arranque, sin credenciales.
+const describeTarget = (databaseUrl) => {
+  try {
+    const url = new URL(databaseUrl);
+    return `${url.pathname.replace(/^\//, "")} en ${url.hostname}`;
+  } catch {
+    return "(DATABASE_URL no válida)";
+  }
+};
+
+/** Prueba de conexión al arrancar (server.js). No tumba el proceso si falla. */
+const testConnection = async () => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    console.log(`Conexión exitosa a la base de datos ${describeTarget(process.env.DATABASE_URL)}`);
+  } catch (error) {
+    console.error("Error en la prueba de conexión:", error.message);
+  }
+};
+
+export { prisma, testConnection };

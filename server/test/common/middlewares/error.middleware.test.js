@@ -140,9 +140,9 @@ describe("errorMiddleware — concurrencia (ADR-0027)", () => {
 
   it.each([
     ["espera de bloqueo agotada (adapter, P2010 + 1205)", adapterError("P2010", 1205), 503],
-    ["espera de bloqueo agotada (mysql2)", Object.assign(new Error("Lock wait"), { code: "ER_LOCK_WAIT_TIMEOUT" }), 503],
+    ["espera de bloqueo agotada (código del driver)", Object.assign(new Error("Lock wait"), { code: "ER_LOCK_WAIT_TIMEOUT" }), 503],
     ["interbloqueo (adapter)", adapterError("P2010", 1213), 409],
-    ["interbloqueo (mysql2)", Object.assign(new Error("Deadlock"), { code: "ER_LOCK_DEADLOCK" }), 409],
+    ["interbloqueo (código del driver)", Object.assign(new Error("Deadlock"), { code: "ER_LOCK_DEADLOCK" }), 409],
   ])("%s no cae en el 500 genérico", (_name, err, status) => {
     const res = buildRes();
 

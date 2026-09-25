@@ -23,7 +23,7 @@ const PRISMA_ERRORS = {
 // transaction.service.js, una espera agotada (1205) o un interbloqueo (1213)
 // son situaciones esperables, no fallos de sistema. Por el adapter llegan
 // envueltos en un error de Prisma (1205 como P2010 en una consulta cruda; el
-// 1213 ya se traduce a P2034), y por mysql2 con su código ER_*.
+// 1213 ya se traduce a P2034), y directo del driver con su código ER_*.
 const LOCK_WAIT_TIMEOUT = [503, "Otra operación está usando este registro. Intenta de nuevo en unos segundos."];
 const DEADLOCK = PRISMA_ERRORS.P2034;
 
@@ -70,7 +70,7 @@ const errorMiddleware = (err, req, res, next) => {
     });
   }
 
-  // **1. Manejo específico de errores de MySQL** (mysql2 o el adapter de
+  // **1. Manejo específico de errores de MySQL** (código ER_* del driver de
   // MariaDB). Solo códigos de MySQL: otros `.code` (p. ej. de
   // express-fileupload o de Node) siguen al manejo general de abajo.
   if (isMySqlCode(err.code)) {

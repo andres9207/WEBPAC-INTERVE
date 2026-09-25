@@ -2,7 +2,7 @@ import 'dotenv/config';
 import http from "http";
 import { app } from "./app.js";
 import { init } from "./socket.js";
-import { testConnection } from "./src/common/configs/db.config.js";
+import { testConnection } from "./src/common/configs/prismaClient.js";
 // import { startCronJobs, stopCronJobs } from "./src/cron/index.js";
 
 if (!process.env.JWT_SECRET) {

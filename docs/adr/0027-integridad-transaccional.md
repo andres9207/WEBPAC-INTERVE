@@ -62,7 +62,7 @@ Tres clases de fallo, todas silenciosas:
 
 1. **Toda operación de negocio es una única transacción de base de datos** que incluye sus escrituras, su historial y su auditoría. Ninguna operación escribe en más de una transacción.
 
-2. **Toda transacción se abre con la utilidad única** `server/src/common/services/transaction.service.js`: `withTransaction` o `withLockedTransaction`. **Prohibido llamar a `prisma.$transaction` directamente** desde un service, y prohibido escribir fuera del `tx` que entrega la utilidad. Si la operación falla, Prisma revierte la transacción y propaga el error original.
+2. **Toda transacción se abre con la utilidad única** `server/src/common/services/transaction.service.js`: `withTransaction` o `withLockedTransaction`. La utilidad obtiene la conexión, abre la transacción, la entrega, confirma o revierte y libera. **Prohibido llamar a `prisma.$transaction` directamente** desde un service, prohibido escribir fuera del `tx` que entrega la utilidad, y prohibido cualquier otro acceso a la BD: el pool de mysql2 con `executeQuery`, que tomaba una conexión nueva si se omitía el parámetro, se eliminó. Si la operación falla, Prisma revierte y **propaga el error original aunque el rollback falle** (el fallo del rollback solo se registra). Un test de arquitectura hace cumplir la regla.
 
 3. **Protocolo de bloqueos** (obligatorio en toda operación sobre un registro existente):
    - La fila raíz del agregado se bloquea con **`SELECT … FOR UPDATE` como primera sentencia de la transacción**, antes de cualquier lectura. En el CORE, la raíz es el contrato.
@@ -434,7 +434,7 @@ Tabla completa de datos financieros en [ADR-0026](0026-calculos-facturacion.md),
 
 | # | Brecha | Severidad |
 | --- | --- | --- |
-| B1 | `executeQuery` escapa de la transacción si se omite la conexión | **Alta** — ✅ No aplica: ningún service usa `executeQuery`; todo va por Prisma y `withTransaction` |
+| B1 | `executeQuery` escapa de la transacción si se omite la conexión | **Alta** — ✅ Cerrada: `db.config.js` (pool mysql2 con `executeQuery`/`getConnection`) eliminado; `withTransaction` es la única puerta, y un test de arquitectura impide reintroducir mysql2 o `prisma.$transaction` directo |
 | B2 | Ningún bloqueo de filas en el backend | **Alta** — ✅ Cerrada: `withLockedTransaction` (`SELECT … FOR UPDATE` como primeras sentencias, orden fijo) |
 | B3 | Sin idempotencia en ninguna operación | **Alta** |
 | B4 | Sin restricciones `UNIQUE`, `CHECK` ni columnas generadas | **Alta** |
