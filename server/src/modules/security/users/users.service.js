@@ -2,6 +2,7 @@ import { hashPassword } from "../../../common/utils/funciones.js";
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { paginate } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
+import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import {
   AUDIT_ENTITIES,
@@ -197,7 +198,40 @@ const assertAssignableProfile = async (tx, locked, proId) => {
   }
 };
 
-export const saveUser = async ({
+// Clave de idempotencia de la creación (ADR-0027, decisión 7): vive en la
+// propia fila del usuario. Un reintento con la misma clave devuelve la misma
+// respuesta que la creación original.
+const USER_CREATE_IDEMPOTENCY = {
+  model: prisma.tbl_users,
+  keyField: "use_idempotency_key",
+  hashField: "use_idempotency_hash",
+  ownerField: "use_create_by",
+  select: { use_id: true },
+  toResult: (user) => ({ message: "Usuario Creado Correctamente", useId: user.use_id }),
+};
+
+// Lo que define "la misma creación" (sin contraseña: ver idempotency.service.js).
+const USER_CREATE_FIELDS = [
+  "proId", "name", "lastName", "identification", "username", "email",
+  "access", "staId", "changePassword", "usePages",
+];
+
+export const saveUser = async (args) => {
+  if (args.useId > 0) return persistUser(args);
+
+  // Crear: la clave se busca ANTES que el control de duplicados de
+  // persistUser, para que el reintento de una creación exitosa devuelva el
+  // usuario creado y no "ya existe".
+  return runIdempotent({
+    target: USER_CREATE_IDEMPOTENCY,
+    key: args.idempotencyKey,
+    ownerId: args.useBy,
+    payload: Object.fromEntries(USER_CREATE_FIELDS.map((field) => [field, args[field]])),
+    execute: (idempotencyData) => persistUser({ ...args, idempotencyData }),
+  });
+};
+
+const persistUser = async ({
   useId,
   proId,
   name,
@@ -212,6 +246,7 @@ export const saveUser = async ({
   changePassword,
   usePages,
   ctx = { useId: useBy },
+  idempotencyData = {},
 }) => {
   const existingUser = await checkIfUserExists({ identification, email, username, useId });
 
@@ -336,7 +371,8 @@ export const saveUser = async ({
       use_update_by: useBy,
     };
 
-    const created = await tx.tbl_users.create({ data });
+    // La clave va en la fila, pero no en la bitácora: no es un dato del usuario.
+    const created = await tx.tbl_users.create({ data: { ...data, ...idempotencyData } });
 
     if (desiredPageIds.length > 0) {
       await tx.tbl_user_pages.createMany({

@@ -1,4 +1,4 @@
-import { body } from "express-validator";
+import { body, header } from "express-validator";
 
 /**
  * Reglas de express-validator reutilizadas por varios `*.validation.js`
@@ -37,3 +37,18 @@ export const idArray = (field, { optional = false } = {}) => {
     body(`${field}.*`).isInt({ min: 1 }).withMessage(`${field} solo admite ids enteros positivos.`),
   ];
 };
+
+/**
+ * Clave de idempotencia (ADR-0027, decisión 7) en el encabezado
+ * Idempotency-Key: obligatoria y UUID cuando `isCreate(req)` es verdadero
+ * (crear, o una transición de estado); se ignora en los demás casos (editar
+ * ya es idempotente por sí mismo).
+ */
+export const idempotencyKeyRule = (isCreate = () => true) =>
+  header("idempotency-key")
+    .if((_value, { req }) => isCreate(req))
+    .exists({ values: "falsy" })
+    .withMessage("Falta el encabezado Idempotency-Key.")
+    .bail()
+    .isUUID()
+    .withMessage("Idempotency-Key debe ser un UUID.");

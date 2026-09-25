@@ -387,7 +387,7 @@ Ejecutado: fases 1 (autor verídico), 2 (FK, `tbl_status`), 3 (migraciones, logg
 
 Pendiente:
 
-1. **Despliegue**: aplicar las migraciones `0011` a `0015` en orden; la `0014` junto con el despliegue del cambio de zona horaria.
+1. **Despliegue**: aplicar las migraciones `0011` a `0016` en orden; la `0014` junto con el despliegue del cambio de zona horaria.
 2. **Infraestructura**: restringir el usuario de BD de la aplicación a `INSERT`/`SELECT` sobre `tbl_audit_log`.
 3. **Módulos de negocio**: cada módulo nuevo aplica el estándar de seis columnas y audita en la bitácora los campos de la decisión 9.
 4. **B16**: endpoint de consulta de la bitácora (filtrado por entidad/registro, usuario, operación y fecha), con `requirePermission` de un `per_id` nuevo, y su vista en el cliente.

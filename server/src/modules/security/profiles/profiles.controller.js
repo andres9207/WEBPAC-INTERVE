@@ -1,6 +1,7 @@
 import * as profilesService from "./profiles.service.js";
 import { getIO } from "../../../common/configs/socket.manager.js";
 import { auditContext } from "../../../common/services/audit.service.js";
+import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
 
 export const paginationProfilesController = async (req, res, next) => {
   try {
@@ -45,6 +46,8 @@ export const saveProfileController = async (req, res, next) => {
       previousModules,
       useBy: useId,
       ctx: auditContext(req),
+      // Solo cuenta al crear (ADR-0027, decisión 7); la ruta ya lo validó.
+      idempotencyKey: req.get(IDEMPOTENCY_HEADER),
     });
 
     getIO().emit("refresh-profiles", {});

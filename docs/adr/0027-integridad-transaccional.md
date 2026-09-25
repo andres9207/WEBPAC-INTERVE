@@ -10,7 +10,8 @@ Estado de implementación por decisión:
 | --- | --- |
 | 1, 2, 3, 4, 5, 9 | ✅ Vigentes en código: `server/src/common/services/transaction.service.js`, aplicado a todos los services actuales |
 | 8 | ✅ Vigente: reintento acotado del interbloqueo (2 reintentos) solo en operaciones marcadas `{ idempotent: true }`; si persiste → `409`; espera agotada → `503`, sin reintento |
-| 6, 7, 10, 11 | Obligatorias al construir el CORE: saldos validados, idempotencia, invariantes y conciliación. No hay aún tablas del CORE donde aplicarlas |
+| 7 | ✅ Vigente en creación (usuarios, perfiles, documentos). Transiciones: la infraestructura está lista y se aplica al crear las tablas de historial de estado del CORE |
+| 6, 10, 11 | Obligatorias al construir el CORE: saldos validados, invariantes y conciliación. No hay aún tablas del CORE donde aplicarlas |
 
 ADR **transversal**. Nació para las operaciones críticas del CORE ([ADR-0015](0015-contratos.md) a [ADR-0026](0026-calculos-facturacion.md)), pero la utilidad de transacción, el aislamiento y el protocolo de bloqueo rigen para **todo** el backend.
 
@@ -77,8 +78,9 @@ Tres clases de fallo, todas silenciosas:
 6. **Los saldos no se actualizan: se validan.** Donde el alcance dice "actualización de saldos", la operación **recalcula los saldos bajo bloqueo y valida los invariantes**; no escribe ningún saldo ([ADR-0024](0024-amortizacion-anticipo.md), [ADR-0025](0025-retenciones.md)).
 
 7. **Idempotencia:**
-   - **Operaciones de creación**: clave de idempotencia generada por el cliente al abrir el formulario y guardada con `UNIQUE` en la entidad creada. Una repetición con la misma clave devuelve la entidad ya creada; la misma clave con otro contenido se rechaza.
+   - **Operaciones de creación**: clave de idempotencia (UUID) generada por el cliente al abrir el formulario y enviada en el encabezado `Idempotency-Key`. Se guarda en la entidad creada, en `<pre>_idempotency_key` (`UNIQUE`), junto con la huella del contenido, `<pre>_idempotency_hash` (SHA-256, sin contraseñas). Una repetición con la misma clave, el mismo contenido y el mismo autor devuelve la entidad ya creada. La misma clave con otro contenido, o de otro autor, se rechaza con `422`. La clave se busca **antes** que cualquier validación de duplicados.
    - **Operaciones de transición** (aprobar, anular, suspender, levantar, reabrir): precondición de estado leída bajo bloqueo, más clave de idempotencia con `UNIQUE` en el historial de estado. Una repetición devuelve el estado ya alcanzado.
+   - **Implementación**: `server/src/common/services/idempotency.service.js` (`runIdempotent`), el mismo mecanismo para creación y transición: cambia solo la tabla donde vive la clave. Ver [DEC-016](../decisiones/DEC-016-idempotencia-por-clave.md).
 
 8. **Interbloqueos y esperas:** `ER_LOCK_DEADLOCK` se reintenta en el servidor un número acotado de veces, **solo en operaciones idempotentes**, y si persiste responde `409` indicando operación concurrente. `ER_LOCK_WAIT_TIMEOUT` responde `503`. Ninguno de los dos cae en el 500 genérico.
 
@@ -436,7 +438,7 @@ Tabla completa de datos financieros en [ADR-0026](0026-calculos-facturacion.md),
 | --- | --- | --- |
 | B1 | `executeQuery` escapa de la transacción si se omite la conexión | **Alta** — ✅ Cerrada: `db.config.js` (pool mysql2 con `executeQuery`/`getConnection`) eliminado; `withTransaction` es la única puerta, y un test de arquitectura impide reintroducir mysql2 o `prisma.$transaction` directo |
 | B2 | Ningún bloqueo de filas en el backend | **Alta** — ✅ Cerrada: `withLockedTransaction` (`SELECT … FOR UPDATE` como primeras sentencias, orden fijo) |
-| B3 | Sin idempotencia en ninguna operación | **Alta** |
+| B3 | Sin idempotencia en ninguna operación | **Alta** — ✅ Cerrada en creación (migración `0016`, [DEC-016](../decisiones/DEC-016-idempotencia-por-clave.md)); en transiciones, al existir el historial de estado |
 | B4 | Sin restricciones `UNIQUE`, `CHECK` ni columnas generadas | **Alta** |
 | B5 | Sin tratamiento de interbloqueos ni esperas de bloqueo | **Media** — ✅ Cerrada: reintento acotado en operaciones idempotentes, `409` si persiste, `503` ante espera agotada. Verificado con un interbloqueo real ([DEC-015](../decisiones/DEC-015-reintento-interbloqueo.md)) |
 | B6 | Nivel de aislamiento implícito | **Media** — ✅ Cerrada: `REPEATABLE READ` declarado en cada transacción |
@@ -483,7 +485,7 @@ Carreras que esto cerró:
 - `updatePassword` podía pisar un cambio de contraseña simultáneo. Ahora el `UPDATE` se condiciona al hash verificado y responde `409` si cambió.
 - En las ediciones, la lectura "antes" de la bitácora (ADR-0013) ya no puede ser una instantánea vieja: los valores anteriores registrados son los reales.
 
-**Reintento por interbloqueo** (decisión 8, [DEC-015](../decisiones/DEC-015-reintento-interbloqueo.md)): `withTransaction`/`withLockedTransaction` aceptan `{ idempotent: true }` y solo entonces reintentan un interbloqueo, hasta 2 veces. Hoy lo declaran editar usuario, editar perfil, permisos de perfil y de usuario, y editar la cuenta propia. Crear, eliminar y los contadores de login no se reintentan hasta que exista la idempotencia por clave (B3).
+**Reintento por interbloqueo** (decisión 8, [DEC-015](../decisiones/DEC-015-reintento-interbloqueo.md)): `withTransaction`/`withLockedTransaction` aceptan `{ idempotent: true }` y solo entonces reintentan un interbloqueo, hasta 2 veces. Hoy lo declaran editar usuario, editar perfil, permisos de perfil y de usuario, y editar la cuenta propia. Crear, eliminar y los contadores de login no se reintentan: crear ya es idempotente por clave (B3, `0016`), pero el reintento automático sigue limitado a las operaciones que fijan un estado.
 
 **Pendiente de esta base**: `saveProfile` (crear) valida que el nombre no esté repetido sin `UNIQUE` en la BD. Dos creaciones simultáneas con el mismo nombre pueden pasar ambas, porque no hay fila que bloquear. Se resuelve con la restricción `UNIQUE` (B4).
 

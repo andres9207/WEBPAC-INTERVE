@@ -35,7 +35,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   // Sin encabezados de identidad propios (currenuserapp, currentpermissionsuserapp):
   // el usuario sale solo de la cookie de sesión httpOnly, nunca del cliente.
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key']
 }));
 
 

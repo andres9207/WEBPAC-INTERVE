@@ -1,4 +1,5 @@
 import { jest } from "@jest/globals";
+import { mockReq } from "../../../helpers/request.mock.js";
 
 // Regresión (ADR-0013, decisión 10): autor e identidad del solicitante
 // siempre desde req.user, nunca del body.
@@ -36,7 +37,7 @@ beforeEach(() => {
 describe("profiles.controller — autor desde req.user", () => {
   it("saveProfileController ignora useBy y columnas de autoría del body", async () => {
     profilesServiceMock.saveProfile.mockResolvedValue({ proId: 4 });
-    const req = { user: { useId: 7 }, ip: "10.0.0.1", body: { proId: 0, name: "Ventas", staId: 1, ...forgedAuthor } };
+    const req = mockReq({ user: { useId: 7 }, ip: "10.0.0.1", body: { proId: 0, name: "Ventas", staId: 1, ...forgedAuthor } });
 
     await saveProfileController(req, buildRes(), jest.fn());
 
@@ -49,7 +50,7 @@ describe("profiles.controller — autor desde req.user", () => {
 
   it("deleteProfileController ignora updatedBy del body", async () => {
     profilesServiceMock.deleteProfile.mockResolvedValue({});
-    const req = { user: { useId: 7 }, ip: "10.0.0.1", body: { proId: 4, ...forgedAuthor } };
+    const req = mockReq({ user: { useId: 7 }, ip: "10.0.0.1", body: { proId: 4, ...forgedAuthor } });
 
     await deleteProfileController(req, buildRes(), jest.fn());
 
@@ -62,7 +63,7 @@ describe("profiles.controller — autor desde req.user", () => {
 
   it("paginationProfilesController toma useId de req.user: enviar useId=1 no revela el perfil Superadmin", async () => {
     profilesServiceMock.paginationProfiles.mockResolvedValue({ data: [], total: 0 });
-    const req = { user: { useId: 7 }, body: { useId: 1, rows: 10 } };
+    const req = mockReq({ user: { useId: 7 }, body: { useId: 1, rows: 10 } });
 
     await paginationProfilesController(req, buildRes(), jest.fn());
 

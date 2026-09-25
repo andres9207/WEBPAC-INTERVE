@@ -29,6 +29,7 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 | [DEC-013](DEC-013-paginacion.md) | 2026-09-25 | Paginación con helper único y tope de 100 filas | Obligatoria | — |
 | [DEC-014](DEC-014-autor-por-nombre.md) | 2026-09-25 | Los listados muestran el autor por nombre, resuelto en el backend | Obligatoria | [0013](../adr/0013-auditoria-trazabilidad.md) |
 | [DEC-015](DEC-015-reintento-interbloqueo.md) | 2026-09-25 | Reintento acotado del interbloqueo solo en operaciones idempotentes; 409 si persiste, 503 ante espera agotada | Obligatoria | [0027](../adr/0027-integridad-transaccional.md) |
+| [DEC-016](DEC-016-idempotencia-por-clave.md) | 2026-09-25 | Idempotencia por clave (`Idempotency-Key`) en creación, con la clave y la huella en la propia entidad | Obligatoria | [0027](../adr/0027-integridad-transaccional.md) |
 
 **Tipo:**
 - **Obligatoria**: regla para todo código nuevo. El checklist de `ENDPOINT_STANDARD.md` la exige y, donde se puede, un test la hace cumplir.
@@ -37,7 +38,7 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 ## Pendientes que dejan estas decisiones
 
 **Despliegue:**
-- Aplicar las migraciones `0011` a `0015` en orden. La `0014` vacía sesiones, códigos de recuperación e intentos de login, así que va junto con el despliegue ([DEC-009](DEC-009-zona-horaria.md)), no antes.
+- Aplicar las migraciones `0011` a `0016` en orden. La `0014` vacía sesiones, códigos de recuperación e intentos de login, así que va junto con el despliegue ([DEC-009](DEC-009-zona-horaria.md)), no antes. La `0015` y la `0016` van **antes** del código que las usa: sin sus columnas, "olvidé mi contraseña" y crear registros fallan.
 - Restringir el usuario de BD de la aplicación a `INSERT`/`SELECT` sobre `tbl_audit_log` ([DEC-007](DEC-007-bitacora-funcional.md)).
 
 **Funcionalidad abierta:**
@@ -46,7 +47,7 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 | --- | --- |
 | Pantalla y endpoint para consultar la bitácora, con permiso propio (`per_id` 17) | ADR-0013, B16 |
 | Política de retención de la bitácora | ADR-0013, B15 |
-| Idempotencia por clave en crear y transiciones (permitiría reintentar también esas operaciones) | ADR-0027, B3 |
+| Idempotencia en transiciones de estado: la infraestructura existe ([DEC-016](DEC-016-idempotencia-por-clave.md)); falta el historial de estado de cada agregado del CORE | ADR-0027, B3 |
 | `UNIQUE` en el nombre de perfil: dos creaciones simultáneas con el mismo nombre pueden pasar | ADR-0027, B4 |
 | MFA | ADR-0001 |
 

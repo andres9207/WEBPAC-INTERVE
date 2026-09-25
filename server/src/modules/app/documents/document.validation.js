@@ -1,5 +1,5 @@
 import { body } from "express-validator";
-import { paginationRules, optionalText, requiredId } from "../../../common/utils/validation.utils.js";
+import { paginationRules, optionalText, requiredId, idempotencyKeyRule } from "../../../common/utils/validation.utils.js";
 
 // Valores del enum tbl_documents_doc_type (schema.prisma).
 const DOC_TYPES = ["USERS", "PROFILES", "PAGINAS", "PERMISOS"];
@@ -16,6 +16,7 @@ export const paginationDocsSchema = [
 ];
 
 export const saveDocSchema = [
+  idempotencyKeyRule((req) => !(Number(req.body.id) > 0)),
   body("id").optional({ values: "falsy" }).isInt({ min: 0 }).withMessage("id debe ser un entero."),
   body("docType").isIn(DOC_TYPES).withMessage("docType no es válido."),
   body("docIdRef").isInt({ min: 0 }).withMessage("docIdRef debe ser un entero."),

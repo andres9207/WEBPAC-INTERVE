@@ -1,4 +1,5 @@
 import * as documentsService from "./document.service.js";
+import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
 
 export const paginationModuleDocs = async (req, res, next) => {
   try {
@@ -19,6 +20,8 @@ export const saveModuleDoc = async (req, res, next) => {
       ...req.body,
       docCreateBy: useId,
       docUpdateBy: useId,
+      // Del encabezado, después del spread: el body no puede reemplazarla.
+      idempotencyKey: req.get(IDEMPOTENCY_HEADER),
     });
     res.status(200).json(result);
   } catch (err) {

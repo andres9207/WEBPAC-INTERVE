@@ -4,6 +4,7 @@ import {
   optionalText,
   optionalId,
   requiredId,
+  idempotencyKeyRule,
   idArray,
 } from "../../../common/utils/validation.utils.js";
 
@@ -16,6 +17,7 @@ export const getModulesSchema = [
 ];
 
 export const saveProfileSchema = [
+  idempotencyKeyRule((req) => !(Number(req.body.proId) > 0)),
   body("proId").optional({ values: "falsy" }).isInt({ min: 0 }).withMessage("proId debe ser un entero."),
   body("name").trim().notEmpty().withMessage("El nombre del perfil es requerido.").isLength({ max: 255 }),
   requiredId("staId"),

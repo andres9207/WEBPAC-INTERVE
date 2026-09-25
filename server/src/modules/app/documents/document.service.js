@@ -1,5 +1,6 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { paginate } from "../../../common/utils/pagination.utils.js";
+import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 
 const DOC_SELECT = {
@@ -130,6 +131,17 @@ export const paginationModuleDocs = async ({
   };
 };
 
+// Clave de idempotencia de la creación (ADR-0027, decisión 7), en la propia
+// fila del documento.
+const DOC_CREATE_IDEMPOTENCY = {
+  model: prisma.tbl_documents,
+  keyField: "doc_idempotency_key",
+  hashField: "doc_idempotency_hash",
+  ownerField: "doc_create_by",
+  select: { doc_id: true },
+  toResult: (doc) => ({ message: "Documento registrado correctamente.", id: doc.doc_id }),
+};
+
 export const saveModuleDoc = async ({
   id = 0,
   docType,
@@ -144,6 +156,7 @@ export const saveModuleDoc = async ({
   docCreateBy,
   docUpdateBy,
   parentId = null,
+  idempotencyKey,
 }) => {
   const data = {
     doc_type: docType,
@@ -179,18 +192,25 @@ export const saveModuleDoc = async ({
     return { message: "Documento actualizado correctamente." };
   }
 
-  const created = await prisma.tbl_documents.create({
-    data: {
-      ...data,
-      doc_create_by: Number(docCreateBy),
-      doc_update_by: Number(docUpdateBy),
+  // Crear: una sola vez por clave (ADR-0027, decisión 7). Un doble envío del
+  // mismo archivo devuelve el documento ya registrado en vez de duplicarlo.
+  return runIdempotent({
+    target: DOC_CREATE_IDEMPOTENCY,
+    key: idempotencyKey,
+    ownerId: docCreateBy,
+    payload: data,
+    execute: async (idempotencyData) => {
+      const created = await prisma.tbl_documents.create({
+        data: {
+          ...data,
+          doc_create_by: Number(docCreateBy),
+          doc_update_by: Number(docUpdateBy),
+          ...idempotencyData,
+        },
+      });
+      return DOC_CREATE_IDEMPOTENCY.toResult(created);
     },
   });
-
-  return {
-    message: "Documento registrado correctamente.",
-    id: created.doc_id,
-  };
 };
 
 export const deleteModuleDoc = async ({ id, usuAct }) => {

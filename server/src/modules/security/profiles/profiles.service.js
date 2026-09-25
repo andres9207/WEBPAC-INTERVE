@@ -2,6 +2,7 @@ import _ from "lodash";
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { paginate } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
+import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction, withTransaction } from "../../../common/services/transaction.service.js";
 import {
   AUDIT_ENTITIES,
@@ -97,7 +98,32 @@ export const getModules = async ({ proId }) => {
 
 const DELETED_STATUS = 3;
 
-export const saveProfile = async ({
+// Clave de idempotencia de la creación (ADR-0027, decisión 7), en la propia
+// fila del perfil.
+const PROFILE_CREATE_IDEMPOTENCY = {
+  model: prisma.tbl_profiles,
+  keyField: "pro_idempotency_key",
+  hashField: "pro_idempotency_hash",
+  ownerField: "pro_create_by",
+  select: { pro_id: true, pro_name: true },
+  toResult: (profile) => ({ message: `Perfil ${profile.pro_name} Creado Correctamente`, proId: profile.pro_id }),
+};
+
+export const saveProfile = async (args) => {
+  if (args.proId > 0) return persistProfile(args);
+
+  // Crear: la clave se busca antes que el control de nombre repetido, para
+  // que el reintento de una creación exitosa devuelva el perfil creado.
+  return runIdempotent({
+    target: PROFILE_CREATE_IDEMPOTENCY,
+    key: args.idempotencyKey,
+    ownerId: args.useBy,
+    payload: { name: args.name, staId: args.staId, modules: args.modules },
+    execute: (idempotencyData) => persistProfile({ ...args, idempotencyData }),
+  });
+};
+
+const persistProfile = async ({
   proId,
   name,
   staId,
@@ -105,6 +131,7 @@ export const saveProfile = async ({
   previousModules,
   useBy,
   ctx = { useId: useBy },
+  idempotencyData = {},
 }) => {
   const operationId = newOperationId();
 
@@ -202,6 +229,7 @@ export const saveProfile = async ({
         sta_id: Number(staId),
         pro_create_by: Number(useBy),
         pro_update_by: Number(useBy),
+        ...idempotencyData,
       },
     });
 

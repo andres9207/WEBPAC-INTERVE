@@ -4,6 +4,7 @@ import {
   optionalText,
   optionalId,
   requiredId,
+  idempotencyKeyRule,
 } from "../../../common/utils/validation.utils.js";
 
 export const listUsersSchema = [
@@ -20,6 +21,7 @@ export const listUsersSchema = [
 const isEdit = (req) => Number(req.body.useId) > 0;
 
 export const saveUserSchema = [
+  idempotencyKeyRule((req) => !isEdit(req)),
   body("useId").optional({ values: "falsy" }).isInt({ min: 0 }).withMessage("useId debe ser un entero."),
   requiredId("proId"),
   requiredId("staId"),

@@ -1,6 +1,7 @@
 import * as usersService from "./users.service.js";
 import { revokeSession } from "../../../common/services/session.service.js";
 import { AUDIT_OPERATIONS, auditContext } from "../../../common/services/audit.service.js";
+import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
 
 export const paginationUsersController = async (req, res, next) => {
   try {
@@ -81,6 +82,8 @@ export const saveUserController = async (req, res, next) => {
       changePassword,
       usePages,
       ctx: auditContext(req),
+      // Solo cuenta al crear (ADR-0027, decisión 7); la ruta ya lo validó.
+      idempotencyKey: req.get(IDEMPOTENCY_HEADER),
     });
     // Un usuario que queda inactivo, o al que un administrador le cambia la
     // contraseña, pierde su sesión de inmediato (verifyToken ya rechazaría

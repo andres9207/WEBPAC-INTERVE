@@ -22,6 +22,7 @@ const usersService = await import("../../../../src/modules/security/users/users.
 
 const auditRows = () => prismaMock.tbl_audit_log.createMany.mock.calls.flatMap((c) => c[0].data);
 const ctx = { useId: 9, ip: "1.1.1.1" };
+const KEY = "3f2b8c1e-5d4a-4e6b-9a7c-1b2d3e4f5a6b";
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -29,6 +30,8 @@ beforeEach(() => {
   prismaMock.tbl_users.findFirst.mockResolvedValue(null);
   prismaMock.tbl_user_pages.findMany.mockResolvedValue([]);
   prismaMock.tbl_profiles.findUnique.mockResolvedValue({ sta_id: 1 });
+  // Sin creación previa con la clave de idempotencia (ver idempotency.service).
+  prismaMock.tbl_users.findUnique.mockResolvedValue(null);
 });
 
 const baseUser = {
@@ -117,7 +120,7 @@ describe("saveUser — bitácora", () => {
   it("al crear, registra CREAR con los valores iniciales (sin la contraseña)", async () => {
     prismaMock.tbl_users.create.mockResolvedValue({ use_id: 40 });
 
-    await usersService.saveUser({ ...editPayload, useId: 0, password: "clave12345", usePages: "3,4" });
+    await usersService.saveUser({ ...editPayload, useId: 0, password: "clave12345", usePages: "3,4", idempotencyKey: KEY });
 
     const rows = auditRows();
     expect(rows.every((r) => r.aud_operation === "CREAR" && r.aud_record_id === 40)).toBe(true);
@@ -148,8 +151,49 @@ describe("saveUser — protocolo de bloqueo (ADR-0027)", () => {
   it("rechaza asignar un perfil eliminado (verificado con el perfil bloqueado) y no escribe nada", async () => {
     prismaMock.tbl_profiles.findUnique.mockResolvedValue({ sta_id: 3 });
 
-    await expect(usersService.saveUser({ ...editPayload, useId: 0 })).rejects.toMatchObject({ status: 400 });
+    await expect(usersService.saveUser({ ...editPayload, useId: 0, idempotencyKey: KEY })).rejects.toMatchObject({ status: 400 });
     expect(prismaMock.tbl_users.create).not.toHaveBeenCalled();
     expect(auditRows()).toEqual([]);
+  });
+});
+
+describe("saveUser — idempotencia de la creación (ADR-0027, decisión 7)", () => {
+  const createPayload = { ...editPayload, useId: 0, idempotencyKey: KEY };
+
+  it("guarda la clave y la huella del contenido en la fila creada", async () => {
+    prismaMock.tbl_users.create.mockResolvedValue({ use_id: 42 });
+
+    await expect(usersService.saveUser(createPayload)).resolves.toEqual({
+      message: "Usuario Creado Correctamente",
+      useId: 42,
+    });
+
+    const { data } = prismaMock.tbl_users.create.mock.calls[0][0];
+    expect(data.use_idempotency_key).toBe(KEY);
+    expect(data.use_idempotency_hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("un reintento con la misma clave devuelve el usuario ya creado, sin el control de duplicados ni otra creación", async () => {
+    prismaMock.tbl_users.create.mockResolvedValue({ use_id: 42 });
+    await usersService.saveUser(createPayload);
+    const { use_idempotency_hash: hash } = prismaMock.tbl_users.create.mock.calls[0][0].data;
+    jest.clearAllMocks();
+    // La primera creación ya existe: el control de duplicados diría "ya existe".
+    prismaMock.tbl_users.findFirst.mockResolvedValue({ use_id: 42 });
+    prismaMock.tbl_users.findUnique.mockResolvedValue({ use_id: 42, use_idempotency_hash: hash, use_create_by: 9 });
+
+    await expect(usersService.saveUser(createPayload)).resolves.toEqual({
+      message: "Usuario Creado Correctamente",
+      useId: 42,
+    });
+    expect(prismaMock.tbl_users.create).not.toHaveBeenCalled();
+    expect(auditRows()).toEqual([]);
+  });
+
+  it("la misma clave con otro contenido se rechaza con 422", async () => {
+    prismaMock.tbl_users.findUnique.mockResolvedValue({ use_id: 42, use_idempotency_hash: "x".repeat(64), use_create_by: 9 });
+
+    await expect(usersService.saveUser({ ...createPayload, name: "Otra" })).rejects.toMatchObject({ statusCode: 422 });
+    expect(prismaMock.tbl_users.create).not.toHaveBeenCalled();
   });
 });

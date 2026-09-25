@@ -1,4 +1,5 @@
 import { jest } from "@jest/globals";
+import { mockReq } from "../../../helpers/request.mock.js";
 
 // Regresión (ADR-0013, decisión 10): el autor de la auditoría sale siempre
 // de req.user (JWT verificado por verifyToken), nunca del body. Una autoría
@@ -39,7 +40,7 @@ beforeEach(() => {
 describe("users.controller — autor desde req.user", () => {
   it("saveUserController ignora useBy y columnas de autoría del body", async () => {
     usersServiceMock.saveUser.mockResolvedValue({ useId: 5 });
-    const req = { user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 0, name: "Ana", staId: 1, ...forgedAuthor } };
+    const req = mockReq({ user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 0, name: "Ana", staId: 1, ...forgedAuthor } });
 
     await saveUserController(req, buildRes(), jest.fn());
 
@@ -53,7 +54,7 @@ describe("users.controller — autor desde req.user", () => {
 
   it("deleteUserController ignora updatedBy del body", async () => {
     usersServiceMock.deleteUser.mockResolvedValue({});
-    const req = { user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 3, ...forgedAuthor } };
+    const req = mockReq({ user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 3, ...forgedAuthor } });
 
     await deleteUserController(req, buildRes(), jest.fn());
 
@@ -66,7 +67,7 @@ describe("users.controller — autor desde req.user", () => {
 
   it("paginationUsersController no reenvía un useId del body al service", async () => {
     usersServiceMock.paginationUsers.mockResolvedValue({ data: [], total: 0 });
-    const req = { user: { useId: 7 }, body: { useId: 1, rows: 10 } };
+    const req = mockReq({ user: { useId: 7 }, body: { useId: 1, rows: 10 } });
 
     await paginationUsersController(req, buildRes(), jest.fn());
 
@@ -82,7 +83,7 @@ describe("users.controller — cierre forzado de sesión queda en la bitácora",
 
   it("inactivar un usuario revoca su sesión con motivo y autor", async () => {
     usersServiceMock.saveUser.mockResolvedValue({});
-    const req = { user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 5, name: "Ana", staId: 2 } };
+    const req = mockReq({ user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 5, name: "Ana", staId: 2 } });
 
     await saveUserController(req, buildRes(), jest.fn());
 
@@ -91,7 +92,7 @@ describe("users.controller — cierre forzado de sesión queda en la bitácora",
 
   it("cambiarle la contraseña a un usuario activo revoca su sesión con motivo y autor", async () => {
     usersServiceMock.saveUser.mockResolvedValue({});
-    const req = { user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 5, name: "Ana", staId: 1, password: "Nueva12345*" } };
+    const req = mockReq({ user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 5, name: "Ana", staId: 1, password: "Nueva12345*" } });
 
     await saveUserController(req, buildRes(), jest.fn());
 
@@ -100,7 +101,7 @@ describe("users.controller — cierre forzado de sesión queda en la bitácora",
 
   it("editar un usuario activo sin cambiar la contraseña no toca su sesión", async () => {
     usersServiceMock.saveUser.mockResolvedValue({});
-    const req = { user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 5, name: "Ana", staId: 1 } };
+    const req = mockReq({ user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 5, name: "Ana", staId: 1 } });
 
     await saveUserController(req, buildRes(), jest.fn());
 
@@ -109,7 +110,7 @@ describe("users.controller — cierre forzado de sesión queda en la bitácora",
 
   it("eliminar un usuario revoca su sesión con motivo y autor", async () => {
     usersServiceMock.deleteUser.mockResolvedValue({});
-    const req = { user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 5 } };
+    const req = mockReq({ user: { useId: 7 }, ip: "10.0.0.1", body: { useId: 5 } });
 
     await deleteUserController(req, buildRes(), jest.fn());
 

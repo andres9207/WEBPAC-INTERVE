@@ -1,4 +1,5 @@
 import httpCliente from '../services/httpCliente';
+import { idempotencyConfig } from 'utils/idempotency';
 
 /**
  * Conteo de usuarios agrupado por perfil
@@ -26,11 +27,15 @@ export const deleteUserAPI = (params) =>
  * Pasa un FormData cuando incluyas foto (multipart), u objeto normal si no.
  * El header Content-Type multipart se setea automáticamente con FormData.
  * @param {FormData | object} params
+ * @param {string} [idempotencyKey]  obligatoria al crear (ver utils/idempotency.js)
  */
-export const saveUserAPI = (params) => {
+export const saveUserAPI = (params, idempotencyKey) => {
   const isFormData = params instanceof FormData;
   return httpCliente.post('security/users/save_user', params, {
-    headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : {},
+    headers: {
+      ...(isFormData ? { 'Content-Type': 'multipart/form-data' } : {}),
+      ...idempotencyConfig(idempotencyKey).headers,
+    },
   });
 };
 

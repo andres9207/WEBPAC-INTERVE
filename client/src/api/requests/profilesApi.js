@@ -1,4 +1,5 @@
 import httpCliente from '../services/httpCliente';
+import { idempotencyConfig } from 'utils/idempotency';
 
 /**
  * Listar todos los perfiles activos (para selects/combos)
@@ -23,9 +24,10 @@ export const deleteProfileAPI = (params) =>
 /**
  * Crear o editar perfil
  * @param {{ proId, name, staId, modules, previousModules }} params  (el autor lo pone el backend desde la sesión)
+ * @param {string} [idempotencyKey]  obligatoria al crear (ver utils/idempotency.js)
  */
-export const saveProfileAPI = (params) =>
-  httpCliente.post('security/profiles/save_profile', params);
+export const saveProfileAPI = (params, idempotencyKey) =>
+  httpCliente.post('security/profiles/save_profile', params, idempotencyConfig(idempotencyKey));
 
 /**
  * Obtener módulos asociados y sin asociar de un perfil

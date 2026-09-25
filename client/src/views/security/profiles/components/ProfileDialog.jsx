@@ -2,6 +2,7 @@ import React, { useState, forwardRef, useImperativeHandle } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { showSuccess, showError } from 'services/ToastService';
 import { getModulesAPI, saveProfileAPI } from 'api/requests/profilesApi';
+import { newIdempotencyKey } from 'utils/idempotency';
 
 import GenericFormSection from 'ui-component/extended/GenericFormSection';
 import { STATUS_OPTIONS } from 'utils/constants';
@@ -28,6 +29,8 @@ const fieldsConfig = [
 const ProfileDialog = forwardRef(({ addItem, updateItem }, ref) => {
   const [visible, setVisible] = useState(false);
   const [proId, setProId] = useState(0);
+  // Una clave por formulario de creación (utils/idempotency.js).
+  const [idempotencyKey, setIdempotencyKey] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const [unassociated, setUnassociated] = useState([]);
@@ -57,6 +60,7 @@ const ProfileDialog = forwardRef(({ addItem, updateItem }, ref) => {
 
   const newProfile = () => {
     setProId(0);
+    setIdempotencyKey(newIdempotencyKey());
     reset({ name: '', staId: 1 });
     setAssociated([]);
     setUnassociated([]);
@@ -67,6 +71,7 @@ const ProfileDialog = forwardRef(({ addItem, updateItem }, ref) => {
   };
 
   const editProfile = (item) => {
+    setIdempotencyKey(null);
     setProId(item.proId);
     reset({ name: item.name, staId: item.staId });
     setAssociated([]);
@@ -117,7 +122,7 @@ const ProfileDialog = forwardRef(({ addItem, updateItem }, ref) => {
     };
 
     try {
-      const { data } = await saveProfileAPI(payload);
+      const { data } = await saveProfileAPI(payload, proId > 0 ? undefined : idempotencyKey);
 
       const profileItem = {
         proId: proId > 0 ? proId : data.proId,
