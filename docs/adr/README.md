@@ -4,6 +4,8 @@ Registro y Control de Procesos Administrativos de Contratos de Materiales con Pr
 
 ---
 
+> Lo ya implementado y las reglas vigentes que salen de estos ADR están resumidos, una ficha por decisión, en [`docs/decisiones/`](../decisiones/README.md).
+
 ## 1. Objetivo
 
 Estos ADR documentan las decisiones arquitectónicas del sistema: qué se decidió, por qué, qué alternativas se evaluaron y qué consecuencias tiene cada decisión en frontend, backend, base de datos e infraestructura.
