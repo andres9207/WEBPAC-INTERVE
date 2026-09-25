@@ -1,4 +1,10 @@
 import * as permissionsService from "./permissions.service.js";
+import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
+import { auditContext } from "../../../common/services/audit.service.js";
+
+export const getPermissionsCatalogController = (_req, res) => {
+  res.status(200).json(PERMISSIONS);
+};
 
 export const getProfileWindowsController = async (req, res, next) => {
   try {
@@ -33,7 +39,16 @@ export const getProfilePermissionsController = async (req, res, next) => {
 export const updateProfilePermissionsController = async (req, res, next) => {
   try {
     const { permissions, proId } = req.body;
-    const result = await permissionsService.updateProfilePermissions({ permissions, proId });
+    // El solicitante sale de req.user, nunca del body: hace falta para
+    // impedir la autoconcesión (no puede modificar los permisos de su
+    // propio perfil, ver permissions.service.js).
+    const { proId: actingProId } = req.user;
+    const result = await permissionsService.updateProfilePermissions({
+      permissions,
+      proId,
+      actingProId,
+      ctx: auditContext(req),
+    });
     res.status(200).json(result);
   } catch (err) {
     next(err);
@@ -43,7 +58,14 @@ export const updateProfilePermissionsController = async (req, res, next) => {
 export const updateUserPermissionsController = async (req, res, next) => {
   try {
     const { permissions, useId } = req.body;
-    const result = await permissionsService.updateUserPermissions({ permissions, useId });
+    // Idem: impide que un usuario se conceda permisos a sí mismo.
+    const { useId: actingUseId } = req.user;
+    const result = await permissionsService.updateUserPermissions({
+      permissions,
+      useId,
+      actingUseId,
+      ctx: auditContext(req),
+    });
     res.status(200).json(result);
   } catch (err) {
     next(err);

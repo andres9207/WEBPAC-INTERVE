@@ -1,9 +1,25 @@
-import {
-  getConnection,
-  releaseConnection,
-  executeQuery,
-} from "../../../common/configs/db.config.js";
 import _ from "lodash";
+import { prisma } from "../../../common/configs/prismaClient.js";
+import { paginate } from "../../../common/utils/pagination.utils.js";
+import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
+import { runIdempotent } from "../../../common/services/idempotency.service.js";
+import { withLockedTransaction, withTransaction } from "../../../common/services/transaction.service.js";
+import {
+  AUDIT_ENTITIES,
+  AUDIT_OPERATIONS,
+  diffFields,
+  newOperationId,
+  writeAudit,
+} from "../../../common/services/audit.service.js";
+
+const PROFILE_SORT_FIELDS = {
+  name: (order) => ({ pro_name: order }),
+  statusName: (order) => ({ tbl_status: { sta_name: order } }),
+  updatedAt: (order) => ({ pro_update_at: order }),
+  updatedBy: (order) => ({ pro_update_by: order }),
+  staId: (order) => ({ sta_id: order }),
+};
+
 
 export const paginationProfiles = async ({
   useId,
@@ -14,115 +30,128 @@ export const paginationProfiles = async ({
   sortField,
   sortOrder,
 }) => {
-  const order = sortOrder === 1 ? "ASC" : "DESC";
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const order = sortOrder === 1 ? "asc" : "desc";
+  // sortField nunca se pasa directo a Prisma: solo columnas de esta lista
+  // fija pueden terminar en el ORDER BY (antes: ORDER BY ${sortField},
+  // interpolado sin validar — ver SECURITY.md).
+  const orderBy = (PROFILE_SORT_FIELDS[sortField] ?? PROFILE_SORT_FIELDS.name)(order);
 
-    const params = [];
-    const wheres = ["p.sta_id != 3"];
+  const where = {
+    sta_id: { not: 3 },
+    ...(name ? { pro_name: { contains: name } } : {}),
+    ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}),
+    ...(Number(useId) !== 1 ? { NOT: { pro_id: 1 } } : {}),
+  };
 
-    if (name) {
-      wheres.push("p.pro_name LIKE ?");
-      params.push(`%${name}%`);
-    }
+  const page = await paginate(
+    prisma.tbl_profiles,
+    {
+      where,
+      select: {
+        pro_id: true,
+        pro_name: true,
+        pro_update_by: true,
+        pro_update_at: true,
+        sta_id: true,
+        tbl_status: { select: { sta_name: true } },
+        updated_by_user: USER_NAME_SELECT,
+      },
+      orderBy,
+    },
+    { first, rows }
+  );
 
-    if (staId) {
-      wheres.push("p.sta_id = ?");
-      params.push(staId);
-    }
+  const results = page.results.map((p) => ({
+    proId: p.pro_id,
+    name: p.pro_name,
+    statusName: p.tbl_status?.sta_name ?? null,
+    updatedBy: p.pro_update_by,
+    updatedByName: userFullName(p.updated_by_user),
+    updatedAt: p.pro_update_at,
+    staId: p.sta_id,
+  }));
 
-    if (useId != 1) {
-      wheres.push("p.pro_id != 1");
-    }
-
-    const whereClause = `WHERE ${wheres.join(" AND ")}`;
-
-    const mainQuery = `
-      SELECT
-        p.pro_id AS proId,
-        p.pro_name AS name,
-        e.sta_name AS statusName,
-        p.pro_update_by AS updatedBy,
-        p.pro_update_at AS updatedAt,
-        p.sta_id AS staId
-      FROM tbl_profiles p
-      JOIN tbl_status e ON p.sta_id = e.sta_id
-      ${whereClause}
-      ORDER BY ${sortField} ${order}
-      LIMIT ${rows} OFFSET ${first}
-    `;
-
-    const countQuery = `
-      SELECT COUNT(DISTINCT pro_id) tot
-      FROM tbl_profiles p
-      JOIN tbl_status e ON p.sta_id = e.sta_id
-      ${whereClause}
-    `;
-
-    const results = await executeQuery(mainQuery, params, connection);
-    const rowsc = await executeQuery(countQuery, params, connection);
-
-    return { results, total: rowsc[0].tot };
-  } finally {
-    releaseConnection(connection);
-  }
+  return { ...page, results };
 };
 
 export const getModules = async ({ proId }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const associatedPages = await prisma.tbl_pages.findMany({
+    where: { tbl_page_permissions: { some: { pro_id: Number(proId) } } },
+    select: { pag_id: true, pag_parent: true, pag_description: true },
+    orderBy: { pag_order: "asc" },
+  });
 
-    const resultsAso = await executeQuery(
-      `SELECT v.pag_parent AS parent, v.pag_id AS pagId, v.pag_description AS description
-       FROM tbl_pages v
-       JOIN tbl_page_permissions pp ON v.pag_id = pp.pag_id
-       WHERE pp.pro_id = ?
-       ORDER BY v.pag_order`,
-      [proId],
-      connection
-    );
+  const associatedIds = associatedPages.map((p) => p.pag_id);
 
-    const idasociados = resultsAso.length
-      ? resultsAso.map(({ pagId }) => pagId).join(",")
-      : "''";
+  const unassociatedPages = await prisma.tbl_pages.findMany({
+    where: { pag_id: { notIn: associatedIds } },
+    select: { pag_id: true, pag_parent: true, pag_description: true },
+  });
 
-    const results = await executeQuery(
-      `SELECT pag_parent AS parent, pag_id AS pagId, pag_description AS description
-       FROM tbl_pages
-       WHERE pag_id NOT IN (${idasociados})`,
-      [],
-      connection
-    );
+  const toShape = (p) => ({ parent: p.pag_parent, pagId: p.pag_id, description: p.pag_description });
 
-    return { associated: resultsAso, unassociated: results };
-  } finally {
-    releaseConnection(connection);
-  }
+  return {
+    associated: associatedPages.map(toShape),
+    unassociated: unassociatedPages.map(toShape),
+  };
 };
 
-export const saveProfile = async ({
+const DELETED_STATUS = 3;
+
+// Clave de idempotencia de la creación (ADR-0027, decisión 7), en la propia
+// fila del perfil.
+const PROFILE_CREATE_IDEMPOTENCY = {
+  model: prisma.tbl_profiles,
+  keyField: "pro_idempotency_key",
+  hashField: "pro_idempotency_hash",
+  ownerField: "pro_create_by",
+  select: { pro_id: true, pro_name: true },
+  toResult: (profile) => ({ message: `Perfil ${profile.pro_name} Creado Correctamente`, proId: profile.pro_id }),
+};
+
+export const saveProfile = async (args) => {
+  if (args.proId > 0) return persistProfile(args);
+
+  // Crear: la clave se busca antes que el control de nombre repetido, para
+  // que el reintento de una creación exitosa devuelva el perfil creado.
+  return runIdempotent({
+    target: PROFILE_CREATE_IDEMPOTENCY,
+    key: args.idempotencyKey,
+    ownerId: args.useBy,
+    payload: { name: args.name, staId: args.staId, modules: args.modules },
+    execute: (idempotencyData) => persistProfile({ ...args, idempotencyData }),
+  });
+};
+
+const persistProfile = async ({
   proId,
   name,
   staId,
   modules,
   previousModules,
   useBy,
+  ctx = { useId: useBy },
+  idempotencyData = {},
 }) => {
-  const wh = proId > 0 ? `AND pro_id != ${proId}` : "";
-  let connection = null;
-  try {
-    connection = await getConnection();
-    await connection.beginTransaction();
+  const operationId = newOperationId();
 
-    const resultsQuery = await executeQuery(
-      `SELECT pro_id FROM tbl_profiles WHERE pro_name = ? AND sta_id != 3 ${wh} LIMIT 1`,
-      [name],
-      connection
-    );
+  // Editar bloquea el perfil antes de leer nada (ADR-0027); crear no tiene
+  // fila que bloquear.
+  // Editar es idempotente (fija nombre, estado y páginas): se puede reintentar
+  // ante un interbloqueo. Crear no, porque repetirlo crearía otro perfil.
+  const run = proId > 0 ? (fn) => withLockedTransaction({ PERFIL: proId }, fn, { idempotent: true }) : withTransaction;
 
-    if (resultsQuery.length > 0) {
+  return run(async (tx) => {
+    const duplicate = await tx.tbl_profiles.findFirst({
+      where: {
+        pro_name: name,
+        sta_id: { not: DELETED_STATUS },
+        ...(proId > 0 ? { pro_id: { not: Number(proId) } } : {}),
+      },
+      select: { pro_id: true },
+    });
+
+    if (duplicate) {
       const error = new Error(
         "Ya existe un Perfil con el nombre ingresado. Verificar"
       );
@@ -131,104 +160,196 @@ export const saveProfile = async ({
     }
 
     if (proId > 0) {
-      const updateProfile = await executeQuery(
-        `UPDATE tbl_profiles SET pro_name = ?, sta_id = ?, pro_update_by = ? WHERE pro_id = ?`,
-        [name, staId, useBy, proId],
-        connection
-      );
+      const before = await tx.tbl_profiles.findUnique({
+        where: { pro_id: Number(proId) },
+        select: { pro_name: true, sta_id: true },
+      });
 
-      if (updateProfile.affectedRows > 0) {
-        const moddelete = _.difference(previousModules, modules);
-        const modinsert = _.difference(modules, previousModules);
-
-        if (moddelete.length > 0) {
-          await executeQuery(
-            `DELETE FROM tbl_page_permissions WHERE pro_id = ? AND pag_id IN(${moddelete.join(",")})`,
-            [proId],
-            connection
-          );
-        }
-
-        for (const pagId of modinsert) {
-          await executeQuery(
-            "INSERT INTO tbl_page_permissions(pro_id, pag_id) values(?, ?)",
-            [proId, pagId],
-            connection
-          );
-        }
-
-        await connection.commit();
-        return { message: `Perfil ${name} Modificado Correctamente` };
+      if (!before) {
+        const error = new Error("No se encontró el perfil para ser actualizado.");
+        error.status = 400;
+        throw error;
       }
 
-      const error = new Error("No se encontró el perfil para ser actualizado.");
-      error.status = 400;
+      const reactivated = before.sta_id === DELETED_STATUS && Number(staId) !== DELETED_STATUS;
+      const data = {
+        pro_name: name,
+        sta_id: Number(staId),
+        pro_update_by: Number(useBy),
+        ...(reactivated ? { pro_delete_by: null, pro_delete_at: null } : {}),
+      };
+
+      await tx.tbl_profiles.update({ where: { pro_id: Number(proId) }, data });
+
+      // El diff de páginas se calcula contra lo que hay en BD, no contra el
+      // previousModules que manda el cliente: la bitácora debe reflejar el
+      // cambio real, no el que el cliente cree que hizo.
+      const currentPages = await tx.tbl_page_permissions.findMany({
+        where: { pro_id: Number(proId), pag_id: { not: null } },
+        select: { pag_id: true },
+      });
+      const currentIds = currentPages.map((p) => p.pag_id);
+      const moddelete = _.difference(currentIds, modules);
+      const modinsert = _.difference(modules, currentIds);
+
+      if (moddelete.length > 0) {
+        await tx.tbl_page_permissions.deleteMany({
+          where: { pro_id: Number(proId), pag_id: { in: moddelete } },
+        });
+      }
+
+      if (modinsert.length > 0) {
+        await tx.tbl_page_permissions.createMany({
+          data: modinsert.map((pagId) => ({ pro_id: Number(proId), pag_id: pagId })),
+        });
+      }
+
+      const changes = diffFields(before, data, ["pro_name", "sta_id"]);
+      if (moddelete.length > 0 || modinsert.length > 0) {
+        changes.push({ field: "paginas", oldValue: currentIds, newValue: _.uniq(modules) });
+      }
+
+      if (changes.length > 0) {
+        await writeAudit(tx, {
+          operationId,
+          entity: AUDIT_ENTITIES.PROFILE,
+          recordId: proId,
+          operation: reactivated ? AUDIT_OPERATIONS.REACTIVATE : AUDIT_OPERATIONS.UPDATE,
+          ctx,
+          changes,
+        });
+      }
+
+      return { message: `Perfil ${name} Modificado Correctamente` };
+    }
+
+    const insertProfile = await tx.tbl_profiles.create({
+      data: {
+        pro_name: name,
+        sta_id: Number(staId),
+        pro_create_by: Number(useBy),
+        pro_update_by: Number(useBy),
+        ...idempotencyData,
+      },
+    });
+
+    if (modules.length > 0) {
+      await tx.tbl_page_permissions.createMany({
+        data: modules.map((pagId) => ({ pro_id: insertProfile.pro_id, pag_id: pagId })),
+      });
+    }
+
+    await writeAudit(tx, {
+      operationId,
+      entity: AUDIT_ENTITIES.PROFILE,
+      recordId: insertProfile.pro_id,
+      operation: AUDIT_OPERATIONS.CREATE,
+      ctx,
+      changes: [
+        { field: "pro_name", oldValue: null, newValue: name },
+        { field: "sta_id", oldValue: null, newValue: Number(staId) },
+        ...(modules.length > 0 ? [{ field: "paginas", oldValue: null, newValue: modules }] : []),
+      ],
+    });
+
+    return {
+      message: `Perfil ${name} Creado Correctamente`,
+      proId: insertProfile.pro_id,
+    };
+  });
+};
+
+export const deleteProfile = async ({ proId, updatedBy, ctx = { useId: updatedBy } }) => {
+  // La transacción hace rollback si el callback lanza. El perfil se bloquea
+  // primero: saveUser bloquea el perfil que asigna, así que la verificación
+  // de "sin usuarios" de abajo no se cruza con una asignación (ADR-0027).
+  return withLockedTransaction({ PERFIL: proId }, async (tx) => {
+    // Bloquear si hay usuarios activos con este perfil: antes no se
+    // verificaba, así que un perfil se podía "eliminar" (soft-delete) con
+    // usuarios todavía asignados — esos usuarios quedaban con pro_id
+    // apuntando a un perfil inactivo, y sus tbl_page_permissions se borraban
+    // en el mismo paso (ver abajo), dejándolos sin sidebar ni permisos de
+    // perfil de un momento a otro, sin ninguna advertencia. Ver SECURITY.md.
+    const dependentUsersCount = await tx.tbl_users.count({
+      where: { pro_id: Number(proId), sta_id: { not: DELETED_STATUS } },
+    });
+
+    if (dependentUsersCount > 0) {
+      const error = new Error(
+        `No se puede eliminar el perfil: tiene ${dependentUsersCount} usuario(s) activo(s) asociado(s). Reasígnalos a otro perfil primero.`
+      );
+      error.statusCode = 400;
       throw error;
     }
 
-    const insertProfile = await executeQuery(
-      `INSERT INTO tbl_profiles (pro_name, sta_id, pro_create_by, pro_update_by) VALUES(?,?,?,?)`,
-      [name, staId, useBy, useBy],
-      connection
-    );
+    const before = await tx.tbl_profiles.findUnique({
+      where: { pro_id: Number(proId) },
+      select: { sta_id: true },
+    });
 
-    if (insertProfile.insertId > 0) {
-      for (const pagId of modules) {
-        await executeQuery(
-          "INSERT INTO tbl_page_permissions(pro_id, pag_id) values(?, ?)",
-          [insertProfile.insertId, pagId],
-          connection
-        );
-      }
-
-      await connection.commit();
-      return {
-        message: `Perfil ${name} Creado Correctamente`,
-        proId: insertProfile.insertId,
-      };
+    if (!before || before.sta_id === DELETED_STATUS) {
+      const error = new Error("Error al eliminar el perfil.");
+      error.statusCode = 400;
+      throw error;
     }
 
-    const error = new Error("Ocurrió un error al intentar registrar el perfil.");
-    error.status = 500;
-    throw error;
-  } catch (err) {
-    if (connection) await connection.rollback();
-    throw err;
-  } finally {
-    releaseConnection(connection);
-  }
-};
+    // sta_id = 3 sigue decidiendo la visibilidad; pro_delete_by/_at guardan
+    // quién y cuándo, separado de pro_update_by/_at (ADR-0013).
+    await tx.tbl_profiles.update({
+      where: { pro_id: Number(proId) },
+      data: {
+        sta_id: DELETED_STATUS,
+        pro_update_by: Number(updatedBy),
+        pro_delete_by: Number(updatedBy),
+        pro_delete_at: new Date(),
+      },
+    });
 
-export const deleteProfile = async ({ proId, updatedBy }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
-    await connection.beginTransaction();
+    // Limpieza completa de dependientes en la misma transacción:
+    // tbl_page_permissions (páginas del sidebar) ya se limpiaba;
+    // tbl_profile_permissions (plantilla de permisos de acción) no se
+    // limpiaba y quedaba huérfana — si el perfil alguna vez se reactivara
+    // (sta_id vuelve a 1 vía saveProfile), esos permisos viejos resucitarían
+    // silenciosamente. Ver SECURITY.md.
+    //
+    // Es un borrado físico: la bitácora es la única evidencia de qué páginas
+    // y permisos tenía el perfil, así que se leen antes de borrarlos y se
+    // registran como revocados en la misma operación que la eliminación.
+    const [pages, permissions] = await Promise.all([
+      tx.tbl_page_permissions.findMany({ where: { pro_id: Number(proId) }, select: { pag_id: true } }),
+      tx.tbl_profile_permissions.findMany({ where: { pro_id: Number(proId) }, select: { per_id: true } }),
+    ]);
 
-    const deleteProfile = await executeQuery(
-      "UPDATE tbl_profiles SET sta_id = 3, pro_update_by = ? WHERE pro_id = ?",
-      [updatedBy, proId],
-      connection
-    );
+    await tx.tbl_page_permissions.deleteMany({ where: { pro_id: Number(proId) } });
+    await tx.tbl_profile_permissions.deleteMany({ where: { pro_id: Number(proId) } });
 
-    if (deleteProfile.affectedRows > 0) {
-      await executeQuery(
-        "DELETE FROM tbl_page_permissions WHERE pro_id = ?",
-        [proId],
-        connection
-      );
+    const operationId = newOperationId();
+    await writeAudit(tx, {
+      operationId,
+      entity: AUDIT_ENTITIES.PROFILE,
+      recordId: proId,
+      operation: AUDIT_OPERATIONS.DELETE,
+      ctx,
+      changes: [
+        { field: "sta_id", oldValue: before.sta_id, newValue: DELETED_STATUS },
+        ...(pages.length > 0
+          ? [{ field: "paginas", oldValue: pages.map((p) => p.pag_id).filter(Boolean), newValue: null }]
+          : []),
+      ],
+    });
 
-      await connection.commit();
-      return { message: "Perfil Eliminado Correctamente" };
+    if (permissions.length > 0) {
+      await writeAudit(tx, {
+        operationId,
+        entity: AUDIT_ENTITIES.PROFILE,
+        recordId: proId,
+        operation: AUDIT_OPERATIONS.REVOKE,
+        ctx,
+        changes: permissions.map((p) => ({ field: "permiso", oldValue: p.per_id, newValue: null })),
+      });
     }
 
-    const error = new Error("Error al eliminar el perfil.");
-    error.statusCode = 400;
-    throw error;
-  } catch (err) {
-    if (connection) await connection.rollback();
-    throw err;
-  } finally {
-    releaseConnection(connection);
-  }
+    return { message: "Perfil Eliminado Correctamente" };
+  });
 };
+

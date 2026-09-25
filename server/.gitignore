@@ -6,12 +6,15 @@
 # dependencies
 /node_modules
 package-lock.json
+/.yarn/install-state.gz
+/.pnp.*
 
 # testing
 /coverage
 
 # production
 /build
+/dist
 /idea
 /.idea
 

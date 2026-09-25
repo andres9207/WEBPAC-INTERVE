@@ -1,0 +1,294 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model tbl_documents {
+  doc_id               Int                    @id @default(autoincrement())
+  doc_type             tbl_documents_doc_type
+  doc_id_ref           Int
+  doc_name             String?                @db.VarChar(255)
+  doc_path_storage     String                 @db.VarChar(255)
+  doc_url              String                 @db.VarChar(255)
+  doc_extension        String                 @db.VarChar(10)
+  doc_mime_type        String                 @db.VarChar(100)
+  doc_size             Int
+  doc_parent_id        Int?
+  sta_id               Int?                   @default(1)
+  doc_create_by        Int?
+  doc_create_at        DateTime?              @default(now()) @db.Timestamp(0)
+  doc_update_by        Int?
+  doc_update_at        DateTime?              @default(now()) @db.Timestamp(0)
+  doc_delete_by        Int?
+  doc_delete_at        DateTime?              @db.Timestamp(0)
+  doc_idempotency_key  String?                @unique(map: "uq_documents_idempotency_key") @db.Char(36)
+  doc_idempotency_hash String?                @db.Char(64)
+  created_by_user      tbl_users?             @relation("DocumentCreatedBy", fields: [doc_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_documents_create_by")
+  deleted_by_user      tbl_users?             @relation("DocumentDeletedBy", fields: [doc_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_documents_delete_by")
+  tbl_status           tbl_status?            @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_documents_status")
+  updated_by_user      tbl_users?             @relation("DocumentUpdatedBy", fields: [doc_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_documents_update_by")
+
+  @@index([sta_id], map: "tbl_documents_status")
+  @@index([doc_create_by], map: "tbl_documents_create_by")
+  @@index([doc_update_by], map: "tbl_documents_update_by")
+  @@index([doc_delete_by], map: "tbl_documents_delete_by")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model tbl_notifications {
+  not_id         Int       @id @default(autoincrement())
+  use_id         Int
+  not_priority   String?   @default("medium") @db.VarChar(50)
+  not_title      String    @db.VarChar(150)
+  not_message    String    @db.Text
+  not_type       String?   @default("info") @db.VarChar(50)
+  not_module     String?   @db.VarChar(100)
+  not_action     String?   @db.VarChar(100)
+  not_data       Json?
+  not_created_at DateTime? @default(now()) @db.Timestamp(0)
+  not_is_read    Boolean?  @default(false)
+  not_read_at    DateTime? @db.Timestamp(0)
+  not_updated_at DateTime? @default(now()) @db.Timestamp(0)
+  tbl_users      tbl_users @relation(fields: [use_id], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_notifications_users")
+
+  @@index([use_id], map: "idx_noti_user")
+}
+
+model tbl_page_permissions {
+  pap_id       Int           @id @default(autoincrement())
+  pro_id       Int?
+  pag_id       Int?
+  tbl_pages    tbl_pages?    @relation(fields: [pag_id], references: [pag_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_page_permissions_pages")
+  tbl_profiles tbl_profiles? @relation(fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_page_permissions_profiles")
+
+  @@unique([pro_id, pag_id], map: "uq_page_permissions_pro_pag")
+  @@index([pag_id], map: "tbl_page_permissions_pages")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model tbl_pages {
+  pag_id               Int                    @id @default(autoincrement())
+  pag_description      String                 @db.VarChar(255)
+  pag_parent           Int?
+  pag_url              String?                @db.VarChar(255)
+  pag_icon             String?                @db.VarChar(255)
+  pag_order            Int?
+  pag_name             String?                @db.VarChar(255)
+  pag_type             Int?
+  tbl_page_permissions tbl_page_permissions[]
+  tbl_permissions      tbl_permissions[]
+  tbl_user_pages       tbl_user_pages[]
+}
+
+model tbl_password_resets {
+  par_id          Int        @id @default(autoincrement())
+  use_id          Int        @unique(map: "uq_password_resets_use_id")
+  par_use_email   String     @db.VarChar(255)
+  par_code_hash   String     @db.Char(64)
+  par_attempts    Int        @default(0)
+  par_create_by   Int?
+  par_create_at   DateTime?  @default(now()) @db.Timestamp(0)
+  par_update_by   Int?
+  par_update_at   DateTime?  @default(now()) @db.Timestamp(0)
+  tbl_users       tbl_users  @relation("PasswordResetUser", fields: [use_id], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_password_resets_users")
+  created_by_user tbl_users? @relation("PasswordResetCreatedBy", fields: [par_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_password_resets_create_by")
+  updated_by_user tbl_users? @relation("PasswordResetUpdatedBy", fields: [par_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_password_resets_update_by")
+
+  @@index([par_create_by], map: "tbl_password_resets_create_by")
+  @@index([par_update_by], map: "tbl_password_resets_update_by")
+}
+
+model tbl_sessions {
+  ses_id                Int       @id @default(autoincrement())
+  use_id                Int       @unique(map: "uq_sessions_use_id")
+  ses_key               String    @unique(map: "uq_sessions_ses_key") @db.Char(36)
+  ses_refresh_hash      String    @unique(map: "uq_sessions_refresh_hash") @db.Char(64)
+  ses_prev_refresh_hash String?   @db.Char(64)
+  ses_rotated_at        DateTime? @db.Timestamp(0)
+  ses_expires_at        DateTime  @db.Timestamp(0)
+  ses_ip                String?   @db.VarChar(45)
+  ses_user_agent        String?   @db.VarChar(255)
+  ses_create_at         DateTime? @default(now()) @db.Timestamp(0)
+  tbl_users             tbl_users @relation(fields: [use_id], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_sessions_users")
+
+  @@index([ses_prev_refresh_hash], map: "ix_sessions_prev_refresh_hash")
+}
+
+model tbl_login_attempts {
+  use_id             Int       @id
+  lat_failed_count   Int       @default(0)
+  lat_locked_until   DateTime? @db.Timestamp(0)
+  lat_last_failed_at DateTime? @default(now()) @db.Timestamp(0)
+  tbl_users          tbl_users @relation(fields: [use_id], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_login_attempts_users")
+}
+
+model tbl_permissions {
+  per_id                  Int                       @id @default(autoincrement())
+  per_name                String?                   @db.VarChar(255)
+  pag_id                  Int?
+  per_order               Int?
+  tbl_pages               tbl_pages?                @relation(fields: [pag_id], references: [pag_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_permissions_pages")
+  tbl_profile_permissions tbl_profile_permissions[]
+  tbl_user_permissions    tbl_user_permissions[]
+
+  @@index([pag_id], map: "tbl_permissions_pages")
+}
+
+model tbl_profile_permissions {
+  prp_id          Int             @id @default(autoincrement())
+  per_id          Int
+  pro_id          Int
+  tbl_permissions tbl_permissions @relation(fields: [per_id], references: [per_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_profile_permissions_permissions")
+  tbl_profiles    tbl_profiles    @relation(fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_profile_permissions_profiles")
+
+  @@unique([per_id, pro_id], map: "uq_profile_permissions_per_pro")
+  @@index([pro_id], map: "tbl_profile_permissions_profiles")
+}
+
+model tbl_profiles {
+  pro_id                  Int                       @id @default(autoincrement())
+  pro_name                String?                   @unique(map: "uq_profiles_pro_name") @db.VarChar(255)
+  sta_id                  Int?
+  pro_create_by           Int?
+  pro_create_at           DateTime?                 @default(now()) @db.Timestamp(0)
+  pro_update_by           Int?
+  pro_update_at           DateTime?                 @default(now()) @db.Timestamp(0)
+  pro_delete_by           Int?
+  pro_delete_at           DateTime?                 @db.Timestamp(0)
+  pro_idempotency_key     String?                   @unique(map: "uq_profiles_idempotency_key") @db.Char(36)
+  pro_idempotency_hash    String?                   @db.Char(64)
+  tbl_page_permissions    tbl_page_permissions[]
+  tbl_profile_permissions tbl_profile_permissions[]
+  created_by_user         tbl_users?                @relation("ProfileCreatedBy", fields: [pro_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_profiles_create_by")
+  deleted_by_user         tbl_users?                @relation("ProfileDeletedBy", fields: [pro_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_profiles_delete_by")
+  tbl_status              tbl_status?               @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_profiles_status")
+  updated_by_user         tbl_users?                @relation("ProfileUpdatedBy", fields: [pro_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_profiles_update_by")
+  tbl_users               tbl_users[]               @relation("UserProfile")
+
+  @@index([sta_id], map: "tbl_profiles_status")
+  @@index([pro_create_by], map: "tbl_profiles_create_by")
+  @@index([pro_update_by], map: "tbl_profiles_update_by")
+  @@index([pro_delete_by], map: "tbl_profiles_delete_by")
+}
+
+model tbl_status {
+  sta_id        Int                  @id @default(autoincrement())
+  sta_name      String               @db.VarChar(100)
+  sta_scope     tbl_status_sta_scope @default(GENERAL)
+  sta_color     String?              @db.VarChar(20)
+  sta_order     Int?
+  tbl_documents tbl_documents[]
+  tbl_profiles  tbl_profiles[]
+  tbl_users     tbl_users[]
+}
+
+model tbl_user_permissions {
+  usp_id          Int             @id @default(autoincrement())
+  per_id          Int
+  use_id          Int
+  tbl_permissions tbl_permissions @relation(fields: [per_id], references: [per_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_user_permissions_permissions")
+  tbl_users       tbl_users       @relation(fields: [use_id], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_user_permissions_users")
+
+  @@unique([per_id, use_id], map: "uq_user_permissions_per_use")
+  @@index([use_id], map: "tbl_user_permissions_users")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model tbl_users {
+  use_id                  Int                    @id @default(autoincrement())
+  use_name                String?                @db.VarChar(255)
+  use_last_name           String?                @db.VarChar(255)
+  use_identification      String?                @db.VarChar(255)
+  use_user                String?                @unique(map: "use_user") @db.VarChar(100)
+  use_email               String?                @unique(map: "use_email") @db.VarChar(255)
+  use_password            String?                @db.VarChar(255)
+  pro_id                  Int?
+  sta_id                  Int?                   @default(1)
+  use_access              Int?                   @default(1) @db.SmallInt
+  use_change_password     Int?                   @default(1) @db.SmallInt
+  use_create_by           Int?
+  use_create_at           DateTime?              @default(now()) @db.Timestamp(0)
+  use_update_by           Int?
+  use_update_at           DateTime?              @default(now()) @db.Timestamp(0)
+  use_delete_by           Int?
+  use_delete_at           DateTime?              @db.Timestamp(0)
+  use_idempotency_key     String?                @unique(map: "uq_users_idempotency_key") @db.Char(36)
+  use_idempotency_hash    String?                @db.Char(64)
+  tbl_audit_log           tbl_audit_log[]
+  documents_created       tbl_documents[]        @relation("DocumentCreatedBy")
+  documents_deleted       tbl_documents[]        @relation("DocumentDeletedBy")
+  documents_updated       tbl_documents[]        @relation("DocumentUpdatedBy")
+  tbl_login_attempts      tbl_login_attempts?
+  tbl_notifications       tbl_notifications[]
+  tbl_password_resets     tbl_password_resets?   @relation("PasswordResetUser")
+  password_resets_created tbl_password_resets[]  @relation("PasswordResetCreatedBy")
+  password_resets_updated tbl_password_resets[]  @relation("PasswordResetUpdatedBy")
+  profiles_created        tbl_profiles[]         @relation("ProfileCreatedBy")
+  profiles_deleted        tbl_profiles[]         @relation("ProfileDeletedBy")
+  profiles_updated        tbl_profiles[]         @relation("ProfileUpdatedBy")
+  tbl_sessions            tbl_sessions?
+  tbl_user_pages          tbl_user_pages[]
+  tbl_user_permissions    tbl_user_permissions[]
+  created_by_user         tbl_users?             @relation("UserCreatedBy", fields: [use_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_create_by")
+  users_created           tbl_users[]            @relation("UserCreatedBy")
+  deleted_by_user         tbl_users?             @relation("UserDeletedBy", fields: [use_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_delete_by")
+  users_deleted           tbl_users[]            @relation("UserDeletedBy")
+  tbl_profiles            tbl_profiles?          @relation("UserProfile", fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_profiles")
+  tbl_status              tbl_status?            @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_status")
+  updated_by_user         tbl_users?             @relation("UserUpdatedBy", fields: [use_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_update_by")
+  users_updated           tbl_users[]            @relation("UserUpdatedBy")
+
+  @@index([pro_id], map: "tbl_users_profiles")
+  @@index([sta_id], map: "tbl_users_status")
+  @@index([use_create_by], map: "tbl_users_create_by")
+  @@index([use_update_by], map: "tbl_users_update_by")
+  @@index([use_delete_by], map: "tbl_users_delete_by")
+}
+
+/// Bitácora de auditoría funcional (database/migrations/0013_create_audit_log.sql).
+/// Solo escritura: se inserta desde common/services/audit.service.js, nunca se actualiza ni se borra.
+model tbl_audit_log {
+  aud_id           BigInt     @id @default(autoincrement())
+  aud_operation_id String     @db.Char(36)
+  aud_entity       String     @db.VarChar(50)
+  aud_record_id    Int?
+  aud_field        String?    @db.VarChar(100)
+  aud_old_value    String?    @db.Text
+  aud_new_value    String?    @db.Text
+  aud_operation    String     @db.VarChar(30)
+  use_id           Int?
+  aud_ip           String?    @db.VarChar(45)
+  aud_create_at    DateTime   @default(now()) @db.Timestamp(3)
+  tbl_users        tbl_users? @relation(fields: [use_id], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_audit_log_users")
+
+  @@index([aud_entity, aud_record_id], map: "ix_audit_log_entity_record")
+  @@index([aud_operation_id], map: "ix_audit_log_operation_id")
+  @@index([use_id], map: "ix_audit_log_use_id")
+  @@index([aud_create_at], map: "ix_audit_log_create_at")
+}
+
+model tbl_user_pages {
+  upg_id    Int       @id @default(autoincrement())
+  use_id    Int
+  pag_id    Int
+  tbl_pages tbl_pages @relation(fields: [pag_id], references: [pag_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_user_pages_pages")
+  tbl_users tbl_users @relation(fields: [use_id], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_user_pages_users")
+
+  @@unique([use_id, pag_id], map: "uq_user_pages_use_pag")
+  @@index([pag_id], map: "tbl_user_pages_pages")
+}
+
+enum tbl_documents_doc_type {
+  USERS
+  PROFILES
+  PAGINAS
+  PERMISOS
+}
+
+enum tbl_status_sta_scope {
+  GENERAL
+}

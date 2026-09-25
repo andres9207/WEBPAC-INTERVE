@@ -2,13 +2,16 @@
 
 ## Estado
 
-**Aceptado parcialmente / Propuesto.**
+**Aceptado (implementado para los módulos existentes).**
 
-Existe un estándar de auditoría técnica, aplicado de forma casi consistente. La auditoría funcional (qué cambió) **no existe** y su adopción es una propuesta.
+La auditoría técnica con autor verificable, las columnas de eliminación y la bitácora funcional están implementadas para usuarios, perfiles, permisos, documentos y eventos de autenticación. Para los módulos de negocio que aún no existen (obras, contratos, pólizas, facturación, proveedores), este ADR fija el estándar que deben cumplir al crearse.
+
+La sesión MySQL de Prisma va fijada en UTC (B8). Quedan abiertas: la política de retención de la bitácora (B15) y la consulta de la bitácora desde la aplicación (B16).
 
 ## Fecha
 
-2026-09-10 — versión inicial.
+- 2026-09-10 — versión inicial (análisis del estado heredado).
+- 2026-09-24 — se implementan las decisiones 2, 3, 4, 6, 7, 8 y 10: FK de autoría, columnas de eliminación, bitácora `tbl_audit_log` escrita desde el servicio y eventos de autenticación. Se retiran del análisis las tablas y módulos que ya no existen en el repositorio (`tbl_providers`, `tbl_business_rules`, módulo `template`).
 
 ## Contexto
 
@@ -20,14 +23,12 @@ Hay dos niveles de auditoría, y confundirlos es el error habitual:
 
 | Nivel | Pregunta que responde | Coste |
 | --- | --- | --- |
-| **Auditoría técnica** | ¿Quién creó o modificó este registro por última vez? | Cuatro columnas por tabla |
+| **Auditoría técnica** | ¿Quién creó, modificó o eliminó este registro por última vez? | Seis columnas por tabla |
 | **Auditoría funcional** | ¿Qué campo cambió, de qué valor a qué valor, quién y cuándo? | Tabla de bitácora + escritura por operación |
 
 La auditoría técnica responde "quién tocó esto". La funcional responde "qué pasó aquí". La primera se sobrescribe en cada actualización; la segunda acumula historia.
 
 ## Problema
-
-El sistema registra únicamente el último autor de cada registro. Cuando un valor de contrato o una vigencia de póliza cambian, no queda constancia del valor anterior ni de la secuencia de cambios. Para los módulos de negocio del proceso de contratos, esa información es parte del expediente, no un lujo técnico.
 
 Se requiere definir:
 
@@ -38,437 +39,363 @@ Se requiere definir:
 
 ## Estado actual
 
-### El estándar existente
+### Auditoría técnica: columnas por tabla
 
-El esquema aplica un patrón de cuatro columnas con prefijo de tabla:
-
-```text
-<prefijo>_create_by   int NULL
-<prefijo>_create_at   timestamp NULL DEFAULT CURRENT_TIMESTAMP
-<prefijo>_update_by   int NULL
-<prefijo>_update_at   timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-```
-
-Los nombres reales por tabla, verificados en `database/bdintervewebpack.sql`:
-
-| Tabla | create_by | create_at | update_by | update_at |
+| Tabla | create_by / at | update_by / at | delete_by / at | FK de autoría |
 | --- | --- | --- | --- | --- |
-| `tbl_users` | `use_create_by` | `use_create_at` | `use_update_by` | `use_update_at` |
-| `tbl_profiles` | `pro_create_by` | `pro_create_at` | `pro_update_by` | `pro_update_at` |
-| `tbl_documents` | `doc_create_by` | `doc_create_at` | `doc_update_by` | `doc_update_at` |
-| `tbl_providers` | `prv_create_by` | `prv_create_at` | `prv_update_by` | **`pro_update_at`** |
-| `tbl_business_rules` | `rul_create_by` | `rul_create_at` | `rul_update_by` | `rul_update_at` |
-| `tbl_priorities` | `pri_create_by` | `pri_create_at` | `pri_update_by` | `pri_update_at` |
-| `tbl_reasons` | `rea_create_by` | `rea_create_at` | `rea_update_by` | `rea_update_at` |
-| `tbl_password_resets` | — | `par_created_at` | — | — |
-| `tbl_pages` | — | — | — | — |
-| `tbl_permissions` | — | — | — | — |
-| `tbl_status` | — | — | — | — |
-| `tbl_page_permissions` | — | — | — | — |
-| `tbl_profile_permissions` | — | — | — | — |
-| `tbl_user_permissions` | — | — | — | — |
+| `tbl_users` | `use_create_by` / `use_create_at` | `use_update_by` / `use_update_at` | `use_delete_by` / `use_delete_at` | Sí (autorreferencia) |
+| `tbl_profiles` | `pro_create_by` / `pro_create_at` | `pro_update_by` / `pro_update_at` | `pro_delete_by` / `pro_delete_at` | Sí |
+| `tbl_documents` | `doc_create_by` / `doc_create_at` | `doc_update_by` / `doc_update_at` | `doc_delete_by` / `doc_delete_at` | Sí |
+| `tbl_password_resets` | `par_create_by` / `par_create_at` | `par_update_by` / `par_update_at` | — (transitorio, borrado físico) | Sí; los `*_by` quedan `NULL`: solicitud sin sesión |
+| `tbl_sessions` | — / `ses_create_at` | — | — | No aplica (registro transitorio) |
+| `tbl_pages`, `tbl_permissions`, `tbl_status` | — | — | — | Exentas (catálogo, decisión 5) |
+| `tbl_page_permissions`, `tbl_profile_permissions`, `tbl_user_permissions`, `tbl_user_pages` | — | — | — | Auditadas en la bitácora (decisión 6) |
 
-Tres desviaciones concretas:
-
-1. **`tbl_providers.pro_update_at`** usa el prefijo `pro_` (de perfiles) en lugar de `prv_`. Es un error de nomenclatura que rompe el patrón y confunde el origen de la columna.
-2. **`tbl_password_resets`** usa `par_created_at` —participio en pasado— en lugar de `par_create_at`.
-3. **Las cinco tablas de catálogo y unión no tienen auditoría alguna.** `tbl_pages`, `tbl_permissions`, `tbl_status`, `tbl_page_permissions`, `tbl_profile_permissions`, `tbl_user_permissions` solo tienen claves.
-
-Un cuarto patrón aparece en el módulo `template`, que es la referencia de CRUD del proyecto:
-
-```text
-mas_usu_reg   mas_usu_act   mas_fec_act
-```
-
-Convención en español, distinta del estándar, sobre tablas (`tbl_template`, `tbl_estados`) que **no existen en el esquema**. Como este módulo es el patrón que se copiaría al crear módulos nuevos, propaga la convención equivocada.
-
-### Cómo se pobla
-
-El autor no se toma del token. Se recibe del cliente:
-
-| Servicio | Origen del autor |
-| --- | --- |
-| `users.service.saveUser` | `useBy` desde `req.body` |
-| `users.service.deleteUser` | `updatedBy` desde `req.body` |
-| `profiles.service.saveProfile` | `useBy` desde `req.body` |
-| `profiles.service.deleteProfile` | `updatedBy` desde `req.body` |
-| `document.service.saveModuleDoc` | `docCreateBy` / `docUpdateBy` desde `req.body` |
-
-`req.user` está disponible —lo deja `verifyToken`— y no se usa para esto en ningún servicio. **El autor auditado es el que el cliente declara**, no el que la sesión demuestra.
-
-Las columnas `*_create_by` y `*_update_by` son `int NULL` **sin clave foránea a `tbl_users`**. No hay nada que garantice que el valor corresponde a un usuario real. `tbl_documents` es la única que las une a `tbl_users` en consulta (`JOIN tbl_users u ON d.doc_create_by = u.use_id`), y por ser `JOIN` interno, un documento con `doc_create_by` nulo o inválido **desaparece del listado**.
+- **FK a `tbl_users.use_id`** en todas las columnas `*_create_by`, `*_update_by` y `*_delete_by` (`database/migrations/0011_fk_audit_columns.sql` y `0012_add_delete_columns.sql`). Admiten `NULL`: el primer usuario del sistema no tiene creador. La migración 0011 depura antes cualquier valor sin usuario correspondiente (lo pone en `NULL`); en la BD de desarrollo no había ninguno.
+- **El autor sale siempre de `req.user`** (el JWT verificado), nunca del cuerpo de la petición: `saveUser`, `deleteUser`, `saveProfile`, `deleteProfile`, `saveModuleDoc`, `deleteModuleDoc` y las autoediciones (`updateAccount`, `updatePassword`, que registran al propio usuario en `use_update_by`). `restorePassword` también registra al propio usuario: demostró ser el dueño del correo.
+- En Prisma las relaciones de autoría tienen nombres explícitos (`created_by_user`, `updated_by_user`, `deleted_by_user` y sus inversas en `tbl_users`), porque Prisma los exige cuando dos modelos tienen varias relaciones entre sí.
 
 ### Eliminación
 
-No hay `deleted_at` ni `deleted_by` en ninguna tabla. La eliminación es lógica mediante estado:
+La eliminación sigue siendo lógica (`sta_id = 3`) y sigue siendo lo único que decide la visibilidad: todos los listados filtran `sta_id != 3`.
 
-```text
-sta_id = 3   →   eliminado
-```
+- `deleteUser`, `deleteProfile` y `deleteModuleDoc` pueblan además `*_delete_by` (autor de la sesión) y `*_delete_at`. La eliminación de una carpeta de documentos marca con la misma fecha y autor todo su contenido.
+- `*_update_by` / `*_update_at` también se actualizan al eliminar, pero ya no son la única evidencia: una edición posterior no borra quién eliminó.
+- Eliminar un registro ya eliminado se rechaza, para no pisar la evidencia original.
+- **Reactivación**: si `saveUser` / `saveProfile` / `saveModuleDoc` devuelven un registro eliminado a un estado visible, `*_delete_by` / `*_delete_at` vuelven a `NULL`. La historia de la eliminación y la reactivación queda en la bitácora (usuarios y perfiles).
+- Los registros eliminados antes de la migración 0012 quedan con `*_delete_*` en `NULL`: no hay forma de saber quién los eliminó, y copiar `*_update_*` sería inventar evidencia.
 
-Aplicado consistentemente: `deleteUser` y `deleteProfile` hacen `UPDATE ... SET sta_id = 3`, y todos los listados filtran `sta_id != 3`.
+### Auditoría funcional: `tbl_audit_log`
 
-La consecuencia: **quién eliminó y cuándo se registran en `*_update_by` / `*_update_at`**, indistinguibles de una modificación ordinaria. Si tras eliminar se modifica el registro, la información de eliminación se pierde.
+`database/migrations/0013_create_audit_log.sql`. Una fila por campo modificado, o una fila sin campo para los eventos que no cambian un valor.
 
-`tbl_status` no tiene datos sembrados en el volcado, por lo que los valores `1`, `2` y `3` viven codificados en el backend y en `client/src/utils/constants.js`, que solo declara `Activo` (1) e `Inactivo` (2).
+| Columna | Contenido |
+| --- | --- |
+| `aud_id` | Clave (`bigint`) |
+| `aud_operation_id` | UUID que agrupa todas las filas de una misma operación: un "Guardar" que cambia varios campos, o una eliminación que además revoca permisos |
+| `aud_entity` | Entidad de negocio (`USUARIO`, `PERFIL`, …) |
+| `aud_record_id` | Id del registro afectado; `NULL` en eventos sin registro (login fallido de un usuario inexistente) |
+| `aud_field` | Campo modificado; `NULL` en eventos |
+| `aud_old_value` / `aud_new_value` | Valores como texto (`TEXT`). `NULL` es un valor válido. Las listas se guardan ordenadas y separadas por comas |
+| `aud_operation` | Operación (catálogo `AUDIT_OPERATIONS` en el código, abajo) |
+| `use_id` | Autor, FK a `tbl_users`. Siempre el usuario de la sesión; `NULL` solo en eventos anónimos |
+| `aud_ip` | IP de origen |
+| `aud_create_at` | `timestamp(3)`: milisegundos, para ordenar eventos del mismo segundo |
 
-### Auditoría funcional
+Índices: (`aud_entity`, `aud_record_id`), `aud_operation_id`, `use_id`, `aud_create_at`.
 
-**No existe.** No se encontró en el esquema ninguna tabla de bitácora, historial, log de cambios ni versionado. No hay disparadores, procedimientos almacenados, funciones ni eventos programados en toda la base de datos.
+`aud_operation` es texto y no `ENUM` a propósito: el catálogo vive en el código y crecerá con los módulos de negocio sin exigir una migración por operación.
 
-No se registra:
+**Escritura**: exclusivamente con `writeAudit(tx, …)` de `server/src/common/services/audit.service.js`, dentro de la transacción de la operación. `diffFields(before, after, campos)` calcula qué cambió; cada service declara explícitamente qué campos audita. La utilidad hace cumplir estas reglas en tiempo de ejecución:
 
-- El valor anterior de ningún campo.
-- Cambios de estado de ningún registro.
-- Concesiones ni revocaciones de permisos (`tbl_user_permissions` no tiene columnas de auditoría).
-- Eventos de autenticación: inicios de sesión, fallos, cambios de contraseña, recuperaciones.
-- Operaciones denegadas.
+- `writeAudit` lanza un error si no recibe el `tx` o si recibe el cliente `prisma` global.
+- Lanza también si la entidad o la operación no están en `AUDIT_ENTITIES` / `AUDIT_OPERATIONS`.
+- La única excepción es `writeAuditEvent`, para eventos de autenticación que no cambian datos (hoy solo `LOGIN_FALLIDO` de un usuario inexistente o bloqueado): no hay escritura a la cual atarlos. Rechaza cualquier otra operación.
+
+**Qué se registra hoy:**
+
+| Entidad | Operaciones | Origen |
+| --- | --- | --- |
+| `USUARIO` | `CREAR`, `EDITAR` (datos, perfil, estado, acceso, páginas puntuales, contraseña oculta), `ELIMINAR`, `REACTIVAR` | `users.service.js`, `auth.service.updateAccount` |
+| `USUARIO` | `ASIGNAR` / `REVOCAR` de permisos individuales, una fila por permiso | `permissions.service.updateUserPermissions` |
+| `PERFIL` | `CREAR`, `EDITAR` (nombre, estado, páginas), `ELIMINAR` (con las páginas que se borran), `REACTIVAR` | `profiles.service.js` |
+| `PERFIL` | `ASIGNAR` / `REVOCAR` de permisos; al eliminar el perfil, `REVOCAR` de todos sus permisos en la misma operación | `permissions.service.updateProfilePermissions`, `profiles.service.deleteProfile` |
+| `USUARIO` (autenticación) | `LOGIN` (indica si cerró otra sesión), `LOGIN_FALLIDO` (con motivo o contador), `CUENTA_BLOQUEADA`, `LOGOUT`, `SESION_REVOCADA` (reutilización de refresh token; cierre forzado al inactivar, eliminar o cambiarle la contraseña a un usuario, y al restaurar la contraseña, siempre con motivo y solo si había una sesión abierta), `CONTRASENA_CAMBIADA`, `RECUPERACION_SOLICITADA`, `CODIGO_RECUPERACION_FALLIDO`, `CONTRASENA_RESTAURADA` | `auth.service.js`, `session.service.js` |
+
+Los documentos adjuntos son auditoría **técnica** (decisión 9): tienen columnas de autoría y de eliminación, pero no escriben en la bitácora.
 
 ### Logging técnico
 
-`common/configs/winston.config.js` define un logger con consola y dos archivos: `logs/error-api.log` y `logs/api.log`. `common/middlewares/httpLogger.middleware.js` lo conecta a morgan.
-
-**Ninguno de los dos está montado en `app.js`.** Lo que se monta es `morgan("dev")`, que escribe solo a consola en formato de desarrollo, sin persistencia.
-
-`error.middleware.js` hace `console.error` de cada error; en producción no lo persiste en ninguna parte.
-
-Aunque estuvieran activos, son logs de tráfico HTTP: registran método, ruta y estado. **No son auditoría de negocio** y no responden qué cambió en un registro.
-
-### Notificaciones
-
-`modules/app/notifications/` implementa notificaciones por usuario sobre `tbl_notifications`, tabla **inexistente en el esquema**. Aunque funcionara, es un mecanismo de aviso, no de auditoría: no conserva valores anteriores.
+`server/app.js` monta el logger HTTP persistente (winston → `logs/api.log` y `logs/error-api.log`). Es diagnóstico técnico, no auditoría de negocio: registra método, ruta, estado y tiempo, no qué cambió en un registro.
 
 ## Decisión
 
-1. **Se adopta como estándar transversal el patrón de cuatro columnas ya mayoritario**:
+1. **Se adopta como estándar transversal el patrón de columnas con prefijo de tabla**, ahora de seis columnas en las tablas del dominio de negocio:
 
    ```text
-   <prefijo>_create_by, <prefijo>_create_at, <prefijo>_update_by, <prefijo>_update_at
+   <prefijo>_create_by, <prefijo>_create_at,
+   <prefijo>_update_by, <prefijo>_update_at,
+   <prefijo>_delete_by, <prefijo>_delete_at
    ```
 
-   Toda tabla nueva del dominio de negocio lo incluye. Se corrigen las desviaciones existentes (`tbl_providers.pro_update_at`).
+   Toda tabla nueva del dominio de negocio lo incluye (ver `database/migrations/README.md`, "Estándar de auditoría para tablas nuevas").
 
-2. **`*_create_by` y `*_update_by` llevan clave foránea a `tbl_users.use_id`.** Un autor que no es un usuario del sistema no es auditoría, es un número.
+2. **`*_create_by`, `*_update_by` y `*_delete_by` llevan clave foránea a `tbl_users.use_id`.** Un autor que no es un usuario del sistema no es auditoría, es un número.
 
-3. **El autor se toma siempre de `req.user`, nunca del cuerpo de la petición.** Una auditoría que el cliente puede falsificar no tiene valor probatorio. Esta decisión es idéntica a la de [ADR-0001](0001-seguridad.md) para el sujeto de la operación, por la misma razón.
+3. **El autor se toma siempre de `req.user`, nunca del cuerpo de la petición.** Una auditoría que el cliente puede falsificar no tiene valor probatorio. Es la misma decisión que [ADR-0001](0001-seguridad.md) para el sujeto de la operación.
 
-4. **Se añaden `<prefijo>_delete_by` y `<prefijo>_delete_at`** a las tablas del dominio de negocio, poblados en la eliminación lógica. El estado `sta_id = 3` sigue siendo el que determina la visibilidad; las nuevas columnas conservan la evidencia del evento.
+4. **`<prefijo>_delete_by` y `<prefijo>_delete_at` se pueblan en la eliminación lógica.** `sta_id = 3` sigue determinando la visibilidad; las columnas conservan la evidencia del evento. Se limpian si el registro se reactiva, y la historia queda en la bitácora.
 
-5. **Las tablas de catálogo estable (`tbl_status`, `tbl_pages`, `tbl_permissions`) quedan exentas de auditoría de fila.** Su contenido es configuración versionada con el código, no dato operativo. Su historia vive en el control de versiones.
+5. **Las tablas de catálogo estable (`tbl_status`, `tbl_pages`, `tbl_permissions`) quedan exentas de auditoría de fila.** Su contenido es configuración versionada con el código (migraciones + `prisma/seed.js`).
 
-6. **Las tablas de unión que expresan una decisión de negocio sí se auditan.** `tbl_user_permissions` y `tbl_profile_permissions` registran quién otorgó el permiso y cuándo: es una decisión con consecuencias de seguridad, no un dato estructural.
+6. **Las tablas de unión que expresan una decisión de negocio se auditan en la bitácora, no con columnas propias.** Asignar o revocar un permiso, o una página a un perfil o usuario, registra quién, cuándo y qué, una fila por elemento.
 
-7. **Se adopta auditoría funcional mediante bitácora para la información crítica**, con registro de campo, valor anterior, valor nuevo, usuario, fecha y operación. La bitácora se escribe **dentro de la misma transacción** que la operación auditada.
+7. **Se adopta auditoría funcional mediante una bitácora única (`tbl_audit_log`)** con entidad, registro, campo, valor anterior, valor nuevo, operación, usuario, fecha, IP e identificador de operación. La bitácora se escribe **dentro de la misma transacción** que la operación auditada.
 
-8. **La bitácora se escribe desde la capa de servicio, no mediante disparadores de base de datos.** El servicio conoce el usuario de la sesión y el contexto de negocio; un disparador no.
+8. **La bitácora se escribe desde la capa de servicio, nunca mediante disparadores de base de datos.** El servicio conoce el usuario de la sesión y el contexto de negocio; un disparador no.
 
-9. **Alcance de la auditoría funcional**, definido por criticidad y no por comodidad:
+9. **Alcance de la auditoría funcional**, definido por criticidad:
 
-   | Categoría | Nivel exigido |
-   | --- | --- |
-   | Valores económicos de obra y contrato (valor inicial, valor ampliado, costo directo, valor máximo de orden de servicio) | **Funcional** |
-   | Plazos (inicial, ampliado) | **Funcional** |
-   | Estados de contrato y sus transiciones | **Funcional** (ver [ADR-0005](0005-estados-contrato.md)) |
-   | Vigencias de póliza y aseguradora asociada | **Funcional** |
-   | Relación proveedor-obra: asignación y desasignación | **Funcional** (ver [ADR-0012](0012-proveedores.md)) |
-   | Permisos, perfiles y estado de usuarios | **Funcional** (ver [ADR-0014](0014-autorizacion-permisos.md)) |
-   | Eventos de autenticación | **Funcional**, en registro propio de seguridad |
-   | Configuración de tipos de contrato | **Funcional** (ver [ADR-0006](0006-tipos-contrato.md)) |
-   | Maestros de configuración simples (aseguradoras, constructoras, tipos de interventoría, identificación, dirección, proveedor) | **Técnica** |
-   | Datos de contacto y observaciones | **Técnica** |
-   | Documentos adjuntos | **Técnica** |
+   | Categoría | Nivel exigido | Estado |
+   | --- | --- | --- |
+   | Permisos, perfiles y estado de usuarios | **Funcional** | Implementado |
+   | Eventos de autenticación | **Funcional**, en la misma bitácora | Implementado |
+   | Valores económicos de obra y contrato (valor inicial, valor ampliado, costo directo, valor máximo de orden de servicio) | **Funcional** | Pendiente: los módulos no existen |
+   | Plazos (inicial, ampliado) | **Funcional** | Pendiente |
+   | Estados de contrato y sus transiciones | **Funcional** (ver [ADR-0005](0005-estados-contrato.md)) | Pendiente |
+   | Vigencias de póliza y aseguradora asociada | **Funcional** | Pendiente |
+   | Relación proveedor-obra: asignación y desasignación | **Funcional** (ver [ADR-0012](0012-proveedores.md)) | Pendiente |
+   | Configuración de tipos de contrato | **Funcional** (ver [ADR-0006](0006-tipos-contrato.md)) | Pendiente |
+   | Maestros de configuración simples (aseguradoras, constructoras, tipos de interventoría, identificación, dirección, proveedor) | **Técnica** | Pendiente |
+   | Datos de contacto y observaciones | **Técnica** | Pendiente |
+   | Documentos adjuntos | **Técnica** | Implementado |
 
-10. **La auditoría no se elimina jamás.** Los registros de bitácora no se borran ni se modifican, ni siquiera cuando el registro auditado se elimina lógicamente.
+10. **La auditoría no se elimina jamás.** Los registros de bitácora no se modifican ni se borran, ni siquiera cuando el registro auditado se elimina lógicamente. Ningún código hace `UPDATE` ni `DELETE` sobre `tbl_audit_log`.
 
-11. **Se activa el logging HTTP persistente** ya implementado, entendiéndolo como diagnóstico técnico y no como auditoría de negocio. Son mecanismos complementarios con propósitos distintos.
+11. **El logging HTTP persistente es complementario, no sustituto**: diagnóstico técnico frente a auditoría de negocio.
+
+12. **Una operación, un identificador.** Todas las filas de bitácora generadas por una misma operación comparten `aud_operation_id`, aunque toquen varios campos o varias tablas.
+
+13. **La bitácora nunca contiene secretos.** Contraseñas, hashes, códigos de recuperación y tokens se registran como `[oculto]`: queda constancia de que cambiaron, nunca de su valor. En eventos de login no se registra el identificador tecleado (un usuario que escribe su contraseña en el campo de usuario la dejaría en la bitácora).
 
 ## Justificación
 
-- **Conservar el patrón existente** evita una migración masiva y aprovecha que ya está aplicado en siete tablas. El coste de cambiar la convención supera con creces el beneficio estético.
-- **FK a `tbl_users`**: sin ella, `*_create_by` es un entero sin significado garantizado. La restricción convierte una convención en una garantía.
-- **Autor desde el token**: es la diferencia entre auditoría y declaración. Hoy un cliente puede atribuir sus cambios a cualquier `use_id`, incluido el de otro usuario. Esto invalida por completo el valor probatorio de las columnas actuales.
+- **Conservar el patrón existente** evita una migración masiva y aprovecha que ya estaba aplicado.
+- **FK a `tbl_users`**: convierte una convención en una garantía.
+- **Autor desde el token**: es la diferencia entre auditoría y declaración.
 - **Columnas de eliminación separadas**: sobrecargar `*_update_by` con dos significados hace imposible responder "quién eliminó esto" tras cualquier modificación posterior. El coste es dos columnas.
-- **Bitácora desde servicio y no desde disparador**: un disparador de MySQL no tiene acceso al usuario de la aplicación (todas las conexiones usan el mismo usuario de base de datos) ni al contexto de la operación. Habría que inyectarlo por variable de sesión, lo que añade fragilidad. Además, el esquema no usa disparadores en ninguna parte; introducirlos dispersaría la lógica de negocio entre dos capas.
-- **Misma transacción**: una auditoría que puede fallar independientemente de la operación produce huecos silenciosos, que es peor que no tener auditoría, porque induce confianza injustificada.
-- **Alcance selectivo**: auditar funcionalmente todo multiplica el volumen de escritura y de almacenamiento sin beneficio proporcional. Un cambio en el nombre de una aseguradora no tiene la misma consecuencia que un cambio en el valor de un contrato.
+- **Bitácora desde servicio y no desde disparador**: un disparador de MySQL no tiene acceso al usuario de la aplicación (todas las conexiones usan el mismo usuario de base de datos) ni al contexto de la operación.
+- **Misma transacción**: una auditoría que puede fallar independientemente de la operación produce huecos silenciosos, peor que no tener auditoría, porque induce confianza injustificada.
+- **Identificador de operación**: sin él, las filas de un mismo "Guardar" solo se pueden reagrupar por usuario y fecha, lo que falla con operaciones del mismo segundo. Agregarlo después no permite reagrupar la historia ya registrada.
+- **Tablas de unión solo en bitácora**: la fila de unión se borra físicamente al revocar; columnas de autoría en ella desaparecerían justo cuando más importan.
+- **Eventos de autenticación en la misma bitácora**: una sola estructura y una sola consulta para reconstruir qué hizo una cuenta, incluidos sus accesos.
+- **Alcance selectivo**: auditar funcionalmente todo multiplica escritura y almacenamiento sin beneficio proporcional.
 
 ## Alternativas consideradas
 
-### Alternativa 1 — Solo auditoría técnica (estado actual)
+### Alternativa 1 — Solo auditoría técnica
 
-Conservar las cuatro columnas y no registrar valores anteriores.
-
-- **A favor**: coste cero; ya está construido; sin impacto en rendimiento ni almacenamiento.
-- **En contra**: no responde ninguna pregunta relevante ante una discrepancia contractual. Para un sistema cuyo objeto es el control de procesos administrativos de contratos, es insuficiente por definición.
-- **Descartada** como solución completa. Se conserva como base sobre la que se construye.
+- **A favor**: coste cero.
+- **En contra**: no responde ninguna pregunta relevante ante una discrepancia contractual.
+- **Descartada** como solución completa. Se conserva como base.
 
 ### Alternativa 2 — Auditoría por disparadores de base de datos
 
-Disparadores `AFTER INSERT/UPDATE/DELETE` que escriben a una bitácora.
-
-- **A favor**: imposible de omitir desde la aplicación; captura incluso cambios hechos por herramientas externas como Navicat; no requiere disciplina del desarrollador.
-- **En contra**: no conoce el usuario de la aplicación —el pool usa un único usuario de base de datos—, lo que obligaría a propagarlo por variable de sesión en cada conexión, algo frágil con un pool. Dispersa lógica de negocio a una capa sin control de versiones efectivo. El esquema actual no usa disparadores en absoluto, por lo que introduciría un paradigma nuevo. Encarece cada escritura.
-- **Descartada**, aunque es la opción más robusta si en el futuro se requiere auditoría a prueba de la propia aplicación.
+- **A favor**: imposible de omitir desde la aplicación; captura cambios hechos por herramientas externas.
+- **En contra**: no conoce el usuario de la aplicación; dispersa lógica de negocio a otra capa; el esquema no usa disparadores.
+- **Descartada**, aunque es la opción más robusta si se requiere auditoría a prueba de la propia aplicación.
 
 ### Alternativa 3 — Versionado completo de filas (tablas de historia)
 
-Una tabla espejo por cada tabla auditada, con una copia completa de la fila por cada versión.
-
-- **A favor**: reconstrucción exacta del estado en cualquier momento; consultas de historia simples.
-- **En contra**: duplica el esquema; el almacenamiento crece con la fila completa aunque cambie un solo campo; cada cambio estructural debe replicarse en la tabla espejo. Desproporcionado para el volumen esperado.
+- **A favor**: reconstrucción exacta del estado en cualquier momento.
+- **En contra**: duplica el esquema y el almacenamiento.
 - **Descartada.**
 
-### Alternativa 4 — Bitácora única de cambios desde la capa de servicio (seleccionada)
+### Alternativa 4 — Bitácora única de cambios desde la capa de servicio (seleccionada e implementada)
 
-Una tabla de bitácora transversal con granularidad de campo, escrita por los servicios dentro de la transacción de negocio.
-
-- **A favor**: una sola estructura para todos los módulos; granularidad de campo sin duplicar el esquema; acceso natural al usuario de la sesión y al contexto; almacenamiento proporcional al cambio real; alcance modulable por criticidad.
-- **En contra**: depende de la disciplina en los servicios — si un servicio omite la escritura, el cambio no se audita. Mitigable centralizando la escritura en una utilidad común y verificándolo en revisión de código.
+- **A favor**: una sola estructura para todos los módulos; granularidad de campo; acceso al usuario de la sesión y al contexto; alcance modulable por criticidad.
+- **En contra**: depende de la disciplina en los servicios. Si un servicio omite la escritura, el cambio no se audita. Se mitiga centralizando la escritura en `audit.service.js`, exigiéndola en el checklist de `ENDPOINT_STANDARD.md` y cubriéndola con tests.
 - **Seleccionada.**
 
 ## Modelo arquitectónico
 
-Estado actual:
-
 ```mermaid
 erDiagram
-    tbl_users ||..o{ tbl_profiles : "pro_create_by / pro_update_by (sin FK)"
-    tbl_users ||..o{ tbl_documents : "doc_create_by / doc_update_by (sin FK)"
-    tbl_users ||..o{ tbl_providers : "prv_create_by / prv_update_by (sin FK)"
-    tbl_users ||..o{ tbl_users : "use_create_by / use_update_by (sin FK)"
+    tbl_users ||--o{ tbl_users : "use_create_by / use_update_by / use_delete_by"
+    tbl_users ||--o{ tbl_profiles : "pro_create_by / pro_update_by / pro_delete_by"
+    tbl_users ||--o{ tbl_documents : "doc_create_by / doc_update_by / doc_delete_by"
+    tbl_users ||--o{ tbl_audit_log : "use_id (autor)"
 ```
 
-Las líneas punteadas representan relaciones **conceptuales sin restricción declarada**: el esquema no impide que `*_create_by` apunte a un usuario inexistente.
-
-Modelo objetivo, con bitácora transversal:
+Flujo de una operación auditada:
 
 ```text
-Operación de negocio (dentro de una transacción)
-   │
-   ├── req.user.useId  ──> autor real, no declarado
-   │
-   ├── UPDATE registro
-   │      └── <prefijo>_update_by, <prefijo>_update_at   [auditoría técnica]
-   │
-   ├── ¿el módulo exige auditoría funcional?
-   │      └── por cada campo modificado:
-   │             INSERT bitácora (entidad, id, campo, anterior, nuevo, usuario, fecha, operación)
-   │
-   └── COMMIT   ──> operación y auditoría se confirman o se revierten juntas
+Controller
+   └── ctx = auditContext(req)      → { useId: req.user.useId, ip }   (nunca del body)
+
+Service
+   └── prisma.$transaction(async (tx) => {
+         ├── before = SELECT fila (campos auditados)
+         ├── UPDATE fila  (+ <prefijo>_update_by = ctx.useId)
+         ├── changes = diffFields(before, after, CAMPOS_AUDITADOS)
+         ├── writeAudit(tx, { operationId, entity, recordId, operation, ctx, changes })
+         │      └── INSERT tbl_audit_log: una fila por campo, mismo operationId
+         └── COMMIT → operación y auditoría se confirman o se revierten juntas
+       })
 ```
 
-Ejemplo del registro objetivo, en el formato que exige la sección 19 del prompt de origen:
+Ejemplo: un administrador (id 1) edita al usuario 25 y cambia dos campos en un solo guardado.
 
 ```text
-Entidad:   PROVEEDOR
-Registro:  105
-Campo:     estado
-Anterior:  Activo
-Nuevo:     Inactivo
-Operación: EDITAR
-Usuario:   14
-Fecha:     2026-09-10 15:42:11
+aud_operation_id  aud_entity  aud_record_id  aud_field  aud_old_value  aud_new_value  aud_operation  use_id
+a1b2…             USUARIO     25             pro_id     3              2              EDITAR         1
+a1b2…             USUARIO     25             sta_id     1              2              EDITAR         1
 ```
-
-Los nombres de tabla y columna de la bitácora **no se especifican aquí**: es una decisión de implementación que se fijará al crearla. No existe hoy y este ADR no la inventa.
 
 ## Reglas de negocio
 
-Reglas vigentes:
-
-1. Todo registro de las tablas del dominio conserva quién lo creó y quién lo modificó por última vez.
-2. `*_create_at` se puebla automáticamente por la base de datos con `CURRENT_TIMESTAMP`.
-3. `*_update_at` se actualiza automáticamente en cada `UPDATE` con `ON UPDATE CURRENT_TIMESTAMP`.
-4. `*_create_by` y `*_update_by` los puebla la aplicación, no la base de datos.
-5. La eliminación es lógica: `sta_id = 3`. No hay borrado físico de registros de negocio.
-6. Los listados excluyen sistemáticamente `sta_id = 3`.
-
-Reglas objetivo adicionales:
-
-7. El autor auditado es el usuario autenticado de la sesión.
-8. La eliminación registra autor y fecha en columnas propias.
-9. La información crítica registra valor anterior y valor nuevo por campo modificado.
-10. La bitácora es de solo escritura: nunca se modifica ni se elimina.
-11. Si la operación se revierte, su auditoría se revierte con ella.
-12. La auditoría no registra contraseñas, hashes, tokens ni secretos, ni siquiera como valor anterior.
+1. Todo registro de las tablas del dominio conserva quién lo creó, quién lo modificó por última vez y, si aplica, quién lo eliminó.
+2. `*_create_at` y `*_update_at` los pobla la base de datos (`CURRENT_TIMESTAMP` / `ON UPDATE CURRENT_TIMESTAMP`). `*_delete_at` lo pobla la aplicación al eliminar.
+3. `*_create_by`, `*_update_by` y `*_delete_by` los pobla la aplicación con el usuario autenticado de la sesión.
+4. La eliminación es lógica: `sta_id = 3`. No hay borrado físico de registros de negocio. Los listados excluyen `sta_id = 3`.
+5. Un registro ya eliminado no se vuelve a eliminar.
+6. Reactivar un registro limpia sus columnas de eliminación.
+7. La información crítica registra valor anterior y valor nuevo por campo modificado.
+8. Asignar o revocar permisos y páginas registra un elemento por fila.
+9. La bitácora es de solo escritura.
+10. Si la operación se revierte, su auditoría se revierte con ella.
+11. La auditoría no registra contraseñas, hashes, códigos ni tokens: se registran como `[oculto]`.
+12. Una operación produce un único `aud_operation_id`.
 
 ## Seguridad
 
-La auditoría es un control de seguridad, no solo de negocio. Consideraciones:
-
-- **Integridad del autor**: hoy el autor es falsificable por el cliente. Es la brecha más grave de este ADR, porque no produce un error visible: produce un registro plausible y falso.
-- **Datos sensibles en la bitácora**: nunca deben registrarse valores de `use_password`, `par_token`, `par_code_temp`, ni las credenciales de `tbl_business_rules` (`rul_client_secret`, `rul_client_id`, almacenadas hoy en texto plano). La bitácora es un objetivo de exfiltración por concentrar historia.
-- **Acceso a la auditoría**: la consulta de bitácora debe estar protegida por su propio permiso, según [ADR-0014](0014-autorizacion-permisos.md).
-- **Ausencia de auditoría de seguridad**: no hay registro de inicios de sesión, fallos de autenticación ni cambios de permisos. Un compromiso de cuenta hoy es indetectable a posteriori.
+- **Integridad del autor**: resuelta. El autor sale de la sesión y está respaldado por FK.
+- **Datos sensibles**: `audit.service.js` oculta los campos de `SENSITIVE_FIELDS` (`use_password`, `par_code_hash`, `ses_refresh_hash`, `ses_prev_refresh_hash`, `ses_key`) incluso si un service los pasa por error. Los eventos de login no guardan el identificador tecleado; `forgot_password` solo registra la solicitud cuando el correo existe, para no guardar texto arbitrario del cliente.
+- **Inmutabilidad**: el código no expone ningún `UPDATE`/`DELETE` sobre la bitácora. A nivel de base de datos, la garantía completa requiere que el usuario de BD de la aplicación tenga solo `INSERT`/`SELECT` sobre `tbl_audit_log` (sugerencia incluida en la migración 0013; es infraestructura).
+- **Acceso a la auditoría**: cuando exista una consulta de la bitácora, deberá estar protegida por su propio permiso (siguiente `per_id` libre: 17), según [ADR-0014](0014-autorizacion-permisos.md).
 
 ## Autorización
 
-La consulta de la bitácora requiere permiso explícito. La escritura no es una operación de usuario: es un efecto de la operación de negocio y no se expone como endpoint.
-
-Ver [ADR-0014](0014-autorizacion-permisos.md).
+La escritura no es una operación de usuario: es un efecto de la operación de negocio y no se expone como endpoint. La consulta requerirá permiso explícito (B16). Ver [ADR-0014](0014-autorizacion-permisos.md).
 
 ## Auditoría
 
-Es el objeto de este ADR. Ver `Estado actual` y `Decisión`.
+Es el objeto de este ADR.
 
 ## Validaciones
 
 | Validación | Frontend | Backend | Base de datos | Clasificación |
 | --- | --- | --- | --- | --- |
-| `*_create_at` presente | No aplica | No | Sí (`DEFAULT CURRENT_TIMESTAMP`) | Integridad |
-| `*_update_at` actualizado | No aplica | No | Sí (`ON UPDATE CURRENT_TIMESTAMP`) | Integridad |
-| `*_create_by` presente | No | Parcial (`deleteUser` exige `updatedBy`) | No (`NULL` permitido) | Integridad — débil |
-| `*_create_by` es un usuario real | No | **No** | **No — sin FK** | **Integridad — ausente** |
-| El autor coincide con la sesión | No aplica | **No** | No aplica | **Seguridad — ausente** |
-
-La única validación de autor en todo el backend está en `deleteUser`, que rechaza la operación si falta `updatedBy`. Es una validación de presencia, no de veracidad.
+| `*_create_at` / `*_update_at` presentes | No aplica | No | Sí (defaults) | Integridad |
+| `*_create_by` / `*_update_by` / `*_delete_by` son usuarios reales | No aplica | Sí (salen de `req.user`) | **Sí — FK** | Integridad |
+| El autor coincide con la sesión | No aplica | **Sí** (`auditContext(req)`) | No aplica | Seguridad |
+| Operación y bitácora atómicas | No aplica | **Sí** (misma transacción) | Sí (transacción InnoDB) | Integridad |
+| La bitácora no se modifica | No aplica | Sí (sin código de `UPDATE`/`DELETE`) | Pendiente (privilegios del usuario de BD) | Seguridad |
 
 ## Integridad de datos
 
-- Las columnas `*_at` son `timestamp(0)`: precisión de un segundo, sin fracciones. Suficiente para auditoría de negocio; insuficiente para ordenar dos operaciones dentro del mismo segundo.
-- **`timestamp` en MySQL almacena en UTC y convierte a la zona horaria de la sesión al leer.** El pool se configura con `dateStrings: true`, por lo que las fechas llegan como cadena ya convertida. No se establece zona horaria explícita en la conexión: el valor depende de la configuración del servidor MySQL. `winston.config.js` fuerza `America/Bogota` para los logs, lo que sugiere esa zona como referencia, pero **no está aplicada a la conexión de base de datos**. Es una fuente real de discrepancia si el servidor cambia de zona o se despliega en otra región.
-- Sin FK en `*_create_by` / `*_update_by`.
-- `tbl_documents` une por `JOIN` interno a `tbl_users`, lo que oculta filas con autor nulo o inválido.
-- `tbl_users.use_create_by` referencia `tbl_users`: autorreferencia sin FK. El primer usuario del sistema no tiene creador posible.
+- FK de autoría: `tbl_users_create_by`, `tbl_users_update_by`, `tbl_users_delete_by`, `tbl_profiles_create_by`, `tbl_profiles_update_by`, `tbl_profiles_delete_by`, `tbl_documents_create_by`, `tbl_documents_update_by`, `tbl_documents_delete_by`, `tbl_audit_log_users`. Todas `ON DELETE RESTRICT`: los usuarios nunca se borran físicamente.
+- Las columnas `*_at` de las tablas de negocio son `timestamp(0)` (segundos); `tbl_audit_log.aud_create_at` es `timestamp(3)` (milisegundos).
+- **Zona horaria**: `timestamp` en MySQL almacena en UTC y convierte según la zona de la sesión. La conexión de Prisma fija la sesión en UTC (`timezone=+00:00` en `prismaClient.js`) porque el adapter escribe y lee las fechas como UTC; con la sesión en `SYSTEM` (hora de Bogotá) todo quedaba desfasado 5 horas. La presentación en hora local es responsabilidad de quien muestra el dato (B8).
+- Los documentos resuelven al autor con una segunda consulta y un `Map` (`enrichDocs`), no con un `JOIN` interno: un documento con autor `NULL` ya no desaparece del listado.
 
 ## Transacciones
 
-Las operaciones de escritura de `users`, `profiles`, `permissions`, `documents` y `template` abren transacción con `beginTransaction` / `commit` / `rollback`. La auditoría técnica, al ser columnas de la propia fila, es atómica por construcción.
+Toda escritura auditada usa `prisma.$transaction(async (tx) => { … })` y pasa ese `tx` a `writeAudit`:
 
-Para la auditoría funcional, la exigencia es explícita: la escritura de bitácora ocurre **dentro de la misma transacción**. El escenario a evitar:
+- `saveUser`, `deleteUser`, `saveProfile`, `deleteProfile`, `updateProfilePermissions`, `updateUserPermissions`.
+- `updateAccount`, `updatePassword`, `restorePassword`, `forgotPassword`.
+- Registro de login fallido + bloqueo; consumo de intento del código de recuperación + su evento.
+- `createSession` (login) y `revokeSession` (logout, revocación por reutilización de refresh token).
 
-```text
-UPDATE contrato       → OK
-INSERT bitácora       → ERROR
-COMMIT parcial        → cambio sin rastro
-```
+Excepción deliberada: el login fallido de un usuario **inexistente** y el rechazo por cuenta bloqueada no modifican datos, así que su fila de bitácora se escribe sola.
 
-Con auditoría en la misma transacción, ese estado es imposible: o se confirman ambos o no se confirma ninguno.
+Cuando una revocación de sesión es consecuencia de otra operación ya auditada (eliminar o desactivar un usuario, restaurar la contraseña), no escribe un evento propio: la operación principal ya consta.
 
 ## Consecuencias
 
 ### Positivas
 
-- Existe un estándar reconocible y aplicado en la mayoría de las tablas del dominio; la decisión lo consolida en lugar de reemplazarlo.
-- Las columnas `*_at` se pueblan solas por defecto de base de datos, sin depender del código.
-- La eliminación lógica preserva todos los registros históricos: nada se pierde físicamente.
-- La estructura de servicios transaccionales ya existente admite la escritura de bitácora sin rediseño.
+- El autor registrado es verificable y siempre corresponde a un usuario real.
+- "Quién eliminó esto" sobrevive a ediciones posteriores.
+- Cambios de permisos, perfiles, estado de usuarios y eventos de autenticación quedan con historia completa y agrupada por operación.
+- Un compromiso de cuenta deja rastro: logins, fallos, bloqueos, recuperaciones y revocaciones con IP.
+- La utilidad común (`audit.service.js`) hace que auditar un módulo nuevo sea declarar sus campos y llamar a `writeAudit` en su transacción.
 
 ### Negativas
 
-- El autor actual no es confiable: es un dato declarado por el cliente.
-- Sin FK, las columnas de autor pueden contener valores sin correspondencia.
-- La información de eliminación se pierde ante cualquier modificación posterior.
-- Auditar funcionalmente añade escrituras a cada operación crítica y crecimiento sostenido de almacenamiento, que exige una política de retención.
-- El módulo `template`, que es el patrón a copiar, usa una convención distinta y propagaría el error a cada módulo nuevo.
+- Cada operación auditada añade escrituras y una lectura previa de la fila.
+- La bitácora crece sin límite hasta que exista una política de retención (B15).
+- Depende de la disciplina de cada service nuevo; se mitiga con el checklist y los tests.
+- Los registros eliminados antes de la migración 0012 no tienen autor ni fecha de eliminación.
 
 ## Riesgos
 
-| Riesgo | Severidad | Descripción |
+| Riesgo | Severidad | Estado |
 | --- | --- | --- |
-| Auditoría falsificable | **Alto** | El autor viene del cliente; cualquier usuario puede atribuir sus cambios a otro |
-| Sin trazabilidad de valores críticos | **Alto** | Un cambio de valor de contrato o de vigencia de póliza no deja rastro del valor anterior |
-| Sin auditoría de eventos de seguridad | **Alto** | Un compromiso de cuenta o una escalada de permisos son indetectables a posteriori |
-| Autor sin integridad referencial | **Medio** | `*_create_by` puede apuntar a un usuario inexistente sin que nada lo impida |
-| Información de eliminación sobrescribible | **Medio** | Modificar un registro eliminado borra el rastro de quién lo eliminó |
-| Ambigüedad de zona horaria | **Medio** | Sin zona explícita en la conexión, las marcas de tiempo dependen del servidor |
-| Registros ocultos por `JOIN` interno | **Bajo** | Documentos con autor nulo desaparecen del listado |
-| Propagación de la convención equivocada | **Medio** | El módulo `template` usa `mas_usu_reg` / `mas_fec_act` y es el patrón de copia |
-| Crecimiento no acotado de la bitácora | **Bajo** | Sin política de retención definida |
+| Un service nuevo olvida escribir en la bitácora | **Medio** | Mitigado: checklist de `ENDPOINT_STANDARD.md` + tests |
+| Alteración de la bitácora con acceso directo a la BD | **Medio** | Abierto hasta restringir privilegios del usuario de BD |
+| Ambigüedad de zona horaria | **Medio** | Mitigado: sesión de Prisma en UTC (B8) |
+| Crecimiento no acotado de la bitácora | **Bajo** | Abierto (B15) |
+| Filtración de datos sensibles por la bitácora | **Alto si ocurre** | Mitigado: `SENSITIVE_FIELDS` + sin identificadores tecleados + tests |
 
 ## Impacto técnico
 
 ### Frontend
 
-- `views/security/users/UsersPage.jsx` y `ProfilePage.jsx` muestran `updatedAt` y `updatedBy` en la tabla.
-- `updatedBy` se presenta como identificador numérico crudo, no como nombre de usuario: la consulta de paginación devuelve `u.use_update_by AS updatedBy` sin resolver el nombre.
-- `utils/formatTime.js` da formato a las fechas.
-- Los servicios envían el `useId` del usuario en el cuerpo de cada petición de escritura. Al tomar el autor del token, ese envío deja de ser necesario.
-- **No existe** ninguna vista de historial ni de bitácora.
+- Sin cambios: el cliente nunca envió ni envía el autor.
+- **No existe** vista de historial ni de bitácora (B16).
 
 ### Backend
 
-- Todos los servicios de escritura reciben el autor por parámetro desde el controlador, que lo lee de `req.body`.
-- `req.user` está poblado por `verifyToken` y disponible sin trabajo adicional.
-- Requiere una utilidad común de escritura de bitácora, hoy inexistente.
-- `common/configs/winston.config.js` y `common/middlewares/httpLogger.middleware.js` existen y no están montados.
-- El módulo `template` debe alinearse con el estándar antes de usarse como referencia.
+- `common/services/audit.service.js`: `writeAudit`, `writeAuditEvent`, `diffFields`, `auditContext`, `newOperationId`, catálogos `AUDIT_ENTITIES` / `AUDIT_OPERATIONS`, `SENSITIVE_FIELDS`.
+- Los controllers construyen `ctx = auditContext(req)` y lo pasan al service.
+- `session.service.js`: `createSession({ auditOperation })` y `revokeSession({ audit })` escriben el evento en su transacción.
 
 ### Base de datos
 
-- Siete tablas con el estándar de cuatro columnas; seis sin auditoría alguna.
-- Requiere: FK de `*_create_by` / `*_update_by` a `tbl_users`; corrección de `tbl_providers.pro_update_at`; columnas de eliminación; tabla de bitácora; datos semilla de `tbl_status`.
-- Sin disparadores, procedimientos, funciones, vistas ni eventos programados.
-- **No existen migraciones versionadas.** El único artefacto de esquema es un volcado de Navicat, lo que hace que cualquier cambio estructural sea manual y no reproducible.
+- Migraciones `0011_fk_audit_columns.sql`, `0012_add_delete_columns.sql`, `0013_create_audit_log.sql`.
+- Sin disparadores, procedimientos, funciones, vistas ni eventos programados, y así debe seguir para la auditoría (decisión 8).
 
 ### Infraestructura
 
-- `logs/error-api.log` y `logs/api.log` definidos, con directorio `server/logs/` presente en el repositorio, pero sin logger montado.
-- **No se encontró evidencia** de agregación centralizada de logs, retención, rotación ni copias de seguridad definidas.
-- El cron está implementado con la lista de tareas vacía y su arranque comentado en `server.js`; sería el mecanismo natural para depuración o archivado de bitácora.
+- Sugerido: usuario de BD de la aplicación con solo `INSERT`/`SELECT` sobre `tbl_audit_log`.
+- El cron existente (`src/cron/`) es el mecanismo natural para una futura política de archivado de la bitácora.
 
 ## Estado actual vs arquitectura objetivo
 
 | Aspecto | Estado actual | Arquitectura objetivo |
 | --- | --- | --- |
-| Estándar de columnas | `<prefijo>_create_by/at`, `_update_by/at` en 7 tablas | El mismo, uniforme y sin desviaciones |
-| Origen del autor | `req.body` | `req.user` |
-| Integridad del autor | Sin FK | FK a `tbl_users.use_id` |
-| Eliminación | `sta_id = 3`, autor en `*_update_by` | `sta_id = 3` + `*_delete_by` / `*_delete_at` |
-| Tablas de unión de permisos | Sin auditoría | Con auditoría de otorgamiento |
-| Auditoría funcional | Inexistente | Bitácora por campo para información crítica |
-| Auditoría de seguridad | Inexistente | Registro de eventos de autenticación y permisos |
-| Logging HTTP | Definido, no montado | Activo y persistente |
+| Estándar de columnas | Seis columnas en usuarios, perfiles y documentos | El mismo en toda tabla nueva del dominio ✅ (documentado) |
+| Origen del autor | `req.user` | ✅ |
+| Integridad del autor | FK a `tbl_users.use_id` | ✅ |
+| Eliminación | `sta_id = 3` + `*_delete_by` / `*_delete_at` | ✅ |
+| Tablas de unión de permisos | Auditadas en la bitácora | ✅ |
+| Auditoría funcional | Bitácora por campo, con identificador de operación | ✅ para los módulos existentes; pendiente en los de negocio |
+| Auditoría de seguridad | Eventos de autenticación en la bitácora | ✅ |
+| Logging HTTP | Activo y persistente | ✅ |
+| Migraciones | Versionadas en `database/migrations/` | ✅ |
+| `tbl_status` | Sembrada por migración y seed | ✅ |
 | Zona horaria | Implícita del servidor | Explícita en la conexión |
-| `tbl_providers.pro_update_at` | Prefijo incorrecto | `prv_update_at` |
-| Módulo `template` | `mas_usu_reg` / `mas_fec_act` | Alineado al estándar |
-| Migraciones | Volcado de Navicat | Migraciones versionadas |
+| Retención de la bitácora | Sin política | Política definida y automatizada |
+| Consulta de la bitácora | Solo por SQL | Endpoint + vista con permiso propio |
 
 ## Brechas identificadas
 
-| # | Brecha | Severidad |
-| --- | --- | --- |
-| B1 | El autor de la auditoría proviene del cliente y es falsificable | **Alta** |
-| B2 | Sin auditoría funcional para información crítica | **Alta** |
-| B3 | Sin auditoría de eventos de seguridad | **Alta** |
-| B4 | `*_create_by` / `*_update_by` sin FK a `tbl_users` | **Media** |
-| B5 | Sin `*_delete_by` / `*_delete_at`; el rastro de eliminación es sobrescribible | **Media** |
-| B6 | Tablas de permisos sin auditoría de otorgamiento | **Media** |
-| B7 | Logger persistente implementado y no montado | **Media** |
-| B8 | Zona horaria no explícita en la conexión de base de datos | **Media** |
-| B9 | El módulo `template` propaga una convención distinta | **Media** |
-| B10 | Sin migraciones versionadas | **Media** |
-| B11 | `tbl_providers.pro_update_at` con prefijo incorrecto | **Baja** |
-| B12 | `tbl_password_resets.par_created_at` fuera de convención | **Baja** |
-| B13 | `JOIN` interno a `tbl_users` oculta documentos con autor nulo | **Baja** |
-| B14 | `tbl_status` sin datos sembrados; los estados viven codificados | **Media** |
-| B15 | Sin política de retención de auditoría | **Baja** |
+| # | Brecha | Severidad | Estado |
+| --- | --- | --- | --- |
+| B1 | El autor de la auditoría provenía del cliente | Alta | ✅ Cerrada — `req.user` |
+| B2 | Sin auditoría funcional para información crítica | Alta | ✅ Cerrada para los módulos existentes; es requisito de los de negocio |
+| B3 | Sin auditoría de eventos de seguridad | Alta | ✅ Cerrada — eventos de autenticación en la bitácora |
+| B4 | `*_create_by` / `*_update_by` sin FK a `tbl_users` | Media | ✅ Cerrada — migración 0011 |
+| B5 | Sin `*_delete_by` / `*_delete_at` | Media | ✅ Cerrada — migración 0012 |
+| B6 | Tablas de permisos sin auditoría de otorgamiento | Media | ✅ Cerrada — `ASIGNAR` / `REVOCAR` en la bitácora |
+| B7 | Logger persistente no montado | Media | ✅ Cerrada |
+| B8 | Zona horaria no explícita en la conexión | Media | ✅ Cerrada — sesión en UTC + migración 0014 |
+| B9 | El módulo `template` propagaba otra convención | Media | ✅ No aplica — módulo retirado |
+| B10 | Sin migraciones versionadas | Media | ✅ Cerrada — `database/migrations/` |
+| B11 | `tbl_providers.pro_update_at` con prefijo incorrecto | Baja | ✅ No aplica — la tabla no existe en este repositorio ni en `bdtemplate.sql`; al crearla, usar `prv_` (regla de prefijo único en `database/migrations/README.md`) |
+| B12 | `tbl_password_resets.par_created_at` fuera de convención | Baja | ✅ Cerrada — migración 0015: `par_create_at` + `par_create_by`, `par_update_by`, `par_update_at` |
+| B13 | `JOIN` interno ocultaba documentos con autor nulo | Baja | ✅ Cerrada — lookup con `Map` |
+| B14 | `tbl_status` sin datos sembrados | Media | ✅ Cerrada — migración 0010 + seed |
+| B15 | Sin política de retención de auditoría | Baja | ⏳ Abierta |
+| B16 | Sin consulta de la bitácora desde la aplicación | Baja | ⏳ Abierta — requiere permiso nuevo (`per_id` 17) |
 
 ## Plan de implementación
 
-Recomendación derivada del análisis. **No fue ejecutada.**
+Ejecutado: fases 1 (autor verídico), 2 (FK, `tbl_status`), 3 (migraciones, logger), 4 (auditoría de seguridad) y 5 (bitácora y columnas de eliminación) para los módulos existentes.
 
-**Fase 1 — Veracidad del autor (B1)**
-Tomar el autor de `req.user` en todos los servicios de escritura. Es el cambio de mayor impacto y menor coste: sin él, ninguna auditoría posterior tiene valor.
+Pendiente:
 
-**Fase 2 — Integridad y convención (B4, B9, B11, B12, B14)**
-FK de las columnas de autor a `tbl_users`, previa depuración de valores inválidos. Corregir `tbl_providers.pro_update_at`. Alinear el módulo `template`. Sembrar y versionar `tbl_status`.
-
-**Fase 3 — Base de trazabilidad (B10, B7, B8)**
-Adoptar migraciones versionadas antes de cualquier cambio estructural adicional. Montar el logger persistente. Fijar la zona horaria en la conexión.
-
-**Fase 4 — Auditoría de seguridad (B3, B6)**
-Registro de eventos de autenticación y de cambios de permisos. Es el subconjunto de mayor valor y menor volumen.
-
-**Fase 5 — Auditoría funcional (B2, B5)**
-Definir la bitácora y la utilidad común de escritura. Aplicarla a los módulos según la tabla de alcance de la decisión 9, empezando por estados de contrato y valores económicos.
-
-**Fase 6 — Sostenimiento (B13, B15)**
-Corregir el `JOIN` de documentos. Definir política de retención y archivado, apoyada en el cron existente.
+1. **Despliegue**: aplicar las migraciones `0011` a `0016` en orden; la `0014` junto con el despliegue del cambio de zona horaria.
+2. **Infraestructura**: restringir el usuario de BD de la aplicación a `INSERT`/`SELECT` sobre `tbl_audit_log`.
+3. **Módulos de negocio**: cada módulo nuevo aplica el estándar de seis columnas y audita en la bitácora los campos de la decisión 9.
+4. **B16**: endpoint de consulta de la bitácora (filtrado por entidad/registro, usuario, operación y fecha), con `requirePermission` de un `per_id` nuevo, y su vista en el cliente.
+5. **B15**: política de retención y archivado, apoyada en el cron existente.
 
 ## ADR relacionados
 
-- [ADR-0001 — Seguridad](0001-seguridad.md)
+- [ADR-0001 — Seguridad](0001-seguridad.md) — eventos de autenticación (B15 de ese ADR)
 - [ADR-0014 — Autorización basada en permisos](0014-autorizacion-permisos.md)
 - [ADR-0005 — Estados de contrato](0005-estados-contrato.md) — trazabilidad de transiciones
 - [ADR-0006 — Tipos de contrato](0006-tipos-contrato.md) — auditoría de configuración
@@ -477,11 +404,12 @@ Corregir el `JOIN` de documentos. Definir política de retención y archivado, a
 
 ## Referencias
 
-- `database/bdintervewebpack.sql` — definición de columnas de auditoría por tabla
-- `server/src/modules/security/users/users.service.js`, `server/src/modules/security/profiles/profiles.service.js`
+- `database/migrations/0011_fk_audit_columns.sql`, `0012_add_delete_columns.sql`, `0013_create_audit_log.sql`, `0014_fix_prisma_timezone_data.sql`, `0015_password_resets_audit_columns.sql`
+- `server/src/common/configs/prismaClient.js` — sesión MySQL en UTC
+- `database/migrations/README.md` — estándar de auditoría para tablas nuevas
+- `server/src/common/services/audit.service.js`
+- `server/src/common/services/session.service.js`
+- `server/src/modules/security/users/users.service.js`, `server/src/modules/security/profiles/profiles.service.js`, `server/src/modules/security/permissions/permissions.service.js`
+- `server/src/modules/auth/auth.service.js`
 - `server/src/modules/app/documents/document.service.js`
-- `server/src/modules/template/template.service.js`
-- `server/src/common/configs/winston.config.js`, `server/src/common/middlewares/httpLogger.middleware.js`
-- `server/src/common/configs/db.config.js`
-- `server/app.js`
-- `client/src/views/security/users/UsersPage.jsx`, `client/src/utils/formatTime.js`
+- `server/ENDPOINT_STANDARD.md`

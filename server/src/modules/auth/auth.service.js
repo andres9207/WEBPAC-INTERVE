@@ -1,18 +1,107 @@
 import {
-  getConnection,
-  releaseConnection,
-  executeQuery,
-} from "../../common/configs/db.config.js";
-import jwt from "jsonwebtoken";
-import {
   hashPassword,
   comparePassword,
 } from "../../common/utils/funciones.js";
 import { sendEmail } from "../../common/services/mailerService.js";
-import { confirmAccountTemplate } from "../../common/templates/confirm_account.template.js";
-import { generarCodigoOTP } from "../../common/utils/otp.utils.js";
+import { prisma } from "../../common/configs/prismaClient.js";
+import { getEffectivePermissionIds } from "../../common/services/effectivePermissions.service.js";
+import { revokeSession } from "../../common/services/session.service.js";
+import { withLockedTransaction, withTransaction } from "../../common/services/transaction.service.js";
+import {
+  AUDIT_ENTITIES,
+  AUDIT_OPERATIONS,
+  REDACTED,
+  diffFields,
+  newOperationId,
+  writeAudit,
+  writeAuditEvent,
+} from "../../common/services/audit.service.js";
+import {
+  generateResetCode,
+  hashResetCode,
+  verifyResetCode,
+} from "../../common/utils/resetCode.utils.js";
+import { userFullName } from "../../common/utils/user.utils.js";
 
-export const login = async ({ usuario, clave, password }) => {
+// ── Bloqueo por intentos fallidos de login (por cuenta) ─────────────────────
+// Complementa el rate limit por IP (authRateLimit), que se esquiva rotando
+// IPs. Cada LOCK_EVERY fallos consecutivos la cuenta se bloquea, y cada
+// bloqueo dura el doble que el anterior (15m, 30m, 1h, ...) hasta
+// LOCK_MAX_MS. Un login exitoso o restaurar la contraseña reinician el
+// contador. Ver database/migrations/0009_create_login_attempts.sql.
+const LOCK_EVERY = 5;
+const LOCK_BASE_MS = 15 * 60 * 1000;
+const LOCK_MAX_MS = 24 * 60 * 60 * 1000;
+
+// Mismo mensaje para usuario inexistente, contraseña incorrecta y cuenta
+// bloqueada: distinguirlos permitiría averiguar qué cuentas existen.
+const LOGIN_FAILED_MESSAGE =
+  "Credenciales incorrectas. Tras varios intentos fallidos la cuenta se bloquea temporalmente.";
+
+// Hash bcrypt de relleno: cuando el usuario no existe se compara igual contra
+// este valor, para que esa rama tarde lo mismo que una contraseña incorrecta
+// (sin esto, la diferencia de tiempo delata qué usuarios existen).
+const DUMMY_PASSWORD_HASH = "$2b$10$ZDe4JB2rJnuJZbnHIZdfzOBwyrMa6nKuxsLqF5nZTjrThMwFBQoji";
+
+const loginFailed = () => {
+  const error = new Error(LOGIN_FAILED_MESSAGE);
+  error.statusCode = 403;
+  return error;
+};
+
+export const lockDurationFor = (failedCount) => {
+  if (failedCount < LOCK_EVERY || failedCount % LOCK_EVERY !== 0) return 0;
+  const level = failedCount / LOCK_EVERY - 1;
+  return Math.min(LOCK_BASE_MS * 2 ** level, LOCK_MAX_MS);
+};
+
+// Eventos de login: el actor es anónimo (todavía no hay sesión), así que
+// use_id queda NULL y el usuario afectado va en aud_record_id. Nunca se
+// registra el identificador ni la contraseña tecleados: un usuario que
+// escribe su contraseña en el campo de usuario la dejaría en la bitácora.
+const anonymous = (ctx) => ({ useId: null, ip: ctx?.ip ?? null });
+
+const registerFailedLogin = async (useId, ctx) =>
+  withTransaction(async (tx) => {
+    const { lat_failed_count } = await tx.tbl_login_attempts.upsert({
+      where: { use_id: useId },
+      create: { use_id: useId, lat_failed_count: 1, lat_last_failed_at: new Date() },
+      update: { lat_failed_count: { increment: 1 }, lat_last_failed_at: new Date() },
+      select: { lat_failed_count: true },
+    });
+
+    const operationId = newOperationId();
+    await writeAudit(tx, {
+      operationId,
+      entity: AUDIT_ENTITIES.USER,
+      recordId: useId,
+      operation: AUDIT_OPERATIONS.LOGIN_FAILED,
+      ctx: anonymous(ctx),
+      changes: [{ field: "intentos_fallidos", oldValue: lat_failed_count - 1, newValue: lat_failed_count }],
+    });
+
+    const lockMs = lockDurationFor(lat_failed_count);
+    if (lockMs > 0) {
+      const lockedUntil = new Date(Date.now() + lockMs);
+      await tx.tbl_login_attempts.update({
+        where: { use_id: useId },
+        data: { lat_locked_until: lockedUntil },
+      });
+      await writeAudit(tx, {
+        operationId,
+        entity: AUDIT_ENTITIES.USER,
+        recordId: useId,
+        operation: AUDIT_OPERATIONS.ACCOUNT_LOCKED,
+        ctx: anonymous(ctx),
+        changes: [{ field: "bloqueada_hasta", oldValue: null, newValue: lockedUntil }],
+      });
+    }
+  });
+
+const clearFailedLogins = (useId) =>
+  prisma.tbl_login_attempts.deleteMany({ where: { use_id: useId } });
+
+export const login = async ({ usuario, clave, password, ctx = {} }) => {
   const passwordTextoPlano = clave || password;
 
   if (!passwordTextoPlano) {
@@ -21,461 +110,398 @@ export const login = async ({ usuario, clave, password }) => {
     throw error;
   }
 
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const userData = await prisma.tbl_users.findFirst({
+    where: {
+      sta_id: 1,
+      OR: [{ use_email: usuario }, { use_user: usuario }],
+    },
+    select: {
+      use_id: true,
+      use_user: true,
+      use_password: true,
+      use_name: true,
+      use_last_name: true,
+      use_email: true,
+      pro_id: true,
+      tbl_profiles: { select: { pro_name: true } },
+    },
+  });
 
-    const rows = await executeQuery(
-      `SELECT
-         u.use_id AS useId,
-         u.use_user AS username,
-         u.use_password AS password,
-         u.use_name AS name,
-         u.use_last_name AS lastName,
-         u.use_email AS email,
-         u.pro_id AS proId,
-         u.sta_id AS staId,
-         p.pro_name AS profileName
-       FROM tbl_users u
-       LEFT JOIN tbl_profiles p ON u.pro_id = p.pro_id
-       WHERE (u.use_email = ? OR u.use_user = ?) AND u.sta_id = 1`,
-      [usuario, usuario],
-      connection
-    );
-
-    if (!rows || rows.length === 0) {
-      const error = new Error("Credenciales incorrectas.");
-      error.statusCode = 403;
-      throw error;
-    }
-
-    const userData = rows[0];
-    let matchPassword = await comparePassword(
-      passwordTextoPlano,
-      userData.password
-    );
-
-    if (!matchPassword) {
-      const error = new Error("Credenciales incorrectas.");
-      error.statusCode = 403;
-      throw error;
-    }
-
-    const rowsPermisos = await executeQuery(
-      `SELECT per_id AS perId FROM tbl_user_permissions WHERE use_id = ?`,
-      [userData.useId],
-      connection
-    );
-
-    const permissions = rowsPermisos.map((row) => row.perId);
-
-    const token = jwt.sign(
-      {
-        useId: userData.useId,
-        name: userData.name,
-        email: userData.email,
-        proId: userData.proId,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "24h" }
-    );
-
-    const fullName = [userData.name, userData.lastName]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-
-    return {
-      token,
-      useId: userData.useId,
-      username: userData.username,
-      fullName,
-      email: userData.email,
-      proId: userData.proId,
-      profileName: userData.profileName,
-      permissions,
-    };
-  } finally {
-    releaseConnection(connection);
-  }
-};
-
-export const register = async ({ nombre, telefono, correo, usuario, clave }) => {
-  if (!nombre || !telefono || !correo || !usuario || !clave) {
-    const error = new Error(
-      "Faltan campos obligatorios para el registro básico."
-    );
-    error.status = 400;
-    throw error;
-  }
-
-  let connection = null;
-  try {
-    connection = await getConnection();
-    await connection.beginTransaction();
-
-    const duplicates = await executeQuery(
-      `SELECT use_id FROM tbl_users WHERE use_user = ? OR use_email = ?`,
-      [usuario, correo],
-      connection
-    );
-
-    if (duplicates.length > 0) {
-      await connection.rollback();
-      const error = new Error(
-        "Ya existe un usuario registrado con estos datos."
-      );
-      error.status = 409;
-      throw error;
-    }
-
-    const hash = await hashPassword(clave);
-    const codigoOTP = generarCodigoOTP();
-
-    const result = await executeQuery(
-      `INSERT INTO tbl_users (use_name, use_user, use_email, use_password, pro_id, sta_id)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [nombre, usuario, correo, hash, 3, 1],
-      connection
-    );
-
-    const useId = result.insertId;
-
-    await executeQuery(
-      `INSERT INTO otp_codes (user_id, code, created_at, used)
-       VALUES (?, ?, NOW(), 0)`,
-      [useId, codigoOTP],
-      connection
-    );
-
-    await connection.commit();
-
-    const html = confirmAccountTemplate({
-      nombreUsuario: nombre,
-      codigoOTP,
+  if (!userData) {
+    await comparePassword(passwordTextoPlano, DUMMY_PASSWORD_HASH);
+    // Sin registro afectado: solo queda constancia del intento y su IP.
+    await writeAuditEvent({
+      entity: AUDIT_ENTITIES.USER,
+      operation: AUDIT_OPERATIONS.LOGIN_FAILED,
+      ctx: anonymous(ctx),
+      changes: [{ field: "motivo", newValue: "usuario inexistente o inactivo" }],
     });
+    throw loginFailed();
+  }
 
-    await sendEmail({
-      to: correo,
-      subject: "Tu código de verificación",
-      html,
+  const attempts = await prisma.tbl_login_attempts.findUnique({
+    where: { use_id: userData.use_id },
+    select: { lat_locked_until: true },
+  });
+
+  // Cuenta bloqueada: se rechaza sin siquiera comparar la contraseña (ni
+  // una contraseña correcta entra mientras dure el bloqueo) y sin sumar
+  // otro fallo, para que el bloqueo no se extienda solo con reintentos.
+  if (attempts?.lat_locked_until && attempts.lat_locked_until.getTime() > Date.now()) {
+    await writeAuditEvent({
+      entity: AUDIT_ENTITIES.USER,
+      recordId: userData.use_id,
+      operation: AUDIT_OPERATIONS.LOGIN_FAILED,
+      ctx: anonymous(ctx),
+      changes: [{ field: "motivo", newValue: "cuenta bloqueada" }],
     });
-
-    return { useId, email: correo, username: usuario };
-  } catch (err) {
-    if (connection) await connection.rollback();
-    throw err;
-  } finally {
-    releaseConnection(connection);
-  }
-};
-
-export const resendOtp = async ({ useId }) => {
-  if (!useId) {
-    const error = new Error("Falta el ID de usuario.");
-    error.status = 400;
-    throw error;
+    throw loginFailed();
   }
 
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const matchPassword = userData.use_password
+    ? await comparePassword(passwordTextoPlano, userData.use_password)
+    : false;
 
-    const [user] = await executeQuery(
-      `SELECT use_name, use_email FROM tbl_users WHERE use_id = ?`,
-      [useId],
-      connection
-    );
-
-    if (!user) {
-      const error = new Error("Usuario no encontrado.");
-      error.status = 404;
-      throw error;
-    }
-
-    const nuevoCodigo = generarCodigoOTP();
-
-    await executeQuery(
-      `INSERT INTO otp_codes (user_id, code, created_at, used)
-       VALUES (?, ?, NOW(), 0)`,
-      [useId, nuevoCodigo],
-      connection
-    );
-
-    const html = confirmAccountTemplate({
-      nombreUsuario: user.use_name,
-      codigoOTP: nuevoCodigo,
-    });
-
-    await sendEmail({
-      to: user.use_email,
-      subject: "Nuevo código de verificación",
-      html,
-    });
-  } finally {
-    releaseConnection(connection);
-  }
-};
-
-export const verifyOtp = async ({ useId, codigo }) => {
-  if (!useId || !codigo) {
-    const error = new Error("Datos incompletos.");
-    error.status = 400;
-    throw error;
+  if (!matchPassword) {
+    await registerFailedLogin(userData.use_id, ctx);
+    throw loginFailed();
   }
 
-  let connection = null;
-  try {
-    connection = await getConnection();
+  if (attempts) await clearFailedLogins(userData.use_id);
 
-    const rows = await executeQuery(
-      `SELECT id FROM otp_codes
-       WHERE user_id = ? AND code = ? AND used = 0
-         AND created_at >= NOW() - INTERVAL 10 MINUTE`,
-      [useId, codigo],
-      connection
-    );
+  // Unión de los permisos del perfil (plantilla) y las excepciones
+  // individuales del usuario — ver effectivePermissions.service.js.
+  const permissions = await getEffectivePermissionIds({
+    useId: userData.use_id,
+    proId: userData.pro_id,
+  });
 
-    if (rows.length === 0) {
-      const error = new Error("Código inválido o expirado.");
-      error.status = 400;
-      throw error;
-    }
+  const fullName = userFullName(userData) ?? "";
 
-    await executeQuery(
-      `UPDATE otp_codes SET used = 1 WHERE id = ?`,
-      [rows[0].id],
-      connection
-    );
-
-    await executeQuery(
-      `UPDATE tbl_users SET sta_id = 1 WHERE use_id = ?`,
-      [useId],
-      connection
-    );
-  } finally {
-    releaseConnection(connection);
-  }
+  // La sesión (tbl_sessions + cookies) la abre el controller con estos
+  // datos: el service no conoce la request (IP, user-agent) ni la respuesta.
+  return {
+    sessionUser: {
+      useId: userData.use_id,
+      name: userData.use_name,
+      email: userData.use_email,
+      proId: userData.pro_id,
+    },
+    useId: userData.use_id,
+    username: userData.use_user,
+    fullName,
+    email: userData.use_email,
+    proId: userData.pro_id,
+    profileName: userData.tbl_profiles?.pro_name ?? null,
+    permissions,
+  };
 };
 
 export const getBasicInformation = async ({ useId }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const user = await prisma.tbl_users.findUnique({
+    where: { use_id: Number(useId) },
+    select: { use_name: true, use_last_name: true, use_user: true, use_email: true },
+  });
 
-    const rows = await executeQuery(
-      `SELECT use_name AS name, use_last_name AS lastName, use_user AS username, use_email AS email
-       FROM tbl_users WHERE use_id = ? LIMIT 1`,
-      [useId],
-      connection
-    );
+  if (!user) return undefined;
 
-    return rows[0];
-  } finally {
-    releaseConnection(connection);
-  }
+  return {
+    name: user.use_name,
+    lastName: user.use_last_name,
+    username: user.use_user,
+    email: user.use_email,
+  };
 };
 
-export const updateAccount = async ({ name, lastName, username, email, useId }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
+const ACCOUNT_FIELDS = ["use_name", "use_last_name", "use_user", "use_email"];
 
-    const result = await executeQuery(
-      `UPDATE tbl_users SET use_name = ?, use_last_name = ?, use_user = ?, use_email = ? WHERE use_id = ?`,
-      [name, lastName, username, email, useId],
-      connection
-    );
+export const updateAccount = async ({ name, lastName, username, email, useId, ctx = { useId } }) =>
+  withLockedTransaction({ USUARIO: useId }, async (tx) => {
+    const before = await tx.tbl_users.findUnique({
+      where: { use_id: Number(useId) },
+      select: { use_id: true, use_name: true, use_last_name: true, use_user: true, use_email: true, pro_id: true },
+    });
 
-    if (result.affectedRows === 0) {
+    if (!before) {
       const error = new Error("Error al actualizar la cuenta.");
       error.statusCode = 400;
       throw error;
     }
-  } finally {
-    releaseConnection(connection);
+
+    // Autoedición: el autor de la modificación es el propio usuario.
+    const data = { use_name: name, use_last_name: lastName, use_user: username, use_email: email };
+    await tx.tbl_users.update({
+      where: { use_id: Number(useId) },
+      data: { ...data, use_update_by: Number(useId) },
+    });
+
+    const changes = diffFields(before, data, ACCOUNT_FIELDS);
+    if (changes.length > 0) {
+      await writeAudit(tx, {
+        entity: AUDIT_ENTITIES.USER,
+        recordId: useId,
+        operation: AUDIT_OPERATIONS.UPDATE,
+        ctx,
+        changes,
+      });
+    }
+
+    // El access token lleva name/email y verifyToken exige que el email del
+    // token coincida con el de la BD: el controller reemite el token con los
+    // datos nuevos para que cambiar el propio correo no cierre la sesión.
+    return { useId: before.use_id, name, email, proId: before.pro_id };
+  }, { idempotent: true });
+
+export const updatePassword = async ({ currentPassword, newPassword, useId, ctx = { useId } }) => {
+  const user = await prisma.tbl_users.findUnique({
+    where: { use_id: Number(useId) },
+    select: { use_id: true, use_name: true, use_email: true, pro_id: true, use_password: true },
+  });
+
+  if (!user) {
+    const error = new Error("Usuario no encontrado.");
+    error.statusCode = 404;
+    throw error;
   }
-};
 
-export const updatePassword = async ({ currentPassword, newPassword, useId }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const match = await comparePassword(currentPassword, user.use_password);
 
-    const rows = await executeQuery(
-      `SELECT use_password AS password FROM tbl_users WHERE use_id = ?`,
-      [useId],
-      connection
+  if (!match) {
+    const error = new Error(
+      "Contraseña incorrecta, por favor valida nuevamente."
     );
-
-    if (rows.length === 0) {
-      const error = new Error("Usuario no encontrado.");
-      error.statusCode = 404;
-      throw error;
-    }
-
-    const match = await comparePassword(currentPassword, rows[0].password);
-
-    if (!match) {
-      const error = new Error(
-        "Contraseña incorrecta, por favor valida nuevamente."
-      );
-      error.statusCode = 400;
-      throw error;
-    }
-
-    const hash = await hashPassword(newPassword);
-
-    const result = await executeQuery(
-      `UPDATE tbl_users SET use_password = ? WHERE use_id = ?`,
-      [hash, useId],
-      connection
-    );
-
-    if (result.affectedRows === 0) {
-      const error = new Error("Hubo un problema al cambiar tu contraseña.");
-      error.statusCode = 400;
-      throw error;
-    }
-  } finally {
-    releaseConnection(connection);
+    error.statusCode = 400;
+    throw error;
   }
+
+  const hash = await hashPassword(newPassword);
+
+  // bcrypt (compare + hash) queda FUERA de la transacción a propósito: tarda
+  // decenas de ms y no debe retener el bloqueo (ADR-0027, decisión 9). A
+  // cambio, el update se condiciona al hash que se verificó: si otra petición
+  // cambió la contraseña en medio, no se pisa ese cambio.
+  await withLockedTransaction({ USUARIO: useId }, async (tx) => {
+    const result = await tx.tbl_users.updateMany({
+      where: { use_id: Number(useId), use_password: user.use_password },
+      data: { use_password: hash, use_update_by: Number(useId) },
+    });
+
+    if (result.count === 0) {
+      const error = new Error("Tu contraseña cambió mientras se procesaba la solicitud. Intenta de nuevo.");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    await writeAudit(tx, {
+      entity: AUDIT_ENTITIES.USER,
+      recordId: useId,
+      operation: AUDIT_OPERATIONS.PASSWORD_CHANGED,
+      ctx,
+      changes: [{ field: "use_password", oldValue: REDACTED, newValue: REDACTED }],
+    });
+  });
+
+  // El controller abre una sesión nueva con estos datos: cambiar la
+  // contraseña rota la sesión, así que cualquier copia robada del token o
+  // del refresh token anterior deja de servir.
+  return { useId: user.use_id, name: user.use_name, email: user.use_email, proId: user.pro_id };
 };
 
 export const getWindowsByProfile = async ({ proId }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
+  // pag_id: { not: null } reproduce el INNER JOIN original (excluye filas
+  // sin página asociada), ya que la relación en Prisma es opcional.
+  const rows = await prisma.tbl_page_permissions.findMany({
+    where: { pro_id: Number(proId), pag_id: { not: null } },
+    select: { tbl_pages: { select: { pag_id: true, pag_description: true } } },
+  });
 
-    return await executeQuery(
-      `SELECT p.pag_id AS pagId, p.pag_description AS description
-       FROM tbl_page_permissions pp
-       JOIN tbl_pages p ON pp.pag_id = p.pag_id
-       WHERE pp.pro_id = ?`,
-      [proId],
-      connection
-    );
-  } finally {
-    releaseConnection(connection);
-  }
+  return rows.map((r) => ({
+    pagId: r.tbl_pages.pag_id,
+    description: r.tbl_pages.pag_description,
+  }));
 };
 
-export const validateCodePassword = async ({ token, codeTemp }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
+const RESET_CODE_TTL_MS = 15 * 60 * 1000;
+// Intentos por código: con 900.000 combinaciones, 5 intentos dan una
+// probabilidad de acierto por fuerza bruta de ~1 en 180.000 por código
+// solicitado (y cada solicitud nueva exige acceso al correo para leerlo).
+export const RESET_CODE_MAX_ATTEMPTS = 5;
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
+const invalidCode = () => {
+  const error = new Error("Código incorrecto o vencido. Si agotaste los intentos, solicita uno nuevo.");
+  error.statusCode = 400;
+  return error;
+};
 
-    const { usuarioID } = decoded;
+/**
+ * Identifica la solicitud de reset por email + código (los dos únicos datos
+ * que legítimamente conoce quien tiene acceso al correo), nunca por un token
+ * que hubiera viajado por la respuesta HTTP.
+ *
+ * Cada verificación consume un intento ANTES de comparar el código, con un
+ * incremento condicionado (par_attempts < máximo): así, peticiones en
+ * paralelo no pueden probar más códigos que el límite, aunque lean la fila
+ * al mismo tiempo. Agotados los intentos, el código se invalida aunque no
+ * haya vencido.
+ */
+const consumeResetAttempt = async ({ email, codeTemp, ctx }) => {
+  const reset = await prisma.tbl_password_resets.findFirst({
+    where: {
+      par_create_at: { gte: new Date(Date.now() - RESET_CODE_TTL_MS) },
+      tbl_users: { use_email: email, sta_id: 1 },
+    },
+    select: { par_id: true, use_id: true, par_code_hash: true },
+  });
 
-    const result = await executeQuery(
-      `SELECT par_code_temp FROM tbl_password_resets WHERE use_id = ? AND par_token = ?`,
-      [usuarioID, token],
-      connection
-    );
+  if (!reset) throw invalidCode();
 
-    if (!result.length || result[0].par_code_temp !== parseInt(codeTemp)) {
-      const error = new Error("Código Incorrecto.");
-      error.statusCode = 400;
-      throw error;
+  // El intento consumido y su registro en la bitácora van juntos. La
+  // transacción no lanza en los casos de fallo (eso revertiría el intento
+  // consumido): devuelve el resultado y se lanza después de confirmarla.
+  const outcome = await withTransaction(async (tx) => {
+    const failed = (motivo) =>
+      writeAudit(tx, {
+        entity: AUDIT_ENTITIES.USER,
+        recordId: reset.use_id,
+        operation: AUDIT_OPERATIONS.PASSWORD_RESET_CODE_FAILED,
+        ctx: anonymous(ctx),
+        changes: [{ field: "motivo", newValue: motivo }],
+      });
+
+    const consumed = await tx.tbl_password_resets.updateMany({
+      where: { par_id: reset.par_id, par_attempts: { lt: RESET_CODE_MAX_ATTEMPTS } },
+      data: { par_attempts: { increment: 1 } },
+    });
+
+    if (consumed.count === 0) {
+      await tx.tbl_password_resets.deleteMany({ where: { par_id: reset.par_id } });
+      await failed("intentos agotados");
+      return false;
     }
-  } finally {
-    releaseConnection(connection);
-  }
-};
 
-export const restorePassword = async ({ token, nuevaContrasena, codeTemp }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
-
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
-
-    const { usuarioID } = decoded;
-
-    const result = await executeQuery(
-      `SELECT par_code_temp FROM tbl_password_resets WHERE use_id = ? AND par_token = ?`,
-      [usuarioID, token],
-      connection
-    );
-
-    if (!result.length || result[0].par_code_temp !== parseInt(codeTemp)) {
-      const error = new Error("Código Temporal Incorrecto.");
-      error.statusCode = 400;
-      throw error;
+    if (!verifyResetCode({ code: codeTemp, useId: reset.use_id, hash: reset.par_code_hash })) {
+      await failed("código incorrecto");
+      return false;
     }
 
-    const hashedPassword = await hashPassword(nuevaContrasena);
+    return true;
+  });
 
-    await executeQuery(
-      `UPDATE tbl_users SET use_password = ? WHERE use_id = ?`,
-      [hashedPassword, usuarioID],
-      connection
-    );
+  if (!outcome) throw invalidCode();
 
-    await executeQuery(
-      `DELETE FROM tbl_password_resets WHERE use_id = ?`,
-      [usuarioID],
-      connection
-    );
-  } finally {
-    releaseConnection(connection);
-  }
+  return { usuarioID: reset.use_id };
 };
 
-export const forgotPassword = async ({ email }) => {
+export const validateCodePassword = async ({ email, codeTemp, ctx = {} }) => {
+  await consumeResetAttempt({ email, codeTemp, ctx });
+};
+
+export const restorePassword = async ({ email, nuevaContrasena, codeTemp, ctx = {} }) => {
+  const { usuarioID } = await consumeResetAttempt({ email, codeTemp, ctx });
+  const hashedPassword = await hashPassword(nuevaContrasena);
+
+  // Quien demuestra acceso al correo recupera la cuenta por completo: se
+  // levanta un posible bloqueo por intentos fallidos de login. El autor es
+  // el propio usuario (demostró ser el dueño del correo), aunque no tenga
+  // sesión.
+  await withTransaction(async (tx) => {
+    await tx.tbl_users.updateMany({
+      where: { use_id: usuarioID },
+      data: { use_password: hashedPassword, use_update_by: usuarioID },
+    });
+    await tx.tbl_password_resets.deleteMany({ where: { use_id: usuarioID } });
+    await tx.tbl_login_attempts.deleteMany({ where: { use_id: usuarioID } });
+    await writeAudit(tx, {
+      entity: AUDIT_ENTITIES.USER,
+      recordId: usuarioID,
+      operation: AUDIT_OPERATIONS.PASSWORD_RESET,
+      ctx: { useId: usuarioID, ip: ctx.ip },
+      changes: [{ field: "use_password", oldValue: REDACTED, newValue: REDACTED }],
+    });
+  });
+
+  // Fuera de la transacción a propósito: también cierra los sockets de la
+  // sesión, algo que no se puede deshacer con un rollback. Cualquier sesión
+  // abierta (posiblemente la de quien tenía la contraseña anterior) cae, y
+  // queda en la bitácora si había una.
+  await revokeSession({
+    useId: usuarioID,
+    audit: {
+      operation: AUDIT_OPERATIONS.SESSION_REVOKED,
+      ctx: { useId: usuarioID, ip: ctx.ip },
+      reason: "contraseña restaurada",
+    },
+  });
+};
+
+// Piso de duración para forgot_password: sin esto, la rama "cuenta existe"
+// (dos escrituras en BD) sigue siendo más lenta que "no existe" (una
+// lectura), y esa diferencia es medible remotamente con suficientes
+// muestras aunque hoy sea de pocos milisegundos.
+const FORGOT_PASSWORD_MIN_MS = 300;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const forgotPassword = async ({ email, ctx = {} }) => {
   if (!email) {
     const error = new Error("El correo es requerido.");
     error.statusCode = 400;
     throw error;
   }
 
-  let connection = null;
-  try {
-    connection = await getConnection();
+  const start = Date.now();
 
-    const rows = await executeQuery(
-      `SELECT use_id AS usuarioID, use_name AS name
-       FROM tbl_users WHERE use_email = ?`,
-      [email],
-      connection
-    );
+  const user = await prisma.tbl_users.findFirst({
+    where: { use_email: email, sta_id: 1 },
+    select: { use_id: true, use_name: true },
+  });
 
-    if (!rows || rows.length === 0) {
-      const error = new Error("No existe una cuenta con ese correo.");
-      error.statusCode = 404;
-      throw error;
-    }
+  // Respuesta idéntica exista o no la cuenta: revelar la diferencia (404 vs
+  // 200, o el tiempo de respuesta) permite enumerar qué correos están
+  // registrados. Si no existe (o no está activa), no se genera ni se envía
+  // nada.
+  if (user) {
+    const usuarioID = user.use_id;
+    const name = user.use_name;
+    const codeTemp = generateResetCode();
 
-    const { usuarioID, name } = rows[0];
-    const codeTemp = Math.floor(100000 + Math.random() * 900000);
+    // Upsert sobre UNIQUE(use_id): un solo código vigente por usuario y en
+    // una sola sentencia (antes era DELETE + INSERT sin transacción: una
+    // falla entre ambas dejaba al usuario sin código). Un código nuevo
+    // invalida el anterior y reinicia intentos y vigencia: par_create_at es
+    // la creación del código VIGENTE, por eso también se reescribe en el
+    // update. par_create_by/par_update_by quedan NULL: la solicitud es sin
+    // sesión y no tiene autor verificable (migración 0015).
+    const resetData = {
+      par_use_email: email,
+      par_code_hash: hashResetCode({ code: codeTemp, useId: usuarioID }),
+      par_attempts: 0,
+      par_create_at: new Date(),
+    };
 
-    const token = jwt.sign(
-      { usuarioID },
-      process.env.JWT_SECRET,
-      { expiresIn: "15m" }
-    );
+    await withTransaction(async (tx) => {
+      await tx.tbl_password_resets.upsert({
+        where: { use_id: usuarioID },
+        create: { use_id: usuarioID, ...resetData },
+        update: resetData,
+      });
+      // Solo cuando la cuenta existe: registrar también los correos
+      // inexistentes guardaría en la bitácora texto arbitrario del cliente.
+      await writeAudit(tx, {
+        entity: AUDIT_ENTITIES.USER,
+        recordId: usuarioID,
+        operation: AUDIT_OPERATIONS.PASSWORD_RESET_REQUESTED,
+        ctx: anonymous(ctx),
+      });
+    });
 
-    await executeQuery(
-      `DELETE FROM tbl_password_resets WHERE use_id = ?`,
-      [usuarioID],
-      connection
-    );
-
-    await executeQuery(
-      `INSERT INTO tbl_password_resets (use_id, par_use_email, par_token, par_code_temp) VALUES (?, ?, ?, ?)`,
-      [usuarioID, email, token, codeTemp],
-      connection
-    );
-
-    await sendEmail({
+    // No esperar el envío: un SMTP real tarda de milisegundos a varios
+    // segundos según la red, y bloquear la respuesta en eso sería una fuga
+    // de temporización mucho peor que la que se está cerrando acá. Además,
+    // si el envío falla, no debe cambiar la respuesta (antes un fallo de
+    // correo solo daba 500 cuando la cuenta SÍ existía — otra forma de
+    // filtrar su existencia).
+    sendEmail({
       to: email,
       subject: "Recuperación de contraseña",
       html: `
@@ -488,10 +514,13 @@ export const forgotPassword = async ({ email }) => {
           <p>Si no solicitaste esto, ignora este correo.</p>
         </div>
       `,
+    }).catch((err) => {
+      console.error("[forgotPassword] Error al enviar el correo de recuperación:", err.message);
     });
+  }
 
-    return { token };
-  } finally {
-    releaseConnection(connection);
+  const elapsed = Date.now() - start;
+  if (elapsed < FORGOT_PASSWORD_MIN_MS) {
+    await sleep(FORGOT_PASSWORD_MIN_MS - elapsed);
   }
 };

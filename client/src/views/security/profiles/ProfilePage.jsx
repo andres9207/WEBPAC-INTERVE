@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
-import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Badge from '@mui/material/Badge';
-import Typography from '@mui/material/Typography';
 
 import { IconEdit, IconTrash, IconKey, IconPlus, IconFilter } from '@tabler/icons-react';
 
@@ -12,15 +10,16 @@ import MainCard from 'ui-component/cards/MainCard';
 import FilterPopper from 'ui-component/extended/FilterPopper';
 import DataTable from 'ui-component/extended/DataTable';
 import StatusChip from 'ui-component/extended/StatusChip';
+import LastModifiedCell from 'ui-component/extended/LastModifiedCell';
 import ProfileDialog from './components/ProfileDialog';
 import { STATUS_OPTIONS } from 'utils/constants';
 import PermissionsDrawer from './components/PermissionsDrawer';
 import { paginationProfilesAPI, deleteProfileAPI } from 'api/requests/profilesApi';
 import { useAuth } from 'contexts/AuthContext';
-import { config as permConfig } from 'contexts/permissions/permissionsConfig';
+import { showError } from 'services/ToastService';
 
 export default function ProfilesPage() {
-  const { user, hasPermission } = useAuth();
+  const { hasPermission, permissionsCatalog } = useAuth();
 
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -48,10 +47,15 @@ export default function ProfilesPage() {
     setFilterAnchorEl(null);
   };
 
-  const canCreate = hasPermission(permConfig.security.profiles.create);
-  const canEdit = hasPermission(permConfig.security.profiles.edit);
-  const canDelete = hasPermission(permConfig.security.profiles.delete);
-  const canAssignPermission = hasPermission(permConfig.security.profiles.assignPermission);
+  // perId != null antes de preguntar: hasPermission(undefined) es true por
+  // diseño (per_id null = "no requiere permiso", ver authContext.jsx), así
+  // que mientras el catálogo todavía no cargó no se debe confundir "no sé
+  // qué per_id es" con "esta acción no requiere permiso".
+  const canDo = (perId) => perId != null && hasPermission(perId);
+  const canCreate = canDo(permissionsCatalog.security?.profiles?.create);
+  const canEdit = canDo(permissionsCatalog.security?.profiles?.edit);
+  const canDelete = canDo(permissionsCatalog.security?.profiles?.delete);
+  const canAssignPermission = canDo(permissionsCatalog.security?.profiles?.assignPermission);
 
   const profileFormRef = useRef(null);
   const [permissionsVisible, setPermissionsVisible] = useState(false);
@@ -78,7 +82,6 @@ export default function ProfilesPage() {
     setLoading(true);
     try {
       const { data } = await paginationProfilesAPI({
-        useId: user?.useId,
         name: filters.name,
         staId: filters.staId,
         rows: rowsPerPage,
@@ -89,11 +92,11 @@ export default function ProfilesPage() {
       setRows(data.results ?? []);
       setTotal(data.total ?? 0);
     } catch (err) {
-      console.error('Error cargando perfiles:', err);
+      showError(err.response?.data?.message || 'Error al cargar los perfiles');
     } finally {
       setLoading(false);
     }
-  }, [user, filters.name, filters.staId, page, rowsPerPage, sortField, sortOrder]);
+  }, [filters.name, filters.staId, page, rowsPerPage, sortField, sortOrder]);
 
   useEffect(() => { fetchProfiles(); }, [fetchProfiles]);
 
@@ -108,7 +111,7 @@ export default function ProfilesPage() {
       await deleteProfileAPI({ proId });
       fetchProfiles();
     } catch (err) {
-      console.error('Error eliminando perfil:', err);
+      showError(err.response?.data?.message || 'Error al eliminar el perfil');
     }
   };
 
@@ -138,14 +141,7 @@ export default function ProfilesPage() {
     {
       id: 'modified',
       label: 'Últ. modificación',
-      render: (row) => (
-        <Box>
-          <Typography variant="caption">{row.updatedBy}</Typography>
-          <Typography variant="caption" display="block" color="text.secondary">
-            {row.updatedAt}
-          </Typography>
-        </Box>
-      ),
+      render: (row) => <LastModifiedCell name={row.updatedByName} date={row.updatedAt} />,
     },
   ];
 

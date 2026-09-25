@@ -3,6 +3,7 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { showSuccess, showInfo, showError } from 'services/ToastService';
 import { getProfilesAPI } from 'api/requests/profilesApi';
 import { saveUserAPI } from 'api/requests/usersApi';
+import { newIdempotencyKey } from 'utils/idempotency';
 import httpCliente from 'api/services/httpCliente';
 
 import BaseDialog from 'ui-component/extended/BaseDialog';
@@ -15,6 +16,8 @@ import { STATUS_OPTIONS } from 'utils/constants';
 const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
   const [visible, setVisible] = useState(false);
   const [useId, setUseId] = useState(0);
+  // Una clave por formulario de creación (utils/idempotency.js).
+  const [idempotencyKey, setIdempotencyKey] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const [allPages, setAllPages] = useState([]);
@@ -100,6 +103,7 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
 
   const newUser = () => {
     setUseId(0);
+    setIdempotencyKey(newIdempotencyKey());
     setProfileName('');
     reset({
       proId: '',
@@ -118,6 +122,7 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
   };
 
   const editUser = (item) => {
+    setIdempotencyKey(null);
     setUseId(item.useId);
     setProfileName(item.profileName || '');
     reset({
@@ -164,7 +169,7 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
 
     setLoading(true);
     try {
-      const { data } = await saveUserAPI(payload);
+      const { data } = await saveUserAPI(payload, useId > 0 ? undefined : idempotencyKey);
 
       const userItem = {
         useId: useId > 0 ? useId : data.useId,

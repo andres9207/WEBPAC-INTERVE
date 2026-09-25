@@ -1,84 +1,43 @@
-import {
-  getConnection,
-  releaseConnection,
-  executeQuery,
-} from '../../../common/configs/db.config.js';
+import { prisma } from '../../../common/configs/prismaClient.js';
+import { paginate } from '../../../common/utils/pagination.utils.js';
 import { getIO } from '../../../common/configs/socket.manager.js';
 
 export const getNotificationCount = async ({ userId }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
-    const [result] = await executeQuery(
-      'SELECT COUNT(not_id) AS tot FROM tbl_notifications WHERE use_id = ? AND not_is_read = 0',
-      [Number(userId)],
-      connection,
-    );
-    return result?.tot ?? 0;
-  } finally {
-    releaseConnection(connection);
-  }
+  return prisma.tbl_notifications.count({
+    where: { use_id: Number(userId), not_is_read: false },
+  });
 };
 
 export const listNotifications = async ({ userId, page = 1, limit = 10 }) => {
-  const offset = (page - 1) * limit;
-
-  if (!userId || isNaN(limit) || isNaN(offset)) {
+  if (!userId) {
     throw new Error('Parámetros no válidos');
   }
 
-  let connection = null;
-  try {
-    connection = await getConnection();
-
-    const notifications = await executeQuery(
-      `SELECT * FROM tbl_notifications
-       WHERE use_id = ?
-       ORDER BY not_created_at DESC
-       LIMIT ${+limit} OFFSET ${+offset}`,
-      [userId],
-      connection,
-    );
-
-    return notifications.map((n) => ({
-      ...n,
-      not_data: n.not_data ? (typeof n.not_data === 'string' ? JSON.parse(n.not_data) : n.not_data) : null,
-    }));
-  } finally {
-    releaseConnection(connection);
-  }
+  // Prisma deserializa la columna JSON `not_data` solo, no requiere el
+  // JSON.parse manual que hacía falta con el resultado crudo de mysql2.
+  return paginate(
+    prisma.tbl_notifications,
+    { where: { use_id: Number(userId) }, orderBy: { not_created_at: 'desc' } },
+    { page, limit }
+  );
 };
 
 export const markAllAsRead = async ({ userId }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
-    await executeQuery(
-      `UPDATE tbl_notifications
-       SET not_is_read = 1, not_read_at = CURRENT_TIMESTAMP, not_updated_at = CURRENT_TIMESTAMP
-       WHERE use_id = ? AND not_is_read = 0`,
-      [userId],
-      connection,
-    );
-  } finally {
-    releaseConnection(connection);
-  }
+  await prisma.tbl_notifications.updateMany({
+    where: { use_id: Number(userId), not_is_read: false },
+    data: { not_is_read: true, not_read_at: new Date(), not_updated_at: new Date() },
+  });
 };
 
-export const markAsRead = async ({ notificationId }) => {
-  let connection = null;
-  try {
-    connection = await getConnection();
-    await executeQuery(
-      `UPDATE tbl_notifications
-       SET not_is_read = 1, not_read_at = CURRENT_TIMESTAMP, not_updated_at = CURRENT_TIMESTAMP
-       WHERE not_id = ?`,
-      [notificationId],
-      connection,
-    );
-  } finally {
-    releaseConnection(connection);
-  }
+export const markAsRead = async ({ notificationId, userId }) => {
+  // updateMany (no update): igual que el UPDATE original de mysql2, no lanza
+  // error si el ID no existe, solo no afecta ninguna fila. El filtro por
+  // use_id evita marcar como leída una notificación de otro usuario (antes
+  // solo filtraba por not_id, sin validar dueño — ver SECURITY.md).
+  await prisma.tbl_notifications.updateMany({
+    where: { not_id: Number(notificationId), use_id: Number(userId) },
+    data: { not_is_read: true, not_read_at: new Date(), not_updated_at: new Date() },
+  });
 };
 
 export const insertNotification = async ({
@@ -90,34 +49,25 @@ export const insertNotification = async ({
   module = null,
   action = null,
   data = null,
-  connection,
+  tx = prisma,
 }) => {
-  if (!userId || !connection) return null;
+  if (!userId) return null;
 
   try {
     const io = getIO();
 
-    const result = await executeQuery(
-      `INSERT INTO tbl_notifications
-        (use_id, not_priority, not_title, not_message, not_type, not_module, not_action, not_data)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [userId, priority, title || 'Notificación', message || '', type, module, action, data ? JSON.stringify(data) : null],
-      connection,
-    );
-
-    const notification = {
-      not_id: result.insertId,
-      use_id: userId,
-      not_priority: priority,
-      not_title: title,
-      not_message: message,
-      not_type: type,
-      not_module: module,
-      not_action: action,
-      not_data: data,
-      not_created_at: new Date(),
-      not_is_read: 0,
-    };
+    const notification = await tx.tbl_notifications.create({
+      data: {
+        use_id: Number(userId),
+        not_priority: priority,
+        not_title: title || 'Notificación',
+        not_message: message || '',
+        not_type: type,
+        not_module: module,
+        not_action: action,
+        not_data: data ?? undefined,
+      },
+    });
 
     try {
       io.to(`user:${String(userId)}`).emit('newNotification', notification);

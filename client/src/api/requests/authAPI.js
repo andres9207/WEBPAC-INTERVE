@@ -15,32 +15,19 @@ export const forgotPasswordAPI = (params) =>
   httpCliente.post('/auth/forgot_password', params);
 
 /**
- * Restablecer contraseña con token
- * @param {{ token: string, clave: string }} params
- */
-export const resetPasswordAPI = (params) =>
-  httpCliente.post('/auth/reset_password', params);
-
-/**
  * Cerrar sesión
  */
 export const logoutAPI = () =>
   httpCliente.post('/auth/logout');
 
 /**
- * Verificar token activo (útil para proteger rutas en el frontend)
+ * Verificar token activo (útil para proteger rutas en el frontend).
+ * skipAuthRedirect: se llama en cada carga de la app, incluso sin sesión —
+ * un 401 aquí es un caso normal (visitante no autenticado), no debe forzar
+ * el redirect duro global; PrivateRoute ya maneja la redirección declarativa.
  */
 export const verifyTokenAPI = () =>
-  httpCliente.get('/app/verify_token');
-
-export const registerAPI = (params) =>
-  httpCliente.post('/auth/register', params);
-
-export const verifyOtpAPI = (params) =>
-  httpCliente.post('/auth/verify-otp', params);
-
-export const resendOtpAPI = (params) =>
-  httpCliente.post('/auth/resend-otp', params);
+  httpCliente.get('/app/verify_token', {}, { skipAuthRedirect: true });
 
 export const validateCodeAPI = (params) =>
   httpCliente.post('/auth/validate_code_password', params);

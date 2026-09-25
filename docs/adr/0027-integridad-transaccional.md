@@ -2,13 +2,24 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado.** Las decisiones de este ADR son **estándar obligatorio y no negociable** para todo service nuevo del backend, del CORE o no. Un service que escriba varias sentencias sin la utilidad de transacción, o que lea un registro antes de bloquearlo, no cumple el estándar y no se integra.
 
-ADR **transversal del CORE**. Gobierna las operaciones críticas de [ADR-0015](0015-contratos.md) a [ADR-0026](0026-calculos-facturacion.md). El patrón transaccional **existe** en parte del backend actual; su aplicación al CORE, el protocolo de bloqueos, la idempotencia y el catálogo de invariantes son propuesta.
+Estado de implementación por decisión:
+
+| Decisión | Implementación |
+| --- | --- |
+| 1, 2, 3, 4, 5, 9 | ✅ Vigentes en código: `server/src/common/services/transaction.service.js`, aplicado a todos los services actuales |
+| 8 | ✅ Vigente: reintento acotado del interbloqueo (2 reintentos) solo en operaciones marcadas `{ idempotent: true }`; si persiste → `409`; espera agotada → `503`, sin reintento |
+| 7 | ✅ Vigente en creación (usuarios, perfiles, documentos). Transiciones: la infraestructura está lista y se aplica al crear las tablas de historial de estado del CORE |
+| 6, 10, 11 | Obligatorias al construir el CORE: saldos validados, invariantes y conciliación. No hay aún tablas del CORE donde aplicarlas |
+
+ADR **transversal**. Nació para las operaciones críticas del CORE ([ADR-0015](0015-contratos.md) a [ADR-0026](0026-calculos-facturacion.md)), pero la utilidad de transacción, el aislamiento y el protocolo de bloqueo rigen para **todo** el backend.
 
 ## Fecha
 
 2026-09-10 — versión inicial.
+
+2026-09-25 — se implementa la base de las decisiones 2, 3, 4 y 8 (ver "Implementación de la base") y el ADR pasa a **Aceptado** como estándar obligatorio para todo service nuevo.
 
 ## Contexto
 
@@ -50,24 +61,26 @@ Tres clases de fallo, todas silenciosas:
 
 ## Decisión
 
-1. **Toda operación de negocio del CORE es una única transacción de base de datos** que incluye sus escrituras, su historial y su auditoría. No hay operación del CORE que escriba en más de una transacción.
+1. **Toda operación de negocio es una única transacción de base de datos** que incluye sus escrituras, su historial y su auditoría. Ninguna operación escribe en más de una transacción.
 
-2. **Se centraliza la gestión de transacciones en una única utilidad** que obtiene la conexión, abre la transacción, la entrega a la operación, confirma o revierte y libera. **Dentro de una transacción está prohibido invocar `executeQuery` sin la conexión.** La utilidad preserva el error original aunque el `rollback` falle.
+2. **Toda transacción se abre con la utilidad única** `server/src/common/services/transaction.service.js`: `withTransaction` o `withLockedTransaction`. La utilidad obtiene la conexión, abre la transacción, la entrega, confirma o revierte y libera. **Prohibido llamar a `prisma.$transaction` directamente** desde un service, prohibido escribir fuera del `tx` que entrega la utilidad, y prohibido cualquier otro acceso a la BD: el pool de mysql2 con `executeQuery`, que tomaba una conexión nueva si se omitía el parámetro, se eliminó. Si la operación falla, Prisma revierte y **propaga el error original aunque el rollback falle** (el fallo del rollback solo se registra). Un test de arquitectura hace cumplir la regla.
 
-3. **Protocolo de bloqueos:**
-   - Toda operación que afecte al agregado de un contrato **bloquea la fila del contrato con `SELECT … FOR UPDATE` como primera sentencia de la transacción**.
-   - Orden fijo de bloqueo: **contrato → factura → póliza o concepto**.
-   - Si una operación afectara a dos contratos ([ADR-0022](0022-facturacion-subcontratista.md), H1), se bloquean **en orden ascendente de identificador**.
+3. **Protocolo de bloqueos** (obligatorio en toda operación sobre un registro existente):
+   - La fila raíz del agregado se bloquea con **`SELECT … FOR UPDATE` como primera sentencia de la transacción**, antes de cualquier lectura. En el CORE, la raíz es el contrato.
+   - **Orden fijo entre entidades**: contrato → factura → póliza → concepto → documento → perfil → usuario (`LOCK_ORDER`). Póliza y concepto no se mezclan hoy en una operación; si ocurriera, póliza va primero.
+   - **Por identificador ascendente dentro de una entidad**: una operación que afecte a dos contratos ([ADR-0022](0022-facturacion-subcontratista.md), H1) bloquea primero el de menor id.
+   - El service **declara** qué bloquear con `withLockedTransaction({ ENTIDAD: ids }, fn)`. La utilidad aplica el orden y la posición, así que el protocolo no depende de que cada service lo recuerde. Toda tabla nueva que sea raíz de un agregado se registra en `LOCKABLE`.
 
-4. **Nivel de aislamiento: `REPEATABLE READ`, declarado explícitamente**, con la regla de la decisión 3. En ese nivel, InnoDB fija la instantánea de lectura en la primera lectura no bloqueante: bloquear el contrato **antes** de cualquier lectura garantiza que las sumas de saldo vean las transacciones concurrentes ya confirmadas.
+4. **Nivel de aislamiento: `REPEATABLE READ`, declarado explícitamente en cada transacción** por la utilidad, nunca heredado de la configuración del servidor MySQL. En ese nivel, InnoDB fija la instantánea de lectura en la primera lectura no bloqueante. Bloquear **antes** de cualquier lectura garantiza que las sumas de saldo vean las transacciones concurrentes ya confirmadas. Por eso tampoco vale leer el dato fuera de la transacción y luego bloquear.
 
 5. **Ninguna operación externa ocurre dentro de la transacción.** Subida de archivos a SharePoint, correos y notificaciones por Socket.IO van **después** del `COMMIT`, como ya hacen `register` y `updateUserPermissions`.
 
 6. **Los saldos no se actualizan: se validan.** Donde el alcance dice "actualización de saldos", la operación **recalcula los saldos bajo bloqueo y valida los invariantes**; no escribe ningún saldo ([ADR-0024](0024-amortizacion-anticipo.md), [ADR-0025](0025-retenciones.md)).
 
 7. **Idempotencia:**
-   - **Operaciones de creación**: clave de idempotencia generada por el cliente al abrir el formulario y guardada con `UNIQUE` en la entidad creada. Una repetición con la misma clave devuelve la entidad ya creada; la misma clave con otro contenido se rechaza.
+   - **Operaciones de creación**: clave de idempotencia (UUID) generada por el cliente al abrir el formulario y enviada en el encabezado `Idempotency-Key`. Se guarda en la entidad creada, en `<pre>_idempotency_key` (`UNIQUE`), junto con la huella del contenido, `<pre>_idempotency_hash` (SHA-256, sin contraseñas). Una repetición con la misma clave, el mismo contenido y el mismo autor devuelve la entidad ya creada. La misma clave con otro contenido, o de otro autor, se rechaza con `422`. La clave se busca **antes** que cualquier validación de duplicados.
    - **Operaciones de transición** (aprobar, anular, suspender, levantar, reabrir): precondición de estado leída bajo bloqueo, más clave de idempotencia con `UNIQUE` en el historial de estado. Una repetición devuelve el estado ya alcanzado.
+   - **Implementación**: `server/src/common/services/idempotency.service.js` (`runIdempotent`), el mismo mecanismo para creación y transición: cambia solo la tabla donde vive la clave. Ver [DEC-016](../decisiones/DEC-016-idempotencia-por-clave.md).
 
 8. **Interbloqueos y esperas:** `ER_LOCK_DEADLOCK` se reintenta en el servidor un número acotado de veces, **solo en operaciones idempotentes**, y si persiste responde `409` indicando operación concurrente. `ER_LOCK_WAIT_TIMEOUT` responde `503`. Ninguno de los dos cae en el 500 genérico.
 
@@ -217,7 +230,7 @@ No define permisos propios. Cada operación del catálogo exige el permiso de su
 
 - Toda auditoría funcional del CORE se escribe **dentro** de la transacción de la operación que audita ([ADR-0013](0013-auditoria-trazabilidad.md)).
 - Los rechazos por invariante durante la aprobación se registran —fuera de la transacción revertida, en una escritura propia—, porque son la evidencia de concurrencia.
-- Los reintentos por interbloqueo y los incumplimientos detectados por la conciliación quedan en el registro técnico. `winston.config.js` define `logs/api.log` y `logs/error-api.log`, pero **el logger no está montado** en `app.js`.
+- Los reintentos por interbloqueo quedan en el registro técnico (`logs/api.log`, nivel `warn`, vía winston). Los incumplimientos detectados por la conciliación irán al mismo registro cuando exista la conciliación.
 
 ## Validaciones
 
@@ -423,22 +436,62 @@ Tabla completa de datos financieros en [ADR-0026](0026-calculos-facturacion.md),
 
 | # | Brecha | Severidad |
 | --- | --- | --- |
-| B1 | `executeQuery` escapa de la transacción si se omite la conexión | **Alta** |
-| B2 | Ningún bloqueo de filas en el backend | **Alta** |
-| B3 | Sin idempotencia en ninguna operación | **Alta** |
+| B1 | `executeQuery` escapa de la transacción si se omite la conexión | **Alta** — ✅ Cerrada: `db.config.js` (pool mysql2 con `executeQuery`/`getConnection`) eliminado; `withTransaction` es la única puerta, y un test de arquitectura impide reintroducir mysql2 o `prisma.$transaction` directo |
+| B2 | Ningún bloqueo de filas en el backend | **Alta** — ✅ Cerrada: `withLockedTransaction` (`SELECT … FOR UPDATE` como primeras sentencias, orden fijo) |
+| B3 | Sin idempotencia en ninguna operación | **Alta** — ✅ Cerrada en creación (migración `0016`, [DEC-016](../decisiones/DEC-016-idempotencia-por-clave.md)); en transiciones, al existir el historial de estado |
 | B4 | Sin restricciones `UNIQUE`, `CHECK` ni columnas generadas | **Alta** |
-| B5 | Sin tratamiento de interbloqueos ni esperas de bloqueo | **Media** |
-| B6 | Nivel de aislamiento implícito | **Media** |
-| B7 | Transacciones ausentes en `verifyOtp`, `restorePassword` y `forgotPassword` | **Media** |
-| B8 | `rollback` en `catch` puede ocultar el error original | **Baja** |
+| B5 | Sin tratamiento de interbloqueos ni esperas de bloqueo | **Media** — ✅ Cerrada: reintento acotado en operaciones idempotentes, `409` si persiste, `503` ante espera agotada. Verificado con un interbloqueo real ([DEC-015](../decisiones/DEC-015-reintento-interbloqueo.md)) |
+| B6 | Nivel de aislamiento implícito | **Media** — ✅ Cerrada: `REPEATABLE READ` declarado en cada transacción |
+| B7 | Transacciones ausentes en `verifyOtp`, `restorePassword` y `forgotPassword` | **Media** — ✅ Cerrada: `verifyOtp` ya no existe; `restorePassword` y `forgotPassword` usan `withTransaction` |
+| B8 | `rollback` en `catch` puede ocultar el error original | **Baja** — ✅ No aplica: Prisma revierte la transacción interactiva y propaga el error original |
 | B9 | Sin conciliación; cron vacío y desactivado | **Media** |
 | B10 | Logger persistente definido y no montado | **Media** |
 | B11 | Sin migraciones versionadas | **Media** |
 | B12 | Estados de contabilización y pago sin definir | **Media** — decisión de negocio pendiente |
 
+## Implementación de la base
+
+`server/src/common/services/transaction.service.js` es la única puerta a una transacción. Los services no llaman a `prisma.$transaction` directamente.
+
+| Función | Cuándo | Qué hace |
+| --- | --- | --- |
+| `withTransaction(fn)` | Crear (no hay fila que bloquear) u operaciones que ya son atómicas con una sentencia condicionada | Abre la transacción con `isolationLevel: RepeatableRead` y fija `innodb_lock_wait_timeout = 3` |
+| `withLockedTransaction(locks, fn)` | Toda operación sobre un registro existente | Además bloquea con `SELECT … FOR UPDATE` las filas de `locks` **antes** de ejecutar `fn(tx, locked)` |
+
+**El protocolo se cumple por construcción.** El service declara *qué* bloquear (`{ CONTRATO: [7, 3], FACTURA: 9 }`), y la utilidad decide *cuándo* y *en qué orden*:
+
+- Los bloqueos son las primeras sentencias de lectura: `fn` recibe el `tx` después de ellos.
+- Las entidades siguen `LOCK_ORDER`: `CONTRATO → FACTURA → POLIZA → CONCEPTO → DOCUMENTO → PERFIL → USUARIO`. El orden del CORE es el de la decisión 3. Las entidades actuales quedan después en un único orden total.
+- Los ids van en orden ascendente. En el ejemplo se bloquea contrato 3, contrato 7 y después factura 9.
+- Una entidad fuera de `LOCK_ORDER`, o sin tabla registrada en `LOCKABLE`, lanza un error antes de abrir la transacción. Al crear la tabla de contratos, facturas, pólizas o conceptos, se agrega su entrada a `LOCKABLE`; su posición en el orden ya está fijada.
+
+**Espera de bloqueo de 3 s.** El valor por defecto de MySQL es 50 s, y Prisma corta la transacción interactiva a los 5 s con un error genérico. Con 3 s, la espera agotada llega como el error 1205 de MySQL, y `error.middleware.js` responde `503` con un mensaje claro. El `SET` va antes de los bloqueos, pero no es una lectura, así que no fija la instantánea de `REPEATABLE READ`. Verificado contra la BD de desarrollo: 3,1 s → `503`.
+
+**Aplicación a los módulos actuales:**
+
+| Operación | Bloquea |
+| --- | --- |
+| `saveUser` (editar) | `PERFIL` asignado + `USUARIO`. Verifica, ya bloqueado, que el perfil no esté eliminado. |
+| `saveUser` (crear) | `PERFIL` asignado. Misma verificación. |
+| `deleteUser`, `updateAccount`, `updatePassword`, `updateUserPermissions` | `USUARIO` |
+| `saveProfile` (editar), `deleteProfile`, `updateProfilePermissions` | `PERFIL` |
+| `deleteModuleDoc` | `DOCUMENTO` |
+| `saveProfile` (crear), sesiones, intentos de login, códigos de recuperación | Ninguno (`withTransaction`): o crean, o usan sentencias condicionadas atómicas (`upsert`, incremento con `WHERE par_attempts < máximo`) |
+
+Carreras que esto cerró:
+
+- `deleteProfile` verificaba que el perfil no tuviera usuarios, pero un `saveUser` simultáneo podía asignárselo entre esa verificación y la eliminación. Ahora ambos bloquean el perfil.
+- `updateUserPermissions` leía el perfil del usuario **fuera** de la transacción. Ahora lo lee después del bloqueo.
+- `updatePassword` podía pisar un cambio de contraseña simultáneo. Ahora el `UPDATE` se condiciona al hash verificado y responde `409` si cambió.
+- En las ediciones, la lectura "antes" de la bitácora (ADR-0013) ya no puede ser una instantánea vieja: los valores anteriores registrados son los reales.
+
+**Reintento por interbloqueo** (decisión 8, [DEC-015](../decisiones/DEC-015-reintento-interbloqueo.md)): `withTransaction`/`withLockedTransaction` aceptan `{ idempotent: true }` y solo entonces reintentan un interbloqueo, hasta 2 veces. Hoy lo declaran editar usuario, editar perfil, permisos de perfil y de usuario, y editar la cuenta propia. Crear, eliminar y los contadores de login no se reintentan: crear ya es idempotente por clave (B3, `0016`), pero el reintento automático sigue limitado a las operaciones que fijan un estado.
+
+**Pendiente de esta base**: `saveProfile` (crear) valida que el nombre no esté repetido sin `UNIQUE` en la BD. Dos creaciones simultáneas con el mismo nombre pueden pasar ambas, porque no hay fila que bloquear. Se resuelve con la restricción `UNIQUE` (B4).
+
 ## Plan de implementación
 
-Recomendación derivada del análisis. **No fue ejecutada.**
+Recomendación derivada del análisis. **Ejecutado:** fase 0 (utilidad central), fase 2 salvo el reintento por interbloqueo, y fase 5 (transacciones en autenticación). El resto sigue pendiente.
 
 **Fase 0 — Base (B1, B8, B11):** utilidad central de transacción y migraciones versionadas, antes de cualquier tabla del CORE.
 **Fase 1 — Esquema (B4):** restricciones del catálogo de invariantes en cada tabla del CORE, desde su creación.

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo } from "react";
 import { io } from "socket.io-client";
 import { urlSocket, pathSocket } from "utils/constants";
+import { refreshSession } from "api/services/httpCliente";
 
 const SocketContext = createContext(null);
 
@@ -13,7 +14,6 @@ export const SocketProvider = ({ children, userId }) => {
       upgrade: true,
       withCredentials: true,
       path: pathSocket,
-      auth: { userId },
       reconnection: true,
       reconnectionAttempts: 15,
       reconnectionDelay: 1000,
@@ -27,7 +27,16 @@ export const SocketProvider = ({ children, userId }) => {
   useEffect(() => {
     if (!socket) return;
 
+    // El handshake usa el mismo access token (cookie httpOnly) que la API,
+    // que dura 15 minutos: al reconectar con el token vencido, el servidor
+    // rechaza el handshake y socket.io NO reintenta solo (socket.active =
+    // false). Se renueva la sesión y se reconecta, con un tope de intentos
+    // para no quedar en bucle si la sesión fue revocada de verdad.
+    let authRetries = 0;
+    const MAX_AUTH_RETRIES = 2;
+
     const onConnect = () => {
+      authRetries = 0;
       console.log(`Socket conectado: ${socket.id} | Usuario: ${userId}`);
     };
 
@@ -37,8 +46,16 @@ export const SocketProvider = ({ children, userId }) => {
       }
     };
 
-    const onError = (err) => {
+    const onError = async (err) => {
       console.error("Socket connect_error:", err.message || err);
+      if (socket.active || authRetries >= MAX_AUTH_RETRIES) return;
+      authRetries += 1;
+      try {
+        await refreshSession();
+        socket.connect();
+      } catch {
+        // Sesión revocada o vencida: el siguiente 401 de la API lleva al login.
+      }
     };
 
     socket.on("connect", onConnect);

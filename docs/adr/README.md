@@ -4,6 +4,8 @@ Registro y Control de Procesos Administrativos de Contratos de Materiales con Pr
 
 ---
 
+> Lo ya implementado y las reglas vigentes que salen de estos ADR están resumidos, una ficha por decisión, en [`docs/decisiones/`](../decisiones/README.md).
+
 ## 1. Objetivo
 
 Estos ADR documentan las decisiones arquitectónicas del sistema: qué se decidió, por qué, qué alternativas se evaluaron y qué consecuencias tiene cada decisión en frontend, backend, base de datos e infraestructura.
@@ -61,7 +63,7 @@ Por eso casi todos los ADR están en estado `Propuesto`:
 
 | ID | Decisión | Módulo | Estado | Dependencias |
 | --- | --- | --- | --- | --- |
-| [0001](0001-seguridad.md) | Autenticación JWT con revalidación en BD; cerrar puerta trasera, `httpOnly`, secretos fuera del código | Seguridad | Aceptado, con brechas críticas | 0013, 0014 |
+| [0001](0001-seguridad.md) | JWT corto + sesión en BD con refresh token rotado y sesión única; `httpOnly`, secretos fuera del código, bloqueo de login, código de recuperación con HMAC | Seguridad | Aceptado (abierto: MFA) | 0013, 0014 |
 | [0002](0002-dashboard.md) | Indicadores por agregación SQL en backend; filtrado con el mismo criterio | Dashboard | Propuesto | 0011, 0015, 0017, 0018, 0020, 0014 |
 | [0003](0003-aseguradoras.md) | Maestro con eliminación lógica bloqueada por uso | Configuración | Propuesto | 0013, 0014 |
 | [0004](0004-constructoras.md) | Maestro; obras nunca ocultas por el estado del maestro | Configuración | Propuesto | 0011, 0013, 0014 |
@@ -73,7 +75,7 @@ Por eso casi todos los ADR están en estado `Propuesto`:
 | [0010](0010-tipos-proveedor.md) | Clasificación del proveedor, pendiente de validar su naturaleza | Configuración | Propuesto | 0012 |
 | [0011](0011-obras.md) | Obra como raíz de agregado transaccional | Obras | Propuesto | 0004, 0006, 0007, 0009, 0012 |
 | [0012](0012-proveedores.md) | Proveedor único por documento con `UNIQUE`; relación proveedor-obra | Proveedores | Propuesto | 0008, 0009, 0010, 0011 |
-| [0013](0013-auditoria-trazabilidad.md) | Auditoría técnica estándar + bitácora funcional; autor desde el token | **Transversal** | Aceptado parcial / Propuesto | — |
+| [0013](0013-auditoria-trazabilidad.md) | Seis columnas de autoría con FK (incluida eliminación) + bitácora `tbl_audit_log` desde el servicio, con identificador de operación; autor desde el token | **Transversal** | Aceptado (abierto: retención, consulta) | — |
 | [0014](0014-autorizacion-permisos.md) | Backend como autoridad de autorización | **Transversal** | Aceptado parcial / Propuesto | 0001 |
 | [0015](0015-contratos.md) | Contrato como raíz del agregado económico; fecha fin derivada en backend | Contratos | Propuesto | 0011, 0012, 0006, 0016, 0017, 0027 |
 | [0016](0016-conceptos-contractuales.md) | Tabla única de conceptos con discriminador; valor del contrato calculado | Contratos | Propuesto | 0015, 0026, 0027 |
@@ -87,7 +89,7 @@ Por eso casi todos los ADR están en estado `Propuesto`:
 | [0024](0024-amortizacion-anticipo.md) | Saldo único por contrato, calculado; amortiza contra lo facturado | Facturación | Propuesto | 0016, 0021, 0027 |
 | [0025](0025-retenciones.md) | Retenido simétrico al anticipo; distinto de retenciones tributarias | Facturación | Propuesto | 0016, 0021, 0024, 0027 |
 | [0026](0026-calculos-facturacion.md) | Módulo de cálculo único, versionado, con aritmética exacta | **Transversal del CORE** | Propuesto | 0006, 0016, 0019, 0020 |
-| [0027](0027-integridad-transaccional.md) | Transacción por operación, bloqueo del contrato, idempotencia | **Transversal del CORE** | Propuesto | 0013, 0014 |
+| [0027](0027-integridad-transaccional.md) | Transacción por operación, bloqueo del contrato, idempotencia | **Transversal del CORE** | **Aceptado — estándar obligatorio** para todo service (utilidad de transacción, `REPEATABLE READ`, protocolo de bloqueo); idempotencia e invariantes se aplican al construir el CORE | 0013, 0014 |
 
 ---
 

@@ -53,7 +53,7 @@ function MenuList() {
 
     const fetchMenu = async () => {
       try {
-        const { data } = await getMenuAPI({ per: user.proId, idu: user.useId });
+        const { data } = await getMenuAPI();
         // Transform data to Berry group items format
         const transformMenu = (padres, hijos) => {
           const mapped = padres.map((padre) => {
