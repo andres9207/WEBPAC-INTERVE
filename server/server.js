@@ -3,7 +3,7 @@ import http from "http";
 import { app } from "./app.js";
 import { init } from "./socket.js";
 import { testConnection } from "./src/common/configs/prismaClient.js";
-// import { startCronJobs, stopCronJobs } from "./src/cron/index.js";
+import { startCronJobs, stopCronJobs } from "./src/cron/index.js";
 
 if (!process.env.JWT_SECRET) {
   throw new Error(
@@ -17,17 +17,17 @@ init(server);
 
 testConnection();
 
-// startCronJobs();
+startCronJobs();
 
-// process.on('SIGINT', () => {
-//   stopCronJobs();
-//   process.exit(0);
-// });
+process.on('SIGINT', () => {
+  stopCronJobs();
+  process.exit(0);
+});
 
-// process.on('SIGTERM', () => {
-//   stopCronJobs();
-//   process.exit(0);
-// });
+process.on('SIGTERM', () => {
+  stopCronJobs();
+  process.exit(0);
+});
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
