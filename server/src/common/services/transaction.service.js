@@ -60,6 +60,7 @@ export const LOCK_ORDER = Object.freeze([
   // Maestros
   "TIPO_IDENTIFICACION",
   "TIPO_PROVEEDOR",
+  "TIPO_DIRECCION",
 ]);
 
 /**
@@ -75,6 +76,7 @@ const LOCKABLE = Object.freeze({
   USUARIO: { table: "tbl_users", id: "use_id" },
   TIPO_IDENTIFICACION: { table: "tbl_identity_documents", id: "idd_id" },
   TIPO_PROVEEDOR: { table: "tbl_provider_types", id: "pvt_id" },
+  TIPO_DIRECCION: { table: "tbl_address_types", id: "adt_id" },
 });
 
 const transactionMisuse = (message) => new Error(`[transaction] ${message}`);

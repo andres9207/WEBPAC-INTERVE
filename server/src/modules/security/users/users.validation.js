@@ -5,6 +5,7 @@ import {
   optionalId,
   requiredId,
   idempotencyKeyRule,
+  emailRule,
 } from "../../../common/utils/validation.utils.js";
 
 export const listUsersSchema = [
@@ -30,13 +31,7 @@ export const saveUserSchema = [
   requiredId("staId"),
   body("name").trim().notEmpty().withMessage("El nombre es requerido.").isLength({ max: 255 }),
   body("lastName").trim().notEmpty().withMessage("El apellido es requerido.").isLength({ max: 255 }),
-  body("email")
-    .trim()
-    .notEmpty()
-    .withMessage("El correo es requerido.")
-    .isEmail()
-    .withMessage("El correo no es válido.")
-    .isLength({ max: 255 }),
+  emailRule(),
   optionalText("identification", 20),
   // Número y tipo van juntos (ADR-0008, decisión 8; CHECK
   // ck_users_identification_type en la BD): o están los dos o ninguno.

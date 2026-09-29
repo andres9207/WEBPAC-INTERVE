@@ -29,6 +29,23 @@ export const optionalId = (field) =>
 export const requiredId = (field) =>
   body(field).isInt({ min: 1 }).withMessage(`${field} es obligatorio y debe ser un entero positivo.`);
 
+/**
+ * Correo en el body (ADR-0009, B6): recorta, exige formato y hasta 255
+ * caracteres. Con `optional`, vacío o null se acepta como "sin correo".
+ * Para usuarios, autenticación y los contactos de obra y de proveedor.
+ */
+export const emailRule = (field = "email", { optional = false } = {}) => {
+  const chain = optional ? body(field).optional(nullable) : body(field);
+  return chain
+    .trim()
+    .notEmpty()
+    .withMessage("El correo es requerido.")
+    .isEmail()
+    .withMessage("El correo no es válido.")
+    .isLength({ max: 255 })
+    .withMessage("El correo admite hasta 255 caracteres.");
+};
+
 /** Arreglo de ids enteros positivos en el body. */
 export const idArray = (field, { optional = false } = {}) => {
   const chain = optional ? body(field).optional({ values: "null" }) : body(field);

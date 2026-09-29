@@ -18,6 +18,8 @@ const PAGES = [
   { pag_id: 6, pag_description: "Tipos de identificación", pag_parent: 5, pag_url: "admin/identityDocuments", pag_icon: "id-card", pag_order: 1, pag_name: "Tipos de identificación", pag_type: 2 },
   // database/migrations/0024_seed_provider_types_pages_permissions.sql
   { pag_id: 7, pag_description: "Tipos de proveedor", pag_parent: 5, pag_url: "admin/providerTypes", pag_icon: "truck", pag_order: 2, pag_name: "Tipos de proveedor", pag_type: 2 },
+  // database/migrations/0027_seed_address_types_pages_permissions.sql
+  { pag_id: 8, pag_description: "Tipos de dirección", pag_parent: 5, pag_url: "admin/addressTypes", pag_icon: "map-pin", pag_order: 3, pag_name: "Tipos de dirección", pag_type: 2 },
 ];
 
 const PERMISSIONS = [
@@ -39,6 +41,11 @@ const PERMISSIONS = [
   { per_id: 24, per_name: "Modificar tipo de proveedor", pag_id: 7, per_order: 2 },
   { per_id: 25, per_name: "Eliminar tipo de proveedor", pag_id: 7, per_order: 3 },
   { per_id: 26, per_name: "Cambiar estado tipo de proveedor", pag_id: 7, per_order: 4 },
+  // database/migrations/0027_seed_address_types_pages_permissions.sql
+  { per_id: 28, per_name: "Crear tipo de dirección", pag_id: 8, per_order: 1 },
+  { per_id: 29, per_name: "Modificar tipo de dirección", pag_id: 8, per_order: 2 },
+  { per_id: 30, per_name: "Eliminar tipo de dirección", pag_id: 8, per_order: 3 },
+  { per_id: 31, per_name: "Cambiar estado tipo de dirección", pag_id: 8, per_order: 4 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -69,6 +76,7 @@ const VIEW_PERMISSIONS = [
   { per_id: 14, per_name: "Ver documentos", pag_id: null, per_order: 1 },
   { per_id: 17, per_name: "Ver tipos de identificación", pag_id: 6, per_order: 5 },
   { per_id: 22, per_name: "Ver tipos de proveedor", pag_id: 7, per_order: 5 },
+  { per_id: 27, per_name: "Ver tipos de dirección", pag_id: 8, per_order: 5 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay
@@ -105,6 +113,15 @@ const PROVIDER_TYPES = [
   { pvt_id: 3, pvt_name: "Contrato mayor", sta_id: 1 },
 ];
 
+// Tipos de dirección iniciales (database/migrations/0026_seed_address_types.sql).
+const ADDRESS_TYPES = [
+  { adt_id: 1, adt_name: "Oficina", sta_id: 1 },
+  { adt_id: 2, adt_name: "Sucursal", sta_id: 1 },
+  { adt_id: 3, adt_name: "Correspondencia", sta_id: 1 },
+  { adt_id: 4, adt_name: "Facturación", sta_id: 1 },
+  { adt_id: 5, adt_name: "Bodega", sta_id: 1 },
+];
+
 async function main() {
   for (const status of STATUSES) {
     await prisma.tbl_status.upsert({
@@ -132,6 +149,15 @@ async function main() {
     });
   }
   console.log(`tbl_provider_types: ${PROVIDER_TYPES.length} tipos sembrados (los existentes no se modifican).`);
+
+  for (const addressType of ADDRESS_TYPES) {
+    await prisma.tbl_address_types.upsert({
+      where: { adt_id: addressType.adt_id },
+      update: {},
+      create: addressType,
+    });
+  }
+  console.log(`tbl_address_types: ${ADDRESS_TYPES.length} tipos sembrados (los existentes no se modifican).`);
 
   for (const page of PAGES) {
     await prisma.tbl_pages.upsert({

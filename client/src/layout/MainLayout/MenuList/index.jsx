@@ -37,6 +37,9 @@ const getIconByName = (iconName) => {
   if (name.includes('truck')) {
     return TablerIcons.IconTruck;
   }
+  if (name.includes('map')) {
+    return TablerIcons.IconMapPin;
+  }
   return TablerIcons.IconCircleDot || null;
 };
 

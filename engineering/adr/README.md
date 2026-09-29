@@ -71,7 +71,7 @@ Por eso casi todos los ADR están en estado `Propuesto`:
 | [0006](0006-tipos-contrato.md) | Configuración relacional de campos por tipo de contrato | Configuración | Propuesto | 0013, 0014 |
 | [0007](0007-tipos-interventoria.md) | Maestro anclado a la obra | Configuración | Propuesto | 0011 |
 | [0008](0008-tipos-identificacion.md) | Maestro sin datos personales; FK a tabla ausente | Configuración | Propuesto | 0012 |
-| [0009](0009-tipos-direccion.md) | Catálogo compartido; contactos en tablas separadas | Configuración | Propuesto | 0011, 0012 |
+| [0009](0009-tipos-direccion.md) | Catálogo compartido; contactos en tablas separadas | Configuración | Aceptado parcial | 0011, 0012 |
 | [0010](0010-tipos-proveedor.md) | Clasificación del proveedor (DEC-023) | Configuración | Aceptado parcial | 0012 |
 | [0011](0011-obras.md) | Obra como raíz de agregado transaccional | Obras | Propuesto | 0004, 0006, 0007, 0009, 0012 |
 | [0012](0012-proveedores.md) | Proveedor único por documento con `UNIQUE`; relación proveedor-obra | Proveedores | Propuesto | 0008, 0009, 0010, 0011 |

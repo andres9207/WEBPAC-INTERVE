@@ -43,5 +43,12 @@ export const PERMISSIONS = {
       delete: 25,
       changeStatus: 26,
     },
+    addressTypes: {
+      view: 27, // pagination_address_types
+      create: 28,
+      edit: 29,
+      delete: 30,
+      changeStatus: 31,
+    },
   },
 };

@@ -29,7 +29,7 @@ Ningún ADR fijaba en qué carpeta y bajo qué URL viven los maestros, ni el idi
   | Tipos de contrato | `contractTypes` | `tbl_contract_types` | `ctt_` | PD-04 | 0006 |
   | Tipos de interventoría | `supervisionTypes` | `tbl_supervision_types` | `spt_` | PD-04 | 0007 |
   | Tipos de identificación | `identityDocuments` | `tbl_identity_documents` | `idd_` | `TIPO_IDENTIFICACION` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0008 |
-  | Tipos de dirección | `addressTypes` | `tbl_address_types` | `adt_` | PD-04 | 0009 |
+  | Tipos de dirección | `addressTypes` | `tbl_address_types` | `adt_` | `TIPO_DIRECCION` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0009 |
   | Tipos de proveedor | `providerTypes` | `tbl_provider_types` | `pvt_` | `TIPO_PROVEEDOR` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0010 |
   | Tipos de póliza | `policyTypes` | `tbl_policy_types` | `plt_` | PD-04 | 0019 |
 

@@ -75,7 +75,7 @@ Los errores se lanzan con `new Error(msg)` y `.statusCode`. El service no conoce
 
 ### 5. Validación, controller, rutas
 
-- `<modulo>.validation.js` con las reglas de `common/utils/validation.utils.js`: `paginationRules()`, `optionalText`, `requiredId`, `idempotencyKeyRule(isCreate)`. Todo campo de `body`, `query` y `params` tiene regla.
+- `<modulo>.validation.js` con las reglas de `common/utils/validation.utils.js`: `paginationRules()`, `optionalText`, `requiredId`, `emailRule(field, { optional })`, `idempotencyKeyRule(isCreate)`. Todo campo de `body`, `query` y `params` tiene regla.
 - Controller: saca el sujeto y el autor de `req.user`, arma `ctx = auditContext(req)`, lee la clave con `req.get(IDEMPOTENCY_HEADER)` y delega con `next(err)`.
 - Rutas con el pipeline completo: `verifyToken → requirePermission → schema → validate → controller`. `save_<x>` resuelve create o edit con `requirePermission((req) => req.body.<x>Id > 0 ? edit : create)`.
 - Montar en `server/src/modules/main.routes.js`.

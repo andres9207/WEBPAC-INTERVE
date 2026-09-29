@@ -1,8 +1,8 @@
 // assets
-import { IconSettings, IconId, IconTruck } from '@tabler/icons-react';
+import { IconSettings, IconId, IconTruck, IconMapPin } from '@tabler/icons-react';
 
 // constant
-const icons = { IconSettings, IconId, IconTruck };
+const icons = { IconSettings, IconId, IconTruck, IconMapPin };
 
 // ==============================|| ADMIN MENU ITEMS ||============================== //
 // Solo alimenta las migas de pan: el sidebar sale de tbl_pages.
@@ -32,6 +32,14 @@ const admin = {
           type: 'item',
           url: '/admin/providerTypes',
           icon: icons.IconTruck,
+          breadcrumbs: true
+        },
+        {
+          id: 'addressTypes',
+          title: 'Tipos de dirección',
+          type: 'item',
+          url: '/admin/addressTypes',
+          icon: icons.IconMapPin,
           breadcrumbs: true
         }
       ]

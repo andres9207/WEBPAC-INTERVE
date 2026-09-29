@@ -10,13 +10,15 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 | Aplicar la migración `0021` (permiso `changeStatus` del tipo de identificación) junto con el patrón de maestro: sin ella, nadie puede activar ni desactivar tipos, porque `save_identity_document` ya no cambia el estado | Alta | DEC-020 |
 | Aplicar las migraciones `0017` a `0020` **junto con** el código de tipos de identificación, y después `yarn db:seed`. La `0019` agrega un `CHECK` a `tbl_users`: antes, verificar que ningún usuario tenga número sin tipo (la consulta está en el encabezado de la migración). Con la `0019` aplicada, el código viejo de `saveUser` falla al guardar un usuario con número de documento | Alta | ADR-0008 |
 | Aplicar las migraciones `0022` a `0024` (maestro de tipos de proveedor) junto con su código, y después `yarn db:seed` | Alta | ADR-0010 |
+| Aplicar las migraciones `0025` a `0027` (maestro de tipos de dirección) junto con su código, y después `yarn db:seed` | Alta | ADR-0009 |
 | Restringir el usuario de BD de la aplicación a `INSERT`/`SELECT` sobre `tbl_audit_log`. Hoy ningún código la modifica, pero el usuario tiene privilegios para hacerlo ([DEC-007](../decisiones/DEC-007-bitacora-funcional.md), sugerencia en `0013_create_audit_log.sql`) | Alta | `SECURITY.md` |
 
 ## Funcionalidad abierta
 
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
-| Pantalla y endpoint para consultar la bitácora, con permiso propio (siguiente `per_id` libre: 27; del 17 al 21 son de tipos de identificación y del 22 al 26 de tipos de proveedor) | Media | ADR-0013, B16 |
+| Pantalla y endpoint para consultar la bitácora, con permiso propio (siguiente `per_id` libre: 32; del 17 al 21 son de tipos de identificación, del 22 al 26 de tipos de proveedor y del 27 al 31 de tipos de dirección) | Media | ADR-0013, B16 |
+| Contactos de obra y de proveedor: al crear sus tablas (PRO-BD-04, PRO-BD-06), FK `RESTRICT` al tipo de dirección y agregarlas a los `dependents` de `addressTypes.service.js`, con label "contacto(s)". Hasta entonces un tipo se puede eliminar sin verificar uso, porque nada lo referencia | Alta | ADR-0009 |
 | Tipo de proveedor en proveedores: columna `pvt_id` en `tbl_providers` (FK `RESTRICT` e índice), y agregar `tbl_providers` a los `dependents` de `providerTypes.service.js`. Hasta entonces un tipo se puede eliminar sin verificar uso, porque nada lo referencia (MAE-BD-11, DEC-023) | Alta | ADR-0010 |
 | Tipo de identificación en proveedores: el selector y el bloqueo ya existen; agregar `tbl_providers` a los `dependents` de `identityDocuments.service.js` cuando exista (DOM-20, DOM-22) | Alta | ADR-0008, ADR-0012 |
 | `UNIQUE` sobre (tipo, número) en usuarios: hoy el par solo se controla en el service (`checkIfUserExists`), fuera de la transacción. Dos creaciones simultáneas con el mismo documento pueden pasar | Media | ADR-0008 |

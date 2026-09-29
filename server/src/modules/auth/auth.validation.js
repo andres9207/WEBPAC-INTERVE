@@ -1,4 +1,5 @@
 import { body, query } from "express-validator";
+import { emailRule } from "../../common/utils/validation.utils.js";
 
 export const getWindowsByProfileSchema = [
   query("proId").isInt({ min: 1 }).withMessage("El perfil (proId) debe ser un entero positivo."),
@@ -15,21 +16,11 @@ export const loginSchema = [
 ];
 
 export const forgotPasswordSchema = [
-  body("email")
-    .trim()
-    .notEmpty()
-    .withMessage("El correo es requerido.")
-    .isEmail()
-    .withMessage("El correo no es válido."),
+  emailRule(),
 ];
 
 export const validateCodePasswordSchema = [
-  body("email")
-    .trim()
-    .notEmpty()
-    .withMessage("El correo es requerido.")
-    .isEmail()
-    .withMessage("El correo no es válido."),
+  emailRule(),
   body("codeTemp")
     .notEmpty()
     .withMessage("El código es requerido.")
@@ -38,12 +29,7 @@ export const validateCodePasswordSchema = [
 ];
 
 export const restorePasswordSchema = [
-  body("email")
-    .trim()
-    .notEmpty()
-    .withMessage("El correo es requerido.")
-    .isEmail()
-    .withMessage("El correo no es válido."),
+  emailRule(),
   body("codeTemp")
     .notEmpty()
     .withMessage("El código es requerido.")
@@ -67,5 +53,5 @@ export const updateAccountSchema = [
   body("name").trim().notEmpty().withMessage("El nombre es requerido."),
   body("lastName").trim().notEmpty().withMessage("El apellido es requerido."),
   body("username").trim().notEmpty().withMessage("El usuario es requerido."),
-  body("email").trim().notEmpty().withMessage("El correo es requerido.").isEmail().withMessage("El correo no es válido."),
+  emailRule(),
 ];
