@@ -26,4 +26,4 @@ Todo registro que se edite o elimine se bloquea con `withLockedTransaction`, y l
 
 ## Dónde
 
-`server/src/common/services/transaction.service.js` · `security/users/users.service.js` (`assertAssignableIdentityDocument`) · `admin/identityDocuments/identityDocuments.service.js` (`deleteIdentityDocument`) · tests en `server/test/modules/security/users/users.service.test.js` ("protocolo de bloqueo")
+`server/src/common/services/transaction.service.js` · `common/services/master.service.js` (`assertAssignable`, `remove`, [DEC-020](DEC-020-patron-maestro.md)) · `security/users/users.service.js` · tests en `server/test/modules/security/users/users.service.test.js` ("protocolo de bloqueo")

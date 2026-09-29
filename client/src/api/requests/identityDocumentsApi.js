@@ -12,12 +12,11 @@ export const getIdentityDocumentsSelectAPI = (includeId) =>
  * Paginación de tipos de identificación
  * @param {{ code, name, staId, rows, first, sortField, sortOrder }} params
  */
-export const paginationIdentityDocumentsAPI = (params) =>
-  httpCliente.post('admin/identityDocuments/pagination_identity_documents', params);
+export const paginationIdentityDocumentsAPI = (params) => httpCliente.post('admin/identityDocuments/pagination_identity_documents', params);
 
 /**
- * Crear o editar tipo de identificación (el código solo se fija al crear)
- * @param {{ iddId, code, name, staId }} params  (el autor lo pone el backend desde la sesión)
+ * Crear o editar tipo de identificación (el código solo se fija al crear; el estado no se toca aquí)
+ * @param {{ iddId, code, name }} params  (el autor lo pone el backend desde la sesión)
  * @param {string} [idempotencyKey]  obligatoria al crear (ver utils/idempotency.js)
  */
 export const saveIdentityDocumentAPI = (params, idempotencyKey) =>
@@ -28,3 +27,16 @@ export const saveIdentityDocumentAPI = (params, idempotencyKey) =>
  * @param {{ iddId: number }} params
  */
 export const deleteIdentityDocumentAPI = (params) => httpCliente.put('admin/identityDocuments/delete_identity_document', params);
+
+/**
+ * Activar (staId 1) o desactivar (staId 2) un tipo de identificación. Permiso propio.
+ * @param {{ iddId: number, staId: 1 | 2 }} params
+ */
+export const changeStatusIdentityDocumentAPI = (params) =>
+  httpCliente.put('admin/identityDocuments/change_status_identity_document', params);
+
+/**
+ * Obtener un tipo de identificación por id (con autoría)
+ * @param {number} iddId
+ */
+export const getIdentityDocumentAPI = (iddId) => httpCliente.get('admin/identityDocuments/get_identity_document', { iddId });

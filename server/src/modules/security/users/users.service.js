@@ -11,6 +11,7 @@ import {
   newOperationId,
   writeAudit,
 } from "../../../common/services/audit.service.js";
+import { identityDocumentsService } from "../../admin/identityDocuments/identityDocuments.service.js";
 
 const USER_SORT_FIELDS = {
   name: (order) => ({ use_name: order }),
@@ -189,7 +190,6 @@ const AUDITED_USER_FIELDS = [
   "use_change_password",
 ];
 
-const ACTIVE_STATUS = 1;
 const DELETED_STATUS = 3;
 
 // El perfil asignado se verifica con su fila ya bloqueada: deleteProfile
@@ -206,26 +206,10 @@ const assertAssignableProfile = async (tx, locked, proId) => {
   }
 };
 
-// El tipo de identificación también se verifica bloqueado: deleteIdentityDocument
-// lo bloquea antes de contar los usuarios que lo usan. Un tipo inactivo no se
-// asigna, pero el que el usuario ya tenía se conserva (ADR-0008, decisión 7).
-const assertAssignableIdentityDocument = async (tx, iddId, currentIddId = null) => {
-  if (!iddId) return;
-  const document = await tx.tbl_identity_documents.findUnique({
-    where: { idd_id: Number(iddId) },
-    select: { sta_id: true },
-  });
-  if (!document || document.sta_id === DELETED_STATUS) {
-    const error = new Error("El tipo de identificación seleccionado no existe.");
-    error.status = 400;
-    throw error;
-  }
-  if (document.sta_id !== ACTIVE_STATUS && Number(iddId) !== currentIddId) {
-    const error = new Error("El tipo de identificación seleccionado está inactivo.");
-    error.status = 400;
-    throw error;
-  }
-};
+// El tipo de identificación también se verifica bloqueado: eliminarlo lo
+// bloquea antes de contar los usuarios que lo usan (DEC-019). Un tipo inactivo
+// no se asigna, pero el que el usuario ya tenía se conserva (ADR-0008, dec. 7).
+const assertAssignableIdentityDocument = identityDocumentsService.assertAssignable;
 
 // Clave de idempotencia de la creación (ADR-0027, decisión 7): vive en la
 // propia fila del usuario. Un reintento con la misma clave devuelve la misma

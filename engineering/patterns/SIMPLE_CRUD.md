@@ -6,7 +6,33 @@
 
 Los nombres `tbl_x`, `x_` y `ENTIDAD_X` son marcadores: para un maestro real se toman de [DEC-017](../decisiones/DEC-017-area-idioma-maestros.md). El área de los maestros es `admin`. La entidad de bloqueo va al final de `LOCK_ORDER` ([DEC-019](../decisiones/DEC-019-maestros-orden-bloqueo.md)).
 
-**Maestro ya implementado con este patrón:** `server/src/modules/admin/identityDocuments/` y `client/src/views/admin/identityDocuments/` (unicidad con columna generada, selector de DEC-018, código no editable).
+## Un maestro: se declara ([DEC-020](../decisiones/DEC-020-patron-maestro.md))
+
+Los maestros no se escriben con el esqueleto de abajo: se declaran. Referencia: `server/src/modules/admin/identityDocuments/`.
+
+```js
+// modules/admin/x/x.service.js
+export const xConfig = defineMaster({
+  model: "tbl_x", prefix: "x", idField: "xId", lockEntity: "ENTIDAD_X",
+  label: "aseguradora", feminine: true,
+  routes: { entity: "x", plural: "xs" },                 // save_x, pagination_xs…
+  permissions: PERMISSIONS.admin.x,                       // view, create, edit, delete, changeStatus
+  fields: [
+    { name: "name", column: "x_name", label: "nombre", maxLength: 100, unique: true, filter: true, sortable: true },
+  ],
+  dependents: [{ model: "tbl_policies", column: "x_id", label: "póliza(s)" }],
+  socketEvent: "refresh-xs",
+  // audit: { entity: AUDIT_ENTITIES.X },                  // solo si ADR-0013 exige bitácora funcional
+});
+export const xService = createMasterService(xConfig);
+
+// modules/admin/x/x.routes.js
+export default createMasterRouter(xConfig, xService);
+```
+
+Opciones de un campo: `required` (por defecto sí), `maxLength`, `pattern: { regex, message }`, `uppercase`, `editable` (por defecto sí), `unique`, `filter`, `sortable`. Tests: solo lo propio de la config, como en `test/modules/admin/identityDocuments/`. El comportamiento común ya está probado en `test/common/`.
+
+## Un CRUD simple que no es maestro: esqueleto
 
 ## `x.validation.js`
 

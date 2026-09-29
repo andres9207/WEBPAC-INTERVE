@@ -33,6 +33,7 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 | [DEC-017](DEC-017-area-idioma-maestros.md) | 2026-09-29 | Los maestros viven en el área `admin/`, con tablas y código en inglés y nombres fijados | Obligatoria | 0003, 0004, 0006–0010, 0019 |
 | [DEC-018](DEC-018-selector-maestros.md) | 2026-09-29 | Los selectores de maestros devuelven solo activos, sin paginar, con tope fijo y solo `verifyToken` | Obligatoria | [0008](../adr/0008-tipos-identificacion.md), [0014](../adr/0014-autorizacion-permisos.md) |
 | [DEC-019](DEC-019-maestros-orden-bloqueo.md) | 2026-09-29 | Los maestros van al final de `LOCK_ORDER`; asignar un maestro lo bloquea | Obligatoria | [0027](../adr/0027-integridad-transaccional.md) |
+| [DEC-020](DEC-020-patron-maestro.md) | 2026-09-29 | Los maestros se declaran sobre un patrón reutilizable; el cambio de estado es una acción con permiso propio | Obligatoria | 0003, 0004, 0006–0010, 0019 |
 
 **Tipo:**
 - **Obligatoria**: regla para todo código nuevo. El checklist de `ENDPOINT_STANDARD.md` la exige y, donde se puede, un test la hace cumplir.

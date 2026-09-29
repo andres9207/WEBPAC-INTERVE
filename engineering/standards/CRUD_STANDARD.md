@@ -15,6 +15,8 @@ Receta obligatoria para construir un CRUD de nivel 1 o 2 ([`MODULE_STANDARD`](MO
 | Página | `client/src/views/security/profiles/ProfilePage.jsx` |
 | Diálogo | `client/src/views/security/profiles/components/ProfileDialog.jsx` |
 
+**Maestros ([DEC-020](../decisiones/DEC-020-patron-maestro.md)):** no se escriben a mano. Se declaran con `defineMaster` en `<módulo>.service.js` y se montan con `createMasterRouter` en `<módulo>.routes.js`. La fábrica cubre los pasos 4 y 5 (service, validación, controller y rutas) y la mayor parte del 6. Siguen siendo tuyos la BD (1), la página y los permisos (2), `LOCKABLE` (3), los tests de la config (6) y el cliente (7). Referencia: `server/src/modules/admin/identityDocuments/`.
+
 El esqueleto de código está en [`patterns/SIMPLE_CRUD.md`](../patterns/SIMPLE_CRUD.md). Lo propio de un CRUD complejo (hijos, bloqueo por uso), en [`patterns/COMPLEX_CRUD.md`](../patterns/COMPLEX_CRUD.md).
 
 ## Antes de empezar
@@ -50,7 +52,7 @@ Aplicarla en la BD de desarrollo y correr `npx prisma db pull` en `server/`. Ren
 ### 2. Página y permisos
 
 - Migración `NNNN_seed_<modulo>_pages_permissions.sql`: la fila en `tbl_pages` (con `pag_parent`, `pag_url` igual a la ruta del cliente, icono, orden, `pag_type` 2) y los permisos en `tbl_permissions`. Con los **siguientes ids libres**: nunca se reutilizan 10, 15 ni 16.
-- Permisos mínimos: `view`, `create`, `edit`, `delete`. Otros solo si el ADR los pide (p. ej. reactivar).
+- Permisos mínimos: `view`, `create`, `edit`, `delete`. Un maestro suma `changeStatus` (activar o desactivar, [DEC-020](../decisiones/DEC-020-patron-maestro.md)). Otros, solo si el ADR los pide.
 - `server/prisma/seed.js`: agregar la página y los permisos. Los de gestión van solo a Superadmin (`pro_id = 1`); `view` va a todos los perfiles.
 - `server/src/common/constants/permissions.constants.js`: la entrada del módulo. El cliente la recibe sola por `get_catalog`.
 

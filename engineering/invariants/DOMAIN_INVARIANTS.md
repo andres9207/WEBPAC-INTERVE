@@ -66,7 +66,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 
 **Aplicadas (2026-09-29), para el tipo de identificación:**
 
-- **DOM-20:** `deleteIdentityDocument` bloquea el tipo y cuenta los usuarios no eliminados que lo usan; si hay alguno, responde 400. Además, la FK `tbl_users_identity_documents` impide el borrado físico. Cuando existan proveedores, se cuentan también.
+- **DOM-20:** eliminar (`remove` del patrón de maestro, [DEC-020](../decisiones/DEC-020-patron-maestro.md)) bloquea el tipo y cuenta los usuarios no eliminados que lo usan; si hay alguno, responde 400. Además, la FK `tbl_users_identity_documents` impide el borrado físico. Cuando existan proveedores, se cuentan también.
 - **DOM-21:** `saveUser` conserva el tipo que el usuario ya tenía aunque esté inactivo, y el selector lo incluye con `includeId` ([DEC-018](../decisiones/DEC-018-selector-maestros.md)).
 - **DOM-26:** `CHECK ck_users_identification_type` en `tbl_users`, más validación en la ruta y en el service.
 

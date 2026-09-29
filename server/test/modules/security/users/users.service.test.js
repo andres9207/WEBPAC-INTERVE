@@ -184,7 +184,7 @@ describe("saveUser — tipo de identificación (ADR-0008)", () => {
     prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 2 });
 
     await expect(usersService.saveUser(createPayload)).rejects.toMatchObject({
-      status: 400,
+      statusCode: 400,
       message: "El tipo de identificación seleccionado está inactivo.",
     });
     expect(prismaMock.tbl_users.create).not.toHaveBeenCalled();
@@ -193,7 +193,7 @@ describe("saveUser — tipo de identificación (ADR-0008)", () => {
   it("no asigna un tipo eliminado", async () => {
     prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 3 });
 
-    await expect(usersService.saveUser(createPayload)).rejects.toMatchObject({ status: 400 });
+    await expect(usersService.saveUser(createPayload)).rejects.toMatchObject({ statusCode: 400 });
     expect(prismaMock.tbl_users.create).not.toHaveBeenCalled();
   });
 
@@ -210,7 +210,7 @@ describe("saveUser — tipo de identificación (ADR-0008)", () => {
     prismaMock.tbl_users.findUnique.mockResolvedValue(baseUser); // idd_id: 1
     prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 2 });
 
-    await expect(usersService.saveUser({ ...editPayload, iddId: 3 })).rejects.toMatchObject({ status: 400 });
+    await expect(usersService.saveUser({ ...editPayload, iddId: 3 })).rejects.toMatchObject({ statusCode: 400 });
     expect(prismaMock.tbl_users.update).not.toHaveBeenCalled();
   });
 

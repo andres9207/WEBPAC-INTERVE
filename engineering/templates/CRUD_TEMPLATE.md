@@ -49,6 +49,7 @@ Más las columnas estándar: `sta_id`, seis de autoría, dos de idempotencia.
 | Crear | | | Gestión (Superadmin) |
 | Editar | | | Gestión |
 | Eliminar | | | Gestión |
+| Cambiar estado (maestros, [DEC-020](../decisiones/DEC-020-patron-maestro.md)) | | | Gestión |
 
 ## API
 
@@ -56,6 +57,8 @@ Más las columnas estándar: `sta_id`, seis de autoría, dos de idempotencia.
 | --- | --- | --- | --- |
 | Listar | `POST /api/<área>/<módulo>/pagination_<módulo>` | ver | No |
 | Crear / editar | `POST …/save_<módulo>` | crear / editar | Al crear |
+| Obtener (maestros) | `GET …/get_<entidad>` | ver | No |
+| Cambiar estado (maestros) | `PUT …/change_status_<entidad>` | cambiar estado | No |
 | Eliminar | `PUT …/delete_<módulo>` | eliminar | No |
 | Lista para selects | `GET …/get_<entidades>_select` ([DEC-018](../decisiones/DEC-018-selector-maestros.md)) | solo sesión | No |
 

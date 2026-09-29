@@ -1,5 +1,9 @@
 import { jest } from "@jest/globals";
+import { validationResult } from "express-validator";
 import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
+
+// Lo propio del maestro de tipos de identificación (ADR-0008). El
+// comportamiento común está en test/common/services/master.service.test.js.
 
 const prismaMock = {
   tbl_identity_documents: {
@@ -14,172 +18,74 @@ const prismaMock = {
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
 };
 
-jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({
-  prisma: prismaMock,
-}));
+jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
 
-const service = await import("../../../../src/modules/admin/identityDocuments/identityDocuments.service.js");
+const { identityDocumentsConfig, identityDocumentsService: service } = await import(
+  "../../../../src/modules/admin/identityDocuments/identityDocuments.service.js"
+);
+const { createMasterSchemas } = await import("../../../../src/common/utils/masterValidation.utils.js");
 
 const KEY = "3f2b8c1e-5d4a-4e6b-9a7c-1b2d3e4f5a6b";
-const createArgs = { iddId: 0, code: " nit ", name: "NIT", staId: 1, useBy: 9, idempotencyKey: KEY };
+const docs = prismaMock.tbl_identity_documents;
 
 beforeEach(() => {
   jest.clearAllMocks();
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
-  // Sin creación previa con la clave de idempotencia.
-  prismaMock.tbl_identity_documents.findUnique.mockResolvedValue(null);
-  prismaMock.tbl_identity_documents.findFirst.mockResolvedValue(null);
+  docs.findUnique.mockResolvedValue(null);
+  docs.findFirst.mockResolvedValue(null);
   prismaMock.tbl_users.count.mockResolvedValue(0);
 });
 
-describe("saveIdentityDocument — crear", () => {
-  it("crea con el código normalizado, el autor de la sesión y la clave de idempotencia", async () => {
-    prismaMock.tbl_identity_documents.create.mockResolvedValue({ idd_id: 6 });
+describe("tipos de identificación", () => {
+  it("el código se guarda en mayúsculas y el tipo nace activo", async () => {
+    docs.create.mockResolvedValue({ idd_id: 6 });
 
-    await expect(service.saveIdentityDocument(createArgs)).resolves.toMatchObject({ iddId: 6 });
-
-    const { data } = prismaMock.tbl_identity_documents.create.mock.calls[0][0];
-    expect(data).toMatchObject({ idd_code: "NIT", idd_name: "NIT", sta_id: 1, idd_create_by: 9, idd_update_by: 9 });
-    expect(data.idd_idempotency_key).toBe(KEY);
-    expect(data.idd_idempotency_hash).toMatch(/^[0-9a-f]{64}$/);
+    await expect(service.save({ id: 0, input: { code: " nit ", name: "NIT" }, useBy: 9, idempotencyKey: KEY })).resolves.toEqual({
+      message: "Tipo de identificación creado correctamente",
+      iddId: 6,
+    });
+    expect(docs.create.mock.calls[0][0].data).toMatchObject({ idd_code: "NIT", idd_name: "NIT", sta_id: 1, idd_create_by: 9 });
   });
 
-  it("rechaza un código repetido entre los no eliminados, nombrando el campo", async () => {
-    prismaMock.tbl_identity_documents.findFirst.mockResolvedValue({ idd_code: "NIT" });
+  it("el código no se edita", async () => {
+    docs.findUnique.mockResolvedValue({ idd_code: "NIT", idd_name: "NIT", sta_id: 1 });
 
-    await expect(service.saveIdentityDocument(createArgs)).rejects.toMatchObject({
+    await service.save({ id: 3, input: { code: "XXX", name: "Número de identificación tributaria" }, useBy: 9 });
+
+    expect(docs.update.mock.calls[0][0].data).toEqual({ idd_name: "Número de identificación tributaria", idd_update_by: 9 });
+  });
+
+  it("el código repetido se informa como código", async () => {
+    docs.findFirst.mockResolvedValue({ idd_code: "NIT", idd_name: "Otro nombre" });
+
+    await expect(service.save({ id: 0, input: { code: "nit", name: "Nuevo" }, useBy: 9, idempotencyKey: KEY })).rejects.toMatchObject({
       statusCode: 400,
       message: "Ya existe un tipo de identificación con ese código.",
     });
-    expect(prismaMock.tbl_identity_documents.findFirst.mock.calls[0][0].where.sta_id).toEqual({ not: 3 });
-    expect(prismaMock.tbl_identity_documents.create).not.toHaveBeenCalled();
   });
 
-  it("rechaza un nombre repetido", async () => {
-    prismaMock.tbl_identity_documents.findFirst.mockResolvedValue({ idd_code: "OTRO" });
-
-    await expect(service.saveIdentityDocument(createArgs)).rejects.toMatchObject({
-      statusCode: 400,
-      message: "Ya existe un tipo de identificación con ese nombre.",
-    });
-  });
-
-  it("un reintento con la misma clave devuelve lo creado, sin el control de duplicados ni otra creación", async () => {
-    prismaMock.tbl_identity_documents.create.mockResolvedValue({ idd_id: 6 });
-    await service.saveIdentityDocument(createArgs);
-    const { idd_idempotency_hash: hash } = prismaMock.tbl_identity_documents.create.mock.calls[0][0].data;
-    jest.clearAllMocks();
-    prismaMock.tbl_identity_documents.findFirst.mockResolvedValue({ idd_code: "NIT" }); // diría "ya existe"
-    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({
-      idd_id: 6,
-      idd_name: "NIT",
-      idd_idempotency_hash: hash,
-      idd_create_by: 9,
-    });
-
-    await expect(service.saveIdentityDocument(createArgs)).resolves.toMatchObject({ iddId: 6 });
-    expect(prismaMock.tbl_identity_documents.create).not.toHaveBeenCalled();
-  });
-});
-
-describe("saveIdentityDocument — editar", () => {
-  const editArgs = { iddId: 3, code: "XXX", name: "Número de identificación tributaria", staId: 2, useBy: 9 };
-
-  it("bloquea antes de leer, cambia nombre y estado, y no toca el código", async () => {
-    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 1 });
-
-    await service.saveIdentityDocument(editArgs);
-
-    expect(prismaMock.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-      prismaMock.tbl_identity_documents.findUnique.mock.invocationCallOrder[0]
-    );
-    expect(prismaMock.tbl_identity_documents.update).toHaveBeenCalledWith({
-      where: { idd_id: 3 },
-      data: { idd_name: "Número de identificación tributaria", sta_id: 2, idd_update_by: 9 },
-    });
-  });
-
-  it("el duplicado de nombre excluye el propio registro", async () => {
-    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 1 });
-
-    await service.saveIdentityDocument(editArgs);
-
-    expect(prismaMock.tbl_identity_documents.findFirst.mock.calls[0][0].where.idd_id).toEqual({ not: 3 });
-  });
-
-  it("inexistente responde 404", async () => {
-    await expect(service.saveIdentityDocument(editArgs)).rejects.toMatchObject({ statusCode: 404 });
-    expect(prismaMock.tbl_identity_documents.update).not.toHaveBeenCalled();
-  });
-
-  it("reactivar un tipo eliminado limpia idd_delete_by/_at", async () => {
-    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 3 });
-
-    await service.saveIdentityDocument({ ...editArgs, staId: 1 });
-
-    expect(prismaMock.tbl_identity_documents.update.mock.calls[0][0].data).toMatchObject({
-      idd_delete_by: null,
-      idd_delete_at: null,
-    });
-  });
-});
-
-describe("deleteIdentityDocument", () => {
-  it("eliminación lógica con quién y cuándo", async () => {
-    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 1 });
-
-    await service.deleteIdentityDocument({ iddId: 4, useBy: 9 });
-
-    expect(prismaMock.tbl_identity_documents.update).toHaveBeenCalledWith({
-      where: { idd_id: 4 },
-      data: { sta_id: 3, idd_update_by: 9, idd_delete_by: 9, idd_delete_at: expect.any(Date) },
-    });
-  });
-
-  it("ya eliminado o inexistente responde 404 y no pisa la evidencia", async () => {
-    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 3 });
-
-    await expect(service.deleteIdentityDocument({ iddId: 4, useBy: 9 })).rejects.toMatchObject({ statusCode: 404 });
-    expect(prismaMock.tbl_identity_documents.update).not.toHaveBeenCalled();
-  });
-
-  it("en uso por usuarios no eliminados, no se elimina", async () => {
-    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 1 });
+  it("no se elimina si lo usan usuarios no eliminados", async () => {
+    docs.findUnique.mockResolvedValue({ sta_id: 1 });
     prismaMock.tbl_users.count.mockResolvedValue(2);
 
-    await expect(service.deleteIdentityDocument({ iddId: 1, useBy: 9 })).rejects.toMatchObject({ statusCode: 400 });
+    await expect(service.remove({ id: 1, useBy: 9 })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining("lo usan 2 usuario(s)"),
+    });
     expect(prismaMock.tbl_users.count).toHaveBeenCalledWith({ where: { idd_id: 1, sta_id: { not: 3 } } });
-    expect(prismaMock.tbl_identity_documents.update).not.toHaveBeenCalled();
+    expect(docs.update).not.toHaveBeenCalled();
   });
 
-  it("cuenta los usuarios con el tipo ya bloqueado", async () => {
-    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 1 });
+  it("el selector muestra nombre y código, y devuelve el código", async () => {
+    docs.findMany.mockResolvedValue([{ idd_id: 1, idd_code: "CC", idd_name: "Cédula de ciudadanía", sta_id: 1 }]);
 
-    await service.deleteIdentityDocument({ iddId: 1, useBy: 9 });
-
-    expect(prismaMock.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(prismaMock.tbl_users.count.mock.invocationCallOrder[0]);
-  });
-});
-
-describe("getIdentityDocumentsSelect", () => {
-  it("solo activos, con tope fijo, más el tipo actual si no está eliminado", async () => {
-    prismaMock.tbl_identity_documents.findMany.mockResolvedValue([
-      { idd_id: 1, idd_code: "CC", idd_name: "Cédula de ciudadanía", sta_id: 1 },
-    ]);
-
-    const options = await service.getIdentityDocumentsSelect({ includeId: "7" });
-
-    const args = prismaMock.tbl_identity_documents.findMany.mock.calls[0][0];
-    expect(args.where.OR).toEqual([{ sta_id: 1 }, { idd_id: 7, sta_id: { not: 3 } }]);
-    expect(args.take).toBe(100);
-    expect(options).toEqual([{ value: 1, label: "Cédula de ciudadanía (CC)", code: "CC", staId: 1 }]);
+    await expect(service.select({})).resolves.toEqual([{ value: 1, label: "Cédula de ciudadanía (CC)", staId: 1, code: "CC" }]);
+    expect(docs.findMany.mock.calls[0][0].orderBy).toEqual({ idd_name: "asc" });
   });
 
-  it("sin includeId, solo activos", async () => {
-    prismaMock.tbl_identity_documents.findMany.mockResolvedValue([]);
-
-    await service.getIdentityDocumentsSelect({});
-
-    expect(prismaMock.tbl_identity_documents.findMany.mock.calls[0][0].where.OR).toEqual([{ sta_id: 1 }]);
+  it("el código solo admite letras y números", async () => {
+    const req = { headers: { "idempotency-key": KEY }, body: { iddId: 0, code: "C C", name: "Cédula" } };
+    for (const rule of createMasterSchemas(identityDocumentsConfig).save) await rule.run(req);
+    expect(validationResult(req).array().map((e) => e.msg)).toEqual(["El código solo admite letras y números, sin espacios."]);
   });
 });

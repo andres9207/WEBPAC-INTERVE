@@ -23,7 +23,8 @@ Ver [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Integridad | Utilidad única de transacción, bloqueo primero y en orden fijo, reintento acotado, idempotencia por clave | ADR-0027, DEC-012, DEC-015, DEC-016 |
 | Listados | Helper único `paginate`, tope de 100; selectores de maestros sin paginar con tope fijo | DEC-013, DEC-018 |
 | Maestro: tipos de identificación | CRUD completo (servidor y cliente), selector, unicidad de código y nombre entre no eliminados con columna generada, bloqueo de eliminación en uso. Tipo de identificación en usuarios (`tbl_users.idd_id` con `CHECK` de número ⇔ tipo). Sin validación de formato por tipo (decisión del 2026-09-29) | ADR-0008, DEC-017 a DEC-019, migraciones 0017–0020 |
-| Tests | Servidor: 27 suites, 232 tests (Jest, unitarios con mocks) | [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
+| Patrón de maestro | Fábrica reutilizable: un maestro se declara con `defineMaster` (dos archivos). Listado, obtener, selector, crear, editar, cambiar estado con permiso propio, eliminar con verificación de dependientes | DEC-020 |
+| Tests | Servidor: 28 suites, 247 tests (Jest, unitarios con mocks) | [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
 
 ## Parcial
 

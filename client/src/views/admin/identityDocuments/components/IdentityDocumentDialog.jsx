@@ -7,9 +7,10 @@ import { newIdempotencyKey } from 'utils/idempotency';
 import GenericFormSection from 'ui-component/extended/GenericFormSection';
 import BaseDialog from 'ui-component/extended/BaseDialog';
 import Button from '@mui/material/Button';
-import { STATUS_OPTIONS } from 'utils/constants';
 
-const EMPTY_FORM = { code: '', name: '', staId: 1 };
+// Sin estado: un tipo nace activo y se activa o desactiva desde el listado,
+// con su propio permiso (change_status_identity_document).
+const EMPTY_FORM = { code: '', name: '' };
 
 const IdentityDocumentDialog = forwardRef(({ addItem, updateItem }, ref) => {
   const [visible, setVisible] = useState(false);
@@ -46,8 +47,7 @@ const IdentityDocumentDialog = forwardRef(({ addItem, updateItem }, ref) => {
         required: true,
         validation: { required: 'El nombre es requerido', maxLength: { value: 100, message: 'Máximo 100 caracteres' } },
         grid: { xs: 12, sm: 8 }
-      },
-      { key: 'staId', name: 'staId', type: 'selectButton', label: 'Estado', options: STATUS_OPTIONS, grid: { xs: 12 } }
+      }
     ],
     [iddId]
   );
@@ -62,7 +62,7 @@ const IdentityDocumentDialog = forwardRef(({ addItem, updateItem }, ref) => {
   const editIdentityDocument = (item) => {
     setIdempotencyKey(null);
     setIddId(item.iddId);
-    reset({ code: item.code, name: item.name, staId: item.staId });
+    reset({ code: item.code, name: item.name });
     setVisible(true);
   };
 
@@ -75,7 +75,6 @@ const IdentityDocumentDialog = forwardRef(({ addItem, updateItem }, ref) => {
     const payload = {
       iddId,
       name: formData.name.trim(),
-      staId: formData.staId,
       ...(iddId > 0 ? {} : { code: formData.code.trim().toUpperCase() })
     };
 
@@ -87,8 +86,8 @@ const IdentityDocumentDialog = forwardRef(({ addItem, updateItem }, ref) => {
         iddId: iddId > 0 ? iddId : data.iddId,
         code: iddId > 0 ? formData.code : payload.code,
         name: payload.name,
-        staId: formData.staId,
-        statusName: formData.staId === 1 ? 'Activo' : 'Inactivo'
+        // Al editar se conserva el estado de la fila; al crear nace activo.
+        ...(iddId > 0 ? {} : { staId: 1, statusName: 'Activo' })
       };
 
       if (iddId > 0) {

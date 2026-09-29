@@ -4,7 +4,7 @@ import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Badge from '@mui/material/Badge';
 
-import { IconEdit, IconTrash, IconPlus, IconFilter } from '@tabler/icons-react';
+import { IconEdit, IconTrash, IconPlus, IconFilter, IconToggleLeft, IconToggleRight } from '@tabler/icons-react';
 
 import MainCard from 'ui-component/cards/MainCard';
 import FilterPopper from 'ui-component/extended/FilterPopper';
@@ -13,9 +13,13 @@ import StatusChip from 'ui-component/extended/StatusChip';
 import LastModifiedCell from 'ui-component/extended/LastModifiedCell';
 import IdentityDocumentDialog from './components/IdentityDocumentDialog';
 import { STATUS_OPTIONS } from 'utils/constants';
-import { paginationIdentityDocumentsAPI, deleteIdentityDocumentAPI } from 'api/requests/identityDocumentsApi';
+import {
+  paginationIdentityDocumentsAPI,
+  deleteIdentityDocumentAPI,
+  changeStatusIdentityDocumentAPI
+} from 'api/requests/identityDocumentsApi';
 import { useAuth } from 'contexts/AuthContext';
-import { showError } from 'services/ToastService';
+import { showError, showSuccess } from 'services/ToastService';
 
 const initialFilters = { code: '', name: '', staId: '' };
 
@@ -44,6 +48,7 @@ export default function IdentityDocumentPage() {
   const canCreate = canDo(permissionsCatalog.admin?.identityDocuments?.create);
   const canEdit = canDo(permissionsCatalog.admin?.identityDocuments?.edit);
   const canDelete = canDo(permissionsCatalog.admin?.identityDocuments?.delete);
+  const canChangeStatus = canDo(permissionsCatalog.admin?.identityDocuments?.changeStatus);
 
   const dialogRef = useRef(null);
 
@@ -99,6 +104,17 @@ export default function IdentityDocumentPage() {
     }
   };
 
+  const handleChangeStatus = async (row) => {
+    const staId = row.staId === 1 ? 2 : 1;
+    try {
+      const { data } = await changeStatusIdentityDocumentAPI({ iddId: row.iddId, staId });
+      handleUpdate({ iddId: row.iddId, staId, statusName: staId === 1 ? 'Activo' : 'Inactivo' });
+      showSuccess(data.message);
+    } catch (err) {
+      showError(err.response?.data?.message || 'Error al cambiar el estado del tipo de identificación');
+    }
+  };
+
   const filterOptions = useMemo(
     () => [
       { type: 'input', key: 'code', label: 'Código', filtro: filters.code, grid: { xs: 12, sm: 6 } },
@@ -133,6 +149,19 @@ export default function IdentityDocumentPage() {
   const actionItems = (row) => [
     ...(canEdit
       ? [{ label: 'Editar', icon: <IconEdit size={16} />, command: () => dialogRef.current?.editIdentityDocument(row), color: '#fda53a' }]
+      : []),
+    ...(canChangeStatus
+      ? [
+          row.staId === 1
+            ? {
+                label: 'Desactivar',
+                icon: <IconToggleLeft size={16} />,
+                command: () => handleChangeStatus(row),
+                color: '#8e8e8e',
+                confirm: `¿Desactivar "${row.name}"? No se podrá asignar en registros nuevos; los existentes lo conservan.`
+              }
+            : { label: 'Activar', icon: <IconToggleRight size={16} />, command: () => handleChangeStatus(row), color: '#00c853' }
+        ]
       : []),
     ...(canDelete
       ? [

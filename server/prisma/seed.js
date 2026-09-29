@@ -30,6 +30,8 @@ const PERMISSIONS = [
   { per_id: 18, per_name: "Crear tipo de identificación", pag_id: 6, per_order: 1 },
   { per_id: 19, per_name: "Modificar tipo de identificación", pag_id: 6, per_order: 2 },
   { per_id: 20, per_name: "Eliminar tipo de identificación", pag_id: 6, per_order: 3 },
+  // database/migrations/0021_seed_identity_documents_change_status_permission.sql
+  { per_id: 21, per_name: "Cambiar estado tipo de identificación", pag_id: 6, per_order: 4 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver

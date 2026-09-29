@@ -29,4 +29,4 @@ Todo maestro se usa en selects de otros módulos (el tipo de identificación en 
 
 ## Dónde
 
-`server/src/modules/admin/identityDocuments/identityDocuments.service.js` (`getIdentityDocumentsSelect`) y `identityDocuments.routes.js` · `client/src/views/security/users/components/UserDialog.jsx` · tests en `server/test/modules/admin/identityDocuments/`
+`server/src/common/services/master.service.js` (`select`) y `common/utils/masterRouter.utils.js` ([DEC-020](DEC-020-patron-maestro.md)) · `client/src/views/security/users/components/UserDialog.jsx` · tests en `server/test/modules/admin/identityDocuments/`
