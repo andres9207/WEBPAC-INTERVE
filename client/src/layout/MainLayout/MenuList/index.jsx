@@ -34,6 +34,9 @@ const getIconByName = (iconName) => {
   if (name.includes('id') || name.includes('card')) {
     return TablerIcons.IconId;
   }
+  if (name.includes('truck')) {
+    return TablerIcons.IconTruck;
+  }
   return TablerIcons.IconCircleDot || null;
 };
 

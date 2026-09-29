@@ -30,7 +30,7 @@ Ningún ADR fijaba en qué carpeta y bajo qué URL viven los maestros, ni el idi
   | Tipos de interventoría | `supervisionTypes` | `tbl_supervision_types` | `spt_` | PD-04 | 0007 |
   | Tipos de identificación | `identityDocuments` | `tbl_identity_documents` | `idd_` | `TIPO_IDENTIFICACION` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0008 |
   | Tipos de dirección | `addressTypes` | `tbl_address_types` | `adt_` | PD-04 | 0009 |
-  | Tipos de proveedor | `providerTypes` | `tbl_provider_types` | `pvt_` | PD-04 | 0010 |
+  | Tipos de proveedor | `providerTypes` | `tbl_provider_types` | `pvt_` | `TIPO_PROVEEDOR` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0010 |
   | Tipos de póliza | `policyTypes` | `tbl_policy_types` | `plt_` | PD-04 | 0019 |
 
   `tbl_identity_documents` e `idd_` no se eligieron: los impone la FK que la BD real ya declara desde `tbl_providers`.

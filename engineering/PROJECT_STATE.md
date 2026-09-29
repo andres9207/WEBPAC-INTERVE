@@ -4,7 +4,7 @@
 
 ## En una línea
 
-Plantilla base con seguridad, auditoría e integridad transaccional ya endurecidas. **Primer maestro implementado: tipos de identificación.** El resto del dominio (obras, proveedores, maestros, contratos, pólizas, facturación) está diseñado en 27 ADR y planificado en `docs/backlog/` (185 tareas).
+Plantilla base con seguridad, auditoría e integridad transaccional ya endurecidas. **Maestros implementados: tipos de identificación y tipos de proveedor.** El resto del dominio (obras, proveedores, maestros, contratos, pólizas, facturación) está diseñado en 27 ADR y planificado en `docs/backlog/` (185 tareas).
 
 ## Arquitectura
 
@@ -23,8 +23,9 @@ Ver [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Integridad | Utilidad única de transacción, bloqueo primero y en orden fijo, reintento acotado, idempotencia por clave | ADR-0027, DEC-012, DEC-015, DEC-016 |
 | Listados | Helper único `paginate`, tope de 100; selectores de maestros sin paginar con tope fijo | DEC-013, DEC-018 |
 | Maestro: tipos de identificación | CRUD completo (servidor y cliente), selector, unicidad de código y nombre entre no eliminados con columna generada, bloqueo de eliminación en uso. Tipo de identificación en usuarios (`tbl_users.idd_id` con `CHECK` de número ⇔ tipo). Formato del número validado por tipo en servidor y cliente, con dígito de verificación del NIT | ADR-0008, DEC-017 a DEC-021, migraciones 0017–0021 |
+| Maestro: tipos de proveedor | CRUD completo (servidor y cliente) sobre el patrón, selector de activos, nombre único entre no eliminados. Es una clasificación, sin reglas por tipo. Falta la FK desde `tbl_providers`, que todavía no existe | ADR-0010, DEC-023, migraciones 0022–0024 |
 | Patrón de maestro | Fábrica reutilizable: un maestro se declara con `defineMaster` (dos archivos). Listado, obtener, selector, crear, editar, cambiar estado con permiso propio, eliminar con verificación de dependientes. En el cliente, `MasterPage` + `createMasterApi`: la pantalla se declara, con pestañas por estado y conteo | DEC-020, DEC-022 |
-| Tests | Servidor: 29 suites, 273 tests (Jest, unitarios con mocks) | [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
+| Tests | Servidor: 30 suites, 277 tests (Jest, unitarios con mocks) | [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
 
 ## Parcial
 
@@ -35,15 +36,15 @@ Ver [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## No implementado
 
-Todo el dominio salvo el primer maestro: los otros siete maestros (ADR 0003, 0004, 0006, 0007, 0009, 0010, 0019), obras (0011), proveedores (0012), contratos y conceptos (0015–0017), pólizas (0018), facturación (0020–0026) y dashboard (0002). El cliente no tiene tests. El servidor no tiene linter.
+Todo el dominio salvo dos maestros: los otros seis maestros (ADR 0003, 0004, 0006, 0007, 0009, 0019), obras (0011), proveedores (0012), contratos y conceptos (0015–0017), pólizas (0018), facturación (0020–0026) y dashboard (0002). El cliente no tiene tests. El servidor no tiene linter.
 
 ## ADR vigentes
 
 | Estado | ADR |
 | --- | --- |
 | Aceptado | 0001 (abierto: MFA), 0013 (abierto: retención y consulta), 0027 |
-| Aceptado parcial | 0008 (maestro, usuarios y formato; falta proveedores), 0014 |
-| Propuesto (arquitectura objetivo) | 0002–0004, 0006, 0007, 0009–0012, 0015–0026 |
+| Aceptado parcial | 0008 (maestro, usuarios y formato; falta proveedores), 0010 (maestro; falta la columna en proveedores), 0014 |
+| Propuesto (arquitectura objetivo) | 0002–0004, 0006, 0007, 0009, 0011, 0012, 0015–0026 |
 | Reemplazado | 0005 → 0017 |
 
 ## Invariantes

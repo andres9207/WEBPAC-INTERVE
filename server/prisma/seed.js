@@ -16,6 +16,8 @@ const PAGES = [
   // database/migrations/0020_seed_admin_identity_documents_pages_permissions.sql
   { pag_id: 5, pag_description: "Administración", pag_parent: 0, pag_url: null, pag_icon: "settings", pag_order: 3, pag_name: "Administración", pag_type: 1 },
   { pag_id: 6, pag_description: "Tipos de identificación", pag_parent: 5, pag_url: "admin/identityDocuments", pag_icon: "id-card", pag_order: 1, pag_name: "Tipos de identificación", pag_type: 2 },
+  // database/migrations/0024_seed_provider_types_pages_permissions.sql
+  { pag_id: 7, pag_description: "Tipos de proveedor", pag_parent: 5, pag_url: "admin/providerTypes", pag_icon: "truck", pag_order: 2, pag_name: "Tipos de proveedor", pag_type: 2 },
 ];
 
 const PERMISSIONS = [
@@ -32,6 +34,11 @@ const PERMISSIONS = [
   { per_id: 20, per_name: "Eliminar tipo de identificación", pag_id: 6, per_order: 3 },
   // database/migrations/0021_seed_identity_documents_change_status_permission.sql
   { per_id: 21, per_name: "Cambiar estado tipo de identificación", pag_id: 6, per_order: 4 },
+  // database/migrations/0024_seed_provider_types_pages_permissions.sql
+  { per_id: 23, per_name: "Crear tipo de proveedor", pag_id: 7, per_order: 1 },
+  { per_id: 24, per_name: "Modificar tipo de proveedor", pag_id: 7, per_order: 2 },
+  { per_id: 25, per_name: "Eliminar tipo de proveedor", pag_id: 7, per_order: 3 },
+  { per_id: 26, per_name: "Cambiar estado tipo de proveedor", pag_id: 7, per_order: 4 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -61,6 +68,7 @@ const VIEW_PERMISSIONS = [
   { per_id: 13, per_name: "Ver permisos", pag_id: null, per_order: 1 },
   { per_id: 14, per_name: "Ver documentos", pag_id: null, per_order: 1 },
   { per_id: 17, per_name: "Ver tipos de identificación", pag_id: 6, per_order: 5 },
+  { per_id: 22, per_name: "Ver tipos de proveedor", pag_id: 7, per_order: 5 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay
@@ -90,6 +98,13 @@ const IDENTITY_DOCUMENTS = [
   { idd_id: 5, idd_code: "PPT", idd_name: "Permiso por protección temporal", sta_id: 1 },
 ];
 
+// Tipos de proveedor iniciales (database/migrations/0023_seed_provider_types.sql).
+const PROVIDER_TYPES = [
+  { pvt_id: 1, pvt_name: "Simple", sta_id: 1 },
+  { pvt_id: 2, pvt_name: "Subcontratista", sta_id: 1 },
+  { pvt_id: 3, pvt_name: "Contrato mayor", sta_id: 1 },
+];
+
 async function main() {
   for (const status of STATUSES) {
     await prisma.tbl_status.upsert({
@@ -108,6 +123,15 @@ async function main() {
     });
   }
   console.log(`tbl_identity_documents: ${IDENTITY_DOCUMENTS.length} tipos sembrados (los existentes no se modifican).`);
+
+  for (const providerType of PROVIDER_TYPES) {
+    await prisma.tbl_provider_types.upsert({
+      where: { pvt_id: providerType.pvt_id },
+      update: {},
+      create: providerType,
+    });
+  }
+  console.log(`tbl_provider_types: ${PROVIDER_TYPES.length} tipos sembrados (los existentes no se modifican).`);
 
   for (const page of PAGES) {
     await prisma.tbl_pages.upsert({

@@ -36,5 +36,12 @@ export const PERMISSIONS = {
       delete: 20,
       changeStatus: 21, // activar / desactivar (ADR-0008: separado de editar)
     },
+    providerTypes: {
+      view: 22, // pagination_provider_types
+      create: 23,
+      edit: 24,
+      delete: 25,
+      changeStatus: 26,
+    },
   },
 };

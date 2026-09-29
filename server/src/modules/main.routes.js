@@ -11,6 +11,7 @@ import permissionsRoutes from "./security/permissions/permissions.routes.js";
 
 // admin
 import identityDocumentsRoutes from "./admin/identityDocuments/identityDocuments.routes.js";
+import providerTypesRoutes from "./admin/providerTypes/providerTypes.routes.js";
 
 const mainRoutes = express.Router();
 
@@ -28,5 +29,6 @@ mainRoutes.use("/security/permissions", permissionsRoutes);
 
 // Admin
 mainRoutes.use("/admin/identityDocuments", identityDocumentsRoutes);
+mainRoutes.use("/admin/providerTypes", providerTypesRoutes);
 
 export default mainRoutes;

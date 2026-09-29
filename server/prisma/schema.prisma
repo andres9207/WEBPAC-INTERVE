@@ -184,6 +184,7 @@ model tbl_status {
   tbl_documents          tbl_documents[]
   tbl_identity_documents tbl_identity_documents[]
   tbl_profiles           tbl_profiles[]
+  tbl_provider_types     tbl_provider_types[]
   tbl_users              tbl_users[]
 }
 
@@ -235,6 +236,9 @@ model tbl_users {
   profiles_created           tbl_profiles[]           @relation("ProfileCreatedBy")
   profiles_deleted           tbl_profiles[]           @relation("ProfileDeletedBy")
   profiles_updated           tbl_profiles[]           @relation("ProfileUpdatedBy")
+  provider_types_created     tbl_provider_types[]     @relation("ProviderTypeCreatedBy")
+  provider_types_deleted     tbl_provider_types[]     @relation("ProviderTypeDeletedBy")
+  provider_types_updated     tbl_provider_types[]     @relation("ProviderTypeUpdatedBy")
   tbl_sessions               tbl_sessions?
   tbl_user_pages             tbl_user_pages[]
   tbl_user_permissions       tbl_user_permissions[]
@@ -317,6 +321,33 @@ model tbl_identity_documents {
   @@index([idd_delete_by], map: "tbl_identity_documents_delete_by")
   @@index([sta_id], map: "tbl_identity_documents_status")
   @@index([idd_update_by], map: "tbl_identity_documents_update_by")
+}
+
+/// Maestro de tipos de proveedor (database/migrations/0022_create_provider_types.sql).
+/// pvt_name_active es una columna GENERADA por MySQL (respalda la unicidad entre no eliminados):
+/// nunca se escribe desde el código.
+model tbl_provider_types {
+  pvt_id               Int        @id @default(autoincrement())
+  pvt_name             String     @db.VarChar(100)
+  sta_id               Int        @default(1)
+  pvt_create_by        Int?
+  pvt_create_at        DateTime?  @default(now()) @db.Timestamp(0)
+  pvt_update_by        Int?
+  pvt_update_at        DateTime?  @default(now()) @db.Timestamp(0)
+  pvt_delete_by        Int?
+  pvt_delete_at        DateTime?  @db.Timestamp(0)
+  pvt_idempotency_key  String?    @unique(map: "uq_provider_types_idempotency_key") @db.Char(36)
+  pvt_idempotency_hash String?    @db.Char(64)
+  pvt_name_active      String?    @unique(map: "uq_provider_types_name_active") @db.VarChar(100)
+  created_by_user      tbl_users? @relation("ProviderTypeCreatedBy", fields: [pvt_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_provider_types_create_by")
+  deleted_by_user      tbl_users? @relation("ProviderTypeDeletedBy", fields: [pvt_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_provider_types_delete_by")
+  tbl_status           tbl_status @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_provider_types_status")
+  updated_by_user      tbl_users? @relation("ProviderTypeUpdatedBy", fields: [pvt_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_provider_types_update_by")
+
+  @@index([pvt_create_by], map: "tbl_provider_types_create_by")
+  @@index([pvt_delete_by], map: "tbl_provider_types_delete_by")
+  @@index([sta_id], map: "tbl_provider_types_status")
+  @@index([pvt_update_by], map: "tbl_provider_types_update_by")
 }
 
 enum tbl_documents_doc_type {
