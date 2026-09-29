@@ -1638,9 +1638,9 @@
     "semantic_hash": ""
   },
   "client/src/api/requests/identityDocumentsApi.js": {
-    "mtime": 1790702828.4065144,
-    "seen": 1790703476.8673186,
-    "ast_hash": "356c5b8198fd2d4c6b62601849bb4b33",
+    "mtime": 1790704109.5068457,
+    "seen": 1790704496.8588948,
+    "ast_hash": "d13bdcb4debc486a666468084718bd32",
     "semantic_hash": ""
   },
   "client/src/menu-items/admin.js": {
@@ -1650,15 +1650,9 @@
     "semantic_hash": ""
   },
   "client/src/views/admin/identityDocuments/IdentityDocumentPage.jsx": {
-    "mtime": 1790702813.7470076,
-    "seen": 1790703476.8674765,
-    "ast_hash": "d4078372b0a98d06924af7677d6c3c52",
-    "semantic_hash": ""
-  },
-  "client/src/views/admin/identityDocuments/components/IdentityDocumentDialog.jsx": {
-    "mtime": 1790702793.884559,
-    "seen": 1790703476.8674781,
-    "ast_hash": "3567b28308a5df9a7c9ef392c2e92be1",
+    "mtime": 1790704182.3313196,
+    "seen": 1790704496.859034,
+    "ast_hash": "64b07d85b067bb6665b2bc7e7dc65db0",
     "semantic_hash": ""
   },
   "database/migrations/0017_create_identity_documents.sql": {
@@ -1710,9 +1704,9 @@
     "semantic_hash": ""
   },
   "server/src/common/services/master.service.js": {
-    "mtime": 1790703731.1977997,
-    "seen": 1790703994.8026562,
-    "ast_hash": "d9407a08368d3c84e9b61e7457e08635",
+    "mtime": 1790704062.9259655,
+    "seen": 1790704496.85911,
+    "ast_hash": "d8fcd3eae207e64bf4502db13f857b7b",
     "semantic_hash": ""
   },
   "server/src/common/utils/masterRouter.utils.js": {
@@ -1728,9 +1722,9 @@
     "semantic_hash": ""
   },
   "server/test/common/services/master.service.test.js": {
-    "mtime": 1790703806.712711,
-    "seen": 1790703994.8027277,
-    "ast_hash": "9bee16f5adf9c084fe3bc5854bc06aea",
+    "mtime": 1790704078.130057,
+    "seen": 1790704496.859168,
+    "ast_hash": "1a3a796d1a2512169860499242a6d53b",
     "semantic_hash": ""
   },
   "server/test/common/utils/masterRouter.utils.test.js": {
@@ -1761,6 +1755,24 @@
     "mtime": 1790703779.5127254,
     "seen": 1790703994.8027406,
     "ast_hash": "462564eb8e6b61c7bdc60e0b76451fc3",
+    "semantic_hash": ""
+  },
+  "client/src/api/services/masterApi.js": {
+    "mtime": 1790704108.4482265,
+    "seen": 1790704496.858904,
+    "ast_hash": "440854cc2833bfaf5579f983915ee6d3",
+    "semantic_hash": ""
+  },
+  "client/src/ui-component/extended/MasterDialog.jsx": {
+    "mtime": 1790704123.6221006,
+    "seen": 1790704496.8590155,
+    "ast_hash": "d856033053ca1c405695c6ee93b94634",
+    "semantic_hash": ""
+  },
+  "client/src/ui-component/extended/MasterPage.jsx": {
+    "mtime": 1790704181.2552235,
+    "seen": 1790704496.8590164,
+    "ast_hash": "9729481236f44dc0a643dae6bbee5f87",
     "semantic_hash": ""
   }
 }
