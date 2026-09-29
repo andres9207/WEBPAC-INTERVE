@@ -72,9 +72,9 @@
     "semantic_hash": ""
   },
   "client/src/api/requests/index.js": {
-    "mtime": 1790708211.6670344,
-    "seen": 1790708502.838226,
-    "ast_hash": "ccfab02bcea1d36b24f4a286df9d87a4",
+    "mtime": 1790709347.265669,
+    "seen": 1790709891.1734858,
+    "ast_hash": "0f5301ea48f6c9e4dc4a4f41a513f6fe",
     "semantic_hash": ""
   },
   "client/src/api/requests/notificationsApi.js": {
@@ -228,9 +228,9 @@
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/MenuList/index.jsx": {
-    "mtime": 1790708211.6731882,
-    "seen": 1790708502.838258,
-    "ast_hash": "f98b5f58b881b738c57c32ff793a1ccd",
+    "mtime": 1790709347.265669,
+    "seen": 1790709891.1735198,
+    "ast_hash": "e7be3691aa1409c0f9a3c61d075bd80b",
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/Sidebar/MiniDrawerStyled.jsx": {
@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "client/src/routes/MainRoutes.jsx": {
-    "mtime": 1790708211.6687617,
-    "seen": 1790708502.8382733,
-    "ast_hash": "0b9aac0c36c6873bcbb96ec8ae498095",
+    "mtime": 1790709347.265669,
+    "seen": 1790709891.1735375,
+    "ast_hash": "dc8c4047064cedf8dde35c76498acf0e",
     "semantic_hash": ""
   },
   "client/src/routes/PrivateRoute.jsx": {
@@ -954,9 +954,9 @@
     "semantic_hash": ""
   },
   "server/prisma/seed.js": {
-    "mtime": 1790708173.4760976,
-    "seen": 1790708502.8384125,
-    "ast_hash": "5c971d75dc5272cee68d43765b715c83",
+    "mtime": 1790709300.667936,
+    "seen": 1790709891.173686,
+    "ast_hash": "ac808bc71c358b08bdc4110d73082ed6",
     "semantic_hash": ""
   },
   "server/server.js": {
@@ -1008,9 +1008,9 @@
     "semantic_hash": ""
   },
   "server/src/common/constants/permissions.constants.js": {
-    "mtime": 1790708173.463992,
-    "seen": 1790708502.838421,
-    "ast_hash": "1e9f15c9d4827066016c0f834f594f03",
+    "mtime": 1790709300.6519318,
+    "seen": 1790709891.1736946,
+    "ast_hash": "fbddb7510f5af0fbfeabee1475ec4531",
     "semantic_hash": ""
   },
   "server/src/common/middlewares/authjwt.middleware.js": {
@@ -1104,9 +1104,9 @@
     "semantic_hash": ""
   },
   "server/src/common/services/transaction.service.js": {
-    "mtime": 1790708173.4705129,
-    "seen": 1790708502.8384387,
-    "ast_hash": "1d9f049b10db8b42900ef9ab459b7acb",
+    "mtime": 1790709300.6519318,
+    "seen": 1790709891.1737125,
+    "ast_hash": "6e84fdf79bdb269bc26c6c3d18834a2b",
     "semantic_hash": ""
   },
   "server/src/common/templates/images.js": {
@@ -1164,9 +1164,9 @@
     "semantic_hash": ""
   },
   "server/src/common/utils/validation.utils.js": {
-    "mtime": 1790370348.9881625,
-    "seen": 1790694517.6646638,
-    "ast_hash": "71d95f25047e0bad06ee5011f73ac53a",
+    "mtime": 1790709300.667936,
+    "seen": 1790709891.1737244,
+    "ast_hash": "765ad77e0a7bbcb2111a2c2de3ab8dad",
     "semantic_hash": ""
   },
   "server/src/cron/index.js": {
@@ -1266,15 +1266,15 @@
     "semantic_hash": ""
   },
   "server/src/modules/auth/auth.validation.js": {
-    "mtime": 1790256040.430276,
-    "seen": 1790694517.664681,
-    "ast_hash": "e4488a29f9de90dceb060b23ab4cb4d1",
+    "mtime": 1790709308.701203,
+    "seen": 1790709891.1737487,
+    "ast_hash": "0e61e2a382b7c60eeb88dabd5e38fdc1",
     "semantic_hash": ""
   },
   "server/src/modules/main.routes.js": {
-    "mtime": 1790708173.4705129,
-    "seen": 1790708502.838474,
-    "ast_hash": "ad0b3bab383356a9a0e0e17ff4f6a182",
+    "mtime": 1790709300.667936,
+    "seen": 1790709891.1737497,
+    "ast_hash": "d033dc49ca855dac3ec0d12313c78f87",
     "semantic_hash": ""
   },
   "server/src/modules/security/permissions/permissions.controller.js": {
@@ -1344,9 +1344,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/security/users/users.validation.js": {
-    "mtime": 1790700467.8275082,
-    "seen": 1790701671.6165242,
-    "ast_hash": "ebad8c37672c5b699ea685cf1582db0a",
+    "mtime": 1790709308.701203,
+    "seen": 1790709891.173762,
+    "ast_hash": "724c23b082ee08ed60610ccacd5d02ea",
     "semantic_hash": ""
   },
   "server/test/common/configs/cors.config.test.js": {
@@ -1434,9 +1434,9 @@
     "semantic_hash": ""
   },
   "server/test/common/utils/validation.utils.test.js": {
-    "mtime": 1790370479.6156218,
-    "seen": 1790694517.6647081,
-    "ast_hash": "2d204504d7328847eca0043ccc9cb245",
+    "mtime": 1790709324.4404428,
+    "seen": 1790709891.1737795,
+    "ast_hash": "420a903aa4aaed1b89c827a60188a865",
     "semantic_hash": ""
   },
   "server/test/helpers/dbErrors.fixtures.js": {
@@ -1644,9 +1644,9 @@
     "semantic_hash": ""
   },
   "client/src/menu-items/admin.js": {
-    "mtime": 1790708211.6720831,
-    "seen": 1790708502.8382638,
-    "ast_hash": "20b94190ae3eb8fb80b14af62e8e3b57",
+    "mtime": 1790709347.265669,
+    "seen": 1790709891.1735265,
+    "ast_hash": "9f895b29bd64924db9f8dec1b51b6fea",
     "semantic_hash": ""
   },
   "client/src/views/admin/identityDocuments/IdentityDocumentPage.jsx": {
@@ -1821,6 +1821,54 @@
     "mtime": 1790708185.9904954,
     "seen": 1790708502.8385098,
     "ast_hash": "daacd09a621743960b17a3871caa4ffd",
+    "semantic_hash": ""
+  },
+  "client/src/api/requests/addressTypesApi.js": {
+    "mtime": 1790709347.1621728,
+    "seen": 1790709891.1734784,
+    "ast_hash": "00ffe6ba74b86dd1f12e4da58d91a534",
+    "semantic_hash": ""
+  },
+  "client/src/views/admin/addressTypes/AddressTypePage.jsx": {
+    "mtime": 1790709347.2499683,
+    "seen": 1790709891.1736257,
+    "ast_hash": "35fd694206d10746778d6bc3906f3a9a",
+    "semantic_hash": ""
+  },
+  "database/migrations/0025_create_address_types.sql": {
+    "mtime": 1790709262.263706,
+    "seen": 1790709891.173677,
+    "ast_hash": "4cfd99a3200bded65234c666636a3bf3",
+    "semantic_hash": ""
+  },
+  "database/migrations/0026_seed_address_types.sql": {
+    "mtime": 1790709262.2897778,
+    "seen": 1790709891.173678,
+    "ast_hash": "1ac50a60f7827a4fcc70a97cb84059ff",
+    "semantic_hash": ""
+  },
+  "database/migrations/0027_seed_address_types_pages_permissions.sql": {
+    "mtime": 1790709262.3109765,
+    "seen": 1790709891.1736789,
+    "ast_hash": "74d6409e4aac76f932f6129d9982f9e3",
+    "semantic_hash": ""
+  },
+  "server/src/modules/admin/addressTypes/addressTypes.routes.js": {
+    "mtime": 1790709282.5917695,
+    "seen": 1790709891.1737266,
+    "ast_hash": "1ea90ca4d0dfd6a563932b809413f070",
+    "semantic_hash": ""
+  },
+  "server/src/modules/admin/addressTypes/addressTypes.service.js": {
+    "mtime": 1790709282.5379336,
+    "seen": 1790709891.1737273,
+    "ast_hash": "2cd0a2e16c91c1bdc9ae56ec93355408",
+    "semantic_hash": ""
+  },
+  "server/test/modules/admin/addressTypes/addressTypes.service.test.js": {
+    "mtime": 1790709282.649984,
+    "seen": 1790709891.1737833,
+    "ast_hash": "a45b26d06473d706b5529cb7e27883a2",
     "semantic_hash": ""
   }
 }
