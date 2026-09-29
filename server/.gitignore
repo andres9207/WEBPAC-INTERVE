@@ -35,5 +35,10 @@ pages.css
 /src/uploads
 
 .env
+.env.template
+
+/logs/api.log
+/logs/error-api.log
 
 process.json
+process.env.NODE_ENV
