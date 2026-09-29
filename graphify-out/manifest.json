@@ -72,9 +72,9 @@
     "semantic_hash": ""
   },
   "client/src/api/requests/index.js": {
-    "mtime": 1790715461.0915687,
-    "seen": 1790717655.8582864,
-    "ast_hash": "a22724b045326e45b05bcc72bbf3a274",
+    "mtime": 1790717909.9302194,
+    "seen": 1790718365.5371797,
+    "ast_hash": "b61c5e23814a7cb0367ca632f84d1125",
     "semantic_hash": ""
   },
   "client/src/api/requests/notificationsApi.js": {
@@ -228,9 +228,9 @@
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/MenuList/index.jsx": {
-    "mtime": 1790715461.0970764,
-    "seen": 1790717655.8583336,
-    "ast_hash": "85b0fa90323231aafacae331a9b192b6",
+    "mtime": 1790717909.9364054,
+    "seen": 1790718365.537215,
+    "ast_hash": "103c4d9ae20c7674ce075e508bee4e76",
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/Sidebar/MiniDrawerStyled.jsx": {
@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "client/src/routes/MainRoutes.jsx": {
-    "mtime": 1790715461.0935385,
-    "seen": 1790717655.8583515,
-    "ast_hash": "0d54e8e9b30dc6de02deea60e91859b5",
+    "mtime": 1790717909.9302194,
+    "seen": 1790718365.5372322,
+    "ast_hash": "a2bd3f035b3ecb1175c6d1c98aea35f7",
     "semantic_hash": ""
   },
   "client/src/routes/PrivateRoute.jsx": {
@@ -954,9 +954,9 @@
     "semantic_hash": ""
   },
   "server/prisma/seed.js": {
-    "mtime": 1790715439.0046282,
-    "seen": 1790717655.8585124,
-    "ast_hash": "7c33341052c5f82c7846579694552f86",
+    "mtime": 1790717886.5682912,
+    "seen": 1790718365.537391,
+    "ast_hash": "53130301258a732c81bb2c4fd0d9e0f0",
     "semantic_hash": ""
   },
   "server/server.js": {
@@ -1008,9 +1008,9 @@
     "semantic_hash": ""
   },
   "server/src/common/constants/permissions.constants.js": {
-    "mtime": 1790715439.0046282,
-    "seen": 1790717655.8585215,
-    "ast_hash": "04997e23e6792c6f258db3e4b0cb796c",
+    "mtime": 1790717886.5610044,
+    "seen": 1790718365.5373998,
+    "ast_hash": "5bd5bb0ed4f287bc5d6d9c3aefc9ac68",
     "semantic_hash": ""
   },
   "server/src/common/middlewares/authjwt.middleware.js": {
@@ -1104,9 +1104,9 @@
     "semantic_hash": ""
   },
   "server/src/common/services/transaction.service.js": {
-    "mtime": 1790715439.0046282,
-    "seen": 1790717655.8585393,
-    "ast_hash": "5873dc08530dcd9d3b618c9af2cbcf6e",
+    "mtime": 1790717886.563015,
+    "seen": 1790718365.5374167,
+    "ast_hash": "c06dc801c97224caa0ea50931c2f7b79",
     "semantic_hash": ""
   },
   "server/src/common/templates/images.js": {
@@ -1272,9 +1272,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/main.routes.js": {
-    "mtime": 1790715439.0046282,
-    "seen": 1790717655.8585827,
-    "ast_hash": "9c5f6e3f30831988ca19875496751ccf",
+    "mtime": 1790717886.563015,
+    "seen": 1790718365.537461,
+    "ast_hash": "b6dec72166459b6fb8519a007a4044a8",
     "semantic_hash": ""
   },
   "server/src/modules/security/permissions/permissions.controller.js": {
@@ -1644,9 +1644,9 @@
     "semantic_hash": ""
   },
   "client/src/menu-items/admin.js": {
-    "mtime": 1790715461.0960693,
-    "seen": 1790717655.8583403,
-    "ast_hash": "9972db44c19a7a579b67512ba0b997f6",
+    "mtime": 1790717909.9364054,
+    "seen": 1790718365.5372217,
+    "ast_hash": "222f76b9a2b7a2f67e18a79ab8d60de7",
     "semantic_hash": ""
   },
   "client/src/views/admin/identityDocuments/IdentityDocumentPage.jsx": {
@@ -1704,9 +1704,9 @@
     "semantic_hash": ""
   },
   "server/src/common/services/master.service.js": {
-    "mtime": 1790714089.9148402,
-    "seen": 1790714844.6664224,
-    "ast_hash": "b46013deb72a719c268a9dce01ae3976",
+    "mtime": 1790717823.9105213,
+    "seen": 1790718365.537415,
+    "ast_hash": "81daf35123419cb78d51ffa7c6fc5400",
     "semantic_hash": ""
   },
   "server/src/common/utils/masterRouter.utils.js": {
@@ -1722,9 +1722,9 @@
     "semantic_hash": ""
   },
   "server/test/common/services/master.service.test.js": {
-    "mtime": 1790714089.9254837,
-    "seen": 1790714844.6665022,
-    "ast_hash": "972fd23be388f6a06e02166934a24a30",
+    "mtime": 1790717828.8771615,
+    "seen": 1790718365.5374825,
+    "ast_hash": "7fd60c10eb87fedb47885eebdf4d3cf4",
     "semantic_hash": ""
   },
   "server/test/common/utils/masterRouter.utils.test.js": {
@@ -1965,6 +1965,48 @@
     "mtime": 1790715438.923128,
     "seen": 1790717655.8586216,
     "ast_hash": "497f8a6dc483bd6113095c5e6f76b82c",
+    "semantic_hash": ""
+  },
+  "client/src/api/requests/constructionCompaniesApi.js": {
+    "mtime": 1790717909.8561008,
+    "seen": 1790718365.537175,
+    "ast_hash": "722941185f435b0d7061ac440f8997c8",
+    "semantic_hash": ""
+  },
+  "client/src/views/admin/constructionCompanies/ConstructionCompanyPage.jsx": {
+    "mtime": 1790717909.9302194,
+    "seen": 1790718365.5373209,
+    "ast_hash": "f90aebe45430c1bffe12bec73f37ceb3",
+    "semantic_hash": ""
+  },
+  "database/migrations/0033_create_construction_companies.sql": {
+    "mtime": 1790717855.2823155,
+    "seen": 1790718365.5373821,
+    "ast_hash": "d0a26797388f5a8d9ca1fcf7dc3c8d3d",
+    "semantic_hash": ""
+  },
+  "database/migrations/0034_seed_construction_companies_pages_permissions.sql": {
+    "mtime": 1790717855.301481,
+    "seen": 1790718365.537383,
+    "ast_hash": "fe59a503c22db3fac9a5c7175fcda411",
+    "semantic_hash": ""
+  },
+  "server/src/modules/admin/constructionCompanies/constructionCompanies.routes.js": {
+    "mtime": 1790717886.4398289,
+    "seen": 1790718365.5374334,
+    "ast_hash": "c95bf41903f1c2b1d2b9acd0a54e09fa",
+    "semantic_hash": ""
+  },
+  "server/src/modules/admin/constructionCompanies/constructionCompanies.service.js": {
+    "mtime": 1790717909.7624936,
+    "seen": 1790718365.5374343,
+    "ast_hash": "391bf74c8447c40f6da56cb062bba156",
+    "semantic_hash": ""
+  },
+  "server/test/modules/admin/constructionCompanies/constructionCompanies.service.test.js": {
+    "mtime": 1790717886.4751494,
+    "seen": 1790718365.5374954,
+    "ast_hash": "84e76ecb56c73bb4bd8edeb8eacc276a",
     "semantic_hash": ""
   }
 }

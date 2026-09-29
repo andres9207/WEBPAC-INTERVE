@@ -1,35 +1,35 @@
 # Graph Report - WEBPAC-INTERVE  (2026-09-29)
 
 ## Corpus Check
-- 324 files · ~97,583 words
+- 331 files · ~98,871 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 9 file(s) not represented in the graph (top: (none) 6, .template 1, .css 1)
 
 ## Summary
-- 1455 nodes · 3128 edges · 111 communities (77 shown, 34 thin omitted)
+- 1478 nodes · 3174 edges · 111 communities (78 shown, 33 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 65 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d5c1202b`
+- Built from commit: `4e82e2a9`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - overrides/index.js
 - dependencies
-- transaction.service.test.js
+- images.js
 - auth.service.js
 - dependencies
 - server/package.json
 - withAlpha
-- AuthForgotPassword.jsx
-- httpCliente.js
-- NotificationSection/index.jsx
+- authContext.jsx
+- usersApi.js
+- constants.js
 - showError
-- profiles.service.js
+- users.service.js
 - auth.routes.js
-- idempotency.service.js
+- useAuth
 - client/package.json
 - menu-items/index.js
 - validation.utils.js
@@ -41,35 +41,35 @@
 - ConfigContext.jsx
 - `tbl_users`
 - app.js
-- permissions.controller.test.js
-- react
+- permissions.routes.js
+- EasyCrop.jsx
 - MainLayout/index.jsx
 - DocumentManagement.jsx
-- users.controller.test.js
+- masterRouter.utils.test.js
 - requests/index.js
 - mailerService.js
-- transaction.service.js
+- error.middleware.js
 - seed.js
 - AddressTypePage.jsx
 - UserDialog.jsx
 - authjwt.middleware.test.js
-- users.service.js
+- transaction.service.test.js
 - audit.service.js
-- useAuth
+- react
 - ref_jest_globals
 - eslint.config.mjs
 - devDependencies
-- MainRoutes.jsx
+- IdentityDocumentPage.jsx
 - src/index.jsx
-- InsurerPage.jsx
+- MainRoutes.jsx
 - scripts
-- permissions.routes.js
+- main.routes.js
 - DebouncedInput.jsx
-- handleFirebase.js
+- identityDocuments.formats.js
 - server.js
 - app.routes.js
 - masterRouter.utils.js
-- prismaClient.js
+- transaction.service.js
 - notifications.routes.js
 - session.service.test.js
 - transaction.mock.js
@@ -80,53 +80,52 @@
 - serviceWorker.jsx
 - permission
 - devDependencies
-- formatTime.js
+- ConstructionCompanyPage.jsx
 - extends
-- profiles.controller.js
+- socket.js
 - browserslist
 - volta
 - volta
 - users.service.test.js
 - `tbl_status`
-- authContext.jsx
+- ProviderTypePage.jsx
 - SupervisionTypePage.jsx
 - auth.service.test.js
-- App.jsx
-- password-strength.js
+- insurers.service.js
+- identityDocuments.service.js
 - auth.controller.test.js
 - Default/index.jsx
-- idempotency.service.test.js
-- profiles.service.test.js
+- permissions.service.test.js
 - InputLabel.jsx
 
 ## God Nodes (most connected - your core abstractions)
 1. `@mui/material` - 72 edges
 2. `react` - 52 edges
-3. `useAuth()` - 31 edges
+3. `useAuth()` - 33 edges
 4. `ComponentsOverrides()` - 27 edges
 5. `@tabler/icons-react` - 24 edges
 6. `writeAudit()` - 23 edges
-7. `showError()` - 21 edges
-8. `MasterPage()` - 21 edges
+7. `MasterPage()` - 22 edges
+8. `showError()` - 21 edges
 9. `react-router-dom` - 20 edges
-10. `withLockedTransaction()` - 19 edges
+10. `createMasterService()` - 19 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `deleteModuleDoc()` --calls--> `withLockedTransaction()`  [EXTRACTED]
-  server/src/modules/app/documents/document.service.js → server/src/common/services/transaction.service.js
 - `MenuList()` --calls--> `useAuth()`  [EXTRACTED]
   client/src/layout/MainLayout/MenuList/index.jsx → client/src/contexts/authContext.jsx
-- `createMasterService()` --calls--> `withTransaction()`  [EXTRACTED]
+- `createMasterService()` --calls--> `diffFields()`  [EXTRACTED]
+  server/src/common/services/master.service.js → server/src/common/services/audit.service.js
+- `createMasterService()` --calls--> `newOperationId()`  [EXTRACTED]
+  server/src/common/services/master.service.js → server/src/common/services/audit.service.js
+- `createMasterService()` --calls--> `writeAudit()`  [EXTRACTED]
+  server/src/common/services/master.service.js → server/src/common/services/audit.service.js
+- `createMasterService()` --calls--> `withLockedTransaction()`  [EXTRACTED]
   server/src/common/services/master.service.js → server/src/common/services/transaction.service.js
-- `createSession()` --calls--> `withTransaction()`  [EXTRACTED]
-  server/src/common/services/session.service.js → server/src/common/services/transaction.service.js
-- `revokeSession()` --calls--> `withTransaction()`  [EXTRACTED]
-  server/src/common/services/session.service.js → server/src/common/services/transaction.service.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (111 total, 34 thin omitted)
+## Communities (111 total, 33 thin omitted)
 
 ### Community 0 - "overrides/index.js"
 Cohesion: 0.09
@@ -136,13 +135,13 @@ Nodes (23): Avatar(), Button(), CardActions(), CardContent(), CardHeader(), Chec
 Cohesion: 0.05
 Nodes (44): dependencies, axios, @azure/identity, bcrypt, compression, cookie-parser, cors, cross-env (+36 more)
 
-### Community 2 - "transaction.service.test.js"
-Cohesion: 0.08
-Nodes (27): ref_fs, ref_path, ref_url, concurrencyError(), errorMiddleware(), isMySqlCode(), ADR-0027, LOCK_WAIT_TIMEOUT (+19 more)
+### Community 2 - "images.js"
+Cohesion: 0.23
+Nodes (8): ref_fs, ref_path, imagesDir, logoDoblamos, logoPavasStay, plantilla2, plantilla3, plantilla1
 
 ### Community 3 - "auth.service.js"
-Cohesion: 0.11
-Nodes (28): bcrypt, ref_crypto, writeAudit(), withTransaction(), comparePassword(), hashPassword(), deriveKey(), generateResetCode() (+20 more)
+Cohesion: 0.10
+Nodes (29): bcrypt, ref_crypto, getEffectivePermissionIds(), backoff(), runTransaction(), withTransaction(), comparePassword(), hashPassword() (+21 more)
 
 ### Community 4 - "dependencies"
 Cohesion: 0.06
@@ -150,39 +149,39 @@ Nodes (35): dependencies, apexcharts, axios, date-fns, @emotion/react, @emotion/
 
 ### Community 5 - "server/package.json"
 Cohesion: 0.06
-Nodes (34): @azure/identity, cross-env, dayjs, excel4node, exceljs, fs-extra, generic-pool, isomorphic-fetch (+26 more)
+Nodes (35): @azure/identity, cross-env, dayjs, excel4node, exceljs, fs-extra, generic-pool, isomorphic-fetch (+27 more)
 
 ### Community 6 - "withAlpha"
-Cohesion: 0.20
-Nodes (12): getTimeAgo(), ListItemWrapper(), NotificationList(), typeConfig, Alert(), Chip(), RootStyle, SimpleBarScroll() (+4 more)
+Cohesion: 0.19
+Nodes (14): getTimeAgo(), ListItemWrapper(), NotificationList(), typeConfig, Alert(), Chip(), RootStyle, SimpleBarScroll() (+6 more)
 
-### Community 7 - "AuthForgotPassword.jsx"
-Cohesion: 0.29
-Nodes (10): forgotPasswordAPI(), restorePasswordAPI(), validateCodeAPI(), AnimateButton(), CustomFormControl, strengthColor(), ForgotPassword(), STEPS (+2 more)
+### Community 7 - "authContext.jsx"
+Cohesion: 0.07
+Nodes (43): forgotPasswordAPI(), loginAPI(), logoutAPI(), restorePasswordAPI(), validateCodeAPI(), verifyTokenAPI(), getPermissionsCatalogAPI(), refreshSession() (+35 more)
 
-### Community 8 - "httpCliente.js"
-Cohesion: 0.29
-Nodes (6): instance, NO_REFRESH_URLS, refreshClient, refreshSession(), ref_axios, js-cookie
+### Community 8 - "usersApi.js"
+Cohesion: 0.13
+Nodes (6): genericRequest, instance, NO_REFRESH_URLS, refreshClient, ref_axios, js-cookie
 
-### Community 9 - "NotificationSection/index.jsx"
-Cohesion: 0.11
-Nodes (25): getNotificationCountAPI(), markAllAsReadAPI(), markAsReadAPI(), paginationNotificationsAPI(), NotificationSection(), HeaderAvatar(), MobileSearch(), SearchSection() (+17 more)
+### Community 9 - "constants.js"
+Cohesion: 0.14
+Nodes (16): SocketContext, useSocket(), FilterPopper(), normalizeOptions(), SocketDropdownFilter(), RequiredLabel(), SelectSocket(), TooltipLongText() (+8 more)
 
 ### Community 10 - "showError"
 Cohesion: 0.17
 Nodes (20): getBasicInformationAPI(), updateAccountAPI(), updatePasswordAPI(), defaultConfig, showError(), showInfo(), showObligatorios(), showSuccess() (+12 more)
 
-### Community 11 - "profiles.service.js"
-Cohesion: 0.13
-Nodes (17): AUDIT_ENTITIES, AUDIT_OPERATIONS, newOperationId(), withLockedTransaction(), auditPermissionChanges(), ADR-0013, ADR-0027, updateProfilePermissions() (+9 more)
+### Community 11 - "users.service.js"
+Cohesion: 0.10
+Nodes (25): AUDIT_ENTITIES, AUDIT_OPERATIONS, newOperationId(), withLockedTransaction(), deleteModuleDoc(), auditPermissionChanges(), ADR-0013, ADR-0027 (+17 more)
 
 ### Community 12 - "auth.routes.js"
-Cohesion: 0.17
-Nodes (22): auditContext(), forgotPasswordController(), getSettlementController(), getWindowsByProfileController(), loginController(), logoutAudit(), logoutController(), refreshController() (+14 more)
+Cohesion: 0.16
+Nodes (23): jsonwebtoken, auditContext(), forgotPasswordController(), getSettlementController(), getWindowsByProfileController(), loginController(), logoutAudit(), logoutController() (+15 more)
 
-### Community 13 - "idempotency.service.js"
-Cohesion: 0.15
-Nodes (18): canonical(), EXCLUDED_FROM_FINGERPRINT, findReplay(), idempotencyMisuse(), isUniqueViolation(), ADR-0027, keyReused(), requestFingerprint() (+10 more)
+### Community 13 - "useAuth"
+Cohesion: 0.24
+Nodes (14): getNotificationCountAPI(), markAllAsReadAPI(), markAsReadAPI(), paginationNotificationsAPI(), useAuth(), NotificationSection(), PrivateRoute(), MasterPage() (+6 more)
 
 ### Community 14 - "client/package.json"
 Cohesion: 0.10
@@ -193,32 +192,32 @@ Cohesion: 0.11
 Nodes (13): admin, icons, dashboard, icons, menuItems, icons, other, icons (+5 more)
 
 ### Community 16 - "validation.utils.js"
-Cohesion: 0.09
-Nodes (28): express-validator, createMasterSchemas(), emailRule(), idArray(), idempotencyKeyRule(), ADR-0009, ADR-0027, nullable (+20 more)
+Cohesion: 0.11
+Nodes (24): express-validator, createMasterSchemas(), emailRule(), idArray(), idempotencyKeyRule(), ADR-0009, ADR-0027, nullable (+16 more)
 
 ### Community 17 - "session.service.js"
-Cohesion: 0.10
-Nodes (27): ADR-0001, jsonwebtoken, ACCESS_COOKIE_NAME, baseCookieOptions, createSession(), disconnectSessionSockets(), DURATION_UNITS_MS, ADR-0001 (+19 more)
+Cohesion: 0.16
+Nodes (19): baseCookieOptions, createSession(), disconnectSessionSockets(), DURATION_UNITS_MS, ADR-0001, newRefreshToken(), REFRESH_COOKIE_NAME, REFRESH_TOKEN_MS (+11 more)
 
 ### Community 18 - "master.service.js"
-Cohesion: 0.16
-Nodes (20): ACTIVE_STATUS, capitalize(), createMasterService(), DELETED_STATUS, httpError(), INACTIVE_STATUS, ADR-0003, ADR-0013 (+12 more)
+Cohesion: 0.07
+Nodes (45): ADR-0003, ADR-0013, canonical(), EXCLUDED_FROM_FINGERPRINT, findReplay(), idempotencyMisuse(), isUniqueViolation(), ADR-0027 (+37 more)
 
 ### Community 19 - "compilerOptions"
 Cohesion: 0.10
 Nodes (20): compilerOptions, allowJs, allowSyntheticDefaultImports, baseUrl, esModuleInterop, forceConsistentCasingInFileNames, isolatedModules, jsx (+12 more)
 
 ### Community 20 - "@mui/material"
-Cohesion: 0.22
-Nodes (15): ProfileSection(), gridSpacing, CardSecondaryAction(), headerStyle, MainCard(), SubCard(), Avatar(), SamplePage() (+7 more)
+Cohesion: 0.17
+Nodes (14): gridSpacing, CardSecondaryAction(), headerStyle, MainCard(), SubCard(), Avatar(), SamplePage(), ColorBox() (+6 more)
 
 ### Community 21 - "themes/index.jsx"
-Cohesion: 0.23
-Nodes (10): CSS_VAR_PREFIX, DASHBOARD_PATH, DEFAULT_THEME_MODE, createCustomShadow(), CustomShadows(), ThemeCustomization(), buildPalette(), Typography() (+2 more)
+Cohesion: 0.33
+Nodes (6): createCustomShadow(), CustomShadows(), ThemeCustomization(), buildPalette(), defaultColor, Typography()
 
 ### Community 22 - "ConfigContext.jsx"
-Cohesion: 0.47
-Nodes (4): config, ConfigContext, ConfigProvider(), useLocalStorage()
+Cohesion: 0.27
+Nodes (7): config, CSS_VAR_PREFIX, DASHBOARD_PATH, DEFAULT_THEME_MODE, ConfigContext, ConfigProvider(), useLocalStorage()
 
 ### Community 23 - "`tbl_users`"
 Cohesion: 0.18
@@ -226,39 +225,35 @@ Nodes (15): `tbl_documents`, `tbl_notifications`, `tbl_page_permissions`, `tbl_p
 
 ### Community 24 - "app.js"
 Cohesion: 0.13
-Nodes (14): compression, cookie-parser, cors, express-fileupload, express-rate-limit, helmet, __dirname, cleanData() (+6 more)
+Nodes (14): compression, cookie-parser, cors, express-fileupload, express-rate-limit, helmet, ref_url, __dirname (+6 more)
 
-### Community 25 - "permissions.controller.test.js"
-Cohesion: 0.40
-Nodes (3): forged, ADR-0013, permissionsServiceMock
-
-### Community 26 - "react"
-Cohesion: 0.15
-Nodes (8): ConfirmDialog(), DataTable(), STATUS_NAMES, TableActions(), ref_prop_types, react, react-easy-crop, @tabler/icons-react
+### Community 25 - "permissions.routes.js"
+Cohesion: 0.23
+Nodes (13): getAllPagesController(), getPermissionsCatalogController(), getProfilePermissionsController(), getProfileWindowsController(), getUserPermissionsController(), updateProfilePermissionsController(), updateUserPermissionsController(), permissionsRoutes (+5 more)
 
 ### Community 27 - "MainLayout/index.jsx"
-Cohesion: 0.06
-Nodes (53): endpoints, handlerDrawerOpen(), initialState, useGetMenuMaster(), getMenuAPI(), client_src_assets_images_logo_interve, useConfig(), setParentOpenedMenu() (+45 more)
+Cohesion: 0.09
+Nodes (42): endpoints, handlerDrawerOpen(), initialState, useGetMenuMaster(), getMenuAPI(), useConfig(), setParentOpenedMenu(), useMenuCollapse() (+34 more)
 
 ### Community 28 - "DocumentManagement.jsx"
-Cohesion: 0.32
-Nodes (11): deleteFileByPath(), uploadFile(), deleteDocApi(), paginationDocsApi(), saveDocApi(), showPromise(), DocumentManagement(), FileRow() (+3 more)
+Cohesion: 0.09
+Nodes (18): app, firebaseConfig, storage, deleteFile(), extractFilePathFromURL(), deleteFileByPath(), uploadFile(), deleteDocApi() (+10 more)
 
-### Community 29 - "users.controller.test.js"
-Cohesion: 0.14
-Nodes (10): mockReq(), mockDelete, mockSave, forgedAuthor, ADR-0013, profilesServiceMock, forgedAuthor, ADR-0013 (+2 more)
+### Community 29 - "masterRouter.utils.test.js"
+Cohesion: 0.10
+Nodes (14): config, emit, forged, serviceMock, mockReq(), mockDelete, mockSave, forgedAuthor (+6 more)
 
 ### Community 30 - "requests/index.js"
-Cohesion: 0.30
-Nodes (5): getAddressTypesSelectAPI, getInsurersSelectAPI, getProviderTypesSelectAPI, getSupervisionTypesSelectAPI, createMasterApi()
+Cohesion: 0.31
+Nodes (5): getAddressTypesSelectAPI, getInsurersSelectAPI, insurersApi, getProviderTypesSelectAPI, createMasterApi()
 
 ### Community 31 - "mailerService.js"
 Cohesion: 0.17
 Nodes (12): dotenv, imap-simple, nodemailer, prisma, emailApp, nameApp, nameAppMail, checkEmailBounces() (+4 more)
 
-### Community 32 - "transaction.service.js"
-Cohesion: 0.21
-Nodes (11): ADR-0027, backoff(), buildLockPlan(), ISOLATION_LEVEL, LOCK_ORDER, LOCK_WAIT_TIMEOUT_SECONDS, LOCKABLE, MAX_DEADLOCK_RETRIES (+3 more)
+### Community 32 - "error.middleware.js"
+Cohesion: 0.28
+Nodes (11): concurrencyError(), errorMiddleware(), isMySqlCode(), ADR-0027, LOCK_WAIT_TIMEOUT, PRISMA_ERRORS, driverCause(), driverErrorCode() (+3 more)
 
 ### Community 33 - "seed.js"
 Cohesion: 0.18
@@ -269,28 +264,28 @@ Cohesion: 0.29
 Nodes (5): addressTypesApi, AddressTypePage, COLUMNS, FORM_FIELDS, ADR-0009
 
 ### Community 35 - "UserDialog.jsx"
-Cohesion: 0.12
-Nodes (18): getIdentityDocumentsSelectAPI, getModulesAPI(), getProfilesAPI(), saveProfileAPI(), saveUserAPI(), genericRequest, STATUS_OPTIONS, fallbackUuid() (+10 more)
+Cohesion: 0.20
+Nodes (16): getIdentityDocumentsSelectAPI, getModulesAPI(), getProfilesAPI(), saveProfileAPI(), saveUserAPI(), fallbackUuid(), idempotencyConfig(), ADR-0027 (+8 more)
 
 ### Community 36 - "authjwt.middleware.test.js"
 Cohesion: 0.40
 Nodes (4): buildRes(), mockFindFirst, runMiddleware(), validPayload
 
-### Community 37 - "users.service.js"
-Cohesion: 0.18
-Nodes (13): assertAssignableProfile(), assertIdentification(), AUDITED_USER_FIELDS, checkIfUserExists(), ADR-0008, ADR-0013, ADR-0027, parsePageIds() (+5 more)
+### Community 37 - "transaction.service.test.js"
+Cohesion: 0.26
+Nodes (7): ADR-0027, loggerMock, prismaMock, REAL_DEADLOCK, REAL_LOCK_WAIT_TIMEOUT, realDeadlock(), realLockWaitTimeout()
 
 ### Community 38 - "audit.service.js"
-Cohesion: 0.20
-Nodes (14): auditMisuse(), buildRows(), diffFields(), ADR-0001, ADR-0013, ADR-0027, protect(), REDACTED (+6 more)
+Cohesion: 0.19
+Nodes (16): auditMisuse(), buildRows(), diffFields(), ADR-0001, ADR-0013, ADR-0027, protect(), REDACTED (+8 more)
 
-### Community 39 - "useAuth"
-Cohesion: 0.14
-Nodes (25): getStatusesByScopeAPI(), deleteProfileAPI(), paginationProfilesAPI(), deleteUserAPI(), paginationUsersAPI(), useAuth(), PrivateRoute(), LastModifiedCell() (+17 more)
+### Community 39 - "react"
+Cohesion: 0.13
+Nodes (24): getStatusesByScopeAPI(), deleteProfileAPI(), paginationProfilesAPI(), deleteUserAPI(), paginationUsersAPI(), ConfirmDialog(), DataTable(), LastModifiedCell() (+16 more)
 
 ### Community 40 - "ref_jest_globals"
-Cohesion: 0.10
-Nodes (10): ref_jest_globals, prismaMock, mockValidationResult, prismaMock, txMock, prismaMock, baseConfig, config (+2 more)
+Cohesion: 0.09
+Nodes (10): ref_jest_globals, prismaMock, mockValidationResult, prismaMock, txMock, prismaMock, payload, forged (+2 more)
 
 ### Community 41 - "eslint.config.mjs"
 Cohesion: 0.15
@@ -300,29 +295,29 @@ Nodes (12): compat, __dirname, __filename, @eslint/compat, @eslint/eslintrc, @es
 Cohesion: 0.15
 Nodes (13): devDependencies, eslint, @eslint/compat, eslint-config-prettier, @eslint/eslintrc, @eslint/js, eslint-plugin-jsx-a11y, eslint-plugin-prettier (+5 more)
 
-### Community 43 - "MainRoutes.jsx"
-Cohesion: 0.12
-Nodes (13): identityDocumentsApi, providerTypesApi, IdentityDocumentPage, ProfilesPage, ProviderTypePage, UsersPage, COLUMNS, FORM_FIELDS (+5 more)
+### Community 43 - "IdentityDocumentPage.jsx"
+Cohesion: 0.29
+Nodes (5): identityDocumentsApi, IdentityDocumentPage, COLUMNS, FORM_FIELDS, ADR-0008
 
 ### Community 44 - "src/index.jsx"
 Cohesion: 0.20
 Nodes (9): client_src_assets_scss_style, container, root, reportWebVitals(), @fontsource/inter, @fontsource/poppins, @fontsource/roboto, react-dom (+1 more)
 
-### Community 45 - "InsurerPage.jsx"
-Cohesion: 0.29
-Nodes (5): insurersApi, InsurerPage, COLUMNS, FORM_FIELDS, ADR-0003
+### Community 45 - "MainRoutes.jsx"
+Cohesion: 0.22
+Nodes (7): InsurerPage, ProfilesPage, UsersPage, COLUMNS, FORM_FIELDS, ADR-0003, react-router
 
 ### Community 46 - "scripts"
 Cohesion: 0.17
 Nodes (12): scripts, build, db:seed, dev, pm2:logs, pm2:restart, pm2:start, pm2:stop (+4 more)
 
-### Community 47 - "permissions.routes.js"
-Cohesion: 0.05
-Nodes (47): ADR-0006, ADR-0011, ADR-0018, PERMISSIONS, defineMaster(), addressTypesRoutes, addressTypesConfig, addressTypesService (+39 more)
+### Community 47 - "main.routes.js"
+Cohesion: 0.10
+Nodes (20): ADR-0006, ADR-0011, defineMaster(), addressTypesRoutes, addressTypesConfig, addressTypesService, ADR-0009, constructionCompaniesRoutes (+12 more)
 
-### Community 49 - "handleFirebase.js"
+### Community 49 - "identityDocuments.formats.js"
 Cohesion: 0.24
-Nodes (6): app, firebaseConfig, storage, deleteFile(), extractFilePathFromURL(), firebase
+Nodes (8): DIAN_WEIGHTS, formatFor(), GENERIC_FORMAT, IDENTIFICATION_FORMATS, identificationError(), ADR-0008, nitCheckDigit(), ADR-0008
 
 ### Community 50 - "server.js"
 Cohesion: 0.24
@@ -333,24 +328,24 @@ Cohesion: 0.26
 Nodes (9): getMenuController(), getProfilesController(), getStatusesByScope(), getUserPermissionsController(), verifyTokenController(), appRoutes, ADR-0001, getStatusesByScopeSchema (+1 more)
 
 ### Community 52 - "masterRouter.utils.js"
-Cohesion: 0.22
-Nodes (14): express, verifyToken(), requirePermission(), validate(), hasEffectivePermission(), IDEMPOTENCY_HEADER, createMasterControllers(), createMasterRouter() (+6 more)
+Cohesion: 0.14
+Nodes (22): ADR-0001, express, PERMISSIONS, verifyToken(), requirePermission(), validate(), hasEffectivePermission(), IDEMPOTENCY_HEADER (+14 more)
 
-### Community 53 - "prismaClient.js"
-Cohesion: 0.13
-Nodes (14): @prisma/adapter-mariadb, @prisma/client, adapter, describeTarget(), ADR-0013, ADR-0027, prisma, testConnection() (+6 more)
+### Community 53 - "transaction.service.js"
+Cohesion: 0.10
+Nodes (20): @prisma/client, adapter, describeTarget(), ADR-0013, ADR-0027, prisma, testConnection(), buildLockPlan() (+12 more)
 
 ### Community 54 - "notifications.routes.js"
-Cohesion: 0.24
-Nodes (12): getNotificationCountController(), listNotificationsController(), markAllAsReadController(), markAsReadController(), ADR-0001, notificationsRoutes, getNotificationCount(), listNotifications() (+4 more)
+Cohesion: 0.14
+Nodes (19): getIO(), getNotificationCountController(), listNotificationsController(), markAllAsReadController(), markAsReadController(), ADR-0001, notificationsRoutes, getNotificationCount() (+11 more)
 
 ### Community 55 - "session.service.test.js"
 Cohesion: 0.22
 Nodes (5): dbUser, mockDisconnectSockets, mockIn, prismaMock, user
 
 ### Community 56 - "transaction.mock.js"
-Cohesion: 0.12
-Nodes (15): lockedIdsOf(), transactionRawMocks(), ADR-0009, prismaMock, ADR-0008, prismaMock, ADR-0003, prismaMock (+7 more)
+Cohesion: 0.08
+Nodes (20): baseConfig, config, prismaMock, service, lockedIdsOf(), transactionRawMocks(), ADR-0009, prismaMock (+12 more)
 
 ### Community 57 - "scripts"
 Cohesion: 0.25
@@ -380,13 +375,17 @@ Nodes (5): permission, bash, edit, write, $schema
 Cohesion: 0.33
 Nodes (6): devDependencies, jest, nodemon, pm2, prisma, supertest
 
+### Community 66 - "ConstructionCompanyPage.jsx"
+Cohesion: 0.25
+Nodes (6): constructionCompaniesApi, getConstructionCompaniesSelectAPI, ConstructionCompanyPage, COLUMNS, FORM_FIELDS, ADR-0004
+
 ### Community 67 - "extends"
 Cohesion: 0.50
 Nodes (4): eslintConfig, extends, react-app, react-app/jest
 
-### Community 68 - "profiles.controller.js"
-Cohesion: 0.16
-Nodes (15): socket.io, authenticateHandshake(), getCookieValue(), init(), allowedHosts, isOriginAllowed(), getIO(), setIO() (+7 more)
+### Community 68 - "socket.js"
+Cohesion: 0.31
+Nodes (8): socket.io, authenticateHandshake(), getCookieValue(), init(), allowedHosts, isOriginAllowed(), setIO(), isSessionActive()
 
 ### Community 70 - "browserslist"
 Cohesion: 0.67
@@ -405,28 +404,28 @@ Cohesion: 0.33
 Nodes (4): baseUser, ctx, editPayload, prismaMock
 
 ### Community 89 - "`tbl_status`"
-Cohesion: 0.18
-Nodes (9): `tbl_users`, `tbl_identity_documents`, `tbl_users`, `tbl_provider_types`, `tbl_address_types`, `tbl_insurers`, `tbl_supervision_types`, `tbl_status` (+1 more)
+Cohesion: 0.16
+Nodes (10): `tbl_users`, `tbl_identity_documents`, `tbl_users`, `tbl_provider_types`, `tbl_address_types`, `tbl_insurers`, `tbl_supervision_types`, `tbl_construction_companies` (+2 more)
 
-### Community 93 - "authContext.jsx"
-Cohesion: 0.33
-Nodes (6): loginAPI(), logoutAPI(), verifyTokenAPI(), getPermissionsCatalogAPI(), AuthProvider(), getStoredUser()
+### Community 93 - "ProviderTypePage.jsx"
+Cohesion: 0.29
+Nodes (5): providerTypesApi, ProviderTypePage, COLUMNS, FORM_FIELDS, ADR-0010
 
 ### Community 94 - "SupervisionTypePage.jsx"
-Cohesion: 0.29
-Nodes (5): supervisionTypesApi, SupervisionTypePage, COLUMNS, FORM_FIELDS, ADR-0007
+Cohesion: 0.25
+Nodes (6): getSupervisionTypesSelectAPI, supervisionTypesApi, SupervisionTypePage, COLUMNS, FORM_FIELDS, ADR-0007
 
 ### Community 95 - "auth.service.test.js"
 Cohesion: 0.22
 Nodes (6): activeUser, mockComparePassword, mockHashPassword, mockRevokeSession, mockSendEmail, prismaMock
 
-### Community 100 - "App.jsx"
-Cohesion: 0.43
-Nodes (5): App(), AuthContext, NavigationScroll(), SocketProvider(), react-toastify
+### Community 100 - "insurers.service.js"
+Cohesion: 0.38
+Nodes (5): ADR-0018, insurersRoutes, insurersConfig, insurersService, ADR-0003
 
-### Community 101 - "password-strength.js"
-Cohesion: 0.48
-Nodes (5): defaultColor, hasMixed(), hasNumber(), hasSpecial(), strengthIndicator()
+### Community 101 - "identityDocuments.service.js"
+Cohesion: 0.38
+Nodes (5): identityDocumentsRoutes, identityDocumentsConfig, identityDocumentsService, ADR-0008, ADR-0013
 
 ### Community 104 - "auth.controller.test.js"
 Cohesion: 0.29
@@ -436,25 +435,29 @@ Nodes (5): mockGetBasicInformation, mockLogin, mockUpdateAccount, mockUpdatePass
 Cohesion: 0.47
 Nodes (4): DashboardDefault, CardGrid(), Dashboard(), testCards
 
+### Community 106 - "permissions.service.test.js"
+Cohesion: 0.50
+Nodes (3): mockGetEffectivePermissionIds, mockGetIO, prismaMock
+
 ## Knowledge Gaps
-- **447 isolated node(s):** `getSupervisionTypesSelectAPI`, `icons`, `COLUMNS`, `FORM_FIELDS`, `ADR-0007` (+442 more)
-  These have ≤1 connection - possible missing edges. (Counts symbols only; 585 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **34 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **455 isolated node(s):** `getConstructionCompaniesSelectAPI`, `icons`, `COLUMNS`, `FORM_FIELDS`, `ADR-0004` (+450 more)
+  These have ≤1 connection - possible missing edges. (Counts symbols only; 596 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **33 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `lodash` connect `DebouncedInput.jsx` to `profiles.service.js`, `server/package.json`?**
-  _High betweenness centrality (0.419) - this node is a cross-community bridge._
-- **Why does `@mui/material` connect `@mui/material` to `UserDialog.jsx`, `withAlpha`, `useAuth`, `AuthForgotPassword.jsx`, `NotificationSection/index.jsx`, `showError`, `Default/index.jsx`, `InputLabel.jsx`, `client/package.json`, `DebouncedInput.jsx`, `themes/index.jsx`, `react`, `MainLayout/index.jsx`, `DocumentManagement.jsx`?**
-  _High betweenness centrality (0.246) - this node is a cross-community bridge._
-- **Why does `react` connect `react` to `UserDialog.jsx`, `App.jsx`, `useAuth`, `AuthForgotPassword.jsx`, `NotificationSection/index.jsx`, `showError`, `MainRoutes.jsx`, `client/package.json`, `DebouncedInput.jsx`, `@mui/material`, `themes/index.jsx`, `ConfigContext.jsx`, `MainLayout/index.jsx`, `DocumentManagement.jsx`, `authContext.jsx`?**
-  _High betweenness centrality (0.229) - this node is a cross-community bridge._
-- **What connects `getSupervisionTypesSelectAPI`, `icons`, `COLUMNS` to the rest of the system?**
-  _447 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `lodash` connect `DebouncedInput.jsx` to `master.service.js`, `server/package.json`?**
+  _High betweenness centrality (0.426) - this node is a cross-community bridge._
+- **Why does `@mui/material` connect `@mui/material` to `UserDialog.jsx`, `withAlpha`, `authContext.jsx`, `react`, `constants.js`, `showError`, `Default/index.jsx`, `InputLabel.jsx`, `useAuth`, `client/package.json`, `DebouncedInput.jsx`, `themes/index.jsx`, `EasyCrop.jsx`, `MainLayout/index.jsx`, `DocumentManagement.jsx`?**
+  _High betweenness centrality (0.252) - this node is a cross-community bridge._
+- **Why does `react` connect `react` to `UserDialog.jsx`, `authContext.jsx`, `constants.js`, `showError`, `useAuth`, `client/package.json`, `MainRoutes.jsx`, `DebouncedInput.jsx`, `@mui/material`, `themes/index.jsx`, `ConfigContext.jsx`, `EasyCrop.jsx`, `MainLayout/index.jsx`, `DocumentManagement.jsx`?**
+  _High betweenness centrality (0.240) - this node is a cross-community bridge._
+- **What connects `getConstructionCompaniesSelectAPI`, `icons`, `COLUMNS` to the rest of the system?**
+  _455 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `overrides/index.js` be split into smaller, more focused modules?**
   _Cohesion score 0.08599033816425121 - nodes in this community are weakly interconnected._
 - **Should `dependencies` be split into smaller, more focused modules?**
   _Cohesion score 0.045454545454545456 - nodes in this community are weakly interconnected._
-- **Should `transaction.service.test.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.08367071524966262 - nodes in this community are weakly interconnected._
+- **Should `auth.service.js` be split into smaller, more focused modules?**
+  _Cohesion score 0.09672830725462304 - nodes in this community are weakly interconnected._
