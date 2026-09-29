@@ -33,7 +33,7 @@ return withLockedTransaction({ PERFIL: proId }, async (tx) => {
 });
 ```
 
-La carrera se cierra con el bloqueo: la operación que **asigna** la referencia también bloquea el registro referenciado (`saveUser` bloquea el perfil que asigna). Si solo lo lee, puede asignarlo mientras otra petición lo elimina. Para maestros referenciados desde el CORE (aseguradora de una póliza), esto depende de **PD-04**.
+La carrera se cierra con el bloqueo: la operación que **asigna** la referencia también bloquea el registro referenciado (`saveUser` bloquea el perfil que asigna). Si solo lo lee, puede asignarlo mientras otra petición lo elimina. Los maestros van al final de `LOCK_ORDER` ([DEC-019](../decisiones/DEC-019-maestros-orden-bloqueo.md)): `saveUser` bloquea perfil → usuario → tipo de identificación.
 
 ## Dependientes que se limpian al eliminar
 

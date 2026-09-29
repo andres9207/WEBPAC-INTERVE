@@ -20,6 +20,9 @@ export const listUsersSchema = [
 
 const isEdit = (req) => Number(req.body.useId) > 0;
 
+// El cliente manda null, "" o el texto "null" cuando no hay número.
+export const hasIdentification = (value) => value != null && String(value).trim() !== "" && value !== "null";
+
 export const saveUserSchema = [
   idempotencyKeyRule((req) => !isEdit(req)),
   body("useId").optional({ values: "falsy" }).isInt({ min: 0 }).withMessage("useId debe ser un entero."),
@@ -34,7 +37,26 @@ export const saveUserSchema = [
     .isEmail()
     .withMessage("El correo no es válido.")
     .isLength({ max: 255 }),
-  optionalText("identification"),
+  optionalText("identification", 20),
+  // Número y tipo van juntos (ADR-0008, decisión 8; CHECK
+  // ck_users_identification_type en la BD): o están los dos o ninguno.
+  body("iddId")
+    .optional({ values: "falsy" })
+    .isInt({ min: 1 })
+    .withMessage("iddId debe ser un entero positivo.")
+    .bail()
+    .custom((_value, { req }) => {
+      if (!hasIdentification(req.body.identification)) {
+        throw new Error("Ingresa el número de identificación o quita el tipo.");
+      }
+      return true;
+    }),
+  body("identification").custom((value, { req }) => {
+    if (hasIdentification(value) && !(Number(req.body.iddId) > 0)) {
+      throw new Error("Selecciona el tipo de identificación.");
+    }
+    return true;
+  }),
   optionalText("username", 100),
   // Obligatoria al crear; al editar, vacía significa "no cambiar".
   body("password").custom((value, { req }) => {

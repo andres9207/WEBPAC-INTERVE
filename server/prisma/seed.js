@@ -13,6 +13,9 @@ const PAGES = [
   { pag_id: 2, pag_description: "Seguridad", pag_parent: 0, pag_url: null, pag_icon: "shield", pag_order: 2, pag_name: "Seguridad", pag_type: 1 },
   { pag_id: 3, pag_description: "Perfiles", pag_parent: 2, pag_url: "security/profiles", pag_icon: "id", pag_order: 1, pag_name: "Perfiles", pag_type: 2 },
   { pag_id: 4, pag_description: "Usuarios", pag_parent: 2, pag_url: "security/users", pag_icon: "users", pag_order: 2, pag_name: "Usuarios", pag_type: 2 },
+  // database/migrations/0020_seed_admin_identity_documents_pages_permissions.sql
+  { pag_id: 5, pag_description: "Administración", pag_parent: 0, pag_url: null, pag_icon: "settings", pag_order: 3, pag_name: "Administración", pag_type: 1 },
+  { pag_id: 6, pag_description: "Tipos de identificación", pag_parent: 5, pag_url: "admin/identityDocuments", pag_icon: "id-card", pag_order: 1, pag_name: "Tipos de identificación", pag_type: 2 },
 ];
 
 const PERMISSIONS = [
@@ -24,6 +27,9 @@ const PERMISSIONS = [
   { per_id: 6, per_name: "Modificar usuario", pag_id: 4, per_order: 2 },
   { per_id: 7, per_name: "Eliminar usuario", pag_id: 4, per_order: 3 },
   { per_id: 8, per_name: "Asignar permisos al usuario", pag_id: 4, per_order: 4 },
+  { per_id: 18, per_name: "Crear tipo de identificación", pag_id: 6, per_order: 1 },
+  { per_id: 19, per_name: "Modificar tipo de identificación", pag_id: 6, per_order: 2 },
+  { per_id: 20, per_name: "Eliminar tipo de identificación", pag_id: 6, per_order: 3 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -52,6 +58,7 @@ const VIEW_PERMISSIONS = [
   { per_id: 12, per_name: "Ver usuarios", pag_id: 4, per_order: 5 },
   { per_id: 13, per_name: "Ver permisos", pag_id: null, per_order: 1 },
   { per_id: 14, per_name: "Ver documentos", pag_id: null, per_order: 1 },
+  { per_id: 17, per_name: "Ver tipos de identificación", pag_id: 6, per_order: 5 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay
@@ -71,6 +78,16 @@ const STATUSES = [
   { sta_id: 3, sta_name: "Eliminado", sta_scope: "GENERAL", sta_color: "error", sta_order: 3 },
 ];
 
+// Tipos de identificación iniciales (database/migrations/0018_seed_identity_documents.sql).
+// `update: {}` para no pisar nombres o estados ya editados desde el maestro.
+const IDENTITY_DOCUMENTS = [
+  { idd_id: 1, idd_code: "CC", idd_name: "Cédula de ciudadanía", sta_id: 1 },
+  { idd_id: 2, idd_code: "CE", idd_name: "Cédula de extranjería", sta_id: 1 },
+  { idd_id: 3, idd_code: "NIT", idd_name: "NIT", sta_id: 1 },
+  { idd_id: 4, idd_code: "PA", idd_name: "Pasaporte", sta_id: 1 },
+  { idd_id: 5, idd_code: "PPT", idd_name: "Permiso por protección temporal", sta_id: 1 },
+];
+
 async function main() {
   for (const status of STATUSES) {
     await prisma.tbl_status.upsert({
@@ -80,6 +97,15 @@ async function main() {
     });
   }
   console.log(`tbl_status: ${STATUSES.length} estados sembrados (los existentes no se modifican).`);
+
+  for (const document of IDENTITY_DOCUMENTS) {
+    await prisma.tbl_identity_documents.upsert({
+      where: { idd_id: document.idd_id },
+      update: {},
+      create: document,
+    });
+  }
+  console.log(`tbl_identity_documents: ${IDENTITY_DOCUMENTS.length} tipos sembrados (los existentes no se modifican).`);
 
   for (const page of PAGES) {
     await prisma.tbl_pages.upsert({

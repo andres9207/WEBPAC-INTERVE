@@ -62,3 +62,12 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | DOM-23 | Un proveedor no se asigna dos veces a la misma obra | ADR-0012 |
 | DOM-24 | El código de obra es único | ADR-0011 |
 | DOM-25 | La etapa de un contrato pertenece a la obra del contrato, y su proveedor está asignado a esa obra | ADR-0015 |
+| DOM-26 | Un número de documento siempre tiene tipo de identificación, y un tipo sin número no se guarda | ADR-0008, decisión 8 |
+
+**Aplicadas (2026-09-29), para el tipo de identificación:**
+
+- **DOM-20:** `deleteIdentityDocument` bloquea el tipo y cuenta los usuarios no eliminados que lo usan; si hay alguno, responde 400. Además, la FK `tbl_users_identity_documents` impide el borrado físico. Cuando existan proveedores, se cuentan también.
+- **DOM-21:** `saveUser` conserva el tipo que el usuario ya tenía aunque esté inactivo, y el selector lo incluye con `includeId` ([DEC-018](../decisiones/DEC-018-selector-maestros.md)).
+- **DOM-26:** `CHECK ck_users_identification_type` en `tbl_users`, más validación en la ruta y en el service.
+
+Tests en `server/test/modules/admin/identityDocuments/` y `security/users/users.service.test.js`. DOM-22 sigue propuesta: `tbl_providers` no existe. Para usuarios, el par (tipo, número) solo se controla en el service, sin `UNIQUE` (ver deuda).

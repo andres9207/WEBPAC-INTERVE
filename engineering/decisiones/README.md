@@ -31,6 +31,8 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 | [DEC-015](DEC-015-reintento-interbloqueo.md) | 2026-09-25 | Reintento acotado del interbloqueo solo en operaciones idempotentes; 409 si persiste, 503 ante espera agotada | Obligatoria | [0027](../adr/0027-integridad-transaccional.md) |
 | [DEC-016](DEC-016-idempotencia-por-clave.md) | 2026-09-25 | Idempotencia por clave (`Idempotency-Key`) en creación, con la clave y la huella en la propia entidad | Obligatoria | [0027](../adr/0027-integridad-transaccional.md) |
 | [DEC-017](DEC-017-area-idioma-maestros.md) | 2026-09-29 | Los maestros viven en el área `admin/`, con tablas y código en inglés y nombres fijados | Obligatoria | 0003, 0004, 0006–0010, 0019 |
+| [DEC-018](DEC-018-selector-maestros.md) | 2026-09-29 | Los selectores de maestros devuelven solo activos, sin paginar, con tope fijo y solo `verifyToken` | Obligatoria | [0008](../adr/0008-tipos-identificacion.md), [0014](../adr/0014-autorizacion-permisos.md) |
+| [DEC-019](DEC-019-maestros-orden-bloqueo.md) | 2026-09-29 | Los maestros van al final de `LOCK_ORDER`; asignar un maestro lo bloquea | Obligatoria | [0027](../adr/0027-integridad-transaccional.md) |
 
 **Tipo:**
 - **Obligatoria**: regla para todo código nuevo. El checklist de `ENDPOINT_STANDARD.md` la exige y, donde se puede, un test la hace cumplir.

@@ -18,7 +18,7 @@ Nivel 1 / 2, y por qué ([`MODULE_STANDARD`](../standards/MODULE_STANDARD.md)).
 | Prefijo (verificado libre) | `___` |
 | Id en la API | `___Id` |
 | Área / carpeta | `modules/admin/<módulo>/` para maestros ([DEC-017](../decisiones/DEC-017-area-idioma-maestros.md)) |
-| Entidad de bloqueo | `ENTIDAD_` en `LOCK_ORDER` (PD-04) |
+| Entidad de bloqueo | `ENTIDAD_` al final de `LOCK_ORDER` ([DEC-019](../decisiones/DEC-019-maestros-orden-bloqueo.md)) |
 
 ## Campos
 
@@ -57,7 +57,7 @@ Más las columnas estándar: `sta_id`, seis de autoría, dos de idempotencia.
 | Listar | `POST /api/<área>/<módulo>/pagination_<módulo>` | ver | No |
 | Crear / editar | `POST …/save_<módulo>` | crear / editar | Al crear |
 | Eliminar | `PUT …/delete_<módulo>` | eliminar | No |
-| Lista para selects | PD-01 | | |
+| Lista para selects | `GET …/get_<entidades>_select` ([DEC-018](../decisiones/DEC-018-selector-maestros.md)) | solo sesión | No |
 
 ## Base de datos
 

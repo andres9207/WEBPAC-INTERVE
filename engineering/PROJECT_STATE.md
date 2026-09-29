@@ -4,7 +4,7 @@
 
 ## En una línea
 
-Plantilla base con seguridad, auditoría e integridad transaccional ya endurecidas. **Ningún módulo de negocio implementado todavía.** El dominio (obras, proveedores, maestros, contratos, pólizas, facturación) está diseñado en 27 ADR y planificado en `docs/backlog/` (185 tareas).
+Plantilla base con seguridad, auditoría e integridad transaccional ya endurecidas. **Primer maestro implementado: tipos de identificación.** El resto del dominio (obras, proveedores, maestros, contratos, pólizas, facturación) está diseñado en 27 ADR y planificado en `docs/backlog/` (185 tareas).
 
 ## Arquitectura
 
@@ -21,8 +21,9 @@ Ver [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Notificaciones | Autoservicio, en tiempo real | `app/notifications` |
 | Auditoría | Seis columnas de autoría con FK, eliminación lógica con evidencia, bitácora `tbl_audit_log` en la misma transacción | ADR-0013, DEC-006, DEC-007 |
 | Integridad | Utilidad única de transacción, bloqueo primero y en orden fijo, reintento acotado, idempotencia por clave | ADR-0027, DEC-012, DEC-015, DEC-016 |
-| Listados | Helper único `paginate`, tope de 100 | DEC-013 |
-| Tests | Servidor: 24 suites, 200 tests (Jest, unitarios con mocks) | [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
+| Listados | Helper único `paginate`, tope de 100; selectores de maestros sin paginar con tope fijo | DEC-013, DEC-018 |
+| Maestro: tipos de identificación | CRUD completo (servidor y cliente), selector, unicidad de código y nombre entre no eliminados con columna generada, bloqueo de eliminación en uso. Tipo de identificación en usuarios (`tbl_users.idd_id` con `CHECK` de número ⇔ tipo). Sin validación de formato por tipo (decisión del 2026-09-29) | ADR-0008, DEC-017 a DEC-019, migraciones 0017–0020 |
+| Tests | Servidor: 27 suites, 232 tests (Jest, unitarios con mocks) | [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
 
 ## Parcial
 
@@ -33,20 +34,20 @@ Ver [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## No implementado
 
-Todo el dominio: maestros (ADR 0003–0010, 0019), obras (0011), proveedores (0012), contratos y conceptos (0015–0017), pólizas (0018), facturación (0020–0026) y dashboard (0002). El cliente no tiene tests. El servidor no tiene linter.
+Todo el dominio salvo el primer maestro: los otros siete maestros (ADR 0003, 0004, 0006, 0007, 0009, 0010, 0019), obras (0011), proveedores (0012), contratos y conceptos (0015–0017), pólizas (0018), facturación (0020–0026) y dashboard (0002). El cliente no tiene tests. El servidor no tiene linter.
 
 ## ADR vigentes
 
 | Estado | ADR |
 | --- | --- |
 | Aceptado | 0001 (abierto: MFA), 0013 (abierto: retención y consulta), 0027 |
-| Aceptado parcial | 0014 |
-| Propuesto (arquitectura objetivo) | 0002–0004, 0006–0012, 0015–0026 |
+| Aceptado parcial | 0008 (maestro y usuarios; falta proveedores; sin formato por tipo), 0014 |
+| Propuesto (arquitectura objetivo) | 0002–0004, 0006, 0007, 0009–0012, 0015–0026 |
 | Reemplazado | 0005 → 0017 |
 
 ## Invariantes
 
-Ver [`invariants/`](invariants/README.md). Las de seguridad y sistema están **aplicadas y con tests**. Las de dominio están **propuestas**: salen de los ADR y ninguna tiene todavía mecanismo en el código ni en la BD.
+Ver [`invariants/`](invariants/README.md). Las de seguridad y sistema están **aplicadas y con tests**. Las de dominio están **propuestas**: salen de los ADR. Solo DOM-20, DOM-21 y DOM-26 están aplicadas, para el tipo de identificación.
 
 ## Deuda técnica
 
@@ -56,14 +57,14 @@ Ver [`debt/TECHNICAL_DEBT.md`](debt/TECHNICAL_DEBT.md).
 
 **De negocio** (bloquean tareas del backlog): 19 decisiones, `DEC-01` a `DEC-19`, en `docs/backlog/BACKLOG.md` ("Decisiones de negocio pendientes"). Las más urgentes: cómo se factura el avance de obra (DEC-01), la composición de las facturas (DEC-02, DEC-03) y precisión y redondeo monetario (DEC-06).
 
-**De ingeniería** (REQUIERE DECISIÓN, antes del primer maestro):
+**De ingeniería** (REQUIERE DECISIÓN):
 
 | ID | Decisión | Por qué ahora |
 | --- | --- | --- |
-| PD-01 | Cómo se llenan los selects de maestros: autocompletar con búsqueda sobre `paginate` (tope 100) o excepción acotada para catálogos pequeños. Hoy existe un endpoint sin paginar para combos (`GET /app/get_profiles`), que contradice DEC-013 al pie de la letra | Todo maestro se usa en selects de otros módulos |
+| PD-01 | **Resuelto** en [DEC-018](decisiones/DEC-018-selector-maestros.md): el selector de un maestro devuelve solo activos, sin paginar, con tope fijo y solo `verifyToken` | — |
 | PD-02 | Código HTTP de un duplicado detectado por el service: `saveProfile` responde **400**, y el mismo duplicado detectado por la BD (`P2002`) responde **409** | El cliente trata 409 de forma especial; hoy la misma situación da dos códigos |
 | PD-03 | Nombre de las decisiones de negocio del backlog: `DEC-01`… choca visualmente con las fichas `DEC-001`… de `engineering/decisiones/` | Evita confundir una decisión pendiente con una regla vigente |
-| PD-04 | Posición de los maestros en `LOCK_ORDER`. Todo registro que se edite o elimine debe estar en `LOCKABLE` (`database/migrations/README.md`, punto 8), y hoy el orden solo tiene contrato → factura → póliza → concepto → documento → perfil → usuario. Propuesta: los maestros al final, porque una operación bloquea primero su agregado (contrato) y después el maestro que referencia (p. ej. la aseguradora de una póliza, para que no la eliminen en medio). Cambiarlo exige actualizar ADR-0027 | Sin esto no se puede construir el primer maestro sin romper el protocolo de bloqueo |
+| PD-04 | **Resuelto** en [DEC-019](decisiones/DEC-019-maestros-orden-bloqueo.md): los maestros van al final de `LOCK_ORDER` (ADR-0027 actualizado) | — |
 | PD-05 | **Resuelto para maestros** en [DEC-017](decisiones/DEC-017-area-idioma-maestros.md): área `admin/`, inglés, nombres fijados. **Sigue pendiente** para obras, proveedores, contratos, pólizas y facturación: su área en `server/src/modules/` y `client/src/views/`, y si el idioma inglés de DEC-017 se extiende al CORE | Fija rutas, URLs y nombres de los módulos del CORE |
 
 ## Limitaciones conocidas

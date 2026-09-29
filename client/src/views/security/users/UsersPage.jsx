@@ -131,7 +131,7 @@ export default function UsersPage() {
   const filterOptions = useMemo(() => [
       { type: 'input', key: 'name', label: 'Nombre', filtro: filters.name, grid: { xs: 12, sm: 6 } },
       { type: 'input', key: 'lastName', label: 'Apellido', filtro: filters.lastName, grid: { xs: 12, sm: 6 } },
-      { type: 'input', key: 'identification', label: 'NIT / CC', filtro: filters.identification, grid: { xs: 12, sm: 6 } },
+      { type: 'input', key: 'identification', label: 'Número de identificación', filtro: filters.identification, grid: { xs: 12, sm: 6 } },
       { type: 'input', key: 'email', label: 'Correo', filtro: filters.email, grid: { xs: 12, sm: 6 } },
       {
         type: 'dropdown',
@@ -148,7 +148,11 @@ export default function UsersPage() {
   const columns = [
     { id: 'name', label: 'Nombre', sortable: true },
     { id: 'lastName', label: 'Apellido' },
-    { id: 'identification', label: 'NIT / CC' },
+    {
+      id: 'identification',
+      label: 'Identificación',
+      render: (row) => (row.identification ? `${row.identityDocumentCode ?? ''} ${row.identification}`.trim() : '')
+    },
     { id: 'email', label: 'Correo' },
     { id: 'profile', label: 'Perfil', render: (row) => row.profileName },
     {

@@ -9,6 +9,9 @@ import usersRoutes from "./security/users/users.routes.js";
 import profilesRoutes from "./security/profiles/profiles.routes.js";
 import permissionsRoutes from "./security/permissions/permissions.routes.js";
 
+// admin
+import identityDocumentsRoutes from "./admin/identityDocuments/identityDocuments.routes.js";
+
 const mainRoutes = express.Router();
 
 mainRoutes.use("/app/documents", moduleDocsRoutes);
@@ -22,5 +25,8 @@ mainRoutes.use("/app/notifications", notificationsRoutes);
 mainRoutes.use("/security/profiles", profilesRoutes);
 mainRoutes.use("/security/users", usersRoutes);
 mainRoutes.use("/security/permissions", permissionsRoutes);
+
+// Admin
+mainRoutes.use("/admin/identityDocuments", identityDocumentsRoutes);
 
 export default mainRoutes;

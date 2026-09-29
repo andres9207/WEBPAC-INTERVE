@@ -43,6 +43,11 @@ export const LOCK_WAIT_TIMEOUT_SECONDS = 3;
  * ADR-0027; las entidades de seguridad van después y nunca se mezclan con
  * las del CORE en una misma operación, pero tener un único orden total hace
  * imposible el interbloqueo aunque algún día se mezclen.
+ *
+ * Los maestros (catálogos que otros registros referencian) van al final
+ * (PD-04, 2026-09-29): una operación bloquea primero su agregado (el
+ * usuario, el contrato) y después el maestro que asigna, para que nadie lo
+ * elimine en medio. Eliminar un maestro bloquea solo el maestro.
  */
 export const LOCK_ORDER = Object.freeze([
   "CONTRATO",
@@ -52,6 +57,8 @@ export const LOCK_ORDER = Object.freeze([
   "DOCUMENTO",
   "PERFIL",
   "USUARIO",
+  // Maestros
+  "TIPO_IDENTIFICACION",
 ]);
 
 /**
@@ -65,6 +72,7 @@ const LOCKABLE = Object.freeze({
   DOCUMENTO: { table: "tbl_documents", id: "doc_id" },
   PERFIL: { table: "tbl_profiles", id: "pro_id" },
   USUARIO: { table: "tbl_users", id: "use_id" },
+  TIPO_IDENTIFICACION: { table: "tbl_identity_documents", id: "idd_id" },
 });
 
 const transactionMisuse = (message) => new Error(`[transaction] ${message}`);

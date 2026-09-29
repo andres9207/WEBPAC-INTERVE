@@ -5,6 +5,7 @@ const prismaMock = {
   tbl_users: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
   tbl_user_pages: { findMany: jest.fn(), deleteMany: jest.fn(), createMany: jest.fn() },
   tbl_profiles: { findUnique: jest.fn() },
+  tbl_identity_documents: { findUnique: jest.fn() },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
@@ -30,6 +31,7 @@ beforeEach(() => {
   prismaMock.tbl_users.findFirst.mockResolvedValue(null);
   prismaMock.tbl_user_pages.findMany.mockResolvedValue([]);
   prismaMock.tbl_profiles.findUnique.mockResolvedValue({ sta_id: 1 });
+  prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 1 });
   // Sin creación previa con la clave de idempotencia (ver idempotency.service).
   prismaMock.tbl_users.findUnique.mockResolvedValue(null);
 });
@@ -38,6 +40,7 @@ const baseUser = {
   use_name: "Ana",
   use_last_name: "Paz",
   use_identification: "1",
+  idd_id: 1,
   use_user: "ana",
   use_email: "ana@a.com",
   use_password: "hash-viejo",
@@ -53,6 +56,7 @@ const editPayload = {
   name: "Ana",
   lastName: "Paz",
   identification: "1",
+  iddId: 1,
   username: "ana",
   email: "ana@a.com",
   access: 1,
@@ -134,15 +138,17 @@ describe("saveUser — protocolo de bloqueo (ADR-0027)", () => {
   const lockedTables = () =>
     prismaMock.$queryRaw.mock.calls.map(([strings, ...values]) => {
       const sql = strings.join("?") + values.map((v) => v?.strings?.join("") ?? "").join(" ");
-      return /tbl_profiles/.test(sql) ? "PERFIL" : /tbl_users/.test(sql) ? "USUARIO" : "?";
+      if (/tbl_profiles/.test(sql)) return "PERFIL";
+      if (/tbl_identity_documents/.test(sql)) return "TIPO_IDENTIFICACION";
+      return /tbl_users/.test(sql) ? "USUARIO" : "?";
     });
 
-  it("al editar bloquea primero el perfil asignado y después el usuario, antes de leer nada", async () => {
+  it("al editar bloquea el perfil, el usuario y el tipo de identificación, en ese orden y antes de leer nada", async () => {
     prismaMock.tbl_users.findUnique.mockResolvedValue(baseUser);
 
     await usersService.saveUser({ ...editPayload, name: "Ana María" });
 
-    expect(lockedTables()).toEqual(["PERFIL", "USUARIO"]);
+    expect(lockedTables()).toEqual(["PERFIL", "USUARIO", "TIPO_IDENTIFICACION"]);
     const firstLock = prismaMock.$queryRaw.mock.invocationCallOrder[0];
     expect(prismaMock.tbl_users.findUnique.mock.invocationCallOrder[0]).toBeGreaterThan(firstLock);
     expect(prismaMock.tbl_profiles.findUnique.mock.invocationCallOrder[0]).toBeGreaterThan(firstLock);
@@ -154,6 +160,77 @@ describe("saveUser — protocolo de bloqueo (ADR-0027)", () => {
     await expect(usersService.saveUser({ ...editPayload, useId: 0, idempotencyKey: KEY })).rejects.toMatchObject({ status: 400 });
     expect(prismaMock.tbl_users.create).not.toHaveBeenCalled();
     expect(auditRows()).toEqual([]);
+  });
+});
+
+describe("saveUser — tipo de identificación (ADR-0008)", () => {
+  const createPayload = { ...editPayload, useId: 0, idempotencyKey: KEY };
+
+  it("sin número no guarda tipo ni bloquea el maestro, aunque llegue un iddId", async () => {
+    prismaMock.tbl_users.create.mockResolvedValue({ use_id: 40 });
+
+    await usersService.saveUser({ ...createPayload, identification: "", iddId: 3 });
+
+    expect(prismaMock.tbl_users.create.mock.calls[0][0].data).toMatchObject({ use_identification: null, idd_id: null });
+    expect(prismaMock.tbl_identity_documents.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("rechaza un número sin tipo antes de abrir la transacción", async () => {
+    await expect(usersService.saveUser({ ...createPayload, iddId: null })).rejects.toMatchObject({ status: 400 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("no asigna un tipo inactivo a un usuario nuevo", async () => {
+    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 2 });
+
+    await expect(usersService.saveUser(createPayload)).rejects.toMatchObject({
+      status: 400,
+      message: "El tipo de identificación seleccionado está inactivo.",
+    });
+    expect(prismaMock.tbl_users.create).not.toHaveBeenCalled();
+  });
+
+  it("no asigna un tipo eliminado", async () => {
+    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 3 });
+
+    await expect(usersService.saveUser(createPayload)).rejects.toMatchObject({ status: 400 });
+    expect(prismaMock.tbl_users.create).not.toHaveBeenCalled();
+  });
+
+  it("al editar conserva el tipo que el usuario ya tenía aunque se haya desactivado", async () => {
+    prismaMock.tbl_users.findUnique.mockResolvedValue(baseUser); // idd_id: 1
+    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 2 });
+
+    await usersService.saveUser({ ...editPayload, name: "Ana María" });
+
+    expect(prismaMock.tbl_users.update.mock.calls[0][0].data).toMatchObject({ idd_id: 1 });
+  });
+
+  it("al editar no cambia a otro tipo inactivo", async () => {
+    prismaMock.tbl_users.findUnique.mockResolvedValue(baseUser); // idd_id: 1
+    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 2 });
+
+    await expect(usersService.saveUser({ ...editPayload, iddId: 3 })).rejects.toMatchObject({ status: 400 });
+    expect(prismaMock.tbl_users.update).not.toHaveBeenCalled();
+  });
+
+  it("el cambio de tipo queda en la bitácora", async () => {
+    prismaMock.tbl_users.findUnique.mockResolvedValue(baseUser);
+
+    await usersService.saveUser({ ...editPayload, iddId: 3 });
+
+    expect(auditRows()).toEqual([
+      expect.objectContaining({ aud_operation: "EDITAR", aud_field: "idd_id", aud_old_value: "1", aud_new_value: "3" }),
+    ]);
+  });
+
+  it("el duplicado se busca por el par (tipo, número), no por el número solo", async () => {
+    prismaMock.tbl_users.create.mockResolvedValue({ use_id: 40 });
+
+    await usersService.saveUser(createPayload);
+
+    const { OR } = prismaMock.tbl_users.findFirst.mock.calls[0][0].where;
+    expect(OR).toContainEqual({ use_identification: "1", idd_id: 1 });
   });
 });
 

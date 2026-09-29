@@ -75,6 +75,8 @@ export const paginationUsers = async ({
         use_name: true,
         use_last_name: true,
         use_identification: true,
+        idd_id: true,
+        tbl_identity_documents: { select: { idd_code: true } },
         use_user: true,
         use_email: true,
         use_access: true,
@@ -98,6 +100,8 @@ export const paginationUsers = async ({
     name: u.use_name,
     lastName: u.use_last_name,
     identification: u.use_identification,
+    iddId: u.idd_id,
+    identityDocumentCode: u.tbl_identity_documents?.idd_code ?? null,
     username: u.use_user,
     email: u.use_email,
     profileName: u.tbl_profiles?.pro_name ?? null,
@@ -141,9 +145,11 @@ export const countUsers = async ({ useId }) => {
     .map((p) => ({ count: p._count.tbl_users, name: p.pro_name, proId: p.pro_id }));
 };
 
-async function checkIfUserExists({ identification, email, username, useId }) {
+async function checkIfUserExists({ identification, iddId, email, username, useId }) {
   const conditions = [];
-  if (identification) conditions.push({ use_identification: identification });
+  // La identidad es el par (tipo, número), no el número solo (ADR-0008,
+  // decisión 4): el mismo número puede existir como CC y como NIT.
+  if (identification) conditions.push({ use_identification: identification, idd_id: Number(iddId) });
   if (email) conditions.push({ use_email: email });
   if (username) conditions.push({ use_user: username });
 
@@ -173,6 +179,7 @@ const AUDITED_USER_FIELDS = [
   "use_name",
   "use_last_name",
   "use_identification",
+  "idd_id",
   "use_user",
   "use_email",
   "use_password",
@@ -182,6 +189,7 @@ const AUDITED_USER_FIELDS = [
   "use_change_password",
 ];
 
+const ACTIVE_STATUS = 1;
 const DELETED_STATUS = 3;
 
 // El perfil asignado se verifica con su fila ya bloqueada: deleteProfile
@@ -193,6 +201,27 @@ const assertAssignableProfile = async (tx, locked, proId) => {
     : null;
   if (!profile || profile.sta_id === DELETED_STATUS) {
     const error = new Error("El perfil seleccionado no existe.");
+    error.status = 400;
+    throw error;
+  }
+};
+
+// El tipo de identificación también se verifica bloqueado: deleteIdentityDocument
+// lo bloquea antes de contar los usuarios que lo usan. Un tipo inactivo no se
+// asigna, pero el que el usuario ya tenía se conserva (ADR-0008, decisión 7).
+const assertAssignableIdentityDocument = async (tx, iddId, currentIddId = null) => {
+  if (!iddId) return;
+  const document = await tx.tbl_identity_documents.findUnique({
+    where: { idd_id: Number(iddId) },
+    select: { sta_id: true },
+  });
+  if (!document || document.sta_id === DELETED_STATUS) {
+    const error = new Error("El tipo de identificación seleccionado no existe.");
+    error.status = 400;
+    throw error;
+  }
+  if (document.sta_id !== ACTIVE_STATUS && Number(iddId) !== currentIddId) {
+    const error = new Error("El tipo de identificación seleccionado está inactivo.");
     error.status = 400;
     throw error;
   }
@@ -212,7 +241,7 @@ const USER_CREATE_IDEMPOTENCY = {
 
 // Lo que define "la misma creación" (sin contraseña: ver idempotency.service.js).
 const USER_CREATE_FIELDS = [
-  "proId", "name", "lastName", "identification", "username", "email",
+  "proId", "name", "lastName", "identification", "iddId", "username", "email",
   "access", "staId", "changePassword", "usePages",
 ];
 
@@ -236,7 +265,8 @@ const persistUser = async ({
   proId,
   name,
   lastName,
-  identification,
+  identification: rawIdentification,
+  iddId: rawIddId,
   username,
   email,
   password,
@@ -248,7 +278,19 @@ const persistUser = async ({
   ctx = { useId: useBy },
   idempotencyData = {},
 }) => {
-  const existingUser = await checkIfUserExists({ identification, email, username, useId });
+  // Sin número no hay tipo. La ruta ya exige que vayan juntos; se repite aquí
+  // para no llegar al CHECK de la BD con un error genérico.
+  const identification = rawIdentification === "null" || !rawIdentification ? null : rawIdentification;
+  const iddId = identification ? Number(rawIddId) : null;
+  if (identification && !(iddId > 0)) {
+    const error = new Error("Selecciona el tipo de identificación.");
+    error.status = 400;
+    throw error;
+  }
+  // Solo se bloquea el tipo cuando se asigna uno.
+  const identityLock = iddId ? { TIPO_IDENTIFICACION: iddId } : {};
+
+  const existingUser = await checkIfUserExists({ identification, iddId, email, username, useId });
 
   if (existingUser) {
     const error = new Error(
@@ -265,7 +307,7 @@ const persistUser = async ({
   const operationId = newOperationId();
 
   if (useId > 0) {
-    return withLockedTransaction({ PERFIL: proId, USUARIO: useId }, async (tx, locked) => {
+    return withLockedTransaction({ PERFIL: proId, USUARIO: useId, ...identityLock }, async (tx, locked) => {
       await assertAssignableProfile(tx, locked, proId);
 
       const before = await tx.tbl_users.findUnique({
@@ -279,10 +321,13 @@ const persistUser = async ({
         throw error;
       }
 
+      await assertAssignableIdentityDocument(tx, iddId, before.idd_id);
+
       const updateData = {
         use_name: name,
         use_last_name: lastName,
-        use_identification: identification === "null" ? null : identification,
+        use_identification: identification,
+        idd_id: iddId,
         use_user: username === "null" ? null : username,
         use_email: email === "null" ? null : email,
         pro_id: proId || null,
@@ -353,13 +398,15 @@ const persistUser = async ({
     }, { idempotent: true });
   }
 
-  return withLockedTransaction({ PERFIL: proId }, async (tx, locked) => {
+  return withLockedTransaction({ PERFIL: proId, ...identityLock }, async (tx, locked) => {
     await assertAssignableProfile(tx, locked, proId);
+    await assertAssignableIdentityDocument(tx, iddId);
 
     const data = {
       use_name: name,
       use_last_name: lastName,
-      use_identification: identification === "null" ? null : identification,
+      use_identification: identification,
+      idd_id: iddId,
       use_user: username === "null" ? null : username,
       use_email: email === "null" ? null : email,
       use_password: passwordHash,

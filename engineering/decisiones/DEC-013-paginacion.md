@@ -21,7 +21,7 @@ Cada listado calculaba `skip`/`take` a su manera. El de documentos aceptaba `pag
 
 ## Qué implica
 
-- Todo listado nuevo usa `paginate`, con el orden tomado de una lista de campos permitidos (`*_SORT_FIELDS`), nunca directo del `sortField` del cliente.
+- Todo listado nuevo usa `paginate` (única excepción: el selector de un maestro, [DEC-018](DEC-018-selector-maestros.md)), con el orden tomado de una lista de campos permitidos (`*_SORT_FIELDS`), nunca directo del `sortField` del cliente.
 
 ## Dónde
 

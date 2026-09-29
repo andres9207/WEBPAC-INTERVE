@@ -1,8 +1,9 @@
-import { useState, forwardRef, useImperativeHandle, useEffect, useMemo } from 'react';
+import { useState, forwardRef, useImperativeHandle, useEffect, useMemo, useCallback } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { showSuccess, showInfo, showError } from 'services/ToastService';
 import { getProfilesAPI } from 'api/requests/profilesApi';
 import { saveUserAPI } from 'api/requests/usersApi';
+import { getIdentityDocumentsSelectAPI } from 'api/requests/identityDocumentsApi';
 import { newIdempotencyKey } from 'utils/idempotency';
 import httpCliente from 'api/services/httpCliente';
 
@@ -22,12 +23,17 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
 
   const [allPages, setAllPages] = useState([]);
   const [profileName, setProfileName] = useState('');
+  // Tipo que ya tenía el usuario: el selector lo incluye aunque esté inactivo
+  // (ADR-0008, decisión 7).
+  const [originalIddId, setOriginalIddId] = useState(null);
+  const [identityDocumentCode, setIdentityDocumentCode] = useState(null);
 
   const methods = useForm({
     defaultValues: {
       proId: '',
       name: '',
       lastName: '',
+      iddId: '',
       identification: '',
       username: '',
       email: '',
@@ -43,10 +49,36 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
 
   const access = watch('access');
 
+  const fetchIdentityDocuments = useCallback(() => getIdentityDocumentsSelectAPI(originalIddId), [originalIddId]);
+
   const fields = useMemo(() => {
     const list = [
-      { key: 'proId', name: 'proId', type: 'socketDropdown', label: 'Perfil', required: true, validation: { required: 'El perfil es requerido' }, fetchApi: getProfilesAPI, socketEvent: 'refresh-profiles', grid: { xs: 12, sm: 6 }, props: { onOptionChange: (opt) => setProfileName(opt.label) } },
-      { key: 'identification', name: 'identification', type: 'text', label: 'NIT / CC', grid: { xs: 12, sm: 6 } },
+      { key: 'proId', name: 'proId', type: 'socketDropdown', label: 'Perfil', required: true, validation: { required: 'El perfil es requerido' }, fetchApi: getProfilesAPI, socketEvent: 'refresh-profiles', grid: { xs: 12 }, props: { onOptionChange: (opt) => setProfileName(opt.label) } },
+      // Número y tipo van juntos, o ninguno (el servidor repite la regla).
+      {
+        key: 'iddId',
+        name: 'iddId',
+        type: 'socketDropdown',
+        label: 'Tipo de identificación',
+        validation: {
+          validate: (value, form) => (String(form.identification ?? '').trim() && !value ? 'Selecciona el tipo de identificación' : true)
+        },
+        fetchApi: fetchIdentityDocuments,
+        socketEvent: 'refresh-identity-documents',
+        grid: { xs: 12, sm: 6 },
+        props: { onOptionChange: (opt) => setIdentityDocumentCode(opt.code) }
+      },
+      {
+        key: 'identification',
+        name: 'identification',
+        type: 'text',
+        label: 'Número de identificación',
+        validation: {
+          maxLength: { value: 20, message: 'Máximo 20 caracteres' },
+          validate: (value, form) => (form.iddId && !String(value ?? '').trim() ? 'Ingresa el número de identificación' : true)
+        },
+        grid: { xs: 12, sm: 6 }
+      },
       { key: 'name', name: 'name', type: 'text', label: 'Nombre(s)', required: true, validation: { required: 'El nombre es requerido' }, grid: { xs: 12, sm: 6 } },
       { key: 'lastName', name: 'lastName', type: 'text', label: 'Apellido(s)', required: true, validation: { required: 'El apellido es requerido' }, grid: { xs: 12, sm: 6 } },
       { key: 'email', name: 'email', type: 'text', label: 'Correo Electrónico', required: true, validation: { required: 'El correo es requerido', pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Correo inválido' } }, grid: { xs: 12 }, props: { type: 'email' } },
@@ -64,7 +96,7 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
     }
 
     return list;
-  }, [access, allPages]);
+  }, [access, allPages, fetchIdentityDocuments]);
 
   const fetchLists = async () => {
     setLoading(true);
@@ -105,10 +137,13 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
     setUseId(0);
     setIdempotencyKey(newIdempotencyKey());
     setProfileName('');
+    setOriginalIddId(null);
+    setIdentityDocumentCode(null);
     reset({
       proId: '',
       name: '',
       lastName: '',
+      iddId: '',
       identification: '',
       username: '',
       email: '',
@@ -125,10 +160,13 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
     setIdempotencyKey(null);
     setUseId(item.useId);
     setProfileName(item.profileName || '');
+    setOriginalIddId(item.iddId || null);
+    setIdentityDocumentCode(item.identityDocumentCode || null);
     reset({
       proId: item.proId || '',
       name: item.name || '',
       lastName: item.lastName || '',
+      iddId: item.iddId || '',
       identification: item.identification || '',
       username: item.username || '',
       email: item.email || '',
@@ -152,12 +190,14 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
       return;
     }
 
+    const identification = formData.identification.trim() || null;
     const payload = {
       useId,
       proId: formData.proId,
       name: formData.name,
       lastName: formData.lastName,
-      identification: formData.identification || null,
+      identification,
+      iddId: identification ? formData.iddId : null,
       username: formData.access ? (formData.username || formData.email.split('@')[0]) : null,
       email: formData.email,
       password: formData.password || null,
@@ -176,7 +216,9 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
         proId: formData.proId,
         name: formData.name,
         lastName: formData.lastName,
-        identification: formData.identification,
+        identification,
+        iddId: payload.iddId,
+        identityDocumentCode: identification ? identityDocumentCode : null,
         username: payload.username,
         email: formData.email,
         access: payload.access,

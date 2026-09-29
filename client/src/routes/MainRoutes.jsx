@@ -14,6 +14,9 @@ const DashboardDefault = Loadable(lazy(() => import('views/dashboard/Default')))
 const ProfilesPage = Loadable(lazy(() => import('views/security/profiles/ProfilePage')));
 const UsersPage    = Loadable(lazy(() => import('views/security/users/UsersPage')));
 
+// admin routing
+const IdentityDocumentPage = Loadable(lazy(() => import('views/admin/identityDocuments/IdentityDocumentPage')));
+
 // ==============================|| MAIN ROUTING ||============================== //
 
 const MainRoutes = {
@@ -36,6 +39,12 @@ const MainRoutes = {
           children: [
             { path: 'profiles', element: <ProfilesPage /> },
             { path: 'users',    element: <UsersPage /> }
+          ]
+        },
+        {
+          path: 'admin',
+          children: [
+            { path: 'identityDocuments', element: <IdentityDocumentPage /> }
           ]
         }
       ]

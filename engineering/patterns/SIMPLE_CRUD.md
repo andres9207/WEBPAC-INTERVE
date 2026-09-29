@@ -4,7 +4,9 @@
 
 **Referencia real:** `server/src/modules/security/profiles/` y `client/src/views/security/profiles/`, sin la parte de páginas asignadas.
 
-Los nombres `tbl_x`, `x_` y `ENTIDAD_X` son marcadores: para un maestro real se toman de [DEC-017](../decisiones/DEC-017-area-idioma-maestros.md). El área de los maestros es `admin`. La posición en `LOCK_ORDER` está pendiente (PD-04 en [`PROJECT_STATE`](../PROJECT_STATE.md)).
+Los nombres `tbl_x`, `x_` y `ENTIDAD_X` son marcadores: para un maestro real se toman de [DEC-017](../decisiones/DEC-017-area-idioma-maestros.md). El área de los maestros es `admin`. La entidad de bloqueo va al final de `LOCK_ORDER` ([DEC-019](../decisiones/DEC-019-maestros-orden-bloqueo.md)).
+
+**Maestro ya implementado con este patrón:** `server/src/modules/admin/identityDocuments/` y `client/src/views/admin/identityDocuments/` (unicidad con columna generada, selector de DEC-018, código no editable).
 
 ## `x.validation.js`
 

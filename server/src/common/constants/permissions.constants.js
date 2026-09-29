@@ -28,4 +28,12 @@ export const PERMISSIONS = {
     manage: 9, // crear/editar/eliminar documentos (save + delete de document.routes.js)
     view: 14, // listar/paginar documentos
   },
+  admin: {
+    identityDocuments: {
+      view: 17, // pagination_identity_documents
+      create: 18,
+      edit: 19,
+      delete: 20,
+    },
+  },
 };

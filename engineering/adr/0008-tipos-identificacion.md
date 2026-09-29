@@ -2,7 +2,19 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-09-29).
+
+Implementado: el maestro `tbl_identity_documents` (decisiones 1, 2, 3, 6 y 7), el tipo en usuarios con número ⇔ tipo garantizado por `CHECK` (decisión 8) y la identidad de usuario por par (tipo, número) controlada en el service. Ver migraciones `0017`–`0020`, [DEC-017](../decisiones/DEC-017-area-idioma-maestros.md), [DEC-018](../decisiones/DEC-018-selector-maestros.md) y [DEC-019](../decisiones/DEC-019-maestros-orden-bloqueo.md).
+
+Cambia respecto de este documento:
+
+- **El maestro tiene además `idd_code`** (CC, NIT…): código corto, único entre no eliminados y no editable después de crear el tipo.
+- **Decisión 5 (formato por tipo): no se implementa.** El negocio decidió que el número no lleva reglas de formato. El NIT se registra con su dígito de verificación, como texto.
+- **Tipos sembrados:** CC, CE, NIT, PA y PPT.
+
+Pendiente: proveedores (decisión 4, DOM-22), que depende de que exista `tbl_providers`.
+
+El texto que sigue es el análisis original.
 
 El maestro de tipos de identificación **no existe en el esquema**, pero **está referenciado por una clave foránea** desde `tbl_providers`. Este ADR documenta la decisión arquitectónica recomendada y registra un defecto de integridad del esquema actual.
 

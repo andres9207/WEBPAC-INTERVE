@@ -7,13 +7,16 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
 | Aplicar las migraciones `0011` a `0016` en orden. La `0014` vacía sesiones, códigos de recuperación e intentos de login: va junto con el despliegue, no antes ([DEC-009](../decisiones/DEC-009-zona-horaria.md)). La `0015` y la `0016` van **antes** del código que las usa: sin sus columnas, "olvidé mi contraseña" y crear registros fallan | Alta | `decisiones/README.md` |
+| Aplicar las migraciones `0017` a `0020` **junto con** el código de tipos de identificación, y después `yarn db:seed`. La `0019` agrega un `CHECK` a `tbl_users`: antes, verificar que ningún usuario tenga número sin tipo (la consulta está en el encabezado de la migración). Con la `0019` aplicada, el código viejo de `saveUser` falla al guardar un usuario con número de documento | Alta | ADR-0008 |
 | Restringir el usuario de BD de la aplicación a `INSERT`/`SELECT` sobre `tbl_audit_log`. Hoy ningún código la modifica, pero el usuario tiene privilegios para hacerlo ([DEC-007](../decisiones/DEC-007-bitacora-funcional.md), sugerencia en `0013_create_audit_log.sql`) | Alta | `SECURITY.md` |
 
 ## Funcionalidad abierta
 
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
-| Pantalla y endpoint para consultar la bitácora, con permiso propio (`per_id` 17) | Media | ADR-0013, B16 |
+| Pantalla y endpoint para consultar la bitácora, con permiso propio (siguiente `per_id` libre: 21; el 17 lo tomó el maestro de tipos de identificación) | Media | ADR-0013, B16 |
+| Tipo de identificación en proveedores: el selector y el bloqueo ya existen; `deleteIdentityDocument` debe contar también los proveedores cuando exista `tbl_providers` (DOM-20, DOM-22) | Alta | ADR-0008, ADR-0012 |
+| `UNIQUE` sobre (tipo, número) en usuarios: hoy el par solo se controla en el service (`checkIfUserExists`), fuera de la transacción. Dos creaciones simultáneas con el mismo documento pueden pasar | Media | ADR-0008 |
 | Política de retención de la bitácora | Media | ADR-0013, B15 |
 | Idempotencia en transiciones de estado: la infraestructura existe ([DEC-016](../decisiones/DEC-016-idempotencia-por-clave.md)); falta el historial de estado de cada agregado del CORE | Media | ADR-0027, B3 |
 | `UNIQUE` en el nombre de perfil: dos creaciones simultáneas con el mismo nombre pueden pasar el control del service | Media | ADR-0027, B4 |
@@ -35,7 +38,9 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 | --- | --- | --- |
 | `deleteProfile` responde **400** al eliminar un perfil ya eliminado; [DEC-006](../decisiones/DEC-006-columnas-autoria-eliminacion.md) exige **404**, y `deleteUser` ya lo cumple | Media | Descubrimiento de `engineering/` |
 | Duplicado por nombre: `saveProfile`/`saveUser` responden 400; el mismo duplicado detectado por la BD responde 409. Pendiente de decisión (PD-02 en [`PROJECT_STATE`](../PROJECT_STATE.md)) | Media | Descubrimiento de `engineering/` |
-| `GET /app/get_profiles` devuelve una lista sin paginar para combos, contra la letra de [DEC-013](../decisiones/DEC-013-paginacion.md). Pendiente de decisión (PD-01) | Media | Descubrimiento de `engineering/` |
+| `GET /app/get_profiles` es un selector sin paginar, como permite [DEC-018](../decisiones/DEC-018-selector-maestros.md), pero sin el tope fijo `take: MAX_ROWS` | Baja | Descubrimiento de `engineering/` |
+| `saveProfile` y `saveUser` aceptan `staId = 3` (`requiredId`): se puede "eliminar" por la ruta de guardar y saltarse la verificación de uso de `deleteProfile` (usuarios asignados) y la bitácora de eliminación. El maestro de tipos de identificación ya lo impide (`isIn([1, 2])`) | Media | Implementación de ADR-0008 |
+| Duplicado de tipo de identificación: el service responde 400 y la carrera que llega a la BD (`P2002` en `uq_identity_documents_*_active`) responde 409. Misma deriva que PD-02 | Baja | Implementación de ADR-0008 |
 | Nombres de los archivos de API del cliente mezclados: `authAPI.js`, `documentsAPI.js` frente a `usersApi.js`, `profilesApi.js`, `appApi.js`, `permissionsApi.js`, `notificationsApi.js`. `client/CLAUDE.md` dice `<dominio>API.js` | Baja | Descubrimiento de `engineering/` |
 | `ProfileDialog.jsx` y otros diálogos hacen `console.error` en la carga de datos auxiliares sin avisar al usuario (`getModules`) | Baja | Descubrimiento de `engineering/` |
 | `AUDIT_ENTITIES` solo tiene `USUARIO` y `PERFIL`: los documentos son auditoría técnica sin bitácora, a propósito (`server/CLAUDE.md`). Revisar al crear el primer módulo de negocio | Baja | ADR-0013 |

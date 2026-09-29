@@ -3,3 +3,4 @@ export * from "./authAPI";
 export * from "./permissionsApi";
 export * from "./profilesApi";
 export * from "./usersApi";
+export * from "./identityDocumentsApi";

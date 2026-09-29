@@ -21,7 +21,7 @@ El esqueleto de código está en [`patterns/SIMPLE_CRUD.md`](../patterns/SIMPLE_
 
 1. Leer el ADR del módulo: unicidad, relaciones, qué impide eliminar, nivel de auditoría.
 2. Llenar la spec con [`templates/CRUD_TEMPLATE.md`](../templates/CRUD_TEMPLATE.md).
-3. Mientras sigan abiertas, respetar las decisiones pendientes de [`PROJECT_STATE`](../PROJECT_STATE.md): **PD-01** (selects), **PD-02** (código del duplicado), y **PD-04** (posición en `LOCK_ORDER`). El primer maestro no se implementa sin resolverlas.
+3. Respetar la decisión pendiente **PD-02** (código del duplicado) de [`PROJECT_STATE`](../PROJECT_STATE.md). Los selects siguen [DEC-018](../decisiones/DEC-018-selector-maestros.md), y la posición en `LOCK_ORDER`, [DEC-019](../decisiones/DEC-019-maestros-orden-bloqueo.md). Maestro de referencia ya implementado: `admin/identityDocuments`.
 4. Tomar módulo, tabla y prefijo de la tabla de [DEC-017](../decisiones/DEC-017-area-idioma-maestros.md). Todos los maestros van en el área `admin/`.
 
 ## Orden de construcción
@@ -36,7 +36,14 @@ Migración `database/migrations/NNNN_create_<tabla>.sql` según [`DATABASE_STAND
 - `sta_id int NOT NULL DEFAULT 1` con FK a `tbl_status` (1 activo, 2 inactivo, 3 eliminado).
 - Las seis columnas de autoría con sus FK a `tbl_users`.
 - `<pre>_idempotency_key char(36)` con `UNIQUE` y `<pre>_idempotency_hash char(64)`.
-- Unicidad del dominio (p. ej. "descripción única entre no eliminados", ADR-0003): se controla en el service **dentro de la transacción** y se respalda en la BD. Como la regla excluye los eliminados, un `UNIQUE` simple no sirve: el patrón previsto es `UNIQUE` sobre una columna generada (ADR-0027, invariantes I6–I10). El primer maestro lo establece y lo documenta aquí.
+- Unicidad del dominio (p. ej. "descripción única entre no eliminados", ADR-0003): se controla en el service **dentro de la transacción** y se respalda en la BD. Como la regla excluye los eliminados, un `UNIQUE` simple no sirve. El patrón es una columna generada que vale el campo mientras el registro no está eliminado y `NULL` cuando lo está, con `UNIQUE` sobre ella (MySQL admite varios `NULL` en un `UNIQUE`):
+
+  ```sql
+  `<pre>_name_active` varchar(100) GENERATED ALWAYS AS (IF(`sta_id` <> 3, `<pre>_name`, NULL)) VIRTUAL,
+  UNIQUE INDEX `uq_<tabla>_name_active` (`<pre>_name_active`)
+  ```
+
+  La colación de la columna decide qué es igual (con `utf8mb4_0900_ai_ci`, "Cédula" y "cedula" son el mismo nombre). La columna generada nunca se escribe desde el código: se documenta con `///` en `schema.prisma`. Una carrera que pasa el control del service llega como `P2002` y responde 409 (PD-02). Referencia: `0017_create_identity_documents.sql`.
 
 Aplicarla en la BD de desarrollo y correr `npx prisma db pull` en `server/`. Renombrar las relaciones de autoría a `created_by_user` / `updated_by_user` / `deleted_by_user` (ver `database/migrations/README.md`, "Relación con Prisma").
 
@@ -49,7 +56,7 @@ Aplicarla en la BD de desarrollo y correr `npx prisma db pull` en `server/`. Ren
 
 ### 3. Protocolo de bloqueo y auditoría
 
-- Registrar la tabla en `LOCKABLE` de `server/src/common/services/transaction.service.js`, en su posición de `LOCK_ORDER` (**PD-04**).
+- Registrar la tabla en `LOCKABLE` de `server/src/common/services/transaction.service.js`, al final de `LOCK_ORDER` ([DEC-019](../decisiones/DEC-019-maestros-orden-bloqueo.md)). La operación que asigna el maestro a otro registro también lo bloquea, y verifica que esté activo (o que sea el que el registro ya tenía).
 - Si el ADR-0013 (decisión 9) exige auditoría **funcional** para el módulo, agregar la entidad a `AUDIT_ENTITIES` y escribir con `writeAudit`. Los maestros simples (aseguradoras, constructoras, tipos de interventoría, identificación, dirección y proveedor) son auditoría **técnica**: solo columnas, sin bitácora. Tipos de contrato y tipos de póliza sí son funcionales.
 
 ### 4. Service
@@ -60,7 +67,7 @@ Aplicarla en la BD de desarrollo y correr `npx prisma db pull` en `server/`. Ren
 | Crear | `runIdempotent({ target, key, ownerId, payload, execute })` → `withTransaction` | La clave se busca **antes** del control de duplicados. Autor en `<pre>_create_by` y `<pre>_update_by` |
 | Editar | `withLockedTransaction({ ENTIDAD: id }, fn, { idempotent: true })` | Nada se lee antes del bloqueo. Duplicado excluyendo el propio id. Inexistente → 404. Si pasa de eliminado a visible, limpiar `<pre>_delete_by/_at` |
 | Eliminar | `withLockedTransaction({ ENTIDAD: id }, fn)` | Lógica: `sta_id = 3`, `<pre>_delete_by`, `<pre>_delete_at`. Ya eliminado o inexistente → **404** (DEC-006). En uso → 400 con mensaje que diga por qué (ver COMPLEX_CRUD) |
-| Lista para selects | **PD-01** | Solo activos (`sta_id = 1`) |
+| Lista para selects | `findMany` con `take: MAX_ROWS`, sin `paginate` ([DEC-018](../decisiones/DEC-018-selector-maestros.md)) | Solo activos (`sta_id = 1`), más `includeId` si no está eliminado. Ruta con solo `verifyToken` |
 
 Los errores se lanzan con `new Error(msg)` y `.statusCode`. El service no conoce `req`.
 

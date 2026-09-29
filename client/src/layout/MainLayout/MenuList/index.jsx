@@ -28,6 +28,9 @@ const getIconByName = (iconName) => {
   if (name.includes('key') || name.includes('lock') || name.includes('shield') || name.includes('permissions')) {
     return TablerIcons.IconShield;
   }
+  if (name.includes('settings') || name.includes('admin')) {
+    return TablerIcons.IconSettings;
+  }
   if (name.includes('id') || name.includes('card')) {
     return TablerIcons.IconId;
   }
