@@ -2,9 +2,11 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-09-29).
 
-El maestro de tipos de interventoría **no existe** en el código ni en el esquema. Este ADR documenta la decisión arquitectónica recomendada.
+Implementado el maestro `tbl_supervision_types` (decisiones 1, 2, 5, 6 y 8): migraciones `0030`–`0032`, módulo `admin/supervisionTypes` sobre el patrón de maestro ([DEC-020](../decisiones/DEC-020-patron-maestro.md), [DEC-022](../decisiones/DEC-022-vista-maestro.md)), selector de activos para el formulario de obra, entidad de bloqueo `TIPO_INTERVENTORIA`. Tipos iniciales: Técnica, Administrativa, Financiera e Integral.
+
+Falta, con obras (ADR-0011): la FK (`RESTRICT`) y el bloqueo de eliminación por uso (decisión 5), el `JOIN` externo del listado de obras (decisión 7) y **confirmar el anclaje** (decisión 3, sigue pendiente de validación): si es el contrato, la FK va en la tabla de contratos. El catálogo no cambia en ningún caso. El texto de abajo es el análisis original.
 
 ## Fecha
 

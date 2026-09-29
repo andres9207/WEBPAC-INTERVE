@@ -4,7 +4,7 @@
 
 ## En una línea
 
-Plantilla base con seguridad, auditoría e integridad transaccional ya endurecidas. **Maestros implementados: aseguradoras y tipos de identificación, de proveedor y de dirección.** El resto del dominio (obras, proveedores, maestros, contratos, pólizas, facturación) está diseñado en 27 ADR y planificado en `docs/backlog/` (185 tareas).
+Plantilla base con seguridad, auditoría e integridad transaccional ya endurecidas. **Maestros implementados: aseguradoras y tipos de identificación, de proveedor, de dirección y de interventoría.** El resto del dominio (obras, proveedores, maestros, contratos, pólizas, facturación) está diseñado en 27 ADR y planificado en `docs/backlog/` (185 tareas).
 
 ## Arquitectura
 
@@ -26,8 +26,9 @@ Ver [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Maestro: tipos de proveedor | CRUD completo (servidor y cliente) sobre el patrón, selector de activos, nombre único entre no eliminados. Es una clasificación, sin reglas por tipo. Falta la FK desde `tbl_providers`, que todavía no existe | ADR-0010, DEC-023, migraciones 0022–0024 |
 | Maestro: tipos de dirección | CRUD completo (servidor y cliente) sobre el patrón, selector de activos para el futuro componente de contactos, nombre único entre no eliminados. Validación de correo reutilizable (`emailRule`). Faltan las tablas de contacto de obra y de proveedor | ADR-0009, migraciones 0025–0027 |
 | Maestro: aseguradoras | CRUD completo (servidor y cliente) sobre el patrón, selector de activas para el futuro formulario de póliza, descripción única entre no eliminadas. Falta el bloqueo de eliminación por pólizas, que llega con `tbl_policies` | ADR-0003, migraciones 0028–0029 |
+| Maestro: tipos de interventoría | CRUD completo (servidor y cliente) sobre el patrón, selector de activos para el futuro formulario de obra, nombre único entre no eliminados. Faltan la FK y el bloqueo por uso, que llegan con obras; el anclaje (obra o contrato) sigue pendiente de confirmar | ADR-0007, migraciones 0030–0032 |
 | Patrón de maestro | Fábrica reutilizable: un maestro se declara con `defineMaster` (dos archivos). Listado, obtener, selector, crear, editar, cambiar estado con permiso propio, eliminar con verificación de dependientes. En el cliente, `MasterPage` + `createMasterApi`: la pantalla se declara, con búsqueda de un solo campo y pestañas por estado con conteo | DEC-020, DEC-022 |
-| Tests | Servidor: 32 suites, 294 tests (Jest, unitarios con mocks) | [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
+| Tests | Servidor: 33 suites, 298 tests (Jest, unitarios con mocks) | [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
 
 ## Parcial
 
@@ -38,15 +39,15 @@ Ver [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## No implementado
 
-Todo el dominio salvo cuatro maestros: los otros cuatro maestros (ADR 0004, 0006, 0007, 0019), obras (0011), proveedores (0012), contratos y conceptos (0015–0017), pólizas (0018), facturación (0020–0026) y dashboard (0002). El cliente no tiene tests. El servidor no tiene linter.
+Todo el dominio salvo cinco maestros: los otros tres maestros (ADR 0004, 0006, 0019), obras (0011), proveedores (0012), contratos y conceptos (0015–0017), pólizas (0018), facturación (0020–0026) y dashboard (0002). El cliente no tiene tests. El servidor no tiene linter.
 
 ## ADR vigentes
 
 | Estado | ADR |
 | --- | --- |
 | Aceptado | 0001 (abierto: MFA), 0013 (abierto: retención y consulta), 0027 |
-| Aceptado parcial | 0003 (maestro; falta el bloqueo por pólizas), 0008 (maestro, usuarios y formato; falta proveedores), 0009 (maestro; faltan los contactos), 0010 (maestro; falta la columna en proveedores), 0014 |
-| Propuesto (arquitectura objetivo) | 0002, 0004, 0006, 0007, 0011, 0012, 0015–0026 |
+| Aceptado parcial | 0003 (maestro; falta el bloqueo por pólizas), 0007 (maestro; falta obras y confirmar el anclaje), 0008 (maestro, usuarios y formato; falta proveedores), 0009 (maestro; faltan los contactos), 0010 (maestro; falta la columna en proveedores), 0014 |
+| Propuesto (arquitectura objetivo) | 0002, 0004, 0006, 0011, 0012, 0015–0026 |
 | Reemplazado | 0005 → 0017 |
 
 ## Invariantes

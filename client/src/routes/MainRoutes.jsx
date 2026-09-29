@@ -19,6 +19,7 @@ const IdentityDocumentPage = Loadable(lazy(() => import('views/admin/identityDoc
 const ProviderTypePage = Loadable(lazy(() => import('views/admin/providerTypes/ProviderTypePage')));
 const AddressTypePage = Loadable(lazy(() => import('views/admin/addressTypes/AddressTypePage')));
 const InsurerPage = Loadable(lazy(() => import('views/admin/insurers/InsurerPage')));
+const SupervisionTypePage = Loadable(lazy(() => import('views/admin/supervisionTypes/SupervisionTypePage')));
 
 // ==============================|| MAIN ROUTING ||============================== //
 
@@ -50,7 +51,8 @@ const MainRoutes = {
             { path: 'identityDocuments', element: <IdentityDocumentPage /> },
             { path: 'providerTypes', element: <ProviderTypePage /> },
             { path: 'addressTypes', element: <AddressTypePage /> },
-            { path: 'insurers', element: <InsurerPage /> }
+            { path: 'insurers', element: <InsurerPage /> },
+            { path: 'supervisionTypes', element: <SupervisionTypePage /> }
           ]
         }
       ]

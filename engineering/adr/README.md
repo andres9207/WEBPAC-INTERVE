@@ -69,7 +69,7 @@ Por eso casi todos los ADR están en estado `Propuesto`:
 | [0004](0004-constructoras.md) | Maestro; obras nunca ocultas por el estado del maestro | Configuración | Propuesto | 0011, 0013, 0014 |
 | [0005](0005-estados-contrato.md) | Estados de contrato (versión inicial) | Contratos | **Reemplazado por ADR-0017** | — |
 | [0006](0006-tipos-contrato.md) | Configuración relacional de campos por tipo de contrato | Configuración | Propuesto | 0013, 0014 |
-| [0007](0007-tipos-interventoria.md) | Maestro anclado a la obra | Configuración | Propuesto | 0011 |
+| [0007](0007-tipos-interventoria.md) | Maestro anclado a la obra | Configuración | Aceptado parcial | 0011 |
 | [0008](0008-tipos-identificacion.md) | Maestro sin datos personales; FK a tabla ausente | Configuración | Propuesto | 0012 |
 | [0009](0009-tipos-direccion.md) | Catálogo compartido; contactos en tablas separadas | Configuración | Aceptado parcial | 0011, 0012 |
 | [0010](0010-tipos-proveedor.md) | Clasificación del proveedor (DEC-023) | Configuración | Aceptado parcial | 0012 |

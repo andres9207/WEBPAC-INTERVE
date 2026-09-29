@@ -57,5 +57,12 @@ export const PERMISSIONS = {
       delete: 35,
       changeStatus: 36,
     },
+    supervisionTypes: {
+      view: 37, // pagination_supervision_types
+      create: 38,
+      edit: 39,
+      delete: 40,
+      changeStatus: 41,
+    },
   },
 };

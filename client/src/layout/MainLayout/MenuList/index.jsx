@@ -43,6 +43,9 @@ const getIconByName = (iconName) => {
   if (name.includes('umbrella')) {
     return TablerIcons.IconUmbrella;
   }
+  if (name.includes('eye')) {
+    return TablerIcons.IconEye;
+  }
   return TablerIcons.IconCircleDot || null;
 };
 

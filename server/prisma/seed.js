@@ -22,6 +22,8 @@ const PAGES = [
   { pag_id: 8, pag_description: "Tipos de dirección", pag_parent: 5, pag_url: "admin/addressTypes", pag_icon: "map-pin", pag_order: 3, pag_name: "Tipos de dirección", pag_type: 2 },
   // database/migrations/0029_seed_insurers_pages_permissions.sql
   { pag_id: 9, pag_description: "Aseguradoras", pag_parent: 5, pag_url: "admin/insurers", pag_icon: "umbrella", pag_order: 4, pag_name: "Aseguradoras", pag_type: 2 },
+  // database/migrations/0032_seed_supervision_types_pages_permissions.sql
+  { pag_id: 10, pag_description: "Tipos de interventoría", pag_parent: 5, pag_url: "admin/supervisionTypes", pag_icon: "eye", pag_order: 5, pag_name: "Tipos de interventoría", pag_type: 2 },
 ];
 
 const PERMISSIONS = [
@@ -53,6 +55,11 @@ const PERMISSIONS = [
   { per_id: 34, per_name: "Modificar aseguradora", pag_id: 9, per_order: 2 },
   { per_id: 35, per_name: "Eliminar aseguradora", pag_id: 9, per_order: 3 },
   { per_id: 36, per_name: "Cambiar estado aseguradora", pag_id: 9, per_order: 4 },
+  // database/migrations/0032_seed_supervision_types_pages_permissions.sql
+  { per_id: 38, per_name: "Crear tipo de interventoría", pag_id: 10, per_order: 1 },
+  { per_id: 39, per_name: "Modificar tipo de interventoría", pag_id: 10, per_order: 2 },
+  { per_id: 40, per_name: "Eliminar tipo de interventoría", pag_id: 10, per_order: 3 },
+  { per_id: 41, per_name: "Cambiar estado tipo de interventoría", pag_id: 10, per_order: 4 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -85,6 +92,7 @@ const VIEW_PERMISSIONS = [
   { per_id: 22, per_name: "Ver tipos de proveedor", pag_id: 7, per_order: 5 },
   { per_id: 27, per_name: "Ver tipos de dirección", pag_id: 8, per_order: 5 },
   { per_id: 32, per_name: "Ver aseguradoras", pag_id: 9, per_order: 5 },
+  { per_id: 37, per_name: "Ver tipos de interventoría", pag_id: 10, per_order: 5 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay
@@ -130,6 +138,14 @@ const ADDRESS_TYPES = [
   { adt_id: 5, adt_name: "Bodega", sta_id: 1 },
 ];
 
+// Tipos de interventoría iniciales (database/migrations/0031_seed_supervision_types.sql).
+const SUPERVISION_TYPES = [
+  { spt_id: 1, spt_name: "Técnica", sta_id: 1 },
+  { spt_id: 2, spt_name: "Administrativa", sta_id: 1 },
+  { spt_id: 3, spt_name: "Financiera", sta_id: 1 },
+  { spt_id: 4, spt_name: "Integral", sta_id: 1 },
+];
+
 async function main() {
   for (const status of STATUSES) {
     await prisma.tbl_status.upsert({
@@ -166,6 +182,15 @@ async function main() {
     });
   }
   console.log(`tbl_address_types: ${ADDRESS_TYPES.length} tipos sembrados (los existentes no se modifican).`);
+
+  for (const supervisionType of SUPERVISION_TYPES) {
+    await prisma.tbl_supervision_types.upsert({
+      where: { spt_id: supervisionType.spt_id },
+      update: {},
+      create: supervisionType,
+    });
+  }
+  console.log(`tbl_supervision_types: ${SUPERVISION_TYPES.length} tipos sembrados (los existentes no se modifican).`);
 
   for (const page of PAGES) {
     await prisma.tbl_pages.upsert({

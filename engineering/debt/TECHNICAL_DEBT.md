@@ -12,13 +12,15 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 | Aplicar las migraciones `0022` a `0024` (maestro de tipos de proveedor) junto con su código, y después `yarn db:seed` | Alta | ADR-0010 |
 | Aplicar las migraciones `0025` a `0027` (maestro de tipos de dirección) junto con su código, y después `yarn db:seed` | Alta | ADR-0009 |
 | Aplicar las migraciones `0028` y `0029` (maestro de aseguradoras) junto con su código, y después `yarn db:seed` | Alta | ADR-0003 |
+| Aplicar las migraciones `0030` a `0032` (maestro de tipos de interventoría) junto con su código, y después `yarn db:seed` | Alta | ADR-0007 |
 | Restringir el usuario de BD de la aplicación a `INSERT`/`SELECT` sobre `tbl_audit_log`. Hoy ningún código la modifica, pero el usuario tiene privilegios para hacerlo ([DEC-007](../decisiones/DEC-007-bitacora-funcional.md), sugerencia en `0013_create_audit_log.sql`) | Alta | `SECURITY.md` |
 
 ## Funcionalidad abierta
 
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
-| Pantalla y endpoint para consultar la bitácora, con permiso propio (siguiente `per_id` libre: 37; del 17 al 21 son de tipos de identificación, del 22 al 26 de tipos de proveedor, del 27 al 31 de tipos de dirección y del 32 al 36 de aseguradoras) | Media | ADR-0013, B16 |
+| Pantalla y endpoint para consultar la bitácora, con permiso propio (siguiente `per_id` libre: 42; del 17 al 21 son de tipos de identificación, del 22 al 26 de tipos de proveedor, del 27 al 31 de tipos de dirección, del 32 al 36 de aseguradoras y del 37 al 41 de tipos de interventoría) | Media | ADR-0013, B16 |
+| Obras y tipo de interventoría: confirmar con el área usuaria el anclaje (obra o contrato, ADR-0007 decisión 3). En la tabla que corresponda, FK `RESTRICT` a `tbl_supervision_types` con índice, y agregarla a los `dependents` de `supervisionTypes.service.js` con label "obra(s)". El listado de obras usa `JOIN` externo (en Prisma, relación opcional sin filtrar por el estado del tipo) para no ocultar obras con el tipo inactivo. Hasta entonces un tipo se puede eliminar sin verificar uso | Alta | ADR-0007 |
 | Pólizas y aseguradora: al crear `tbl_policies` (ADR-0018), FK `RESTRICT` a `tbl_insurers` con índice, y agregarla a los `dependents` de `insurers.service.js` con label "póliza(s)". Decidir entonces si una póliza eliminada lógicamente también impide eliminar la aseguradora (ADR-0003 dice "al menos una póliza"; el patrón hoy cuenta solo las no eliminadas). Hasta entonces una aseguradora se puede eliminar sin verificar uso | Alta | ADR-0003 |
 | Contactos de obra y de proveedor: al crear sus tablas (PRO-BD-04, PRO-BD-06), FK `RESTRICT` al tipo de dirección y agregarlas a los `dependents` de `addressTypes.service.js`, con label "contacto(s)". Hasta entonces un tipo se puede eliminar sin verificar uso, porque nada lo referencia | Alta | ADR-0009 |
 | Tipo de proveedor en proveedores: columna `pvt_id` en `tbl_providers` (FK `RESTRICT` e índice), y agregar `tbl_providers` a los `dependents` de `providerTypes.service.js`. Hasta entonces un tipo se puede eliminar sin verificar uso, porque nada lo referencia (MAE-BD-11, DEC-023) | Alta | ADR-0010 |

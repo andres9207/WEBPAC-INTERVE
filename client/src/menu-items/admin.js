@@ -1,8 +1,8 @@
 // assets
-import { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella } from '@tabler/icons-react';
+import { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella, IconEye } from '@tabler/icons-react';
 
 // constant
-const icons = { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella };
+const icons = { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella, IconEye };
 
 // ==============================|| ADMIN MENU ITEMS ||============================== //
 // Solo alimenta las migas de pan: el sidebar sale de tbl_pages.
@@ -48,6 +48,14 @@ const admin = {
           type: 'item',
           url: '/admin/insurers',
           icon: icons.IconUmbrella,
+          breadcrumbs: true
+        },
+        {
+          id: 'supervisionTypes',
+          title: 'Tipos de interventoría',
+          type: 'item',
+          url: '/admin/supervisionTypes',
+          icon: icons.IconEye,
           breadcrumbs: true
         }
       ]
