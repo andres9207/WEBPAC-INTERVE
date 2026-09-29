@@ -61,6 +61,7 @@ Un pedido que contradice una regla se señala **antes** de implementar (ver "App
 
 - [`client/CLAUDE.md`](../client/CLAUDE.md) y [`server/CLAUDE.md`](../server/CLAUDE.md) tienen el detalle operativo de cada proyecto (comandos, variables de entorno, mapa de carpetas). Los estándares de aquí enlazan a ellos en vez de copiarlos.
 - [`database/migrations/README.md`](../database/migrations/README.md) es el estándar de migraciones y de columnas de auditoría.
+- `graphify-out/` es un grafo del código para navegarlo sin leer archivos enteros; cómo usarlo, en [`AGENT_WORKFLOW.md`](AGENT_WORKFLOW.md), paso 2. Se regenera solo después de cada commit (hook `post-commit` de graphify).
 - `docs/` guarda material de trabajo que no es regla: el backlog (`docs/backlog/`), los prompts con que se generaron los ADR (`docs/prompt_adr*.md`) y specs en borrador (`docs/specs/`).
 
 ## Mantenimiento

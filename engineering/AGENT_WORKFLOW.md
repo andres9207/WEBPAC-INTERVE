@@ -24,6 +24,24 @@ Antes de escribir nada:
 
 Regla: **reutilizar un patrón existente antes de crear uno nuevo.**
 
+### Navegar el código con el grafo (graphify)
+
+`graphify-out/` tiene un grafo del **código** (`client/`, `server/`, `database/`; la documentación queda fuera por `.graphifyignore`). Sirve para ubicar sin abrir archivos enteros y así no llenar la conversación. Se consulta **antes** de hacer grep o leer archivos para entender algo:
+
+| Necesito | Comando |
+| --- | --- |
+| Qué es un símbolo, dónde está, qué llama y quién lo contiene | `graphify explain "deleteProfile()"` |
+| Cómo se conectan dos piezas | `graphify path "saveUser()" "writeAudit()"` |
+| Contexto amplio de un tema, con tope de tokens | `graphify query "withLockedTransaction" --budget 1500` |
+| Vista general de la arquitectura (solo si lo anterior no alcanza) | `graphify-out/GRAPH_REPORT.md` |
+
+- **Consultar por nombre de símbolo, en inglés**, como está en el código (`deleteProfile()`, `paginate`, `tbl_profiles`). Una frase en español ("cómo se elimina un perfil") trae resultados imprecisos.
+- **Límite conocido:** no resuelve llamadas a través de un namespace importado (`profilesService.deleteProfile(...)` en los controllers), así que `path` de controller a service puede decir que no hay camino aunque exista. En ese caso, se confirma leyendo el controller.
+- El grafo sirve para **ubicar**. El código que se va a modificar se lee igual antes de editarlo.
+- **El grafo refleja el último commit**, no el trabajo en curso. Lo regenera un hook de git `post-commit` (y `post-checkout` al cambiar de rama), en segundo plano. Lo que todavía no tiene commit, se ve con `git status` / `git diff` y leyendo esos archivos.
+- **El agente no ejecuta `graphify update`**: sus cambios pueden descartarse en la revisión, y el grafo solo se actualiza con lo que se aprueba haciendo commit. Después de cada commit, `graph.json` y `graph.html` quedan modificados y entran en el commit siguiente: es esperado.
+- Si el comando `graphify` no existe en la máquina: `python -m pip install "graphifyy[sql]"`, y luego `graphify hook install` para instalar los hooks (son locales de cada clon, no se versionan).
+
 ## 3. Clasificar
 
 | Clase | Qué es | Dónde seguir |

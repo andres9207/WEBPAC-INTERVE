@@ -1,0 +1,6 @@
+# Se versionan graph.json, GRAPH_REPORT.md, graph.html y manifest.json.
+# Lo de abajo es caché local o respaldo de reconstrucciones anteriores.
+cache/
+20*/
+.graphify_python
+.needs_update

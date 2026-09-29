@@ -1,0 +1,16 @@
+# Grafo de graphify: solo código (client/, server/, database/).
+# La documentación se lee por partes según engineering/AGENT_WORKFLOW.md, no por el grafo.
+# node_modules, dist y graphify-out ya los excluye graphify por defecto;
+# también respeta los .gitignore de cada carpeta.
+
+engineering/
+docs/
+*.md
+
+# Logs y recursos estáticos, sin estructura de código
+server/logs/
+server/src/images/
+client/public/
+client/src/assets/
+
+skills-lock.json

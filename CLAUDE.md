@@ -9,6 +9,14 @@ Punto de entrada para Claude Code. **No reemplaza a [`engineering/`](engineering
 3. Todo endpoint o service nuevo sigue [`engineering/standards/ENDPOINT_STANDARD.md`](engineering/standards/ENDPOINT_STANDARD.md). Es obligatorio.
 4. Antes de un módulo nuevo: [`engineering/standards/MODULE_STANDARD.md`](engineering/standards/MODULE_STANDARD.md) para clasificarlo, y [`engineering/PROJECT_STATE.md`](engineering/PROJECT_STATE.md) para las decisiones pendientes que lo bloquean.
 
+## Contexto que se carga en cada sesión
+
+Estos tres archivos se importan siempre: el protocolo no depende de que el agente decida leerlo. El resto de `engineering/` se carga según el tipo de cambio, como indica el protocolo.
+
+@engineering/README.md
+@engineering/AGENT_WORKFLOW.md
+@engineering/PROJECT_STATE.md
+
 ## Resumen del repositorio
 
 Sistema de registro y control de contratos de materiales con proveedores, contratistas y subcontratistas ("WEBPAC-INTERVE"), construido sobre una plantilla full-stack de administración. Hoy tiene la base (seguridad, auditoría, integridad transaccional); el dominio está diseñado en `engineering/adr/` y todavía no está implementado.
