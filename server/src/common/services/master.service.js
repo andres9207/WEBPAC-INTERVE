@@ -73,6 +73,7 @@ export const defineMaster = (config) => {
     filter: false,
     sortable: false,
     uppercase: false,
+    feminine: false, // "esa descripción" en vez de "ese nombre"
     maxLength: 255,
     ...field,
   }));
@@ -223,7 +224,7 @@ export const createMasterService = (config) => {
     if (!duplicate) return;
     const same = (x, y) => String(x ?? "").localeCompare(String(y ?? ""), "es", { sensitivity: "base" }) === 0;
     const field = checks.find((f) => same(duplicate[f.column], values[f.column])) ?? checks[0];
-    throw httpError(400, `Ya existe ${article} ${config.label} con ese ${field.label}.`);
+    throw httpError(400, `Ya existe ${article} ${config.label} con ${field.feminine ? "esa" : "ese"} ${field.label}.`);
   };
 
   const auditColumns = [...fields.map((f) => f.column), "sta_id"];
@@ -337,7 +338,7 @@ export const createMasterService = (config) => {
         if (count > 0) {
           throw httpError(
             400,
-            `No se puede eliminar ${the} ${config.label}: lo usan ${count} ${dependent.label}. Puedes desactivarl${a} para que no se asigne en registros nuevos.`
+            `No se puede eliminar ${the} ${config.label}: l${a} usan ${count} ${dependent.label}. Puedes desactivarl${a} para que no se asigne en registros nuevos.`
           );
         }
       }

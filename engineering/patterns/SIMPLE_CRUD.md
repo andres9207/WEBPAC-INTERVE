@@ -30,7 +30,7 @@ export const xService = createMasterService(xConfig);
 export default createMasterRouter(xConfig, xService);
 ```
 
-Opciones de un campo: `required` (por defecto sí), `maxLength`, `pattern: { regex, message }`, `uppercase`, `editable` (por defecto sí), `unique`, `filter`, `sortable`. Tests: solo lo propio de la config, como en `test/modules/admin/identityDocuments/`. El comportamiento común ya está probado en `test/common/`.
+Opciones de un campo: `required` (por defecto sí), `maxLength`, `feminine` ("esa descripción" en los mensajes), `pattern: { regex, message }`, `uppercase`, `editable` (por defecto sí), `unique`, `filter`, `sortable`. Tests: solo lo propio de la config, como en `test/modules/admin/identityDocuments/`. El comportamiento común ya está probado en `test/common/`.
 
 Cliente ([DEC-022](../decisiones/DEC-022-vista-maestro.md)):
 

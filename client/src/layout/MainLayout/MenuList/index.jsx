@@ -40,6 +40,9 @@ const getIconByName = (iconName) => {
   if (name.includes('map')) {
     return TablerIcons.IconMapPin;
   }
+  if (name.includes('umbrella')) {
+    return TablerIcons.IconUmbrella;
+  }
   return TablerIcons.IconCircleDot || null;
 };
 

@@ -254,7 +254,7 @@ describe("remove", () => {
 
     await expect(service.remove({ id: 5, useBy: 7 })).rejects.toMatchObject({
       statusCode: 400,
-      message: expect.stringContaining("lo usan 3 póliza(s)"),
+      message: "No se puede eliminar la aseguradora: la usan 3 póliza(s). Puedes desactivarla para que no se asigne en registros nuevos.",
     });
     expect(prismaMock.tbl_owners.count).toHaveBeenCalledWith({ where: { thg_id: 5, sta_id: { not: 3 } } });
     // Se cuenta con el registro ya bloqueado (DEC-019).

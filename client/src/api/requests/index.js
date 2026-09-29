@@ -6,3 +6,4 @@ export * from "./usersApi";
 export * from "./identityDocumentsApi";
 export * from "./providerTypesApi";
 export * from "./addressTypesApi";
+export * from "./insurersApi";

@@ -24,7 +24,7 @@ Ningún ADR fijaba en qué carpeta y bajo qué URL viven los maestros, ni el idi
 
   | Maestro | Módulo | Tabla | Prefijo | Entidad de bloqueo | ADR |
   | --- | --- | --- | --- | --- | --- |
-  | Aseguradoras | `insurers` | `tbl_insurers` | `ins_` | PD-04 | 0003 |
+  | Aseguradoras | `insurers` | `tbl_insurers` | `ins_` | `ASEGURADORA` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0003 |
   | Constructoras | `constructionCompanies` | `tbl_construction_companies` | `cnc_` | PD-04 | 0004 |
   | Tipos de contrato | `contractTypes` | `tbl_contract_types` | `ctt_` | PD-04 | 0006 |
   | Tipos de interventoría | `supervisionTypes` | `tbl_supervision_types` | `spt_` | PD-04 | 0007 |

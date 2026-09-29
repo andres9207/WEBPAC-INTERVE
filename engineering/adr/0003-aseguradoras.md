@@ -2,9 +2,11 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-09-29).
 
-El maestro de aseguradoras **no existe** en el código ni en el esquema. Este ADR documenta la decisión arquitectónica recomendada, derivada del patrón de maestros realmente presente en el proyecto.
+Implementado el maestro `tbl_insurers` (decisiones 1, 2, 3, 5, 7 y 8): migraciones `0028`–`0029`, módulo `admin/insurers` sobre el patrón de maestro ([DEC-020](../decisiones/DEC-020-patron-maestro.md), [DEC-022](../decisiones/DEC-022-vista-maestro.md)), selector de activas para el formulario de póliza, entidad de bloqueo `ASEGURADORA`. Sin semilla: las aseguradoras se cargan desde la pantalla.
+
+Falta: la FK desde pólizas (decisión 6) y el bloqueo de eliminación por pólizas (decisión 4), que se conectan al crear `tbl_policies` (ADR-0018) agregándola a los `dependents` del maestro. El bloqueo responde 400, no 409, mientras PD-02 siga abierta. El texto de abajo es el análisis original.
 
 ## Fecha
 

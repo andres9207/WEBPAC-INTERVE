@@ -65,7 +65,7 @@ Por eso casi todos los ADR están en estado `Propuesto`:
 | --- | --- | --- | --- | --- |
 | [0001](0001-seguridad.md) | JWT corto + sesión en BD con refresh token rotado y sesión única; `httpOnly`, secretos fuera del código, bloqueo de login, código de recuperación con HMAC | Seguridad | Aceptado (abierto: MFA) | 0013, 0014 |
 | [0002](0002-dashboard.md) | Indicadores por agregación SQL en backend; filtrado con el mismo criterio | Dashboard | Propuesto | 0011, 0015, 0017, 0018, 0020, 0014 |
-| [0003](0003-aseguradoras.md) | Maestro con eliminación lógica bloqueada por uso | Configuración | Propuesto | 0013, 0014 |
+| [0003](0003-aseguradoras.md) | Maestro con eliminación lógica bloqueada por uso | Configuración | Aceptado parcial | 0013, 0014 |
 | [0004](0004-constructoras.md) | Maestro; obras nunca ocultas por el estado del maestro | Configuración | Propuesto | 0011, 0013, 0014 |
 | [0005](0005-estados-contrato.md) | Estados de contrato (versión inicial) | Contratos | **Reemplazado por ADR-0017** | — |
 | [0006](0006-tipos-contrato.md) | Configuración relacional de campos por tipo de contrato | Configuración | Propuesto | 0013, 0014 |

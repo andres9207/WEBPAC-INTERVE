@@ -50,5 +50,12 @@ export const PERMISSIONS = {
       delete: 30,
       changeStatus: 31,
     },
+    insurers: {
+      view: 32, // pagination_insurers
+      create: 33,
+      edit: 34,
+      delete: 35,
+      changeStatus: 36,
+    },
   },
 };

@@ -1,8 +1,8 @@
 // assets
-import { IconSettings, IconId, IconTruck, IconMapPin } from '@tabler/icons-react';
+import { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella } from '@tabler/icons-react';
 
 // constant
-const icons = { IconSettings, IconId, IconTruck, IconMapPin };
+const icons = { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella };
 
 // ==============================|| ADMIN MENU ITEMS ||============================== //
 // Solo alimenta las migas de pan: el sidebar sale de tbl_pages.
@@ -40,6 +40,14 @@ const admin = {
           type: 'item',
           url: '/admin/addressTypes',
           icon: icons.IconMapPin,
+          breadcrumbs: true
+        },
+        {
+          id: 'insurers',
+          title: 'Aseguradoras',
+          type: 'item',
+          url: '/admin/insurers',
+          icon: icons.IconUmbrella,
           breadcrumbs: true
         }
       ]

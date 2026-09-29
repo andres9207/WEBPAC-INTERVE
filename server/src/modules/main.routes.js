@@ -13,6 +13,7 @@ import permissionsRoutes from "./security/permissions/permissions.routes.js";
 import identityDocumentsRoutes from "./admin/identityDocuments/identityDocuments.routes.js";
 import providerTypesRoutes from "./admin/providerTypes/providerTypes.routes.js";
 import addressTypesRoutes from "./admin/addressTypes/addressTypes.routes.js";
+import insurersRoutes from "./admin/insurers/insurers.routes.js";
 
 const mainRoutes = express.Router();
 
@@ -32,5 +33,6 @@ mainRoutes.use("/security/permissions", permissionsRoutes);
 mainRoutes.use("/admin/identityDocuments", identityDocumentsRoutes);
 mainRoutes.use("/admin/providerTypes", providerTypesRoutes);
 mainRoutes.use("/admin/addressTypes", addressTypesRoutes);
+mainRoutes.use("/admin/insurers", insurersRoutes);
 
 export default mainRoutes;

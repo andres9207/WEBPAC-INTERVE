@@ -20,6 +20,8 @@ const PAGES = [
   { pag_id: 7, pag_description: "Tipos de proveedor", pag_parent: 5, pag_url: "admin/providerTypes", pag_icon: "truck", pag_order: 2, pag_name: "Tipos de proveedor", pag_type: 2 },
   // database/migrations/0027_seed_address_types_pages_permissions.sql
   { pag_id: 8, pag_description: "Tipos de dirección", pag_parent: 5, pag_url: "admin/addressTypes", pag_icon: "map-pin", pag_order: 3, pag_name: "Tipos de dirección", pag_type: 2 },
+  // database/migrations/0029_seed_insurers_pages_permissions.sql
+  { pag_id: 9, pag_description: "Aseguradoras", pag_parent: 5, pag_url: "admin/insurers", pag_icon: "umbrella", pag_order: 4, pag_name: "Aseguradoras", pag_type: 2 },
 ];
 
 const PERMISSIONS = [
@@ -46,6 +48,11 @@ const PERMISSIONS = [
   { per_id: 29, per_name: "Modificar tipo de dirección", pag_id: 8, per_order: 2 },
   { per_id: 30, per_name: "Eliminar tipo de dirección", pag_id: 8, per_order: 3 },
   { per_id: 31, per_name: "Cambiar estado tipo de dirección", pag_id: 8, per_order: 4 },
+  // database/migrations/0029_seed_insurers_pages_permissions.sql
+  { per_id: 33, per_name: "Crear aseguradora", pag_id: 9, per_order: 1 },
+  { per_id: 34, per_name: "Modificar aseguradora", pag_id: 9, per_order: 2 },
+  { per_id: 35, per_name: "Eliminar aseguradora", pag_id: 9, per_order: 3 },
+  { per_id: 36, per_name: "Cambiar estado aseguradora", pag_id: 9, per_order: 4 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -77,6 +84,7 @@ const VIEW_PERMISSIONS = [
   { per_id: 17, per_name: "Ver tipos de identificación", pag_id: 6, per_order: 5 },
   { per_id: 22, per_name: "Ver tipos de proveedor", pag_id: 7, per_order: 5 },
   { per_id: 27, per_name: "Ver tipos de dirección", pag_id: 8, per_order: 5 },
+  { per_id: 32, per_name: "Ver aseguradoras", pag_id: 9, per_order: 5 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay

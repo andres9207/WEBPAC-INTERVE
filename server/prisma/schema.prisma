@@ -184,6 +184,7 @@ model tbl_status {
   tbl_address_types      tbl_address_types[]
   tbl_documents          tbl_documents[]
   tbl_identity_documents tbl_identity_documents[]
+  tbl_insurers           tbl_insurers[]
   tbl_profiles           tbl_profiles[]
   tbl_provider_types     tbl_provider_types[]
   tbl_users              tbl_users[]
@@ -232,6 +233,9 @@ model tbl_users {
   identity_documents_created tbl_identity_documents[] @relation("IdentityDocumentCreatedBy")
   identity_documents_deleted tbl_identity_documents[] @relation("IdentityDocumentDeletedBy")
   identity_documents_updated tbl_identity_documents[] @relation("IdentityDocumentUpdatedBy")
+  insurers_created           tbl_insurers[]           @relation("InsurerCreatedBy")
+  insurers_deleted           tbl_insurers[]           @relation("InsurerDeletedBy")
+  insurers_updated           tbl_insurers[]           @relation("InsurerUpdatedBy")
   tbl_login_attempts         tbl_login_attempts?
   tbl_notifications          tbl_notifications[]
   password_resets_created    tbl_password_resets[]    @relation("PasswordResetCreatedBy")
@@ -379,6 +383,33 @@ model tbl_address_types {
   @@index([adt_delete_by], map: "tbl_address_types_delete_by")
   @@index([sta_id], map: "tbl_address_types_status")
   @@index([adt_update_by], map: "tbl_address_types_update_by")
+}
+
+/// Maestro de aseguradoras (database/migrations/0028_create_insurers.sql).
+/// ins_description_active es una columna GENERADA por MySQL (respalda la unicidad entre no eliminadas):
+/// nunca se escribe desde el código.
+model tbl_insurers {
+  ins_id                 Int        @id @default(autoincrement())
+  ins_description        String     @db.VarChar(150)
+  sta_id                 Int        @default(1)
+  ins_create_by          Int?
+  ins_create_at          DateTime?  @default(now()) @db.Timestamp(0)
+  ins_update_by          Int?
+  ins_update_at          DateTime?  @default(now()) @db.Timestamp(0)
+  ins_delete_by          Int?
+  ins_delete_at          DateTime?  @db.Timestamp(0)
+  ins_idempotency_key    String?    @unique(map: "uq_insurers_idempotency_key") @db.Char(36)
+  ins_idempotency_hash   String?    @db.Char(64)
+  ins_description_active String?    @unique(map: "uq_insurers_description_active") @db.VarChar(150)
+  created_by_user        tbl_users? @relation("InsurerCreatedBy", fields: [ins_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_insurers_create_by")
+  deleted_by_user        tbl_users? @relation("InsurerDeletedBy", fields: [ins_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_insurers_delete_by")
+  tbl_status             tbl_status @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_insurers_status")
+  updated_by_user        tbl_users? @relation("InsurerUpdatedBy", fields: [ins_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_insurers_update_by")
+
+  @@index([ins_create_by], map: "tbl_insurers_create_by")
+  @@index([ins_delete_by], map: "tbl_insurers_delete_by")
+  @@index([sta_id], map: "tbl_insurers_status")
+  @@index([ins_update_by], map: "tbl_insurers_update_by")
 }
 
 enum tbl_documents_doc_type {
