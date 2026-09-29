@@ -27,9 +27,9 @@ export const createMasterControllers = (config, service) => {
 
   return {
     pagination: handle((req) => {
-      const { staId, rows, first, sortField, sortOrder } = req.body;
+      const { search, staId, rows, first, sortField, sortOrder } = req.body;
       const filters = Object.fromEntries(fields.filter((f) => f.filter).map((f) => [f.name, req.body[f.name]]));
-      return service.pagination({ filters, staId, rows, first, sortField, sortOrder });
+      return service.pagination({ filters, search, staId, rows, first, sortField, sortOrder });
     }),
     getById: handle((req) => service.getById({ id: req.query[idField] })),
     select: handle((req) => service.select({ includeId: req.query.includeId })),

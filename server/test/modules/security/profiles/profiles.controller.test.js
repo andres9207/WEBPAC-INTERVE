@@ -69,4 +69,13 @@ describe("profiles.controller — autor desde req.user", () => {
 
     expect(profilesServiceMock.paginationProfiles.mock.calls[0][0].useId).toBe(7);
   });
+
+  it("paginationProfilesController pasa la búsqueda general", async () => {
+    profilesServiceMock.paginationProfiles.mockResolvedValue({ results: [], total: 0 });
+    const req = mockReq({ user: { useId: 7 }, body: { search: "adm", staId: 1, rows: 10 } });
+
+    await paginationProfilesController(req, buildRes(), jest.fn());
+
+    expect(profilesServiceMock.paginationProfiles.mock.calls[0][0]).toMatchObject({ search: "adm", staId: 1 });
+  });
 });

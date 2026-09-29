@@ -8,7 +8,7 @@ import {
   idArray,
 } from "../../../common/utils/validation.utils.js";
 
-export const paginationProfilesSchema = [...paginationRules(), optionalText("name"), optionalId("staId")];
+export const paginationProfilesSchema = [...paginationRules(), optionalText("name"), optionalText("search", 100), optionalId("staId")];
 
 // proId = 0 es válido: el diálogo de "nuevo perfil" pide las páginas
 // disponibles sin tener todavía un perfil.

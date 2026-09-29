@@ -3,6 +3,15 @@ export const STATUS_OPTIONS = [
   { value: 2, label: 'Inactivo' },
 ];
 
+// Pestañas por estado de los listados (StatusTabs): activo e inactivo; eliminado nunca se lista.
+export const STATUS_TABS = [
+  { staId: 1, staName: 'Activos', staColor: 'success' },
+  { staId: 2, staName: 'Inactivos', staColor: 'warning' }
+];
+
+/** Pestañas con el conteo que devuelve el servidor (`statusCounts`). */
+export const statusTabsWithCounts = (statusCounts = {}) => STATUS_TABS.map((s) => ({ ...s, total: statusCounts[s.staId] ?? 0 }));
+
 const dev = import.meta.env.DEV;
 
 export const urlSocket = import.meta.env.VITE_SOCKET_URL || (

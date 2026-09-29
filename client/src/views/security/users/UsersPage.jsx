@@ -1,13 +1,13 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
-import Badge from '@mui/material/Badge';
 
-import { IconEdit, IconTrash, IconPlus, IconKey, IconFilter } from '@tabler/icons-react';
+import { IconEdit, IconTrash, IconPlus, IconKey } from '@tabler/icons-react';
 
 import MainCard from 'ui-component/cards/MainCard';
-import FilterPopper from 'ui-component/extended/FilterPopper';
+import SearchInput from 'ui-component/extended/SearchInput';
+import StatusTabs from 'ui-component/extended/StatusTabs';
 import DataTable from 'ui-component/extended/DataTable';
 import StatusChip from 'ui-component/extended/StatusChip';
 import LastModifiedCell from 'ui-component/extended/LastModifiedCell';
@@ -15,7 +15,7 @@ import UserDialog from './components/UserDialog';
 import PermissionsDrawer from '../profiles/components/PermissionsDrawer';
 import { paginationUsersAPI, deleteUserAPI } from 'api/requests/usersApi';
 import { useAuth } from 'contexts/AuthContext';
-import { STATUS_OPTIONS } from 'utils/constants';
+import { statusTabsWithCounts } from 'utils/constants';
 import { showError } from 'services/ToastService';
 
 export default function UsersPage() {
@@ -29,22 +29,19 @@ export default function UsersPage() {
   const [sortField, setSortField] = useState('name');
   const [sortOrder, setSortOrder] = useState(1);
 
-  const initialFilters = { name: '', lastName: '', identification: '', email: '' };
-  const [filters, setFilters] = useState(initialFilters);
-  const [filterAnchorEl, setFilterAnchorEl] = useState(null);
-  const filterOpen = Boolean(filterAnchorEl);
+  // Búsqueda general y pestañas por estado (DEC-024), como en los maestros.
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('all');
+  const [statusCounts, setStatusCounts] = useState({});
 
-  const handleSetFilters = (nextFilters) => {
-    setFilters(nextFilters);
+  const handleSearch = useCallback((text) => {
+    setSearch(text);
     setPage(0);
-  };
+  }, []);
 
-  const handleToggleFilters = (event) => {
-    setFilterAnchorEl((prev) => (prev ? null : event.currentTarget));
-  };
-
-  const handleCloseFilters = () => {
-    setFilterAnchorEl(null);
+  const handleStatus = (_, value) => {
+    setStatus(value);
+    setPage(0);
   };
 
   // perId != null antes de preguntar: hasPermission(undefined) es true por
@@ -66,14 +63,6 @@ export default function UsersPage() {
   const handleNewUser = () => userFormRef.current?.newUser();
   const handleEditUser = (item) => userFormRef.current?.editUser(item);
 
-  const handleAddUser = (item) => {
-    setRows((prev) => [item, ...prev]);
-    setTotal((prev) => prev + 1);
-  };
-
-  const handleUpdateUser = (item) => {
-    setRows((prev) => prev.map((row) => (row.useId === item.useId ? { ...row, ...item } : row)));
-  };
 
   const handleOpenPermissions = (item) => {
     setSelectedUser(item);
@@ -84,13 +73,8 @@ export default function UsersPage() {
     setLoading(true);
     try {
       const { data } = await paginationUsersAPI({
-        name: filters.name,
-        email: filters.email,
-        lastName: filters.lastName,
-        identification: filters.identification,
-        username: '',
-        staId: '',
-        proId: '',
+        search,
+        staId: status === 'all' ? '' : status,
         rows: rowsPerPage,
         first: page * rowsPerPage,
         sortField,
@@ -98,12 +82,13 @@ export default function UsersPage() {
       });
       setRows(data.results ?? []);
       setTotal(data.total ?? 0);
+      setStatusCounts(data.statusCounts ?? {});
     } catch (err) {
       showError(err.response?.data?.message || 'Error al cargar los usuarios');
     } finally {
       setLoading(false);
     }
-  }, [filters.name, filters.lastName, filters.identification, filters.email, page, rowsPerPage, sortField, sortOrder]);
+  }, [search, status, page, rowsPerPage, sortField, sortOrder]);
 
   useEffect(() => {
     fetchUsers();
@@ -127,23 +112,6 @@ export default function UsersPage() {
       showError(err.response?.data?.message || 'Error al eliminar el usuario');
     }
   };
-
-  const filterOptions = useMemo(() => [
-      { type: 'input', key: 'name', label: 'Nombre', filtro: filters.name, grid: { xs: 12, sm: 6 } },
-      { type: 'input', key: 'lastName', label: 'Apellido', filtro: filters.lastName, grid: { xs: 12, sm: 6 } },
-      { type: 'input', key: 'identification', label: 'Número de identificación', filtro: filters.identification, grid: { xs: 12, sm: 6 } },
-      { type: 'input', key: 'email', label: 'Correo', filtro: filters.email, grid: { xs: 12, sm: 6 } },
-      {
-        type: 'dropdown',
-        key: 'staId',
-        label: 'Estado',
-        filtro: filters.staId,
-        grid: { xs: 12, sm: 6 },
-        props: {
-            options: STATUS_OPTIONS,
-          },
-      },
-    ], [filters]);
 
   const columns = [
     { id: 'name', label: 'Nombre', sortable: true },
@@ -181,38 +149,23 @@ export default function UsersPage() {
       : []),
   ];
 
-  const activeFilterCount = Object.values(filters).filter((v) => v !== '' && v != null).length;
-
   return (
     <MainCard
       title={
-        <Stack direction="row" alignItems="center" justifyContent="flex-end" spacing={2}>
-          <Badge badgeContent={activeFilterCount} color="primary" size="small">
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<IconFilter size={16} />}
-              onClick={handleToggleFilters}
-            >
-              Filtros
-            </Button>
-          </Badge>
-          {canCreate && (
-            <Button variant="contained" startIcon={<IconPlus size={16} />} size="small" onClick={handleNewUser}>
-              Nuevo Usuario
-            </Button>
-          )}
+        // flexWrap: en ancho de teléfono los botones bajan de línea en vez de desbordar.
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexWrap: 'wrap', gap: 1.5 }}>
+          <SearchInput onSearch={handleSearch} placeholder="Buscar por nombre, correo o documento" />
+          <Stack direction="row" alignItems="center" sx={{ flexWrap: 'wrap', gap: 1.5, ml: 'auto' }}>
+            <StatusTabs statusTabs={statusTabsWithCounts(statusCounts)} selectedStatus={status} onChange={handleStatus} />
+            {canCreate && (
+              <Button variant="contained" startIcon={<IconPlus size={16} />} size="small" onClick={handleNewUser}>
+                Nuevo Usuario
+              </Button>
+            )}
+          </Stack>
         </Stack>
       }
-    >     
-      <FilterPopper
-        anchorEl={filterAnchorEl}
-        open={filterOpen}
-        onClose={handleCloseFilters}
-        filters={filterOptions}
-        setFilters={handleSetFilters}
-        initialFilters={initialFilters}
-      />
+    >
 
       <DataTable
         columns={columns}
@@ -231,7 +184,8 @@ export default function UsersPage() {
         actions={actionItems}
       />
 
-      <UserDialog ref={userFormRef} addItem={handleAddUser} updateItem={handleUpdateUser} />
+      {/* Recarga después de guardar, en vez de tocar la fila en memoria: los conteos de las pestañas siguen exactos (DEC-022). */}
+      <UserDialog ref={userFormRef} addItem={fetchUsers} updateItem={fetchUsers} />
       <PermissionsDrawer
         visible={permissionsVisible}
         setVisible={setPermissionsVisible}

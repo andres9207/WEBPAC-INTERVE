@@ -1,6 +1,6 @@
 import { hashPassword } from "../../../common/utils/funciones.js";
 import { prisma } from "../../../common/configs/prismaClient.js";
-import { paginate } from "../../../common/utils/pagination.utils.js";
+import { paginate, searchWhere, countByStatus } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
@@ -37,6 +37,7 @@ export const paginationUsers = async ({
   email,
   identification,
   username,
+  search,
   staId,
   rows,
   first,
@@ -54,48 +55,54 @@ export const paginationUsers = async ({
   // crudos en cláusulas LIKE (`LIKE REPLACE('%${name}%', ...)`), sin
   // parametrizar — inyección SQL explotable vía el body de list_users. El
   // `where` de Prisma nunca interpola: siempre parametrizado por diseño.
-  const where = {
+  // Sin el filtro de estado: es la base de los conteos de las pestañas.
+  const baseWhere = {
     ...(proId ? { pro_id: Number(proId) } : {}),
     ...(name ? { use_name: { contains: name } } : {}),
     ...(lastName ? { use_last_name: { contains: lastName } } : {}),
     ...(email ? { use_email: { contains: email } } : {}),
     ...(identification ? { use_identification: { contains: identification } } : {}),
     ...(username ? { use_user: { contains: username } } : {}),
+    // Búsqueda general (DEC-024): nombre, apellido, correo, número de documento o usuario.
+    ...searchWhere(["use_name", "use_last_name", "use_email", "use_identification", "use_user"], search),
     sta_id: { not: 3 },
-    ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}),
     // JOIN tbl_profiles p ON u.pro_id = p.pro_id AND p.sta_id = 1 del SQL
     // original: solo usuarios cuyo perfil sigue activo.
     tbl_profiles: { sta_id: 1 },
   };
+  const where = { ...baseWhere, ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}) };
 
-  const page = await paginate(
-    prisma.tbl_users,
-    {
-      where,
-      select: {
-        use_id: true,
-        use_name: true,
-        use_last_name: true,
-        use_identification: true,
-        idd_id: true,
-        tbl_identity_documents: { select: { idd_code: true } },
-        use_user: true,
-        use_email: true,
-        use_access: true,
-        use_change_password: true,
-        use_update_at: true,
-        use_update_by: true,
-        sta_id: true,
-        pro_id: true,
-        tbl_profiles: { select: { pro_name: true } },
-        tbl_status: { select: { sta_name: true } },
-        tbl_user_pages: { select: { pag_id: true } },
-        updated_by_user: USER_NAME_SELECT,
+  const [page, statusCounts] = await Promise.all([
+    paginate(
+      prisma.tbl_users,
+      {
+        where,
+        select: {
+          use_id: true,
+          use_name: true,
+          use_last_name: true,
+          use_identification: true,
+          idd_id: true,
+          tbl_identity_documents: { select: { idd_code: true } },
+          use_user: true,
+          use_email: true,
+          use_access: true,
+          use_change_password: true,
+          use_update_at: true,
+          use_update_by: true,
+          sta_id: true,
+          pro_id: true,
+          tbl_profiles: { select: { pro_name: true } },
+          tbl_status: { select: { sta_name: true } },
+          tbl_user_pages: { select: { pag_id: true } },
+          updated_by_user: USER_NAME_SELECT,
+        },
+        orderBy,
       },
-      orderBy,
-    },
-    { first, rows }
-  );
+      { first, rows }
+    ),
+    countByStatus(prisma.tbl_users, baseWhere),
+  ]);
 
   const results = page.results.map((u) => ({
     useId: u.use_id,
@@ -122,7 +129,7 @@ export const paginationUsers = async ({
     usePages: u.tbl_user_pages.map((p) => p.pag_id).join(","),
   }));
 
-  return { ...page, results };
+  return { ...page, results, statusCounts };
 };
 
 export const countUsers = async ({ useId }) => {

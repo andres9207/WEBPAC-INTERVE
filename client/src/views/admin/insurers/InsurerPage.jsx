@@ -8,8 +8,6 @@ import { useAuth } from 'contexts/AuthContext';
 
 const COLUMNS = [{ id: 'description', label: 'Descripción', sortable: true }];
 
-const FILTERS = [{ key: 'description', label: 'Descripción' }];
-
 const FORM_FIELDS = [
   {
     name: 'description',
@@ -33,7 +31,7 @@ export default function InsurerPage() {
       api={insurersApi}
       permissions={permissionsCatalog.admin?.insurers}
       columns={COLUMNS}
-      filters={FILTERS}
+      searchPlaceholder="Buscar por descripción"
       formFields={FORM_FIELDS}
       defaultSort="description"
       rowLabel={rowLabel}

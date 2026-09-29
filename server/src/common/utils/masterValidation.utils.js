@@ -27,6 +27,7 @@ export const createMasterSchemas = (config) => {
     pagination: [
       ...paginationRules(),
       ...fields.filter((f) => f.filter).map((f) => optionalText(f.name, f.maxLength)),
+      optionalText("search", 100),
       optionalId("staId"),
     ],
     getById: [query(idField).isInt({ min: 1 }).withMessage(`${idField} es obligatorio y debe ser un entero positivo.`)],

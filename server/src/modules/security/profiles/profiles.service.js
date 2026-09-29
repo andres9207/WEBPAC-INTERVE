@@ -1,6 +1,6 @@
 import _ from "lodash";
 import { prisma } from "../../../common/configs/prismaClient.js";
-import { paginate } from "../../../common/utils/pagination.utils.js";
+import { paginate, searchWhere, countByStatus } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction, withTransaction } from "../../../common/services/transaction.service.js";
@@ -24,6 +24,7 @@ const PROFILE_SORT_FIELDS = {
 export const paginationProfiles = async ({
   useId,
   name,
+  search,
   staId,
   rows,
   first,
@@ -36,30 +37,35 @@ export const paginationProfiles = async ({
   // interpolado sin validar — ver engineering/anti-patterns/SECURITY.md).
   const orderBy = (PROFILE_SORT_FIELDS[sortField] ?? PROFILE_SORT_FIELDS.name)(order);
 
-  const where = {
+  // Sin el filtro de estado: es la base de los conteos de las pestañas.
+  const baseWhere = {
     sta_id: { not: 3 },
     ...(name ? { pro_name: { contains: name } } : {}),
-    ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}),
+    ...searchWhere(["pro_name"], search),
     ...(Number(useId) !== 1 ? { NOT: { pro_id: 1 } } : {}),
   };
+  const where = { ...baseWhere, ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}) };
 
-  const page = await paginate(
-    prisma.tbl_profiles,
-    {
-      where,
-      select: {
-        pro_id: true,
-        pro_name: true,
-        pro_update_by: true,
-        pro_update_at: true,
-        sta_id: true,
-        tbl_status: { select: { sta_name: true } },
-        updated_by_user: USER_NAME_SELECT,
+  const [page, statusCounts] = await Promise.all([
+    paginate(
+      prisma.tbl_profiles,
+      {
+        where,
+        select: {
+          pro_id: true,
+          pro_name: true,
+          pro_update_by: true,
+          pro_update_at: true,
+          sta_id: true,
+          tbl_status: { select: { sta_name: true } },
+          updated_by_user: USER_NAME_SELECT,
+        },
+        orderBy,
       },
-      orderBy,
-    },
-    { first, rows }
-  );
+      { first, rows }
+    ),
+    countByStatus(prisma.tbl_profiles, baseWhere),
+  ]);
 
   const results = page.results.map((p) => ({
     proId: p.pro_id,
@@ -71,7 +77,7 @@ export const paginationProfiles = async ({
     staId: p.sta_id,
   }));
 
-  return { ...page, results };
+  return { ...page, results, statusCounts };
 };
 
 export const getModules = async ({ proId }) => {

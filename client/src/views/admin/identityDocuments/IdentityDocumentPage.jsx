@@ -10,11 +10,6 @@ const COLUMNS = [
   { id: 'name', label: 'Nombre', sortable: true }
 ];
 
-const FILTERS = [
-  { key: 'code', label: 'Código' },
-  { key: 'name', label: 'Nombre' }
-];
-
 const FORM_FIELDS = [
   {
     name: 'code',
@@ -52,7 +47,7 @@ export default function IdentityDocumentPage() {
       api={identityDocumentsApi}
       permissions={permissionsCatalog.admin?.identityDocuments}
       columns={COLUMNS}
-      filters={FILTERS}
+      searchPlaceholder="Buscar por código o nombre"
       formFields={FORM_FIELDS}
       defaultSort="name"
       rowLabel={rowLabel}

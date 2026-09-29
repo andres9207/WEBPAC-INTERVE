@@ -5,13 +5,14 @@ import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service
 
 export const paginationProfilesController = async (req, res, next) => {
   try {
-    const { name, staId, rows, first, sortField, sortOrder } = req.body;
+    const { name, search, staId, rows, first, sortField, sortOrder } = req.body;
     // Del JWT, nunca del body: el service decide con este id si incluye el
     // perfil Superadmin en el listado (mismo criterio que countUsers).
     const { useId } = req.user;
     const result = await profilesService.paginationProfiles({
       useId,
       name,
+      search,
       staId,
       rows,
       first,

@@ -64,3 +64,24 @@ export const paginate = async (model, queryArgs = {}, pagination = {}) => {
     totalPages: Math.ceil(total / take),
   };
 };
+
+/**
+ * Búsqueda general de un listado (DEC-024): el mismo texto en cualquiera de
+ * las columnas dadas (OR de `contains`, parametrizado). Texto vacío: sin
+ * filtro. Las columnas las fija el service, nunca el cliente.
+ */
+export const searchWhere = (columns, search) => {
+  const text = String(search ?? "").trim();
+  if (!text || columns.length === 0) return {};
+  return { OR: columns.map((column) => ({ [column]: { contains: text } })) };
+};
+
+/**
+ * Cuántos registros hay por estado con el `where` dado, para las pestañas
+ * por estado: `{ 1: 4, 2: 1 }`. El `where` NO lleva el filtro de estado, o
+ * todas las pestañas menos la elegida mostrarían 0.
+ */
+export const countByStatus = async (model, where) => {
+  const grouped = await model.groupBy({ by: ["sta_id"], where, _count: { _all: true } });
+  return Object.fromEntries(grouped.map((g) => [g.sta_id, g._count._all]));
+};

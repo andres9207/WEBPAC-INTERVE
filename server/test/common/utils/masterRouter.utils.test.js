@@ -72,11 +72,11 @@ describe("createMasterControllers", () => {
 
   it("pagination: solo pasa los filtros declarados", async () => {
     serviceMock.pagination.mockResolvedValue({});
-    const req = mockReq({ user: { useId: 7 }, body: { code: "A", name: "no filtrable", thg_name: "x", staId: 1, rows: 10 } });
+    const req = mockReq({ user: { useId: 7 }, body: { code: "A", name: "no filtrable", thg_name: "x", search: "abc", staId: 1, rows: 10 } });
 
     await controllers.pagination(req, buildRes(), jest.fn());
 
-    expect(serviceMock.pagination.mock.calls[0][0]).toMatchObject({ filters: { code: "A" }, staId: 1, rows: 10 });
+    expect(serviceMock.pagination.mock.calls[0][0]).toMatchObject({ filters: { code: "A" }, search: "abc", staId: 1, rows: 10 });
   });
 
   it("changeStatus y remove ignoran el autor del body", async () => {

@@ -1,5 +1,5 @@
 import { prisma } from "../configs/prismaClient.js";
-import { paginate, MAX_ROWS } from "../utils/pagination.utils.js";
+import { paginate, MAX_ROWS, searchWhere, countByStatus } from "../utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../utils/user.utils.js";
 import { runIdempotent } from "./idempotency.service.js";
 import { withLockedTransaction, withTransaction } from "./transaction.service.js";
@@ -145,7 +145,11 @@ export const createMasterService = (config) => {
         .map((f) => [f.column, normalize(f, input[f.name])])
     );
 
-  const pagination = async ({ filters = {}, staId, rows, first, sortField, sortOrder }) => {
+  // Búsqueda general de la vista (DEC-024): el mismo texto en cualquiera de
+  // los campos `filter`. Se suma a los filtros por campo.
+  const searchColumns = fields.filter((f) => f.filter).map((f) => f.column);
+
+  const pagination = async ({ filters = {}, search, staId, rows, first, sortField, sortOrder }) => {
     const order = Number(sortOrder) === 1 ? "asc" : "desc";
     const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS[config.defaultSort])(order);
 
@@ -156,17 +160,17 @@ export const createMasterService = (config) => {
           .filter((f) => f.filter && filters[f.name])
           .map((f) => [f.column, { contains: String(filters[f.name]) }])
       ),
+      ...searchWhere(searchColumns, search),
     };
     const where = { ...baseWhere, ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}) };
 
     // statusCounts: cuántos hay por estado con los mismos filtros de texto,
     // para las pestañas por estado de la vista (sin el filtro de estado, o
     // todas las pestañas menos la elegida mostrarían 0).
-    const [page, grouped] = await Promise.all([
+    const [page, statusCounts] = await Promise.all([
       paginate(prisma[model], { where, select: LIST_SELECT, orderBy }, { first, rows }),
-      prisma[model].groupBy({ by: ["sta_id"], where: baseWhere, _count: { _all: true } }),
+      countByStatus(prisma[model], baseWhere),
     ]);
-    const statusCounts = Object.fromEntries(grouped.map((g) => [g.sta_id, g._count._all]));
     return { ...page, results: page.results.map(toDto), statusCounts };
   };
 

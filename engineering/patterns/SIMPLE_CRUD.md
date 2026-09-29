@@ -46,7 +46,7 @@ export default function XPage() {
       title="Aseguradora" idField="xId" api={xApi}
       permissions={permissionsCatalog.admin?.x}
       columns={[{ id: 'name', label: 'Nombre', sortable: true }]}
-      filters={[{ key: 'name', label: 'Nombre' }]}
+      searchPlaceholder="Buscar por nombre"   // busca en los campos filter: true ([DEC-024](../decisiones/DEC-024-busqueda-listados.md))
       formFields={[{ name: 'name', type: 'text', label: 'Nombre', required: true, validation: { required: 'El nombre es requerido' } }]}
       defaultSort="name" rowLabel={(row) => row.name}
     />
@@ -54,7 +54,7 @@ export default function XPage() {
 }
 ```
 
-Las constantes (`columns`, `filters`, `formFields`, `rowLabel`) van fuera del componente, como en `IdentityDocumentPage.jsx`, para no recrearlas en cada render.
+Las constantes (`columns`, `formFields`, `rowLabel`) van fuera del componente, como en `IdentityDocumentPage.jsx`, para no recrearlas en cada render.
 
 ## Un CRUD simple que no es maestro: esqueleto
 

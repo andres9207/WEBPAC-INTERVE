@@ -8,8 +8,6 @@ import { useAuth } from 'contexts/AuthContext';
 
 const COLUMNS = [{ id: 'name', label: 'Nombre', sortable: true }];
 
-const FILTERS = [{ key: 'name', label: 'Nombre' }];
-
 const FORM_FIELDS = [
   {
     name: 'name',
@@ -33,7 +31,7 @@ export default function AddressTypePage() {
       api={addressTypesApi}
       permissions={permissionsCatalog.admin?.addressTypes}
       columns={COLUMNS}
-      filters={FILTERS}
+      searchPlaceholder="Buscar por nombre"
       formFields={FORM_FIELDS}
       defaultSort="name"
       rowLabel={rowLabel}

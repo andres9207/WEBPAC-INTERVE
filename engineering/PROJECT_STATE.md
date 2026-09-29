@@ -16,7 +16,7 @@ Ver [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | --- | --- | --- |
 | Autenticación | Sesión única, access 15 min + refresh 7 días rotado, bloqueo progresivo de login, recuperación con código HMAC | ADR-0001, DEC-002 a DEC-004 |
 | Autorización | Permisos por perfil ∪ excepciones por usuario, `requirePermission` en todas las rutas de negocio, catálogo único servido al cliente | ADR-0014 |
-| Usuarios, perfiles, permisos | CRUD completo, servidor y cliente | `security/*` |
+| Usuarios, perfiles, permisos | CRUD completo, servidor y cliente. Listados con búsqueda de un solo campo y pestañas por estado con conteo | `security/*`, DEC-024 |
 | Documentos | Backend completo; en el cliente el componente está deshabilitado | `app/documents` |
 | Notificaciones | Autoservicio, en tiempo real | `app/notifications` |
 | Auditoría | Seis columnas de autoría con FK, eliminación lógica con evidencia, bitácora `tbl_audit_log` en la misma transacción | ADR-0013, DEC-006, DEC-007 |
@@ -26,8 +26,8 @@ Ver [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Maestro: tipos de proveedor | CRUD completo (servidor y cliente) sobre el patrón, selector de activos, nombre único entre no eliminados. Es una clasificación, sin reglas por tipo. Falta la FK desde `tbl_providers`, que todavía no existe | ADR-0010, DEC-023, migraciones 0022–0024 |
 | Maestro: tipos de dirección | CRUD completo (servidor y cliente) sobre el patrón, selector de activos para el futuro componente de contactos, nombre único entre no eliminados. Validación de correo reutilizable (`emailRule`). Faltan las tablas de contacto de obra y de proveedor | ADR-0009, migraciones 0025–0027 |
 | Maestro: aseguradoras | CRUD completo (servidor y cliente) sobre el patrón, selector de activas para el futuro formulario de póliza, descripción única entre no eliminadas. Falta el bloqueo de eliminación por pólizas, que llega con `tbl_policies` | ADR-0003, migraciones 0028–0029 |
-| Patrón de maestro | Fábrica reutilizable: un maestro se declara con `defineMaster` (dos archivos). Listado, obtener, selector, crear, editar, cambiar estado con permiso propio, eliminar con verificación de dependientes. En el cliente, `MasterPage` + `createMasterApi`: la pantalla se declara, con pestañas por estado y conteo | DEC-020, DEC-022 |
-| Tests | Servidor: 32 suites, 288 tests (Jest, unitarios con mocks) | [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
+| Patrón de maestro | Fábrica reutilizable: un maestro se declara con `defineMaster` (dos archivos). Listado, obtener, selector, crear, editar, cambiar estado con permiso propio, eliminar con verificación de dependientes. En el cliente, `MasterPage` + `createMasterApi`: la pantalla se declara, con búsqueda de un solo campo y pestañas por estado con conteo | DEC-020, DEC-022 |
+| Tests | Servidor: 32 suites, 294 tests (Jest, unitarios con mocks) | [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
 
 ## Parcial
 

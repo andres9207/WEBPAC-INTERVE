@@ -4,6 +4,8 @@
 
 Backlog MAE-FE-01. Contraparte en el cliente de [DEC-020](DEC-020-patron-maestro.md).
 
+**La parte de filtros (`FilterPopper`, prop `filters`) está reemplazada por [DEC-024](DEC-024-busqueda-listados.md):** un solo campo de búsqueda.
+
 ## Contexto
 
 La primera pantalla de maestro (tipos de identificación) tenía unas 280 líneas entre página y diálogo, casi todas iguales a las que tendrían los otros siete maestros.

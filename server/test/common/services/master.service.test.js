@@ -109,6 +109,20 @@ describe("pagination", () => {
     expect(page.statusCounts).toEqual({ 1: 4, 2: 1 });
   });
 
+  it("la búsqueda general busca el texto en cualquier campo filtrable, también en los conteos", async () => {
+    await service.pagination({ search: "  cc ", staId: 1 });
+
+    const searchOr = { OR: [{ thg_code: { contains: "cc" } }, { thg_name: { contains: "cc" } }] };
+    expect(things.groupBy.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, ...searchOr });
+    expect(things.findMany.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, ...searchOr, AND: [{ sta_id: 1 }] });
+  });
+
+  it("una búsqueda vacía no filtra", async () => {
+    await service.pagination({ search: "   " });
+
+    expect(things.groupBy.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 } });
+  });
+
   it("ordena por estado y por fecha además de los campos declarados", async () => {
     await service.pagination({ sortField: "updatedAt", sortOrder: -1 });
     expect(things.findMany.mock.calls[0][0].orderBy).toEqual({ thg_update_at: "desc" });

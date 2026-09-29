@@ -16,7 +16,7 @@ React 19 + Vite, MUI 7 sobre el template Berry. Comandos, autenticación y capa 
 
 ## Pantallas de maestros
 
-No se escriben a mano: se declaran sobre `ui-component/extended/MasterPage` con su API de `createMasterApi` ([DEC-022](../decisiones/DEC-022-vista-maestro.md)). Referencia: `views/admin/identityDocuments/IdentityDocumentPage.jsx`. `MasterPage` ya incluye todas las piezas de abajo, más pestañas por estado con conteo y la acción de activar/desactivar. Por los conteos, después de cada escritura **recarga** la página actual en vez de actualizar la fila en memoria.
+No se escriben a mano: se declaran sobre `ui-component/extended/MasterPage` con su API de `createMasterApi` ([DEC-022](../decisiones/DEC-022-vista-maestro.md)). Referencia: `views/admin/identityDocuments/IdentityDocumentPage.jsx`. `MasterPage` ya incluye las piezas de abajo, más pestañas por estado con conteo y la acción de activar/desactivar. En lugar del botón de filtros tiene un solo campo de búsqueda a la izquierda ([DEC-024](../decisiones/DEC-024-busqueda-listados.md)). Por los conteos, después de cada escritura **recarga** la página actual en vez de actualizar la fila en memoria.
 
 ## Anatomía de una página de listado
 
@@ -25,15 +25,16 @@ Referencia: `views/security/profiles/ProfilePage.jsx`.
 | Pieza | Componente |
 | --- | --- |
 | Contenedor | `ui-component/cards/MainCard` con los botones en `title` |
-| Filtros | Botón con `Badge` (número de filtros activos) que abre `ui-component/extended/FilterPopper` |
+| Búsqueda | `ui-component/extended/SearchInput` a la izquierda: un solo texto, buscado en el servidor (`search`) ([DEC-024](../decisiones/DEC-024-busqueda-listados.md)) |
+| Filtro de estado | `ui-component/extended/StatusTabs` con los conteos de `statusCounts` (`statusTabsWithCounts` de `utils/constants.js`) |
 | Crear | Botón visible solo si `canCreate` |
 | Tabla | `ui-component/extended/DataTable`, paginado y ordenado en el servidor (`page`, `rowsPerPage`, `sortField`, `sortOrder`) |
-| Estado | `ui-component/extended/StatusChip` |
+| Estado de la fila | `ui-component/extended/StatusChip` |
 | Autoría | `ui-component/extended/LastModifiedCell` con `updatedByName` y `updatedAt` ([DEC-014](../decisiones/DEC-014-autor-por-nombre.md)) |
 | Acciones por fila | `actions` de `DataTable` (usa `TableActions`), cada una filtrada con `canDo`; eliminar lleva `confirm` |
 | Diálogo | Montado una vez, controlado por `ref` |
 
-Al cambiar un filtro, la página vuelve a 0. Al guardar, la fila se agrega o actualiza en el estado local; al eliminar, se recarga el listado.
+Al cambiar la búsqueda o la pestaña, la página vuelve a 0. Al guardar o eliminar se recarga el listado, para que los conteos de las pestañas sigan exactos.
 
 ## Anatomía de un diálogo de edición
 

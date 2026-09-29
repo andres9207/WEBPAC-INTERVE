@@ -1,13 +1,12 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
-import Badge from '@mui/material/Badge';
-import { IconEdit, IconTrash, IconPlus, IconFilter, IconToggleLeft, IconToggleRight } from '@tabler/icons-react';
+import { IconEdit, IconTrash, IconPlus, IconToggleLeft, IconToggleRight } from '@tabler/icons-react';
 
 import MainCard from 'ui-component/cards/MainCard';
-import FilterPopper from 'ui-component/extended/FilterPopper';
+import SearchInput from 'ui-component/extended/SearchInput';
 import DataTable from 'ui-component/extended/DataTable';
 import StatusChip from 'ui-component/extended/StatusChip';
 import StatusTabs from 'ui-component/extended/StatusTabs';
@@ -15,25 +14,21 @@ import LastModifiedCell from 'ui-component/extended/LastModifiedCell';
 import MasterDialog from 'ui-component/extended/MasterDialog';
 import { useAuth } from 'contexts/AuthContext';
 import { showError, showSuccess } from 'services/ToastService';
+import { statusTabsWithCounts } from 'utils/constants';
 
-// Pestañas por estado: activo e inactivo (eliminado nunca se lista).
-const STATUS_TABS = [
-  { staId: 1, staName: 'Activos', staColor: 'success' },
-  { staId: 2, staName: 'Inactivos', staColor: 'warning' }
-];
 const STATUS_NAMES = { 1: 'Activo', 2: 'Inactivo' };
-// Referencia estable: un [] nuevo en cada render recalcularía los filtros.
-const NO_FILTERS = [];
 
 /**
  * Vista reutilizable de un maestro (MAE-FE-01, DEC-020). Compone los
- * componentes existentes: MainCard, FilterPopper, StatusTabs, DataTable
- * (con su confirmación), StatusChip, LastModifiedCell y MasterDialog.
+ * componentes existentes: MainCard, StatusTabs, DataTable (con su
+ * confirmación), StatusChip, LastModifiedCell y MasterDialog.
  *
- * Un maestro se monta declarando sus columnas, filtros, formulario y
- * permisos. Consume la API estándar de `createMasterApi`.
+ * Un maestro se monta declarando sus columnas, formulario y permisos.
+ * Consume la API estándar de `createMasterApi`.
  *
- * - Filtros, orden, estado y paginación van en la petición, nunca en memoria.
+ * - Un solo campo de búsqueda: el servidor busca el texto en todos los campos
+ *   `filter` del maestro (parámetro `search`).
+ * - Búsqueda, orden, estado y paginación van en la petición, nunca en memoria.
  * - Las acciones se ocultan según los permisos: es experiencia de uso, no
  *   seguridad (FRONTEND_STANDARD, regla 1); el servidor decide.
  * - Los mensajes de error del servidor se muestran tal cual (p. ej. "lo usan
@@ -41,7 +36,17 @@ const NO_FILTERS = [];
  * - Después de guardar, cambiar el estado o eliminar se recarga la página
  *   actual: así los conteos de las pestañas siguen siendo exactos.
  */
-export default function MasterPage({ title, idField, api, permissions, columns, filters = NO_FILTERS, formFields, defaultSort, rowLabel }) {
+export default function MasterPage({
+  title,
+  idField,
+  api,
+  permissions,
+  columns,
+  searchPlaceholder = 'Buscar…',
+  formFields,
+  defaultSort,
+  rowLabel
+}) {
   const { hasPermission } = useAuth();
   // perId != null: con el catálogo cargando, hasPermission(undefined) es true (FRONTEND_STANDARD, regla 5).
   const canDo = (perId) => perId != null && hasPermission(perId);
@@ -52,9 +57,7 @@ export default function MasterPage({ title, idField, api, permissions, columns, 
     remove: canDo(permissions?.delete)
   };
 
-  const initialFilters = useMemo(() => Object.fromEntries(filters.map((f) => [f.key, ''])), [filters]);
-  const [filterValues, setFilterValues] = useState(initialFilters);
-  const [filterAnchorEl, setFilterAnchorEl] = useState(null);
+  const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
 
   const [rows, setRows] = useState([]);
@@ -73,7 +76,7 @@ export default function MasterPage({ title, idField, api, permissions, columns, 
     setLoading(true);
     try {
       const { data } = await api.pagination({
-        ...filterValues,
+        search,
         staId: status === 'all' ? '' : status,
         rows: rowsPerPage,
         first: page * rowsPerPage,
@@ -88,16 +91,16 @@ export default function MasterPage({ title, idField, api, permissions, columns, 
     } finally {
       setLoading(false);
     }
-  }, [api, filterValues, status, page, rowsPerPage, sortField, sortOrder, lowerTitle]);
+  }, [api, search, status, page, rowsPerPage, sortField, sortOrder, lowerTitle]);
 
   useEffect(() => {
     fetchRows();
   }, [fetchRows]);
 
-  const handleSetFilters = (next) => {
-    setFilterValues(next);
+  const handleSearch = useCallback((text) => {
+    setSearch(text);
     setPage(0);
-  };
+  }, []);
 
   const handleStatus = (_, value) => {
     setStatus(value);
@@ -127,11 +130,6 @@ export default function MasterPage({ title, idField, api, permissions, columns, 
     run(() => api.changeStatus({ [idField]: row[idField], staId: row.staId === 1 ? 2 : 1 }), `Error al cambiar el estado`);
 
   const handleRemove = (row) => run(() => api.remove({ [idField]: row[idField] }), `Error al eliminar`);
-
-  const filterOptions = useMemo(
-    () => filters.map((f) => ({ type: 'input', key: f.key, label: f.label, filtro: filterValues[f.key], grid: { xs: 12, sm: 6 } })),
-    [filters, filterValues]
-  );
 
   const tableColumns = [
     ...columns,
@@ -172,28 +170,16 @@ export default function MasterPage({ title, idField, api, permissions, columns, 
     return items;
   };
 
-  const statusTabs = STATUS_TABS.map((s) => ({ ...s, total: statusCounts[s.staId] ?? 0 }));
-  const activeFilterCount = Object.values(filterValues).filter((v) => v !== '' && v != null).length;
+  const statusTabs = statusTabsWithCounts(statusCounts);
 
   return (
     <MainCard
       title={
         // flexWrap: en ancho de teléfono los botones bajan de línea en vez de desbordar.
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexWrap: 'wrap', gap: 1.5 }}>
-          <StatusTabs statusTabs={statusTabs} selectedStatus={status} onChange={handleStatus} />
+          <SearchInput onSearch={handleSearch} placeholder={searchPlaceholder} />
           <Stack direction="row" alignItems="center" sx={{ flexWrap: 'wrap', gap: 1.5, ml: 'auto' }}>
-            {filters.length > 0 && (
-              <Badge badgeContent={activeFilterCount} color="primary">
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<IconFilter size={16} />}
-                  onClick={(e) => setFilterAnchorEl((prev) => (prev ? null : e.currentTarget))}
-                >
-                  Filtros
-                </Button>
-              </Badge>
-            )}
+            <StatusTabs statusTabs={statusTabs} selectedStatus={status} onChange={handleStatus} />
             {can.create && (
               <Button variant="contained" size="small" startIcon={<IconPlus size={16} />} onClick={() => dialogRef.current?.open()}>
                 Nuevo
@@ -203,15 +189,6 @@ export default function MasterPage({ title, idField, api, permissions, columns, 
         </Stack>
       }
     >
-      <FilterPopper
-        anchorEl={filterAnchorEl}
-        open={Boolean(filterAnchorEl)}
-        onClose={() => setFilterAnchorEl(null)}
-        filters={filterOptions}
-        setFilters={handleSetFilters}
-        initialFilters={initialFilters}
-      />
-
       <DataTable
         columns={tableColumns}
         rows={rows}
@@ -253,8 +230,8 @@ MasterPage.propTypes = {
   permissions: PropTypes.object,
   /** Columnas propias (DataTable); estado y última modificación se agregan solas. */
   columns: PropTypes.array.isRequired,
-  /** Filtros de texto: [{ key, label }]; la clave es el campo `filter` del servidor. */
-  filters: PropTypes.arrayOf(PropTypes.shape({ key: PropTypes.string.isRequired, label: PropTypes.string.isRequired })),
+  /** Texto del campo de búsqueda: "Buscar por código o nombre". Busca en los campos `filter` del servidor. */
+  searchPlaceholder: PropTypes.string,
   /** Campos del formulario (GenericFormSection), con `editable: false` para los que no se editan. */
   formFields: PropTypes.array.isRequired,
   /** Campo de orden inicial (uno `sortable` del servidor). */

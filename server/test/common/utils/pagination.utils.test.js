@@ -1,6 +1,6 @@
 import { jest } from "@jest/globals";
 
-const { paginate, resolvePagination, DEFAULT_ROWS, MAX_ROWS } = await import(
+const { paginate, resolvePagination, searchWhere, countByStatus, DEFAULT_ROWS, MAX_ROWS } = await import(
   "../../../src/common/utils/pagination.utils.js"
 );
 
@@ -63,5 +63,28 @@ describe("paginate", () => {
     const result = await paginate(buildModel([], 0), {}, {});
 
     expect(result).toEqual({ results: [], total: 0, page: 1, limit: DEFAULT_ROWS, totalPages: 0 });
+  });
+});
+
+describe("searchWhere", () => {
+  it("busca el texto recortado en cualquiera de las columnas", () => {
+    expect(searchWhere(["a_name", "a_code"], "  cc ")).toEqual({
+      OR: [{ a_name: { contains: "cc" } }, { a_code: { contains: "cc" } }],
+    });
+  });
+
+  it("sin texto o sin columnas no filtra", () => {
+    expect(searchWhere(["a_name"], "   ")).toEqual({});
+    expect(searchWhere(["a_name"], undefined)).toEqual({});
+    expect(searchWhere([], "cc")).toEqual({});
+  });
+});
+
+describe("countByStatus", () => {
+  it("agrupa por estado con el where dado", async () => {
+    const model = { groupBy: jest.fn().mockResolvedValue([{ sta_id: 1, _count: { _all: 4 } }, { sta_id: 2, _count: { _all: 1 } }]) };
+
+    await expect(countByStatus(model, { sta_id: { not: 3 } })).resolves.toEqual({ 1: 4, 2: 1 });
+    expect(model.groupBy).toHaveBeenCalledWith({ by: ["sta_id"], where: { sta_id: { not: 3 } }, _count: { _all: true } });
   });
 });

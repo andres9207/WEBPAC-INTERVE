@@ -17,6 +17,7 @@ export const listUsersSchema = [
   optionalText("email"),
   optionalText("identification"),
   optionalText("username", 100),
+  optionalText("search", 100),
 ];
 
 const isEdit = (req) => Number(req.body.useId) > 0;

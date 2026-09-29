@@ -37,6 +37,7 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 | [DEC-021](DEC-021-formato-numero-documento.md) | 2026-09-29 | El formato del número de documento se valida por tipo, con la regla en el código del servidor | Obligatoria | [0008](../adr/0008-tipos-identificacion.md) |
 | [DEC-022](DEC-022-vista-maestro.md) | 2026-09-29 | Las pantallas de maestros se declaran sobre `MasterPage` | Obligatoria | 0003, 0004, 0006–0010, 0019 |
 | [DEC-023](DEC-023-tipo-proveedor-clasificacion.md) | 2026-09-29 | El tipo de proveedor es una clasificación de la empresa, sin reglas por tipo | Vigente | [0010](../adr/0010-tipos-proveedor.md) |
+| [DEC-024](DEC-024-busqueda-listados.md) | 2026-09-29 | Los listados (maestros, perfiles, usuarios) buscan con un solo campo de texto y filtran el estado con pestañas (reemplaza los filtros de DEC-022) | Obligatoria | 0003, 0004, 0006–0010, 0019 |
 
 **Tipo:**
 - **Obligatoria**: regla para todo código nuevo. El checklist de `ENDPOINT_STANDARD.md` la exige y, donde se puede, un test la hace cumplir.
