@@ -25,4 +25,4 @@ Cada listado calculaba `skip`/`take` a su manera. El de documentos aceptaba `pag
 
 ## Dónde
 
-`server/src/common/utils/pagination.utils.js` · `server/ENDPOINT_STANDARD.md`, "Listados paginados"
+`server/src/common/utils/pagination.utils.js` · `engineering/standards/ENDPOINT_STANDARD.md`, "Listados paginados"

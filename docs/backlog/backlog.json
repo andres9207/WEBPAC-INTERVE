@@ -1,7 +1,7 @@
 {
   "proyecto": "Registro y Control de Procesos Administrativos de Contratos de Materiales",
   "repo": "interve_webpack",
-  "fuente": "docs/adr/ (27 ADR)",
+  "fuente": "engineering/adr/ (27 ADR)",
   "fecha": "2026-09-10",
   "nota_estado": "Todas las tareas están en Pendiente: el repositorio es una plantilla base con 14 tablas y ningún módulo de negocio implementado.",
   "nota_responsable": "La columna Responsable contiene el ROL requerido, no un nombre. Debe reemplazarse por el desarrollador asignado al planificar el sprint.",

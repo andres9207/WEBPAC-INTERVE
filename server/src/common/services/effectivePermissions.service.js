@@ -8,7 +8,7 @@ import { prisma } from "../configs/prismaClient.js";
  * permisos del perfil a tbl_user_permissions solo al CREAR el usuario, así
  * que un cambio posterior a los permisos del perfil (update_permissions_profile)
  * nunca se propagaba a los usuarios ya existentes de ese perfil. Ver
- * SECURITY.md.
+ * engineering/anti-patterns/SECURITY.md.
  */
 
 export const hasEffectivePermission = async ({ useId, proId, perId }) => {

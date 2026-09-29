@@ -412,4 +412,4 @@ Pendiente:
 - `server/src/modules/security/users/users.service.js`, `server/src/modules/security/profiles/profiles.service.js`, `server/src/modules/security/permissions/permissions.service.js`
 - `server/src/modules/auth/auth.service.js`
 - `server/src/modules/app/documents/document.service.js`
-- `server/ENDPOINT_STANDARD.md`
+- `engineering/standards/ENDPOINT_STANDARD.md`

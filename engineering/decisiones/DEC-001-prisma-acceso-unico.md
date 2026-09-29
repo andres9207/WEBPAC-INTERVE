@@ -23,4 +23,4 @@ El backend heredado armaba SQL a mano con `mysql2`, y en varios sitios interpola
 
 ## Dónde
 
-`server/src/common/configs/prismaClient.js` · `server/prisma/schema.prisma` · `SECURITY.md`, "`executeQuery` y el pool de mysql2 eliminados"
+`server/src/common/configs/prismaClient.js` · `server/prisma/schema.prisma` · `engineering/anti-patterns/SECURITY.md`, "`executeQuery` y el pool de mysql2 eliminados"

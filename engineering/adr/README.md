@@ -4,7 +4,7 @@ Registro y Control de Procesos Administrativos de Contratos de Materiales con Pr
 
 ---
 
-> Lo ya implementado y las reglas vigentes que salen de estos ADR están resumidos, una ficha por decisión, en [`docs/decisiones/`](../decisiones/README.md).
+> Lo ya implementado y las reglas vigentes que salen de estos ADR están resumidos, una ficha por decisión, en [`engineering/decisiones/`](../decisiones/README.md).
 
 ## 1. Objetivo
 
@@ -329,7 +329,7 @@ El alcance propone trece ADR (0015 – 0027) y permite fusionarlos o dividirlos.
 
 ## 11. Cómo crear un nuevo ADR
 
-1. Copiar la estructura de secciones de un ADR del mismo grupo.
+1. Partir de [`../templates/ADR_TEMPLATE.md`](../templates/ADR_TEMPLATE.md), que tiene la estructura de secciones de estos ADR.
 2. Asignar el siguiente número libre.
 3. Registrarlo en el índice de la sección 5, con sus dependencias.
 4. Enlazar los transversales que apliquen: 0013 y 0014 siempre; 0026 y 0027 en el CORE.

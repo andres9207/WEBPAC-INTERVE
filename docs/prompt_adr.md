@@ -1,4 +1,4 @@
-git init# Generación de ADRs — Registro y Control de Procesos Administrativos de Contratos
+# Generación de ADRs — Registro y Control de Procesos Administrativos de Contratos
 
 ## 1. Rol
 

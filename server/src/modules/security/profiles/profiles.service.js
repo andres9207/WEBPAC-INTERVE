@@ -33,7 +33,7 @@ export const paginationProfiles = async ({
   const order = sortOrder === 1 ? "asc" : "desc";
   // sortField nunca se pasa directo a Prisma: solo columnas de esta lista
   // fija pueden terminar en el ORDER BY (antes: ORDER BY ${sortField},
-  // interpolado sin validar — ver SECURITY.md).
+  // interpolado sin validar — ver engineering/anti-patterns/SECURITY.md).
   const orderBy = (PROFILE_SORT_FIELDS[sortField] ?? PROFILE_SORT_FIELDS.name)(order);
 
   const where = {
@@ -269,7 +269,7 @@ export const deleteProfile = async ({ proId, updatedBy, ctx = { useId: updatedBy
     // usuarios todavía asignados — esos usuarios quedaban con pro_id
     // apuntando a un perfil inactivo, y sus tbl_page_permissions se borraban
     // en el mismo paso (ver abajo), dejándolos sin sidebar ni permisos de
-    // perfil de un momento a otro, sin ninguna advertencia. Ver SECURITY.md.
+    // perfil de un momento a otro, sin ninguna advertencia. Ver engineering/anti-patterns/SECURITY.md.
     const dependentUsersCount = await tx.tbl_users.count({
       where: { pro_id: Number(proId), sta_id: { not: DELETED_STATUS } },
     });
@@ -310,7 +310,7 @@ export const deleteProfile = async ({ proId, updatedBy, ctx = { useId: updatedBy
     // tbl_profile_permissions (plantilla de permisos de acción) no se
     // limpiaba y quedaba huérfana — si el perfil alguna vez se reactivara
     // (sta_id vuelve a 1 vía saveProfile), esos permisos viejos resucitarían
-    // silenciosamente. Ver SECURITY.md.
+    // silenciosamente. Ver engineering/anti-patterns/SECURITY.md.
     //
     // Es un borrado físico: la bitácora es la única evidencia de qué páginas
     // y permisos tenía el perfil, así que se leen antes de borrarlos y se

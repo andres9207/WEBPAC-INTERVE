@@ -28,4 +28,4 @@ Además de [DEC-002](DEC-002-sesion-unica-refresh.md), [DEC-003](DEC-003-login-b
 
 ## Dónde
 
-`docs/adr/0001-seguridad.md`, tabla de brechas B1–B18 · `SECURITY.md`
+`engineering/adr/0001-seguridad.md`, tabla de brechas B1–B18 · `engineering/anti-patterns/SECURITY.md`

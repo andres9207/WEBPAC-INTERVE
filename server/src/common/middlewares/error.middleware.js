@@ -1,7 +1,7 @@
 import { isDeadlock, isLockWaitTimeout } from "../utils/dbErrors.utils.js";
 
 // Errores conocidos de Prisma (todos los services usan Prisma desde la
-// migración, ver SECURITY.md). Antes caían en el `default` del bloque de
+// migración, ver engineering/anti-patterns/SECURITY.md). Antes caían en el `default` del bloque de
 // MySQL de abajo, porque también traen `.code`, y todos respondían 500
 // "Error desconocido de base de datos" — p. ej. un duplicado (P2002) no
 // daba 409, que es lo que el cliente espera para mostrar el conflicto.
@@ -180,11 +180,11 @@ const errorMiddleware = (err, req, res, next) => {
   }
 
   // **3. Errores generales no previstos**
-  // ENDPOINT_STANDARD.md documenta .statusCode y .status como equivalentes
+  // engineering/standards/ENDPOINT_STANDARD.md documenta .statusCode y .status como equivalentes
   // ("el service lanza new Error(msg) con .statusCode (o .status)"), pero
   // hasta ahora solo se leía .status — cualquier error de negocio lanzado
   // con .statusCode (la mayoría de los services, empezando por
-  // auth.service.js) devolvía 500 en vez de su código real. Ver SECURITY.md.
+  // auth.service.js) devolvía 500 en vez de su código real. Ver engineering/anti-patterns/SECURITY.md.
   const hasExplicitStatus = err.statusCode != null || err.status != null;
   const statusCode = err.statusCode || err.status || 500;
 

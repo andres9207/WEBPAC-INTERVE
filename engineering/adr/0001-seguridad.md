@@ -465,7 +465,7 @@ Brechas encontradas en la versión inicial de este ADR y su resolución:
 | B17 | Sin validación de esquema | Media | ✅ Cerrada | `*.validation.js` en todos los módulos |
 | B18 | Datos de sesión impresos en la consola del navegador | Baja | ✅ Cerrada | Trazas retiradas de `authContext.jsx` |
 
-Otras correcciones de la misma revisión (ver `SECURITY.md`): bloqueo de login por cuenta, retiro de `GET /documents/blob` (SSRF) y `DELETE /documents/temp/:filename` (path traversal sin sesión), 404 JSON en `/api/*`, manejadores de errores de proceso, traducción de errores de Prisma y seed de `tbl_status`.
+Otras correcciones de la misma revisión (ver `engineering/anti-patterns/SECURITY.md`): bloqueo de login por cuenta, retiro de `GET /documents/blob` (SSRF) y `DELETE /documents/temp/:filename` (path traversal sin sesión), 404 JSON en `/api/*`, manejadores de errores de proceso, traducción de errores de Prisma y seed de `tbl_status`.
 
 ## Plan de implementación
 
@@ -493,4 +493,4 @@ Decidir entre MFA propio (TOTP) y delegar en un proveedor de identidad (Alternat
 - `server/src/common/utils/` (`funciones.js`, `resetCode.utils.js`, `validation.utils.js`)
 - `client/src/contexts/authContext.jsx`, `client/src/api/services/httpCliente.js`, `client/src/socket/SocketProvider.jsx`, `client/src/api/requests/authAPI.js`
 - `database/bdtemplate.sql`, `database/migrations/0007_create_sessions.sql` a `0010_seed_status.sql`
-- `SECURITY.md`
+- `engineering/anti-patterns/SECURITY.md`

@@ -2,11 +2,11 @@
 
 Qué decidimos al construir, y qué quedó como regla para lo que se construya después. Cada ficha es corta: contexto, decisión, lo que se descartó, y lo que implica para quien escriba código nuevo.
 
-**No reemplaza a los ADR.** [`docs/adr/`](../adr/README.md) explica la arquitectura y su porqué con todo el análisis. Esta carpeta registra lo que ya está hecho y es regla hoy, y enlaza al ADR del que sale cada decisión.
+**No reemplaza a los ADR.** [`engineering/adr/`](../adr/README.md) explica la arquitectura y su porqué con todo el análisis. Esta carpeta registra lo que ya está hecho y es regla hoy, y enlaza al ADR del que sale cada decisión.
 
 ## Cómo usar este registro
 
-- **Antes de construir un módulo o endpoint nuevo**, lee las fichas marcadas como **Obligatoria**. Son las que también exige el checklist de [`server/ENDPOINT_STANDARD.md`](../../server/ENDPOINT_STANDARD.md).
+- **Antes de construir un módulo o endpoint nuevo**, lee las fichas marcadas como **Obligatoria**. Son las que también exige el checklist de [`ENDPOINT_STANDARD.md`](../standards/ENDPOINT_STANDARD.md).
 - **Una decisión nueva** se registra en una ficha nueva `DEC-NNN-tema.md`, con el número siguiente, y se agrega a la tabla de abajo. El número no se reutiliza.
 - **Una decisión que cambia** no se reescribe: se crea una ficha nueva que la reemplaza, y la vieja pasa a estado `Reemplazada por DEC-NNN`.
 
@@ -37,20 +37,4 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 
 ## Pendientes que dejan estas decisiones
 
-**Despliegue:**
-- Aplicar las migraciones `0011` a `0016` en orden. La `0014` vacía sesiones, códigos de recuperación e intentos de login, así que va junto con el despliegue ([DEC-009](DEC-009-zona-horaria.md)), no antes. La `0015` y la `0016` van **antes** del código que las usa: sin sus columnas, "olvidé mi contraseña" y crear registros fallan.
-- Restringir el usuario de BD de la aplicación a `INSERT`/`SELECT` sobre `tbl_audit_log` ([DEC-007](DEC-007-bitacora-funcional.md)).
-
-**Funcionalidad abierta:**
-
-| Pendiente | Referencia |
-| --- | --- |
-| Pantalla y endpoint para consultar la bitácora, con permiso propio (`per_id` 17) | ADR-0013, B16 |
-| Política de retención de la bitácora | ADR-0013, B15 |
-| Idempotencia en transiciones de estado: la infraestructura existe ([DEC-016](DEC-016-idempotencia-por-clave.md)); falta el historial de estado de cada agregado del CORE | ADR-0027, B3 |
-| `UNIQUE` en el nombre de perfil: dos creaciones simultáneas con el mismo nombre pueden pasar | ADR-0027, B4 |
-| MFA | ADR-0001 |
-
-**Limpieza menor:**
-- Retirar `DB_HOST`/`DB_USER`/`DB_NAME`/`DB_PASSWORD` de `.env.template` y la dependencia `mysql2` de `package.json`. Ya no los usa nada.
-- Varios hallazgos anotados en [`SECURITY.md`](../../SECURITY.md), sección "Pendientes".
+Lo que estas decisiones dejaron abierto (despliegue, funcionalidad y limpieza) está en [`debt/TECHNICAL_DEBT.md`](../debt/TECHNICAL_DEBT.md), la lista única de pendientes del proyecto.

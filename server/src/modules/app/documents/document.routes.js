@@ -16,7 +16,7 @@ const moduleDocsRoutes = express.Router();
 // DELETE /temp/:filename (sin verifyToken y con path traversal vía
 // `filename`). Ninguno tenía caller real en el cliente (los archivos se
 // suben y descargan directo contra Firebase Storage), y /blob ni siquiera
-// escribía el archivo temporal que /temp pretendía borrar. Ver SECURITY.md.
+// escribía el archivo temporal que /temp pretendía borrar. Ver engineering/anti-patterns/SECURITY.md.
 
 // Paginación de documentos por módulo
 moduleDocsRoutes.post(

@@ -6,7 +6,7 @@
 // montan con `credentials: true`, así que un match por prefijo permitiría a
 // un origen atacante como "https://pavastecnologia.com.evil.com" o
 // "http://localhost.evil.com" pasar el chequeo y hacer peticiones
-// autenticadas con las cookies de sesión. Ver SECURITY.md.
+// autenticadas con las cookies de sesión. Ver engineering/anti-patterns/SECURITY.md.
 export const allowedHosts = ["localhost", "127.0.0.1", "pavastecnologia.com", "www.pavastecnologia.com"];
 
 export const isOriginAllowed = (origin) => {

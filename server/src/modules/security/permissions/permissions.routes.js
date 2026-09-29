@@ -28,7 +28,7 @@ const permissionsRoutes = express.Router();
 // quién tiene qué permiso, es la misma tabla de nombres que hoy vive
 // hardcodeada en el bundle del cliente (permissionsConfig.js), así que no
 // hace falta requirePermission: cualquier autenticado ya podía leerla
-// abriendo el bundle JS. Ver SECURITY.md.
+// abriendo el bundle JS. Ver engineering/anti-patterns/SECURITY.md.
 permissionsRoutes.get(
   "/get_catalog",
   verifyToken,
@@ -37,7 +37,7 @@ permissionsRoutes.get(
 
 // Lectura de asignaciones de permisos/páginas de OTRO perfil o usuario
 // (proId/useId arbitrario por query/body) — requiere permiso de ver, no solo
-// estar logueado (ver SECURITY.md).
+// estar logueado (ver engineering/anti-patterns/SECURITY.md).
 permissionsRoutes.get(
   "/get_windows_profile",
   verifyToken,

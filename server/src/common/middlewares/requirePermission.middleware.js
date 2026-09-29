@@ -1,7 +1,7 @@
 import { hasEffectivePermission } from "../services/effectivePermissions.service.js";
 
 /**
- * Middleware de autorización (paso 2 del pipeline, ver ENDPOINT_STANDARD.md).
+ * Middleware de autorización (paso 2 del pipeline, ver engineering/standards/ENDPOINT_STANDARD.md).
  * Debe montarse siempre después de `verifyToken` (necesita `req.user`).
  *
  * Sin caso especial para ningún useId: "Superadmin" es solo un perfil

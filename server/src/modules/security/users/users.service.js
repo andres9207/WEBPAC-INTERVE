@@ -45,7 +45,7 @@ export const paginationUsers = async ({
   // sortField nunca se pasa directo a Prisma: solo columnas de esta lista
   // fija pueden terminar en el ORDER BY, cualquier otro valor cae al default
   // seguro. Antes se interpolaba el string del cliente directo en el SQL
-  // (ORDER BY ${sortField}) — ver SECURITY.md.
+  // (ORDER BY ${sortField}) — ver engineering/anti-patterns/SECURITY.md.
   const orderBy = (USER_SORT_FIELDS[sortField] ?? USER_SORT_FIELDS.name)(order);
 
   // Antes: name/lastName/email/identification/username se interpolaban
@@ -399,7 +399,7 @@ const persistUser = async ({
     // como unión de perfil + excepciones individuales (ver
     // common/services/effectivePermissions.service.js). Copiarlos aquí
     // hacía que un cambio posterior a los permisos del perfil nunca se
-    // propagara a los usuarios ya creados — ver SECURITY.md.
+    // propagara a los usuarios ya creados — ver engineering/anti-patterns/SECURITY.md.
     return { message: "Usuario Creado Correctamente", useId: created.use_id };
   });
 };

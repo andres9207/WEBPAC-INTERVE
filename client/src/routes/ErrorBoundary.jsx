@@ -55,7 +55,7 @@ export default function ErrorBoundary() {
   // Excepción no clasificada durante el render/loader de una ruta. Igual que
   // el criterio adoptado en error.middleware.js del servidor: nunca se
   // expone el mensaje/stack real de un error inesperado en producción, solo
-  // en desarrollo (conveniencia de depuración) — ver SECURITY.md.
+  // en desarrollo (conveniencia de depuración) — ver engineering/anti-patterns/SECURITY.md.
   return (
     <ErrorMessage title="Ha ocurrido un error inesperado">
       Intenta recargar la página. Si el problema persiste, contacta a sistemas.

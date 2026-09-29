@@ -39,4 +39,4 @@ Una espera de bloqueo agotada respondía el error 500 genérico.
 
 ## Dónde
 
-`server/src/common/services/transaction.service.js` · `server/src/common/middlewares/error.middleware.js` · `server/ENDPOINT_STANDARD.md`, "Transacciones y concurrencia"
+`server/src/common/services/transaction.service.js` · `server/src/common/middlewares/error.middleware.js` · `engineering/standards/ENDPOINT_STANDARD.md`, "Transacciones y concurrencia"

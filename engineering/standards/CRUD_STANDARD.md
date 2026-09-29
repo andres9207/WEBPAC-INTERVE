@@ -1,0 +1,109 @@
+# Estándar de CRUD (maestros y CRUD complejos)
+
+Receta obligatoria para construir un CRUD de nivel 1 o 2 ([`MODULE_STANDARD`](MODULE_STANDARD.md)) de punta a punta.
+
+**Módulo de referencia: `security/profiles`.** Ante cualquier duda de forma, se copia lo que hace él.
+
+| Capa | Archivo de referencia |
+| --- | --- |
+| Rutas | `server/src/modules/security/profiles/profiles.routes.js` |
+| Validación | `server/src/modules/security/profiles/profiles.validation.js` |
+| Controller | `server/src/modules/security/profiles/profiles.controller.js` |
+| Service | `server/src/modules/security/profiles/profiles.service.js` |
+| Tests | `server/test/modules/security/profiles/` |
+| API del cliente | `client/src/api/requests/profilesApi.js` |
+| Página | `client/src/views/security/profiles/ProfilePage.jsx` |
+| Diálogo | `client/src/views/security/profiles/components/ProfileDialog.jsx` |
+
+El esqueleto de código está en [`patterns/SIMPLE_CRUD.md`](../patterns/SIMPLE_CRUD.md). Lo propio de un CRUD complejo (hijos, bloqueo por uso), en [`patterns/COMPLEX_CRUD.md`](../patterns/COMPLEX_CRUD.md).
+
+## Antes de empezar
+
+1. Leer el ADR del módulo: unicidad, relaciones, qué impide eliminar, nivel de auditoría.
+2. Llenar la spec con [`templates/CRUD_TEMPLATE.md`](../templates/CRUD_TEMPLATE.md).
+3. Mientras sigan abiertas, respetar las decisiones pendientes de [`PROJECT_STATE`](../PROJECT_STATE.md): **PD-01** (selects), **PD-02** (código del duplicado), **PD-04** (posición en `LOCK_ORDER`) y **PD-05** (área del módulo). El primer maestro no se implementa sin resolverlas.
+
+## Orden de construcción
+
+### 1. Base de datos
+
+Migración `database/migrations/NNNN_create_<tabla>.sql` según [`DATABASE_STANDARD`](DATABASE_STANDARD.md):
+
+- Prefijo de tres letras propio y verificado como libre.
+- PK `<pre>_id int AUTO_INCREMENT`.
+- Columnas del dominio, con `NOT NULL` donde el ADR las exige.
+- `sta_id int NOT NULL DEFAULT 1` con FK a `tbl_status` (1 activo, 2 inactivo, 3 eliminado).
+- Las seis columnas de autoría con sus FK a `tbl_users`.
+- `<pre>_idempotency_key char(36)` con `UNIQUE` y `<pre>_idempotency_hash char(64)`.
+- Unicidad del dominio (p. ej. "descripción única entre no eliminados", ADR-0003): se controla en el service **dentro de la transacción** y se respalda en la BD. Como la regla excluye los eliminados, un `UNIQUE` simple no sirve: el patrón previsto es `UNIQUE` sobre una columna generada (ADR-0027, invariantes I6–I10). El primer maestro lo establece y lo documenta aquí.
+
+Aplicarla en la BD de desarrollo y correr `npx prisma db pull` en `server/`. Renombrar las relaciones de autoría a `created_by_user` / `updated_by_user` / `deleted_by_user` (ver `database/migrations/README.md`, "Relación con Prisma").
+
+### 2. Página y permisos
+
+- Migración `NNNN_seed_<modulo>_pages_permissions.sql`: la fila en `tbl_pages` (con `pag_parent`, `pag_url` igual a la ruta del cliente, icono, orden, `pag_type` 2) y los permisos en `tbl_permissions`. Con los **siguientes ids libres**: nunca se reutilizan 10, 15 ni 16.
+- Permisos mínimos: `view`, `create`, `edit`, `delete`. Otros solo si el ADR los pide (p. ej. reactivar).
+- `server/prisma/seed.js`: agregar la página y los permisos. Los de gestión van solo a Superadmin (`pro_id = 1`); `view` va a todos los perfiles.
+- `server/src/common/constants/permissions.constants.js`: la entrada del módulo. El cliente la recibe sola por `get_catalog`.
+
+### 3. Protocolo de bloqueo y auditoría
+
+- Registrar la tabla en `LOCKABLE` de `server/src/common/services/transaction.service.js`, en su posición de `LOCK_ORDER` (**PD-04**).
+- Si el ADR-0013 (decisión 9) exige auditoría **funcional** para el módulo, agregar la entidad a `AUDIT_ENTITIES` y escribir con `writeAudit`. Los maestros simples (aseguradoras, constructoras, tipos de interventoría, identificación, dirección y proveedor) son auditoría **técnica**: solo columnas, sin bitácora. Tipos de contrato y tipos de póliza sí son funcionales.
+
+### 4. Service
+
+| Operación | Cómo | Reglas |
+| --- | --- | --- |
+| `pagination<X>` | `paginate(prisma.tbl_x, { where, select, orderBy }, { first, rows })` | `where` excluye `sta_id = 3`. `orderBy` sale de `X_SORT_FIELDS` con un default. Devuelve `{ ...page, results: page.results.map(toDto) }` con `updatedByName` (DEC-014) |
+| Crear | `runIdempotent({ target, key, ownerId, payload, execute })` → `withTransaction` | La clave se busca **antes** del control de duplicados. Autor en `<pre>_create_by` y `<pre>_update_by` |
+| Editar | `withLockedTransaction({ ENTIDAD: id }, fn, { idempotent: true })` | Nada se lee antes del bloqueo. Duplicado excluyendo el propio id. Inexistente → 404. Si pasa de eliminado a visible, limpiar `<pre>_delete_by/_at` |
+| Eliminar | `withLockedTransaction({ ENTIDAD: id }, fn)` | Lógica: `sta_id = 3`, `<pre>_delete_by`, `<pre>_delete_at`. Ya eliminado o inexistente → **404** (DEC-006). En uso → 400 con mensaje que diga por qué (ver COMPLEX_CRUD) |
+| Lista para selects | **PD-01** | Solo activos (`sta_id = 1`) |
+
+Los errores se lanzan con `new Error(msg)` y `.statusCode`. El service no conoce `req`.
+
+### 5. Validación, controller, rutas
+
+- `<modulo>.validation.js` con las reglas de `common/utils/validation.utils.js`: `paginationRules()`, `optionalText`, `requiredId`, `idempotencyKeyRule(isCreate)`. Todo campo de `body`, `query` y `params` tiene regla.
+- Controller: saca el sujeto y el autor de `req.user`, arma `ctx = auditContext(req)`, lee la clave con `req.get(IDEMPOTENCY_HEADER)` y delega con `next(err)`.
+- Rutas con el pipeline completo: `verifyToken → requirePermission → schema → validate → controller`. `save_<x>` resuelve create o edit con `requirePermission((req) => req.body.<x>Id > 0 ? edit : create)`.
+- Montar en `server/src/modules/main.routes.js`.
+
+### 6. Tests
+
+En `server/test/modules/<área>/<modulo>/`, con mocks de Prisma y `transactionRawMocks()`. Mínimo:
+
+- Controller: un autor o sujeto falsificado en el body se ignora.
+- Service: crear; editar; duplicado; eliminar; eliminar ya eliminado → 404; eliminar en uso → bloqueado; reactivar limpia las columnas de eliminación; reintento idempotente devuelve lo creado.
+
+### 7. Cliente
+
+- `client/src/api/requests/<modulo>Api.js` sobre `httpCliente`: `pagination<X>API`, `save<X>API(params, idempotencyKey)` con `idempotencyConfig(key)`, `delete<X>API`.
+- Diálogo `components/<X>Dialog.jsx`: `forwardRef` + `useImperativeHandle` con `new<X>()` y `edit<X>(item)`; `BaseDialog`; `react-hook-form` + `GenericFormSection`; clave nueva con `newIdempotencyKey()` al abrir para crear y `null` al editar; `showSuccess` / `showError`.
+- Página `<X>Page.jsx`: `MainCard`; botón de filtros con `Badge` y `FilterPopper`; `DataTable` paginado en el servidor; `StatusChip`; `LastModifiedCell`; acciones con `canDo(perId)` y `confirm` para eliminar; `showError` en todo `catch`.
+- Ruta lazy en `client/src/routes/MainRoutes.jsx`, con el mismo path que `pag_url`.
+- Entrada en `client/src/menu-items/` solo si se quieren migas de pan: el sidebar sale de `tbl_pages`.
+
+Detalle de la anatomía en [`FRONTEND_STANDARD`](FRONTEND_STANDARD.md).
+
+### 8. Verificar
+
+Checklist de [`ENDPOINT_STANDARD`](ENDPOINT_STANDARD.md) completo, `yarn test` en el servidor, `yarn lint` en el cliente, y prueba en vivo: crear, editar, eliminar, doble clic al crear, usuario sin permiso (403) y eliminar algo en uso.
+
+## Nombres
+
+| Elemento | Formato | Ejemplo con perfiles |
+| --- | --- | --- |
+| Tabla | `tbl_<plural_en_inglés>` | `tbl_profiles` |
+| Columnas | `<pre>_<nombre>` | `pro_name` |
+| Id en la API | `<pre>Id` en camelCase | `proId` |
+| Carpeta del servidor | `modules/<área>/<modulo>/` | `security/profiles/` |
+| Rutas HTTP | `/api/<área>/<modulo>/<acción>_<modulo>` | `/api/security/profiles/save_profile` |
+| Archivo de API | `<modulo>Api.js` | `profilesApi.js` |
+| Funciones de API | `<acción><X>API` | `saveProfileAPI` |
+| Página y diálogo | `<X>Page.jsx`, `<X>Dialog.jsx` | `ProfilePage.jsx`, `ProfileDialog.jsx` |
+| Permisos | `PERMISSIONS.<área>.<modulo>.<acción>` | `PERMISSIONS.security.profiles.create` |
+| Constantes de orden | `<X>_SORT_FIELDS` | `PROFILE_SORT_FIELDS` |
+
+Tablas en inglés porque así está todo el esquema actual. Si el dominio pide nombres en español, se decide una vez para todo el CORE y se escribe aquí.

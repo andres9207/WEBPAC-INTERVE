@@ -1,6 +1,6 @@
 # Backlog — Registro y Control de Procesos Administrativos de Contratos de Materiales
 
-Derivado del análisis de los 27 ADR de `docs/adr/`. Fecha de corte: 2026-09-10.
+Derivado del análisis de los 27 ADR de `engineering/adr/`. Fecha de corte: 2026-09-10.
 
 > Todas las tareas están en Pendiente: el repositorio es una plantilla base con 14 tablas y ningún módulo de negocio implementado.
 >

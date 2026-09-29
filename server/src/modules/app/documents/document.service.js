@@ -93,7 +93,7 @@ export const paginationModuleDocs = async ({
   // sortField nunca se pasa directo a Prisma: solo columnas de esta lista
   // fija pueden terminar en el ORDER BY. Antes: nombre/docType se
   // interpolaban crudos en LIKE/'=' (inyección SQL vía el body de
-  // pagination), y docIdRef/parentId sin castear a número — ver SECURITY.md.
+  // pagination), y docIdRef/parentId sin castear a número — ver engineering/anti-patterns/SECURITY.md.
   const orderBy = (DOC_SORT_FIELDS[sortField] ?? DOC_SORT_FIELDS.doc_name)(order);
 
   const where = {

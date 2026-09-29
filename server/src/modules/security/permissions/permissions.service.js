@@ -323,7 +323,7 @@ export const updateUserPermissions = async ({ permissions, useId, actingUseId, c
   // insertNotification en notifications.service.js), no a todos los
   // clientes conectados — antes cualquier sesión abierta en cualquier
   // navegador recibía el evento de CUALQUIER usuario cuyos permisos
-  // cambiaran (ver SECURITY.md).
+  // cambiaran (ver engineering/anti-patterns/SECURITY.md).
   const io = getIO();
   io.to(`user:${useId}`).emit("update-permissions", {
     useId,

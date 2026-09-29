@@ -4,7 +4,7 @@ export const getMenuController = async (req, res, next) => {
   try {
     // Sujeto siempre desde req.user: el menú es autoservicio (el propio
     // sidebar del usuario autenticado), nunca el de otro useId/proId que
-    // llegara por query (ver SECURITY.md).
+    // llegara por query (ver engineering/anti-patterns/SECURITY.md).
     const { useId, proId } = req.user;
     const result = await appService.getMenu({ per: proId, idu: useId });
     return res.json(result);

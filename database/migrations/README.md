@@ -23,7 +23,7 @@ En orden numérico, sin saltarse ninguno.
 
 ## Estándar de auditoría para tablas nuevas
 
-Obligatorio para toda tabla nueva del **dominio de negocio** (obras, contratos, pólizas, proveedores, maestros, etc.). Ver [ADR-0013](../../docs/adr/0013-auditoria-trazabilidad.md).
+Obligatorio para toda tabla nueva del **dominio de negocio** (obras, contratos, pólizas, proveedores, maestros, etc.). Ver [ADR-0013](../../engineering/adr/0013-auditoria-trazabilidad.md).
 
 1. **Seis columnas de auditoría técnica**, con el prefijo de la tabla:
 
@@ -42,8 +42,8 @@ Obligatorio para toda tabla nueva del **dominio de negocio** (obras, contratos, 
 5. **Tablas de unión** que expresan una decisión (asignar X a Y): sin columnas de autoría; cada asignación o revocación va a la bitácora (`ASIGNAR` / `REVOCAR`).
 6. **Exentas**: tablas de catálogo estable versionadas con el código (`tbl_status`, `tbl_pages`, `tbl_permissions`). Los registros transitorios (sesiones, códigos de recuperación) no llevan columnas de eliminación porque se borran físicamente. Sí llevan las cuatro de creación y actualización (`<pre>_create_by/_at`, `<pre>_update_by/_at`), y los `*_by` quedan en `NULL` cuando la acción es sin sesión. Ver `0015_password_resets_audit_columns.sql`.
 7. **Prefijo único por tabla**: cada tabla usa un prefijo de tres letras propio, y todas sus columnas lo llevan (`<pre>_create_at`, nunca `<pre>_created_at`). Antes de crear una tabla, verifica que el prefijo no esté en uso. Por ejemplo, `pro_` ya es de `tbl_profiles`, así que proveedores usa `prv_`.
-8. **Raíz de agregado → protocolo de bloqueo** (ADR-0027, obligatorio): si la tabla es la raíz de un agregado (contrato, factura, póliza, concepto, o cualquier registro que se edite o elimine), regístrala en `LOCKABLE` de `server/src/common/services/transaction.service.js`, en su posición de `LOCK_ORDER`. Sus services la bloquean con `withLockedTransaction` antes de leerla. Ver "Transacciones y concurrencia" en `server/ENDPOINT_STANDARD.md`.
-9. **Idempotencia** (ADR-0027, obligatorio): si la tabla recibe creaciones desde un endpoint, lleva `<pre>_idempotency_key char(36) DEFAULT NULL` con índice `UNIQUE uq_<tabla>_idempotency_key`, y `<pre>_idempotency_hash char(64) DEFAULT NULL`. Si es la tabla de historial de estado de un agregado, lleva las mismas dos columnas para las transiciones. Ver `0016_idempotency_keys.sql` y [DEC-016](../../docs/decisiones/DEC-016-idempotencia-por-clave.md).
+8. **Raíz de agregado → protocolo de bloqueo** (ADR-0027, obligatorio): si la tabla es la raíz de un agregado (contrato, factura, póliza, concepto, o cualquier registro que se edite o elimine), regístrala en `LOCKABLE` de `server/src/common/services/transaction.service.js`, en su posición de `LOCK_ORDER`. Sus services la bloquean con `withLockedTransaction` antes de leerla. Ver "Transacciones y concurrencia" en `engineering/standards/ENDPOINT_STANDARD.md`.
+9. **Idempotencia** (ADR-0027, obligatorio): si la tabla recibe creaciones desde un endpoint, lleva `<pre>_idempotency_key char(36) DEFAULT NULL` con índice `UNIQUE uq_<tabla>_idempotency_key`, y `<pre>_idempotency_hash char(64) DEFAULT NULL`. Si es la tabla de historial de estado de un agregado, lleva las mismas dos columnas para las transiciones. Ver `0016_idempotency_keys.sql` y [DEC-016](../../engineering/decisiones/DEC-016-idempotencia-por-clave.md).
 
 ## Relación con Prisma
 
