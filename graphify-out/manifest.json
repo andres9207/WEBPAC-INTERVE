@@ -72,9 +72,9 @@
     "semantic_hash": ""
   },
   "client/src/api/requests/index.js": {
-    "mtime": 1789652993.5751956,
-    "seen": 1790694517.6644487,
-    "ast_hash": "da4e2edad3c6fe418b97fa7d1b3f94bc",
+    "mtime": 1790700673.3196008,
+    "seen": 1790701671.616222,
+    "ast_hash": "3d87aa68eab60c1d02d6f3f3e9f15473",
     "semantic_hash": ""
   },
   "client/src/api/requests/notificationsApi.js": {
@@ -228,9 +228,9 @@
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/MenuList/index.jsx": {
-    "mtime": 1790348933.4514012,
-    "seen": 1790694517.664498,
-    "ast_hash": "dfb688f0ea6f7f0482ca1130ac7d77dd",
+    "mtime": 1790700673.3226082,
+    "seen": 1790701671.616257,
+    "ast_hash": "72017480f79701c783630ddb1d090c4d",
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/Sidebar/MiniDrawerStyled.jsx": {
@@ -270,9 +270,9 @@
     "semantic_hash": ""
   },
   "client/src/menu-items/index.js": {
-    "mtime": 1789652993.6067686,
-    "seen": 1790694517.6645079,
-    "ast_hash": "32febf30915bf7c029135710268fd941",
+    "mtime": 1790700673.3206067,
+    "seen": 1790701671.6162667,
+    "ast_hash": "873e7d6705ba99faa35dfedb5ba701fa",
     "semantic_hash": ""
   },
   "client/src/menu-items/other.js": {
@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "client/src/routes/MainRoutes.jsx": {
-    "mtime": 1790168080.439392,
-    "seen": 1790694517.6645172,
-    "ast_hash": "6a940fc3c18272af82d88ddd024e508a",
+    "mtime": 1790700850.2728841,
+    "seen": 1790701671.6162765,
+    "ast_hash": "09aaf859841745ee4db039923ccef5e0",
     "semantic_hash": ""
   },
   "client/src/routes/PrivateRoute.jsx": {
@@ -864,9 +864,9 @@
     "semantic_hash": ""
   },
   "client/src/views/security/users/UsersPage.jsx": {
-    "mtime": 1790351978.9901211,
-    "seen": 1790694517.6646104,
-    "ast_hash": "afb1c3734eed60381218f3128e6ce024",
+    "mtime": 1790700722.8211603,
+    "seen": 1790701671.6163924,
+    "ast_hash": "3d14475b49f5d394a74ab7af02a7c5a4",
     "semantic_hash": ""
   },
   "client/src/views/security/users/components/AccountSettings.jsx": {
@@ -882,9 +882,9 @@
     "semantic_hash": ""
   },
   "client/src/views/security/users/components/UserDialog.jsx": {
-    "mtime": 1790370550.7395644,
-    "seen": 1790694517.664613,
-    "ast_hash": "617a065cf1156cf45a91d2e9e32936b8",
+    "mtime": 1790700850.2758887,
+    "seen": 1790701671.616396,
+    "ast_hash": "251aeee55304e692ed9bf135d07319da",
     "semantic_hash": ""
   },
   "client/src/views/utilities/Color.jsx": {
@@ -954,9 +954,9 @@
     "semantic_hash": ""
   },
   "server/prisma/seed.js": {
-    "mtime": 1790256201.0903723,
-    "seen": 1790694517.6646254,
-    "ast_hash": "ee8934b59c3b7ea4fece8c71ebcaa09f",
+    "mtime": 1790700850.263337,
+    "seen": 1790701671.6164377,
+    "ast_hash": "5fefd6fb887aa2839a29812e860b83e3",
     "semantic_hash": ""
   },
   "server/server.js": {
@@ -1008,9 +1008,9 @@
     "semantic_hash": ""
   },
   "server/src/common/constants/permissions.constants.js": {
-    "mtime": 1790168080.4842658,
-    "seen": 1790694517.6646338,
-    "ast_hash": "0e7c15bf064f9c58ec798fb098ffc32b",
+    "mtime": 1790700359.63952,
+    "seen": 1790701671.6164484,
+    "ast_hash": "7a0e24040712e58f3a9c38d745cab93e",
     "semantic_hash": ""
   },
   "server/src/common/middlewares/authjwt.middleware.js": {
@@ -1104,9 +1104,9 @@
     "semantic_hash": ""
   },
   "server/src/common/services/transaction.service.js": {
-    "mtime": 1790363914.7421477,
-    "seen": 1790694517.6646538,
-    "ast_hash": "d0c9dc898ca93a0494fc58dfb9df5b94",
+    "mtime": 1790700352.3861718,
+    "seen": 1790701671.6164691,
+    "ast_hash": "d72c2327078058d5818c8fd5045506fc",
     "semantic_hash": ""
   },
   "server/src/common/templates/images.js": {
@@ -1272,9 +1272,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/main.routes.js": {
-    "mtime": 1790168080.5384982,
-    "seen": 1790694517.664682,
-    "ast_hash": "7a01581dd06078c6c74aef34d236e9db",
+    "mtime": 1790700850.252815,
+    "seen": 1790701671.6165092,
+    "ast_hash": "02a63f57044b212ed3b826363a387e15",
     "semantic_hash": ""
   },
   "server/src/modules/security/permissions/permissions.controller.js": {
@@ -1326,9 +1326,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/security/users/users.controller.js": {
-    "mtime": 1790370368.0036516,
-    "seen": 1790694517.6646907,
-    "ast_hash": "dfa00b86717029859120356714a10a7b",
+    "mtime": 1790700475.9567332,
+    "seen": 1790701671.616521,
+    "ast_hash": "1baa438ece60ef3d0c3a183455df50ba",
     "semantic_hash": ""
   },
   "server/src/modules/security/users/users.routes.js": {
@@ -1338,15 +1338,15 @@
     "semantic_hash": ""
   },
   "server/src/modules/security/users/users.service.js": {
-    "mtime": 1790690480.8578877,
-    "seen": 1790694517.6646926,
-    "ast_hash": "80f4a43f33730d4ee6ef23854b2fe60c",
+    "mtime": 1790700515.9878206,
+    "seen": 1790701671.6165235,
+    "ast_hash": "cdfc3c14ee8c9b302b3cbcf8a837b293",
     "semantic_hash": ""
   },
   "server/src/modules/security/users/users.validation.js": {
-    "mtime": 1790370349.1081827,
-    "seen": 1790694517.6646938,
-    "ast_hash": "13a6b849c4582b55e8919424e4b0aab1",
+    "mtime": 1790700467.8275082,
+    "seen": 1790701671.6165242,
+    "ast_hash": "ebad8c37672c5b699ea685cf1582db0a",
     "semantic_hash": ""
   },
   "server/test/common/configs/cors.config.test.js": {
@@ -1506,9 +1506,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/security/users/users.service.test.js": {
-    "mtime": 1790370479.6719358,
-    "seen": 1790694517.6647196,
-    "ast_hash": "26ad539f429c5814c1aeaa2016859c50",
+    "mtime": 1790700543.0734398,
+    "seen": 1790701671.6165614,
+    "ast_hash": "a61b5106ce6c7b3e948ff4200778f2a6",
     "semantic_hash": ""
   },
   "client/.yarnrc.yml": {
@@ -1635,6 +1635,96 @@
     "mtime": 1790370236.6783462,
     "seen": 1790694533.3792677,
     "ast_hash": "c290b39fd8ecbe4fc5bcf0420007588e",
+    "semantic_hash": ""
+  },
+  "client/src/api/requests/identityDocumentsApi.js": {
+    "mtime": 1790701146.4681218,
+    "seen": 1790701671.61622,
+    "ast_hash": "48c14afcc8431b96e989d3470b370407",
+    "semantic_hash": ""
+  },
+  "client/src/menu-items/admin.js": {
+    "mtime": 1790700850.2698581,
+    "seen": 1790701671.616264,
+    "ast_hash": "1ef9b7e853e87ae3731bba678db48a0a",
+    "semantic_hash": ""
+  },
+  "client/src/views/admin/identityDocuments/IdentityDocumentPage.jsx": {
+    "mtime": 1790700894.8697178,
+    "seen": 1790701671.6163764,
+    "ast_hash": "c83d947cadc6e1d97fea35741cf3aa2a",
+    "semantic_hash": ""
+  },
+  "client/src/views/admin/identityDocuments/components/IdentityDocumentDialog.jsx": {
+    "mtime": 1790700894.8687184,
+    "seen": 1790701671.6163776,
+    "ast_hash": "3d38b84248d23df9cf2b72df15c50e09",
+    "semantic_hash": ""
+  },
+  "database/migrations/0017_create_identity_documents.sql": {
+    "mtime": 1790700232.4350834,
+    "seen": 1790701671.6164262,
+    "ast_hash": "9882f2ffa9e0f7b6e493d1c61aa8a4da",
+    "semantic_hash": ""
+  },
+  "database/migrations/0018_seed_identity_documents.sql": {
+    "mtime": 1790700233.5415258,
+    "seen": 1790701671.6164274,
+    "ast_hash": "3792fb7751011b513727e80fd64bc6d6",
+    "semantic_hash": ""
+  },
+  "database/migrations/0019_add_identity_document_to_users.sql": {
+    "mtime": 1790700234.5821993,
+    "seen": 1790701671.6164284,
+    "ast_hash": "3aa0610d1b40bbb0789e58b9cd2cd005",
+    "semantic_hash": ""
+  },
+  "database/migrations/0020_seed_admin_identity_documents_pages_permissions.sql": {
+    "mtime": 1790700850.2798817,
+    "seen": 1790701671.6164293,
+    "ast_hash": "cb97a8dba531230200aebb3d78a902d4",
+    "semantic_hash": ""
+  },
+  "server/src/modules/admin/identityDocuments/identityDocuments.controller.js": {
+    "mtime": 1790700850.2477672,
+    "seen": 1790701671.6164849,
+    "ast_hash": "3ece7b3bf8318e44c113c9ecb943e756",
+    "semantic_hash": ""
+  },
+  "server/src/modules/admin/identityDocuments/identityDocuments.routes.js": {
+    "mtime": 1790701145.4164095,
+    "seen": 1790701671.6164858,
+    "ast_hash": "5c768aee631ba5811cf2cb6aa80287f5",
+    "semantic_hash": ""
+  },
+  "server/src/modules/admin/identityDocuments/identityDocuments.service.js": {
+    "mtime": 1790701144.3812747,
+    "seen": 1790701671.616487,
+    "ast_hash": "afc9d66fa23a8b20a8280ad7f98f9d81",
+    "semantic_hash": ""
+  },
+  "server/src/modules/admin/identityDocuments/identityDocuments.validation.js": {
+    "mtime": 1790700403.464708,
+    "seen": 1790701671.616488,
+    "ast_hash": "8741345f528bd358843ededfe520b31a",
+    "semantic_hash": ""
+  },
+  "server/test/modules/admin/identityDocuments/identityDocuments.controller.test.js": {
+    "mtime": 1790700857.9779696,
+    "seen": 1790701671.6165478,
+    "ast_hash": "c8b3edb2274db9ec69e04f76515d516c",
+    "semantic_hash": ""
+  },
+  "server/test/modules/admin/identityDocuments/identityDocuments.service.test.js": {
+    "mtime": 1790700850.2583363,
+    "seen": 1790701671.6165488,
+    "ast_hash": "fbf89641badb8c85749799ef59f830fe",
+    "semantic_hash": ""
+  },
+  "server/test/modules/admin/identityDocuments/identityDocuments.validation.test.js": {
+    "mtime": 1790700850.260333,
+    "seen": 1790701671.61655,
+    "ast_hash": "85177fa1fa60839fe521165118b937c0",
     "semantic_hash": ""
   }
 }
