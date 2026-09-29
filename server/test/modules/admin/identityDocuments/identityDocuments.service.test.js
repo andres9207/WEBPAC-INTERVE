@@ -76,10 +76,18 @@ describe("tipos de identificación", () => {
     expect(docs.update).not.toHaveBeenCalled();
   });
 
-  it("el selector muestra nombre y código, y devuelve el código", async () => {
+  it("el selector muestra nombre y código, y entrega el código y el formato del número", async () => {
     docs.findMany.mockResolvedValue([{ idd_id: 1, idd_code: "CC", idd_name: "Cédula de ciudadanía", sta_id: 1 }]);
 
-    await expect(service.select({})).resolves.toEqual([{ value: 1, label: "Cédula de ciudadanía (CC)", staId: 1, code: "CC" }]);
+    await expect(service.select({})).resolves.toEqual([
+      {
+        value: 1,
+        label: "Cédula de ciudadanía (CC)",
+        staId: 1,
+        code: "CC",
+        format: { pattern: "^\\d{6,10}$", message: "debe tener de 6 a 10 dígitos, sin puntos ni espacios" },
+      },
+    ]);
     expect(docs.findMany.mock.calls[0][0].orderBy).toEqual({ idd_name: "asc" });
   });
 

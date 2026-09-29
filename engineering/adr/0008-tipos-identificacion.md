@@ -4,12 +4,12 @@
 
 **Aceptado parcial** (2026-09-29).
 
-Implementado: el maestro `tbl_identity_documents` (decisiones 1, 2, 3, 6 y 7), el tipo en usuarios con número ⇔ tipo garantizado por `CHECK` (decisión 8) y la identidad de usuario por par (tipo, número) controlada en el service. Ver migraciones `0017`–`0020`, [DEC-017](../decisiones/DEC-017-area-idioma-maestros.md), [DEC-018](../decisiones/DEC-018-selector-maestros.md) y [DEC-019](../decisiones/DEC-019-maestros-orden-bloqueo.md).
+Implementado: el maestro `tbl_identity_documents` (decisiones 1, 2, 3, 6 y 7), el formato del número por tipo (decisión 5, [DEC-021](../decisiones/DEC-021-formato-numero-documento.md)), el tipo en usuarios con número ⇔ tipo garantizado por `CHECK` (decisión 8) y la identidad de usuario por par (tipo, número) controlada en el service. Ver migraciones `0017`–`0020`, [DEC-017](../decisiones/DEC-017-area-idioma-maestros.md), [DEC-018](../decisiones/DEC-018-selector-maestros.md) y [DEC-019](../decisiones/DEC-019-maestros-orden-bloqueo.md).
 
 Cambia respecto de este documento:
 
 - **El maestro tiene además `idd_code`** (CC, NIT…): código corto, único entre no eliminados y no editable después de crear el tipo.
-- **Decisión 5 (formato por tipo): no se implementa.** El negocio decidió que el número no lleva reglas de formato. El NIT se registra con su dígito de verificación, como texto.
+- **Decisión 5 (formato por tipo):** implementada después, con los formatos que definió el negocio el 2026-09-29 (DEC-021). El NIT se registra con su dígito de verificación (`900123456-7`), que se verifica con el algoritmo de la DIAN.
 - **Tipos sembrados:** CC, CE, NIT, PA y PPT.
 
 Pendiente: proveedores (decisión 4, DOM-22), que depende de que exista `tbl_providers`.

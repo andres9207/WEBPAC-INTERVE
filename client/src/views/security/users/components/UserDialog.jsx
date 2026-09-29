@@ -4,6 +4,7 @@ import { showSuccess, showInfo, showError } from 'services/ToastService';
 import { getProfilesAPI } from 'api/requests/profilesApi';
 import { saveUserAPI } from 'api/requests/usersApi';
 import { getIdentityDocumentsSelectAPI } from 'api/requests/identityDocumentsApi';
+import { identificationFormatError } from 'utils/identification';
 import { newIdempotencyKey } from 'utils/idempotency';
 import httpCliente from 'api/services/httpCliente';
 
@@ -27,6 +28,8 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
   // (ADR-0008, decisión 7).
   const [originalIddId, setOriginalIddId] = useState(null);
   const [identityDocumentCode, setIdentityDocumentCode] = useState(null);
+  // Opciones del selector de tipos: cada una trae el formato de su número.
+  const [identityDocuments, setIdentityDocuments] = useState([]);
 
   const methods = useForm({
     defaultValues: {
@@ -50,6 +53,11 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
   const access = watch('access');
 
   const fetchIdentityDocuments = useCallback(() => getIdentityDocumentsSelectAPI(originalIddId), [originalIddId]);
+  // Estable (useCallback): SelectSocket recarga las opciones cuando cambia.
+  const keepIdentityDocuments = useCallback((options) => {
+    setIdentityDocuments(options);
+    return options;
+  }, []);
 
   const fields = useMemo(() => {
     const list = [
@@ -64,6 +72,7 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
           validate: (value, form) => (String(form.identification ?? '').trim() && !value ? 'Selecciona el tipo de identificación' : true)
         },
         fetchApi: fetchIdentityDocuments,
+        mapOptions: keepIdentityDocuments,
         socketEvent: 'refresh-identity-documents',
         grid: { xs: 12, sm: 6 },
         props: { onOptionChange: (opt) => setIdentityDocumentCode(opt.code) }
@@ -75,7 +84,13 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
         label: 'Número de identificación',
         validation: {
           maxLength: { value: 20, message: 'Máximo 20 caracteres' },
-          validate: (value, form) => (form.iddId && !String(value ?? '').trim() ? 'Ingresa el número de identificación' : true)
+          validate: (value, form) => {
+            if (!form.iddId) return true;
+            if (!String(value ?? '').trim()) return 'Ingresa el número de identificación';
+            // Formato según el tipo elegido (ADR-0008, decisión 5); el servidor lo repite.
+            const format = identityDocuments.find((opt) => opt.value === form.iddId)?.format;
+            return identificationFormatError(format, value) ?? true;
+          }
         },
         grid: { xs: 12, sm: 6 }
       },
@@ -96,7 +111,7 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
     }
 
     return list;
-  }, [access, allPages, fetchIdentityDocuments]);
+  }, [access, allPages, fetchIdentityDocuments, keepIdentityDocuments, identityDocuments]);
 
   const fetchLists = async () => {
     setLoading(true);

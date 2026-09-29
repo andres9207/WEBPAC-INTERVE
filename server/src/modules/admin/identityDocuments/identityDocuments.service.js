@@ -1,5 +1,6 @@
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import { defineMaster, createMasterService } from "../../../common/services/master.service.js";
+import { formatFor } from "./identityDocuments.formats.js";
 
 // Maestro de tipos de identificación (ADR-0008, DEC-017). Nivel 1: auditoría
 // técnica (columnas de autoría), sin bitácora (ADR-0013, dec. 9). Toda la
@@ -30,8 +31,10 @@ export const identityDocumentsConfig = defineMaster({
   ],
   defaultSort: "name",
   selectOrder: "name",
-  selectLabel: (row) => `${row.idd_name} (${row.idd_code})`,
-  selectExtra: (row) => ({ code: row.idd_code }),
+  selectLabel: (row) => (row.idd_name === row.idd_code ? row.idd_name : `${row.idd_name} (${row.idd_code})`),
+  // El formato viaja con la opción: el cliente avisa antes de enviar con la
+  // misma regla que aplica el servidor (identityDocuments.formats.js).
+  selectExtra: (row) => ({ code: row.idd_code, format: formatFor(row.idd_code) }),
   // ADR-0008, decisión 6. Cuando exista tbl_providers, se agrega aquí.
   dependents: [{ model: "tbl_users", column: "idd_id", label: "usuario(s)" }],
   socketEvent: "refresh-identity-documents",

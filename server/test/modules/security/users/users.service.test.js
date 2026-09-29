@@ -31,7 +31,7 @@ beforeEach(() => {
   prismaMock.tbl_users.findFirst.mockResolvedValue(null);
   prismaMock.tbl_user_pages.findMany.mockResolvedValue([]);
   prismaMock.tbl_profiles.findUnique.mockResolvedValue({ sta_id: 1 });
-  prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ sta_id: 1 });
+  prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ idd_code: "CC", idd_name: "Cédula de ciudadanía", sta_id: 1 });
   // Sin creación previa con la clave de idempotencia (ver idempotency.service).
   prismaMock.tbl_users.findUnique.mockResolvedValue(null);
 });
@@ -39,7 +39,7 @@ beforeEach(() => {
 const baseUser = {
   use_name: "Ana",
   use_last_name: "Paz",
-  use_identification: "1",
+  use_identification: "1234567",
   idd_id: 1,
   use_user: "ana",
   use_email: "ana@a.com",
@@ -55,7 +55,7 @@ const editPayload = {
   proId: 2,
   name: "Ana",
   lastName: "Paz",
-  identification: "1",
+  identification: "1234567",
   iddId: 1,
   username: "ana",
   email: "ana@a.com",
@@ -230,7 +230,40 @@ describe("saveUser — tipo de identificación (ADR-0008)", () => {
     await usersService.saveUser(createPayload);
 
     const { OR } = prismaMock.tbl_users.findFirst.mock.calls[0][0].where;
-    expect(OR).toContainEqual({ use_identification: "1", idd_id: 1 });
+    expect(OR).toContainEqual({ use_identification: "1234567", idd_id: 1 });
+  });
+});
+
+describe("saveUser — formato del número según el tipo (ADR-0008, decisión 5)", () => {
+  const createPayload = { ...editPayload, useId: 0, idempotencyKey: KEY };
+  const NIT = { idd_code: "NIT", idd_name: "NIT", sta_id: 1 };
+
+  it("al crear rechaza un número con formato inválido para el tipo, sin escribir", async () => {
+    await expect(usersService.saveUser({ ...createPayload, identification: "12AB" })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringMatching(/^Número de identificación inválido para Cédula de ciudadanía: /),
+    });
+    expect(prismaMock.tbl_users.create).not.toHaveBeenCalled();
+  });
+
+  it("al editar aplica la misma regla", async () => {
+    prismaMock.tbl_users.findUnique.mockResolvedValue(baseUser);
+    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue(NIT);
+
+    await expect(usersService.saveUser({ ...editPayload, iddId: 3, identification: "800197268-5" })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Número de identificación inválido para NIT: el dígito de verificación no corresponde al NIT.",
+    });
+    expect(prismaMock.tbl_users.update).not.toHaveBeenCalled();
+  });
+
+  it("un NIT con dígito de verificación correcto se guarda sin espacios de borde", async () => {
+    prismaMock.tbl_identity_documents.findUnique.mockResolvedValue(NIT);
+    prismaMock.tbl_users.create.mockResolvedValue({ use_id: 40 });
+
+    await usersService.saveUser({ ...createPayload, iddId: 3, identification: " 800197268-4 " });
+
+    expect(prismaMock.tbl_users.create.mock.calls[0][0].data).toMatchObject({ use_identification: "800197268-4", idd_id: 3 });
   });
 });
 

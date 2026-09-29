@@ -352,16 +352,19 @@ export const createMasterService = (config) => {
    * Para los services que ASIGNAN este maestro a otro registro, dentro de su
    * transacción y con el maestro ya bloqueado (DEC-019). Un valor inactivo
    * no se asigna, salvo que sea el que el registro ya tenía (DOM-21).
+   * Devuelve la fila (campos declarados y estado) para quien necesite sus
+   * datos, p. ej. el código de un tipo para validar un formato.
    */
   const assertAssignable = async (tx, id, currentId = null) => {
-    if (!id) return;
-    const row = await tx[model].findUnique({ where: { [ID]: Number(id) }, select: { sta_id: true } });
+    if (!id) return null;
+    const row = await tx[model].findUnique({ where: { [ID]: Number(id) }, select: { ...fieldSelect, sta_id: true } });
     if (!row || row.sta_id === DELETED_STATUS) {
       throw httpError(400, `${The} ${config.label} seleccionad${a} no existe.`);
     }
     if (row.sta_id !== ACTIVE_STATUS && Number(id) !== Number(currentId)) {
       throw httpError(400, `${The} ${config.label} seleccionad${a} está inactiv${a}.`);
     }
+    return row;
   };
 
   return { pagination, getById, select, save, changeStatus, remove, assertAssignable };

@@ -259,8 +259,9 @@ describe("assertAssignable (para los services que asignan el maestro)", () => {
 
     things.findUnique.mockResolvedValue({ sta_id: 2 });
     await expect(service.assertAssignable(prismaMock, 5)).rejects.toMatchObject({ message: "La aseguradora seleccionada está inactiva." });
-    await expect(service.assertAssignable(prismaMock, 5, 5)).resolves.toBeUndefined();
-    await expect(service.assertAssignable(prismaMock, null)).resolves.toBeUndefined();
+    // Devuelve la fila, para quien necesite sus datos.
+    await expect(service.assertAssignable(prismaMock, 5, 5)).resolves.toEqual({ sta_id: 2 });
+    await expect(service.assertAssignable(prismaMock, null)).resolves.toBeNull();
   });
 });
 

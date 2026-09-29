@@ -12,6 +12,7 @@ import {
   writeAudit,
 } from "../../../common/services/audit.service.js";
 import { identityDocumentsService } from "../../admin/identityDocuments/identityDocuments.service.js";
+import { identificationError } from "../../admin/identityDocuments/identityDocuments.formats.js";
 
 const USER_SORT_FIELDS = {
   name: (order) => ({ use_name: order }),
@@ -209,7 +210,18 @@ const assertAssignableProfile = async (tx, locked, proId) => {
 // El tipo de identificación también se verifica bloqueado: eliminarlo lo
 // bloquea antes de contar los usuarios que lo usan (DEC-019). Un tipo inactivo
 // no se asigna, pero el que el usuario ya tenía se conserva (ADR-0008, dec. 7).
-const assertAssignableIdentityDocument = identityDocumentsService.assertAssignable;
+// Con el tipo ya leído se valida el formato del número (ADR-0008, dec. 5):
+// la misma función al crear y al editar.
+const assertIdentification = async (tx, { iddId, identification, currentIddId = null }) => {
+  const document = await identityDocumentsService.assertAssignable(tx, iddId, currentIddId);
+  if (!document) return;
+  const reason = identificationError(document.idd_code, identification);
+  if (reason) {
+    const error = new Error(`Número de identificación inválido para ${document.idd_name}: ${reason}.`);
+    error.statusCode = 400;
+    throw error;
+  }
+};
 
 // Clave de idempotencia de la creación (ADR-0027, decisión 7): vive en la
 // propia fila del usuario. Un reintento con la misma clave devuelve la misma
@@ -264,7 +276,8 @@ const persistUser = async ({
 }) => {
   // Sin número no hay tipo. La ruta ya exige que vayan juntos; se repite aquí
   // para no llegar al CHECK de la BD con un error genérico.
-  const identification = rawIdentification === "null" || !rawIdentification ? null : rawIdentification;
+  const trimmedIdentification = String(rawIdentification ?? "").trim();
+  const identification = trimmedIdentification === "null" || !trimmedIdentification ? null : trimmedIdentification;
   const iddId = identification ? Number(rawIddId) : null;
   if (identification && !(iddId > 0)) {
     const error = new Error("Selecciona el tipo de identificación.");
@@ -305,7 +318,7 @@ const persistUser = async ({
         throw error;
       }
 
-      await assertAssignableIdentityDocument(tx, iddId, before.idd_id);
+      await assertIdentification(tx, { iddId, identification, currentIddId: before.idd_id });
 
       const updateData = {
         use_name: name,
@@ -384,7 +397,7 @@ const persistUser = async ({
 
   return withLockedTransaction({ PERFIL: proId, ...identityLock }, async (tx, locked) => {
     await assertAssignableProfile(tx, locked, proId);
-    await assertAssignableIdentityDocument(tx, iddId);
+    await assertIdentification(tx, { iddId, identification });
 
     const data = {
       use_name: name,
