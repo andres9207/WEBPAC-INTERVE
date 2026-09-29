@@ -148,18 +148,25 @@ export const createMasterService = (config) => {
     const order = Number(sortOrder) === 1 ? "asc" : "desc";
     const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS[config.defaultSort])(order);
 
-    const where = {
+    const baseWhere = {
       sta_id: { not: DELETED_STATUS },
       ...Object.fromEntries(
         fields
           .filter((f) => f.filter && filters[f.name])
           .map((f) => [f.column, { contains: String(filters[f.name]) }])
       ),
-      ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}),
     };
+    const where = { ...baseWhere, ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}) };
 
-    const page = await paginate(prisma[model], { where, select: LIST_SELECT, orderBy }, { first, rows });
-    return { ...page, results: page.results.map(toDto) };
+    // statusCounts: cuántos hay por estado con los mismos filtros de texto,
+    // para las pestañas por estado de la vista (sin el filtro de estado, o
+    // todas las pestañas menos la elegida mostrarían 0).
+    const [page, grouped] = await Promise.all([
+      paginate(prisma[model], { where, select: LIST_SELECT, orderBy }, { first, rows }),
+      prisma[model].groupBy({ by: ["sta_id"], where: baseWhere, _count: { _all: true } }),
+    ]);
+    const statusCounts = Object.fromEntries(grouped.map((g) => [g.sta_id, g._count._all]));
+    return { ...page, results: page.results.map(toDto), statusCounts };
   };
 
   const getById = async ({ id }) => {

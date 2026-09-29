@@ -1,240 +1,61 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-
-import Button from '@mui/material/Button';
-import Stack from '@mui/material/Stack';
-import Badge from '@mui/material/Badge';
-
-import { IconEdit, IconTrash, IconPlus, IconFilter, IconToggleLeft, IconToggleRight } from '@tabler/icons-react';
-
-import MainCard from 'ui-component/cards/MainCard';
-import FilterPopper from 'ui-component/extended/FilterPopper';
-import DataTable from 'ui-component/extended/DataTable';
-import StatusChip from 'ui-component/extended/StatusChip';
-import LastModifiedCell from 'ui-component/extended/LastModifiedCell';
-import IdentityDocumentDialog from './components/IdentityDocumentDialog';
-import { STATUS_OPTIONS } from 'utils/constants';
-import {
-  paginationIdentityDocumentsAPI,
-  deleteIdentityDocumentAPI,
-  changeStatusIdentityDocumentAPI
-} from 'api/requests/identityDocumentsApi';
+import MasterPage from 'ui-component/extended/MasterPage';
+import { identityDocumentsApi } from 'api/requests/identityDocumentsApi';
 import { useAuth } from 'contexts/AuthContext';
-import { showError, showSuccess } from 'services/ToastService';
 
-const initialFilters = { code: '', name: '', staId: '' };
+// Maestro de tipos de identificación (ADR-0008) sobre la vista reutilizable
+// de maestro (MAE-FE-01). Todo se declara aquí; el comportamiento está en MasterPage.
+
+const COLUMNS = [
+  { id: 'code', label: 'Código', sortable: true },
+  { id: 'name', label: 'Nombre', sortable: true }
+];
+
+const FILTERS = [
+  { key: 'code', label: 'Código' },
+  { key: 'name', label: 'Nombre' }
+];
+
+const FORM_FIELDS = [
+  {
+    name: 'code',
+    type: 'text',
+    label: 'Código',
+    required: true,
+    // Clave estable del tipo: se fija al crear (ADR-0008).
+    editable: false,
+    validation: {
+      required: 'El código es requerido',
+      maxLength: { value: 10, message: 'Máximo 10 caracteres' },
+      pattern: { value: /^[A-Za-z0-9]+$/, message: 'Solo letras y números, sin espacios' }
+    },
+    grid: { xs: 12, sm: 4 }
+  },
+  {
+    name: 'name',
+    type: 'text',
+    label: 'Nombre',
+    required: true,
+    validation: { required: 'El nombre es requerido', maxLength: { value: 100, message: 'Máximo 100 caracteres' } },
+    grid: { xs: 12, sm: 8 }
+  }
+];
+
+const rowLabel = (row) => row.name;
 
 export default function IdentityDocumentPage() {
-  const { hasPermission, permissionsCatalog } = useAuth();
-
-  const [rows, setRows] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [sortField, setSortField] = useState('name');
-  const [sortOrder, setSortOrder] = useState(1);
-
-  const [filters, setFilters] = useState(initialFilters);
-  const [filterAnchorEl, setFilterAnchorEl] = useState(null);
-
-  const handleSetFilters = (nextFilters) => {
-    setFilters(nextFilters);
-    setPage(0);
-  };
-
-  // perId != null antes de preguntar: hasPermission(undefined) es true mientras
-  // el catálogo no cargó (ver FRONTEND_STANDARD, regla 5).
-  const canDo = (perId) => perId != null && hasPermission(perId);
-  const canCreate = canDo(permissionsCatalog.admin?.identityDocuments?.create);
-  const canEdit = canDo(permissionsCatalog.admin?.identityDocuments?.edit);
-  const canDelete = canDo(permissionsCatalog.admin?.identityDocuments?.delete);
-  const canChangeStatus = canDo(permissionsCatalog.admin?.identityDocuments?.changeStatus);
-
-  const dialogRef = useRef(null);
-
-  const handleAdd = (item) => {
-    setRows((prev) => [item, ...prev]);
-    setTotal((prev) => prev + 1);
-  };
-
-  const handleUpdate = (item) => {
-    setRows((prev) => prev.map((row) => (row.iddId === item.iddId ? { ...row, ...item } : row)));
-  };
-
-  const fetchIdentityDocuments = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data } = await paginationIdentityDocumentsAPI({
-        code: filters.code,
-        name: filters.name,
-        staId: filters.staId,
-        rows: rowsPerPage,
-        first: page * rowsPerPage,
-        sortField,
-        sortOrder
-      });
-      setRows(data.results ?? []);
-      setTotal(data.total ?? 0);
-    } catch (err) {
-      showError(err.response?.data?.message || 'Error al cargar los tipos de identificación');
-    } finally {
-      setLoading(false);
-    }
-  }, [filters.code, filters.name, filters.staId, page, rowsPerPage, sortField, sortOrder]);
-
-  useEffect(() => {
-    fetchIdentityDocuments();
-  }, [fetchIdentityDocuments]);
-
-  const handleSort = (field) => {
-    if (sortField === field) setSortOrder((o) => (o === 1 ? -1 : 1));
-    else {
-      setSortField(field);
-      setSortOrder(1);
-    }
-    setPage(0);
-  };
-
-  const handleDelete = async (iddId) => {
-    try {
-      await deleteIdentityDocumentAPI({ iddId });
-      fetchIdentityDocuments();
-    } catch (err) {
-      showError(err.response?.data?.message || 'Error al eliminar el tipo de identificación');
-    }
-  };
-
-  const handleChangeStatus = async (row) => {
-    const staId = row.staId === 1 ? 2 : 1;
-    try {
-      const { data } = await changeStatusIdentityDocumentAPI({ iddId: row.iddId, staId });
-      handleUpdate({ iddId: row.iddId, staId, statusName: staId === 1 ? 'Activo' : 'Inactivo' });
-      showSuccess(data.message);
-    } catch (err) {
-      showError(err.response?.data?.message || 'Error al cambiar el estado del tipo de identificación');
-    }
-  };
-
-  const filterOptions = useMemo(
-    () => [
-      { type: 'input', key: 'code', label: 'Código', filtro: filters.code, grid: { xs: 12, sm: 6 } },
-      { type: 'input', key: 'name', label: 'Nombre', filtro: filters.name, grid: { xs: 12, sm: 6 } },
-      {
-        type: 'dropdown',
-        key: 'staId',
-        label: 'Estado',
-        filtro: filters.staId,
-        grid: { xs: 12, sm: 6 },
-        props: { options: STATUS_OPTIONS }
-      }
-    ],
-    [filters]
-  );
-
-  const columns = [
-    { id: 'code', label: 'Código', sortable: true },
-    { id: 'name', label: 'Nombre', sortable: true },
-    {
-      id: 'status',
-      label: 'Estado',
-      render: (row) => <StatusChip staId={row.staId} label={row.statusName} />
-    },
-    {
-      id: 'modified',
-      label: 'Últ. modificación',
-      render: (row) => <LastModifiedCell name={row.updatedByName} date={row.updatedAt} />
-    }
-  ];
-
-  const actionItems = (row) => [
-    ...(canEdit
-      ? [{ label: 'Editar', icon: <IconEdit size={16} />, command: () => dialogRef.current?.editIdentityDocument(row), color: '#fda53a' }]
-      : []),
-    ...(canChangeStatus
-      ? [
-          row.staId === 1
-            ? {
-                label: 'Desactivar',
-                icon: <IconToggleLeft size={16} />,
-                command: () => handleChangeStatus(row),
-                color: '#8e8e8e',
-                confirm: `¿Desactivar "${row.name}"? No se podrá asignar en registros nuevos; los existentes lo conservan.`
-              }
-            : { label: 'Activar', icon: <IconToggleRight size={16} />, command: () => handleChangeStatus(row), color: '#00c853' }
-        ]
-      : []),
-    ...(canDelete
-      ? [
-          {
-            label: 'Eliminar',
-            icon: <IconTrash size={16} />,
-            command: () => handleDelete(row.iddId),
-            color: '#f43f51',
-            confirm: `¿Está seguro de eliminar el tipo de identificación "${row.name}"?`
-          }
-        ]
-      : [])
-  ];
-
-  const activeFilterCount = Object.values(filters).filter((v) => v !== '' && v != null).length;
+  const { permissionsCatalog } = useAuth();
 
   return (
-    <MainCard
-      title={
-        <Stack direction="row" alignItems="center" justifyContent="flex-end" spacing={2}>
-          <Badge badgeContent={activeFilterCount} color="primary" size="small">
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<IconFilter size={16} />}
-              onClick={(event) => setFilterAnchorEl((prev) => (prev ? null : event.currentTarget))}
-            >
-              Filtros
-            </Button>
-          </Badge>
-          {canCreate && (
-            <Button
-              variant="contained"
-              startIcon={<IconPlus size={16} />}
-              size="small"
-              onClick={() => dialogRef.current?.newIdentityDocument()}
-            >
-              Nuevo Tipo
-            </Button>
-          )}
-        </Stack>
-      }
-    >
-      <FilterPopper
-        anchorEl={filterAnchorEl}
-        open={Boolean(filterAnchorEl)}
-        onClose={() => setFilterAnchorEl(null)}
-        filters={filterOptions}
-        setFilters={handleSetFilters}
-        initialFilters={initialFilters}
-      />
-
-      <DataTable
-        columns={columns}
-        rows={rows}
-        total={total}
-        loading={loading}
-        page={page}
-        rowsPerPage={rowsPerPage}
-        onPageChange={(_, p) => setPage(p)}
-        onRowsPerPageChange={(e) => {
-          setRowsPerPage(+e.target.value);
-          setPage(0);
-        }}
-        sortField={sortField}
-        sortOrder={sortOrder}
-        onSort={handleSort}
-        keyExtractor={(row) => row.iddId}
-        cardTitleRender={(row) => row.name}
-        actions={actionItems}
-      />
-
-      <IdentityDocumentDialog ref={dialogRef} addItem={handleAdd} updateItem={handleUpdate} />
-    </MainCard>
+    <MasterPage
+      title="Tipo de identificación"
+      idField="iddId"
+      api={identityDocumentsApi}
+      permissions={permissionsCatalog.admin?.identityDocuments}
+      columns={COLUMNS}
+      filters={FILTERS}
+      formFields={FORM_FIELDS}
+      defaultSort="name"
+      rowLabel={rowLabel}
+    />
   );
 }

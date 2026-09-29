@@ -35,6 +35,7 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 | [DEC-019](DEC-019-maestros-orden-bloqueo.md) | 2026-09-29 | Los maestros van al final de `LOCK_ORDER`; asignar un maestro lo bloquea | Obligatoria | [0027](../adr/0027-integridad-transaccional.md) |
 | [DEC-020](DEC-020-patron-maestro.md) | 2026-09-29 | Los maestros se declaran sobre un patrón reutilizable; el cambio de estado es una acción con permiso propio | Obligatoria | 0003, 0004, 0006–0010, 0019 |
 | [DEC-021](DEC-021-formato-numero-documento.md) | 2026-09-29 | El formato del número de documento se valida por tipo, con la regla en el código del servidor | Obligatoria | [0008](../adr/0008-tipos-identificacion.md) |
+| [DEC-022](DEC-022-vista-maestro.md) | 2026-09-29 | Las pantallas de maestros se declaran sobre `MasterPage` | Obligatoria | 0003, 0004, 0006–0010, 0019 |
 
 **Tipo:**
 - **Obligatoria**: regla para todo código nuevo. El checklist de `ENDPOINT_STANDARD.md` la exige y, donde se puede, un test la hace cumplir.

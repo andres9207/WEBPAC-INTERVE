@@ -14,6 +14,10 @@ React 19 + Vite, MUI 7 sobre el template Berry. Comandos, autenticación y capa 
 8. **Reutilizar `ui-component/`** antes de crear un componente nuevo.
 9. **Nada de cálculos de negocio** (montos, saldos, fechas derivadas) en el cliente. Los muestra, no los decide.
 
+## Pantallas de maestros
+
+No se escriben a mano: se declaran sobre `ui-component/extended/MasterPage` con su API de `createMasterApi` ([DEC-022](../decisiones/DEC-022-vista-maestro.md)). Referencia: `views/admin/identityDocuments/IdentityDocumentPage.jsx`. `MasterPage` ya incluye todas las piezas de abajo, más pestañas por estado con conteo y la acción de activar/desactivar. Por los conteos, después de cada escritura **recarga** la página actual en vez de actualizar la fila en memoria.
+
 ## Anatomía de una página de listado
 
 Referencia: `views/security/profiles/ProfilePage.jsx`.

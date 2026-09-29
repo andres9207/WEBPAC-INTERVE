@@ -10,6 +10,7 @@ const prismaMock = {
     findFirst: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
+    groupBy: jest.fn(),
     update: jest.fn(),
     create: jest.fn(),
   },
@@ -54,6 +55,7 @@ beforeEach(() => {
   things.findFirst.mockResolvedValue(null);
   things.findMany.mockResolvedValue([]);
   things.count.mockResolvedValue(0);
+  things.groupBy.mockResolvedValue([]);
   prismaMock.tbl_owners.count.mockResolvedValue(0);
 });
 
@@ -89,6 +91,22 @@ describe("pagination", () => {
       { thgId: 1, code: "A", name: "Uno", notes: null, staId: 1, statusName: "Activo", updatedAt: "d", updatedByName: "Ana Paz" },
     ]);
     expect(page.total).toBe(1);
+  });
+
+  it("devuelve el conteo por estado con los mismos filtros de texto, sin el de estado (pestañas)", async () => {
+    things.groupBy.mockResolvedValue([
+      { sta_id: 1, _count: { _all: 4 } },
+      { sta_id: 2, _count: { _all: 1 } },
+    ]);
+
+    const page = await service.pagination({ filters: { name: "Un" }, staId: 2 });
+
+    expect(things.groupBy).toHaveBeenCalledWith({
+      by: ["sta_id"],
+      where: { sta_id: { not: 3 }, thg_name: { contains: "Un" } },
+      _count: { _all: true },
+    });
+    expect(page.statusCounts).toEqual({ 1: 4, 2: 1 });
   });
 
   it("ordena por estado y por fecha además de los campos declarados", async () => {

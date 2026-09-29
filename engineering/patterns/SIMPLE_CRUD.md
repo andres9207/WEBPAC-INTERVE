@@ -32,6 +32,30 @@ export default createMasterRouter(xConfig, xService);
 
 Opciones de un campo: `required` (por defecto sí), `maxLength`, `pattern: { regex, message }`, `uppercase`, `editable` (por defecto sí), `unique`, `filter`, `sortable`. Tests: solo lo propio de la config, como en `test/modules/admin/identityDocuments/`. El comportamiento común ya está probado en `test/common/`.
 
+Cliente ([DEC-022](../decisiones/DEC-022-vista-maestro.md)):
+
+```jsx
+// api/requests/xApi.js
+export const xApi = createMasterApi('admin/x', { entity: 'x', plural: 'xs' });
+
+// views/admin/x/XPage.jsx
+export default function XPage() {
+  const { permissionsCatalog } = useAuth();
+  return (
+    <MasterPage
+      title="Aseguradora" idField="xId" api={xApi}
+      permissions={permissionsCatalog.admin?.x}
+      columns={[{ id: 'name', label: 'Nombre', sortable: true }]}
+      filters={[{ key: 'name', label: 'Nombre' }]}
+      formFields={[{ name: 'name', type: 'text', label: 'Nombre', required: true, validation: { required: 'El nombre es requerido' } }]}
+      defaultSort="name" rowLabel={(row) => row.name}
+    />
+  );
+}
+```
+
+Las constantes (`columns`, `filters`, `formFields`, `rowLabel`) van fuera del componente, como en `IdentityDocumentPage.jsx`, para no recrearlas en cada render.
+
 ## Un CRUD simple que no es maestro: esqueleto
 
 ## `x.validation.js`

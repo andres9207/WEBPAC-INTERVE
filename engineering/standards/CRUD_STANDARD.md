@@ -89,6 +89,8 @@ En `server/test/modules/<área>/<modulo>/`, con mocks de Prisma y `transactionRa
 
 ### 7. Cliente
 
+**Maestros:** `api/requests/<módulo>Api.js` con `createMasterApi` y una página declarativa sobre `MasterPage` ([DEC-022](../decisiones/DEC-022-vista-maestro.md)). Lo que sigue aplica a los CRUD que no son maestros.
+
 - `client/src/api/requests/<modulo>Api.js` sobre `httpCliente`: `pagination<X>API`, `save<X>API(params, idempotencyKey)` con `idempotencyConfig(key)`, `delete<X>API`.
 - Diálogo `components/<X>Dialog.jsx`: `forwardRef` + `useImperativeHandle` con `new<X>()` y `edit<X>(item)`; `BaseDialog`; `react-hook-form` + `GenericFormSection`; clave nueva con `newIdempotencyKey()` al abrir para crear y `null` al editar; `showSuccess` / `showError`.
 - Página `<X>Page.jsx`: `MainCard`; botón de filtros con `Badge` y `FilterPopper`; `DataTable` paginado en el servidor; `StatusChip`; `LastModifiedCell`; acciones con `canDo(perId)` y `confirm` para eliminar; `showError` en todo `catch`.
