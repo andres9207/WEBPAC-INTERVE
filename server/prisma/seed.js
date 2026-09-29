@@ -24,6 +24,8 @@ const PAGES = [
   { pag_id: 9, pag_description: "Aseguradoras", pag_parent: 5, pag_url: "admin/insurers", pag_icon: "umbrella", pag_order: 4, pag_name: "Aseguradoras", pag_type: 2 },
   // database/migrations/0032_seed_supervision_types_pages_permissions.sql
   { pag_id: 10, pag_description: "Tipos de interventoría", pag_parent: 5, pag_url: "admin/supervisionTypes", pag_icon: "eye", pag_order: 5, pag_name: "Tipos de interventoría", pag_type: 2 },
+  // database/migrations/0034_seed_construction_companies_pages_permissions.sql
+  { pag_id: 11, pag_description: "Constructoras", pag_parent: 5, pag_url: "admin/constructionCompanies", pag_icon: "building", pag_order: 6, pag_name: "Constructoras", pag_type: 2 },
 ];
 
 const PERMISSIONS = [
@@ -60,6 +62,11 @@ const PERMISSIONS = [
   { per_id: 39, per_name: "Modificar tipo de interventoría", pag_id: 10, per_order: 2 },
   { per_id: 40, per_name: "Eliminar tipo de interventoría", pag_id: 10, per_order: 3 },
   { per_id: 41, per_name: "Cambiar estado tipo de interventoría", pag_id: 10, per_order: 4 },
+  // database/migrations/0034_seed_construction_companies_pages_permissions.sql
+  { per_id: 43, per_name: "Crear constructora", pag_id: 11, per_order: 1 },
+  { per_id: 44, per_name: "Modificar constructora", pag_id: 11, per_order: 2 },
+  { per_id: 45, per_name: "Eliminar constructora", pag_id: 11, per_order: 3 },
+  { per_id: 46, per_name: "Cambiar estado constructora", pag_id: 11, per_order: 4 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -93,6 +100,7 @@ const VIEW_PERMISSIONS = [
   { per_id: 27, per_name: "Ver tipos de dirección", pag_id: 8, per_order: 5 },
   { per_id: 32, per_name: "Ver aseguradoras", pag_id: 9, per_order: 5 },
   { per_id: 37, per_name: "Ver tipos de interventoría", pag_id: 10, per_order: 5 },
+  { per_id: 42, per_name: "Ver constructoras", pag_id: 11, per_order: 5 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay

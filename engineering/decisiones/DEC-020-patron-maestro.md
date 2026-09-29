@@ -30,6 +30,7 @@ El primer maestro (tipos de identificación) se escribió a mano: unas 250 líne
 - **La config es la lista blanca.** Solo filtran y ordenan los campos declarados con `filter` y `sortable`; nada del cliente llega a Prisma como nombre de columna.
 - **Campos:** `required`, `maxLength`, `pattern`, `uppercase`, `editable` (un campo no editable se fija al crear) y `unique` (el duplicado entre no eliminados se controla en el service y se respalda con la columna generada de `CRUD_STANDARD`).
 - **Dependientes:** `dependents: [{ model, column, label }]`. Al eliminar se cuentan con el registro bloqueado, y el error dice cuántos y de qué: "lo usan 2 usuario(s)".
+  - *Ampliación 2026-09-29 (ADR-0004):* por defecto cuentan solo los dependientes no eliminados. Con `countDeleted: true` cuentan también los eliminados lógicamente, para dependientes que son historial (las obras de una constructora). El pronombre sigue el género del maestro ("la usan 3 obra(s)").
 - **`assertAssignable(tx, id, currentId)`** para los services que asignan el maestro ([DEC-019](DEC-019-maestros-orden-bloqueo.md)).
 - **Bitácora funcional opcional** con `audit: { entity }`, para tipos de contrato y tipos de póliza (ADR-0013). Sin `audit`, solo quedan las columnas de autoría.
 

@@ -262,6 +262,19 @@ describe("remove", () => {
     });
   });
 
+  it("con countDeleted, también cuentan los dependientes eliminados lógicamente (historial)", async () => {
+    const historyService = createMasterService({
+      ...config,
+      dependents: [{ model: "tbl_owners", column: "thg_id", label: "obra(s)", countDeleted: true }],
+    });
+    things.findUnique.mockResolvedValue({ sta_id: 1 });
+    prismaMock.tbl_owners.count.mockResolvedValue(1);
+
+    await expect(historyService.remove({ id: 5, useBy: 7 })).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.tbl_owners.count).toHaveBeenCalledWith({ where: { thg_id: 5 } });
+    expect(things.update).not.toHaveBeenCalled();
+  });
+
   it("con dependientes no eliminados, no elimina y dice cuántos y de qué", async () => {
     things.findUnique.mockResolvedValue({ sta_id: 1 });
     prismaMock.tbl_owners.count.mockResolvedValue(3);

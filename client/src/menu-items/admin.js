@@ -1,8 +1,8 @@
 // assets
-import { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella, IconEye } from '@tabler/icons-react';
+import { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella, IconEye, IconBuilding } from '@tabler/icons-react';
 
 // constant
-const icons = { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella, IconEye };
+const icons = { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella, IconEye, IconBuilding };
 
 // ==============================|| ADMIN MENU ITEMS ||============================== //
 // Solo alimenta las migas de pan: el sidebar sale de tbl_pages.
@@ -56,6 +56,14 @@ const admin = {
           type: 'item',
           url: '/admin/supervisionTypes',
           icon: icons.IconEye,
+          breadcrumbs: true
+        },
+        {
+          id: 'constructionCompanies',
+          title: 'Constructoras',
+          type: 'item',
+          url: '/admin/constructionCompanies',
+          icon: icons.IconBuilding,
           breadcrumbs: true
         }
       ]

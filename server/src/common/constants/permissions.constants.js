@@ -64,5 +64,12 @@ export const PERMISSIONS = {
       delete: 40,
       changeStatus: 41,
     },
+    constructionCompanies: {
+      view: 42, // pagination_construction_companies
+      create: 43,
+      edit: 44,
+      delete: 45,
+      changeStatus: 46,
+    },
   },
 };

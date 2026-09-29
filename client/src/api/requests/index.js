@@ -8,3 +8,4 @@ export * from "./providerTypesApi";
 export * from "./addressTypesApi";
 export * from "./insurersApi";
 export * from "./supervisionTypesApi";
+export * from "./constructionCompaniesApi";

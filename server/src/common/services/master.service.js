@@ -54,7 +54,9 @@ const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
  * @param {string} [config.defaultSort] Campo de orden por defecto (el primero ordenable).
  * @param {(row) => string} [config.selectLabel] Texto de la opción del selector.
  * @param {(row) => object} [config.selectExtra] Campos extra de la opción.
- * @param {Array<{ model, column, label }>} [config.dependents] Referencias que impiden eliminar.
+ * @param {Array<{ model, column, label, countDeleted? }>} [config.dependents] Referencias que impiden
+ *   eliminar. Por defecto cuentan solo las no eliminadas; `countDeleted: true` cuenta también las
+ *   eliminadas lógicamente, para dependientes que son historial (obras de una constructora, ADR-0004).
  * @param {string} [config.socketEvent] Evento que recarga los selectores.
  * @param {{ entity: string }} [config.audit] Bitácora funcional (AUDIT_ENTITIES).
  */
@@ -337,7 +339,10 @@ export const createMasterService = (config) => {
 
       for (const dependent of dependents) {
         const count = await tx[dependent.model].count({
-          where: { [dependent.column]: Number(id), sta_id: { not: DELETED_STATUS } },
+          where: {
+            [dependent.column]: Number(id),
+            ...(dependent.countDeleted ? {} : { sta_id: { not: DELETED_STATUS } }),
+          },
         });
         if (count > 0) {
           throw httpError(

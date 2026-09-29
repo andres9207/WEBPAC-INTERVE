@@ -20,6 +20,7 @@ const ProviderTypePage = Loadable(lazy(() => import('views/admin/providerTypes/P
 const AddressTypePage = Loadable(lazy(() => import('views/admin/addressTypes/AddressTypePage')));
 const InsurerPage = Loadable(lazy(() => import('views/admin/insurers/InsurerPage')));
 const SupervisionTypePage = Loadable(lazy(() => import('views/admin/supervisionTypes/SupervisionTypePage')));
+const ConstructionCompanyPage = Loadable(lazy(() => import('views/admin/constructionCompanies/ConstructionCompanyPage')));
 
 // ==============================|| MAIN ROUTING ||============================== //
 
@@ -52,7 +53,8 @@ const MainRoutes = {
             { path: 'providerTypes', element: <ProviderTypePage /> },
             { path: 'addressTypes', element: <AddressTypePage /> },
             { path: 'insurers', element: <InsurerPage /> },
-            { path: 'supervisionTypes', element: <SupervisionTypePage /> }
+            { path: 'supervisionTypes', element: <SupervisionTypePage /> },
+            { path: 'constructionCompanies', element: <ConstructionCompanyPage /> }
           ]
         }
       ]

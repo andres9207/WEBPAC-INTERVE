@@ -20,7 +20,7 @@ export const xConfig = defineMaster({
   fields: [
     { name: "name", column: "x_name", label: "nombre", maxLength: 100, unique: true, filter: true, sortable: true },
   ],
-  dependents: [{ model: "tbl_policies", column: "x_id", label: "póliza(s)" }],
+  dependents: [{ model: "tbl_policies", column: "x_id", label: "póliza(s)" }], // countDeleted: true si el historial también cuenta
   socketEvent: "refresh-xs",
   // audit: { entity: AUDIT_ENTITIES.X },                  // solo si ADR-0013 exige bitácora funcional
 });
