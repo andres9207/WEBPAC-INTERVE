@@ -1,3 +1,5 @@
+> ⛔ **NO APLICA A ESTE PROYECTO (WEBPAC-INTERVE).** Esta plantilla es de CSUR, otro proyecto (PrimeReact, SQL crudo, `client/src/pages/admin`, `/management/`). Nada de sus rutas, carpetas ni código existe aquí. Para un maestro de este proyecto usar [`engineering/templates/CRUD_TEMPLATE.md`](../../../engineering/templates/CRUD_TEMPLATE.md), [`engineering/standards/CRUD_STANDARD.md`](../../../engineering/standards/CRUD_STANDARD.md) y los nombres de [DEC-017](../../../engineering/decisiones/DEC-017-area-idioma-maestros.md).
+
 # Spec de maestro: `{module}`
 
 > Plantilla para especificar **un** maestro concreto en CSUR.

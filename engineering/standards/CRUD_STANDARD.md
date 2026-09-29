@@ -21,7 +21,8 @@ El esqueleto de código está en [`patterns/SIMPLE_CRUD.md`](../patterns/SIMPLE_
 
 1. Leer el ADR del módulo: unicidad, relaciones, qué impide eliminar, nivel de auditoría.
 2. Llenar la spec con [`templates/CRUD_TEMPLATE.md`](../templates/CRUD_TEMPLATE.md).
-3. Mientras sigan abiertas, respetar las decisiones pendientes de [`PROJECT_STATE`](../PROJECT_STATE.md): **PD-01** (selects), **PD-02** (código del duplicado), **PD-04** (posición en `LOCK_ORDER`) y **PD-05** (área del módulo). El primer maestro no se implementa sin resolverlas.
+3. Mientras sigan abiertas, respetar las decisiones pendientes de [`PROJECT_STATE`](../PROJECT_STATE.md): **PD-01** (selects), **PD-02** (código del duplicado), y **PD-04** (posición en `LOCK_ORDER`). El primer maestro no se implementa sin resolverlas.
+4. Tomar módulo, tabla y prefijo de la tabla de [DEC-017](../decisiones/DEC-017-area-idioma-maestros.md). Todos los maestros van en el área `admin/`.
 
 ## Orden de construcción
 
@@ -93,17 +94,20 @@ Checklist de [`ENDPOINT_STANDARD`](ENDPOINT_STANDARD.md) completo, `yarn test` e
 
 ## Nombres
 
-| Elemento | Formato | Ejemplo con perfiles |
-| --- | --- | --- |
-| Tabla | `tbl_<plural_en_inglés>` | `tbl_profiles` |
-| Columnas | `<pre>_<nombre>` | `pro_name` |
-| Id en la API | `<pre>Id` en camelCase | `proId` |
-| Carpeta del servidor | `modules/<área>/<modulo>/` | `security/profiles/` |
-| Rutas HTTP | `/api/<área>/<modulo>/<acción>_<modulo>` | `/api/security/profiles/save_profile` |
-| Archivo de API | `<modulo>Api.js` | `profilesApi.js` |
-| Funciones de API | `<acción><X>API` | `saveProfileAPI` |
-| Página y diálogo | `<X>Page.jsx`, `<X>Dialog.jsx` | `ProfilePage.jsx`, `ProfileDialog.jsx` |
-| Permisos | `PERMISSIONS.<área>.<modulo>.<acción>` | `PERMISSIONS.security.profiles.create` |
-| Constantes de orden | `<X>_SORT_FIELDS` | `PROFILE_SORT_FIELDS` |
+Los ocho maestros ya tienen módulo, tabla y prefijo fijados en [DEC-017](../decisiones/DEC-017-area-idioma-maestros.md).
 
-Tablas en inglés porque así está todo el esquema actual. Si el dominio pide nombres en español, se decide una vez para todo el CORE y se escribe aquí.
+| Elemento | Formato | Perfiles (existente) | Tipos de contrato (maestro) |
+| --- | --- | --- | --- |
+| Tabla | `tbl_<plural en inglés, snake_case>` | `tbl_profiles` | `tbl_contract_types` |
+| Columnas | `<pre>_<nombre>` | `pro_name` | `ctt_name` |
+| Id en la API | `<pre>Id` en camelCase | `proId` | `cttId` |
+| Carpeta del servidor | `modules/<área>/<módulo en camelCase>/` | `security/profiles/` | `admin/contractTypes/` |
+| Archivos del servidor | `<módulo>.<capa>.js` | `profiles.service.js` | `contractTypes.service.js` |
+| Rutas HTTP | `/api/<área>/<módulo>/<acción>_<entidad en snake_case>` | `/api/security/profiles/save_profile` | `/api/admin/contractTypes/save_contract_type` |
+| Archivo de API | `<módulo>Api.js` | `profilesApi.js` | `contractTypesApi.js` |
+| Funciones de API | `<acción><X>API` | `saveProfileAPI` | `saveContractTypeAPI` |
+| Página y diálogo | `<X>Page.jsx`, `<X>Dialog.jsx` | `ProfilePage.jsx` | `ContractTypePage.jsx`, `ContractTypeDialog.jsx` |
+| Permisos | `PERMISSIONS.<área>.<módulo>.<acción>` | `PERMISSIONS.security.profiles.create` | `PERMISSIONS.admin.contractTypes.create` |
+| Constantes de orden | `<X>_SORT_FIELDS` | `PROFILE_SORT_FIELDS` | `CONTRACT_TYPE_SORT_FIELDS` |
+
+Tablas y código en inglés; lo que ve el usuario, en español (DEC-017).

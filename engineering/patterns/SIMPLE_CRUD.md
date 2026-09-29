@@ -4,7 +4,7 @@
 
 **Referencia real:** `server/src/modules/security/profiles/` y `client/src/views/security/profiles/`, sin la parte de páginas asignadas.
 
-Los nombres `tbl_x`, `x_`, `ENTIDAD_X` y `<área>` son marcadores. El área y la posición en `LOCK_ORDER` están pendientes (PD-04, PD-05 en [`PROJECT_STATE`](../PROJECT_STATE.md)).
+Los nombres `tbl_x`, `x_` y `ENTIDAD_X` son marcadores: para un maestro real se toman de [DEC-017](../decisiones/DEC-017-area-idioma-maestros.md). El área de los maestros es `admin`. La posición en `LOCK_ORDER` está pendiente (PD-04 en [`PROJECT_STATE`](../PROJECT_STATE.md)).
 
 ## `x.validation.js`
 
@@ -29,14 +29,14 @@ export const deleteXSchema = [requiredId("xId")];
 ## `x.routes.js`
 
 ```js
-xRoutes.post("/pagination_x", verifyToken, requirePermission(PERMISSIONS.<área>.x.view),
+xRoutes.post("/pagination_x", verifyToken, requirePermission(PERMISSIONS.admin.x.view),
   paginationXSchema, validate, paginationXController);
 
 xRoutes.post("/save_x", verifyToken,
-  requirePermission((req) => (req.body.xId > 0 ? PERMISSIONS.<área>.x.edit : PERMISSIONS.<área>.x.create)),
+  requirePermission((req) => (req.body.xId > 0 ? PERMISSIONS.admin.x.edit : PERMISSIONS.admin.x.create)),
   saveXSchema, validate, saveXController);
 
-xRoutes.put("/delete_x", verifyToken, requirePermission(PERMISSIONS.<área>.x.delete),
+xRoutes.put("/delete_x", verifyToken, requirePermission(PERMISSIONS.admin.x.delete),
   deleteXSchema, validate, deleteXController);
 ```
 
@@ -165,7 +165,7 @@ export const deleteX = ({ xId, useBy }) =>
 
 ## Cliente
 
-- `api/requests/xApi.js`: como `profilesApi.js`, con `saveXAPI(params, idempotencyKey)` → `httpCliente.post('<área>/x/save_x', params, idempotencyConfig(idempotencyKey))`.
-- `views/<área>/x/components/XDialog.jsx`: `ProfileDialog.jsx` sin la lista de transferencia de páginas.
-- `views/<área>/x/XPage.jsx`: `ProfilePage.jsx` sin el `PermissionsDrawer`.
+- `api/requests/xApi.js`: como `profilesApi.js`, con `saveXAPI(params, idempotencyKey)` → `httpCliente.post('admin/x/save_x', params, idempotencyConfig(idempotencyKey))`.
+- `views/admin/x/components/XDialog.jsx`: `ProfileDialog.jsx` sin la lista de transferencia de páginas.
+- `views/admin/x/XPage.jsx`: `ProfilePage.jsx` sin el `PermissionsDrawer`.
 - Ruta en `routes/MainRoutes.jsx`; página y permisos en migración + seed.

@@ -17,7 +17,7 @@ Nivel 1 / 2, y por qué ([`MODULE_STANDARD`](../standards/MODULE_STANDARD.md)).
 | Tabla | `tbl_` |
 | Prefijo (verificado libre) | `___` |
 | Id en la API | `___Id` |
-| Área / carpeta | `modules/<área>/<módulo>/` (PD-05) |
+| Área / carpeta | `modules/admin/<módulo>/` para maestros ([DEC-017](../decisiones/DEC-017-area-idioma-maestros.md)) |
 | Entidad de bloqueo | `ENTIDAD_` en `LOCK_ORDER` (PD-04) |
 
 ## Campos

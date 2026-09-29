@@ -45,4 +45,14 @@ Un módulo puede mezclar niveles: el contrato es nivel 3 y algunas de sus operac
 - Cliente: `client/src/views/<área>/<módulo>/` con `<Modulo>Page.jsx` y `components/<Modulo>Dialog.jsx`; API en `client/src/api/requests/<módulo>Api.js`.
 - Tests: `server/test/` espejando `server/src/`.
 
-El área para el dominio (p. ej. `config/` para maestros, `contracts/`, `billing/`) **REQUIERE DECISIÓN** con el primer módulo; los ADR no la fijan. Una vez elegida, se agrega aquí.
+**Registro cerrado.** Esta sección es la lista completa de lugares donde puede vivir un módulo. Un área, una carpeta de primer nivel o un prefijo de URL que no esté aquí **no existe**, y crearlo requiere una decisión nueva (ficha DEC) aprobada antes de escribir código. En el cliente, las pantallas van **solo** en `client/src/views/`; no hay `client/src/pages/` (`views/pages/` es otra cosa: login y recuperación).
+
+Áreas:
+
+| Área | Qué contiene | Decisión |
+| --- | --- | --- |
+| `auth/`, `security/`, `app/` | Existentes: autenticación, usuarios/perfiles/permisos, transversales | — |
+| `admin/` | Los ocho maestros, con módulo, tabla y prefijo fijados | [DEC-017](../decisiones/DEC-017-area-idioma-maestros.md) |
+| *(pendiente)* | Obras, proveedores, contratos, pólizas, facturación | **REQUIERE DECISIÓN** (PD-05, parte restante) |
+
+Nombres de varias palabras: carpeta, archivos y segmento de URL en camelCase (`contractTypes`); acciones en snake_case (`save_contract_type`). Ver DEC-017.

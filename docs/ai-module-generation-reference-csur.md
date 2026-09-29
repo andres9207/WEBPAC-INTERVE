@@ -1,3 +1,5 @@
+> ⛔ **NO APLICA A ESTE PROYECTO (WEBPAC-INTERVE).** Esta guía es de CSUR, otro proyecto. Sus rutas (`client/src/pages/admin`, `/management/{module}`, `routes.js`), su stack (PrimeReact, SQL crudo con `executeQuery`) y sus prácticas (autor enviado desde el cliente, valores interpolados en SQL) no existen o están prohibidos aquí. Para un maestro de este proyecto usar [`engineering/standards/CRUD_STANDARD.md`](../engineering/standards/CRUD_STANDARD.md), [`engineering/patterns/SIMPLE_CRUD.md`](../engineering/patterns/SIMPLE_CRUD.md) y los nombres de [DEC-017](../engineering/decisiones/DEC-017-area-idioma-maestros.md).
+
 # AI Module Generation Reference — CSUR
 
 Guía de implementación para agentes de IA que generan **módulos maestros** (CRUD de catálogo)

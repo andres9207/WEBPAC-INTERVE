@@ -30,6 +30,7 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 | [DEC-014](DEC-014-autor-por-nombre.md) | 2026-09-25 | Los listados muestran el autor por nombre, resuelto en el backend | Obligatoria | [0013](../adr/0013-auditoria-trazabilidad.md) |
 | [DEC-015](DEC-015-reintento-interbloqueo.md) | 2026-09-25 | Reintento acotado del interbloqueo solo en operaciones idempotentes; 409 si persiste, 503 ante espera agotada | Obligatoria | [0027](../adr/0027-integridad-transaccional.md) |
 | [DEC-016](DEC-016-idempotencia-por-clave.md) | 2026-09-25 | Idempotencia por clave (`Idempotency-Key`) en creación, con la clave y la huella en la propia entidad | Obligatoria | [0027](../adr/0027-integridad-transaccional.md) |
+| [DEC-017](DEC-017-area-idioma-maestros.md) | 2026-09-29 | Los maestros viven en el área `admin/`, con tablas y código en inglés y nombres fijados | Obligatoria | 0003, 0004, 0006–0010, 0019 |
 
 **Tipo:**
 - **Obligatoria**: regla para todo código nuevo. El checklist de `ENDPOINT_STANDARD.md` la exige y, donde se puede, un test la hace cumplir.

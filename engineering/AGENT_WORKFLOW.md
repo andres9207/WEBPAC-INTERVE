@@ -24,6 +24,22 @@ Antes de escribir nada:
 
 Regla: **reutilizar un patrón existente antes de crear uno nuevo.**
 
+### Rutas y carpetas: solo las que existen
+
+**Prohibido inventar estructura.** Toda ruta nueva se arma dentro de la estructura registrada en [`MODULE_STANDARD`](standards/MODULE_STANDARD.md) ("Dónde vive un módulo") y, para maestros, con los nombres exactos de [DEC-017](decisiones/DEC-017-area-idioma-maestros.md):
+
+| Qué | Solo se permite | Ejemplos de lo que **no** existe y no se crea |
+| --- | --- | --- |
+| Área del servidor y prefijo de URL | `auth`, `security`, `app`, `admin` → `/api/<área>/…` | `/api/masters/`, `/api/management/`, `/api/config/`, `/api/contratos/` |
+| Pantallas del cliente | `client/src/views/<área>/<módulo>/` | `client/src/pages/`, `client/src/pages/admin/`, `client/src/screens/` |
+| Rutas del cliente | `client/src/routes/MainRoutes.jsx` | `client/src/routes.js` |
+| API del cliente | `client/src/api/requests/<módulo>Api.js` | `client/src/services/<módulo>.js`, axios en el componente |
+| Nombre del módulo de un maestro | El de la tabla de DEC-017 (`identityDocuments`) | `identity-documents`, `identity_documents`, `tiposIdentificacion` |
+
+- Si una tarea parece necesitar un área, una carpeta de primer nivel o un prefijo de URL nuevo: **parar y proponerlo como decisión** (paso 6). No se crea en silencio.
+- `docs/ai-module-generation-reference-csur.md` y `docs/specs/modules/_TEMPLATE-maestro.md` son de **otro proyecto** (CSUR). Sus rutas (`pages/admin`, `/management/`, `routes.js`) no existen aquí: no se usan como referencia.
+- Antes de proponer una ruta, verificar que su carpeta padre existe (`ls`, o `graphify explain` sobre un módulo vecino).
+
 ### Navegar el código con el grafo (graphify)
 
 `graphify-out/` tiene un grafo del **código** (`client/`, `server/`, `database/`; la documentación queda fuera por `.graphifyignore`). Sirve para ubicar sin abrir archivos enteros y así no llenar la conversación. Se consulta **antes** de hacer grep o leer archivos para entender algo:
@@ -83,7 +99,7 @@ La plantilla está en [`templates/CHANGE_PROPOSAL.md`](templates/CHANGE_PROPOSAL
 
 - **Falta información que cambia la solución** → parar y preguntar. No rellenar requisitos en silencio.
 - **Cambio chico, local y de bajo riesgo** (un texto, un bug acotado con test, un comentario) → se puede proponer e implementar en el mismo paso.
-- **Requiere aprobación explícita:** cambios de BD, de seguridad o permisos, de arquitectura, workflows, operaciones entre módulos, borrar o mover archivos, y cualquier cosa que contradiga una regla de `engineering/`.
+- **Requiere aprobación explícita:** cambios de BD, de seguridad o permisos, de arquitectura, workflows, operaciones entre módulos, borrar o mover archivos, **crear un área, una carpeta de primer nivel o un prefijo de URL que no existe**, y cualquier cosa que contradiga una regla de `engineering/`.
 - Si durante la implementación aparece una decisión de arquitectura nueva: parar, documentarla, preguntar si hace falta, y recién entonces seguir.
 
 ## 7. Implementar
