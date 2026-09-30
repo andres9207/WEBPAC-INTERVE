@@ -15,7 +15,7 @@ Derivado del análisis de los 27 ADR de `engineering/adr/`. Fecha de corte: 2026
 | Proceso | 90 | 1232 | 26 | 40 | 18 | 6 |
 | **Total** | **185** | **2059** | **55** | **87** | **34** | **9** |
 
-Prioridad: Crítica 49 · Alta 103 · Media 26 · Baja 7. Decisiones de negocio pendientes: 19 (DEC-10 resuelta; DEC-20 agregada).
+Prioridad: Crítica 49 · Alta 103 · Media 26 · Baja 7. Decisiones de negocio pendientes: 17 (resueltas DEC-06, DEC-10 y DEC-20).
 
 ## Decisiones de negocio pendientes (bloquean tareas)
 
@@ -26,7 +26,7 @@ Prioridad: Crítica 49 · Alta 103 · Media 26 · Baja 7. Decisiones de negocio 
 | DEC-03 | Composición de la factura de liquidación: VALOR con o sin AIU, IVA sobre utilidad o base | ADR-0021, 0026 | Tributario, en todas las facturas de contrato | Crítica | Área contable y tributaria | PRO-BD-18, PRO-BE-26, PRO-BE-36, PRO-QA-03 |
 | DEC-04 | Base de cálculo por tipo de póliza y significado de SUBTOTAL / IVA | ADR-0018, 0019 | Hasta 19 % de diferencia sobre el valor asegurado | Alta | Área usuaria + Aseguradora | MAE-BD-13, MAE-BD-14, MAE-BE-10, PRO-BD-20, PRO-BE-21 |
 | DEC-05 | Base y porcentaje por defecto de anticipo y retenido | ADR-0024, 0025 | Cierre de los saldos C2 y C3 | Alta | Área usuaria + Área contable | PRO-BE-29, PRO-BE-31 |
-| DEC-06 | Precisión, redondeo y librería decimal o enteros | ADR-0026 | Cierre exacto de saldos en todo el CORE | Alta | Área contable + Tech Lead | FND-BD-02, FND-BE-28, PRO-FE-14, PRO-QA-03 |
+| DEC-06 | **Resuelta.** Precisión, redondeo y librería decimal o enteros. Resuelta el 2026-09-30 en [DEC-028](../../engineering/decisiones/DEC-028-convencion-monetaria.md): importes en DECIMAL(18,2), redondeo a dos decimales con medio hacia arriba solo si sobran, Prisma.Decimal en el servidor. Porcentajes, tarifas y redondeo por línea siguen pendientes con facturación | ADR-0026 | Cierre exacto de saldos en todo el CORE | Alta | Área contable + Tech Lead | FND-BD-02, FND-BE-28, PRO-FE-14, PRO-QA-03 |
 | DEC-07 | Retenciones tributarias como tasa o como valor; tarifas por defecto | ADR-0023, 0026 | Motor de cálculo completo | Alta | Área contable y tributaria | PRO-BD-22, PRO-BE-36, PRO-QA-03 |
 | DEC-08 | Cantidad y límite de valor de las facturas de liquidación | ADR-0021 | Facturación por encima de lo pactado | Alta | Área usuaria | PRO-BE-26 |
 | DEC-09 | Hipótesis H1 a H7 de facturación de subcontratista | ADR-0022 | Estructural si se confirman H1 o H5 | Alta | Área usuaria | PRO-BE-40, PRO-QA-05 |
@@ -40,7 +40,7 @@ Prioridad: Crítica 49 · Alta 103 · Media 26 · Baja 7. Decisiones de negocio 
 | DEC-17 | Ámbito de unicidad del número de contrato y del número de factura | ADR-0015, 0020 | Integridad y duplicados | Media | Área usuaria | PRO-BD-09, PRO-BD-14 |
 | DEC-18 | Otrosí de liquidación con costo negativo; anticipo como porcentaje o valor fijo | ADR-0016 | Cálculo del valor vigente del contrato | Media | Área usuaria | PRO-BD-11, PRO-BE-16 |
 | DEC-19 | Permisos de ajuste de amortización y retenido, y permisos por tipo de factura | ADR-0020, 0024, 0025 | Segregación de funciones | Media | Área usuaria + Seguridad | PRO-BE-30, PRO-BE-32 |
-| DEC-20 | Anclaje del tipo de interventoría: a la obra o al contrato | ADR-0007 | Decide en qué tabla va la FK al tipo de interventoría; el catálogo no cambia | Alta | Área usuaria | PRO-BD-01, PRO-BD-09 |
+| DEC-20 | **Resuelta.** Anclaje del tipo de interventoría: a la obra o al contrato. Resuelta el 2026-09-30 en [DEC-027](../../engineering/decisiones/DEC-027-interventoria-en-obra.md): el tipo de interventoría se ancla a la obra; la FK va en tbl_works | ADR-0007 | Decide en qué tabla va la FK al tipo de interventoría; el catálogo no cambia | Alta | Área usuaria | PRO-BD-01, PRO-BD-09 |
 
 ## Fundación
 

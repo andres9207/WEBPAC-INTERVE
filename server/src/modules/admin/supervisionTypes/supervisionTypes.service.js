@@ -14,10 +14,8 @@ export const supervisionTypesConfig = defineMaster({
   fields: [{ name: "name", column: "spt_name", label: "nombre", maxLength: 100, unique: true, filter: true, sortable: true }],
   defaultSort: "name",
   selectOrder: "name",
-  // ADR-0007, decisión 5. La tabla de obras todavía no existe: al crearla
-  // (ADR-0011) se agrega aquí con label "obra(s)". Si se confirma el anclaje
-  // al contrato (decisión 3), va la tabla de contratos.
-  dependents: [],
+  // ADR-0007, decisión 5. El tipo se ancla a la obra (DEC-027).
+  dependents: [{ model: "tbl_works", column: "spt_id", label: "obra(s)" }],
   socketEvent: "refresh-supervision-types",
 });
 

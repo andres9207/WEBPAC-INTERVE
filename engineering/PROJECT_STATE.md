@@ -4,7 +4,7 @@
 
 ## En una línea
 
-Plantilla base con seguridad, auditoría e integridad transaccional ya endurecidas. **Maestros implementados: aseguradoras, constructoras y tipos de identificación, de proveedor, de dirección y de interventoría.** El resto del dominio (obras, proveedores, maestros, contratos, pólizas, facturación) está diseñado en 27 ADR y planificado en `docs/backlog/` (185 tareas).
+Plantilla base con seguridad, auditoría e integridad transaccional ya endurecidas. **Maestros implementados: aseguradoras, constructoras y tipos de identificación, de proveedor, de dirección, de interventoría y de contrato (este, sin la configuración de campos). Obras con responsables y etapas.** El resto del dominio (contactos, proveedores, maestros, contratos, pólizas, facturación) está diseñado en 27 ADR y planificado en `docs/backlog/` (185 tareas).
 
 ## Arquitectura
 
@@ -28,8 +28,11 @@ Ver [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Maestro: aseguradoras | CRUD completo (servidor y cliente) sobre el patrón, selector de activas para el futuro formulario de póliza, descripción única entre no eliminadas. Falta el bloqueo de eliminación por pólizas, que llega con `tbl_policies` | ADR-0003, migraciones 0028–0029 |
 | Maestro: tipos de interventoría | CRUD completo (servidor y cliente) sobre el patrón, selector de activos para el futuro formulario de obra, nombre único entre no eliminados. Faltan la FK y el bloqueo por uso, que llegan con obras; el anclaje (obra o contrato) sigue pendiente de confirmar | ADR-0007, migraciones 0030–0032 |
 | Maestro: constructoras | CRUD completo (servidor y cliente) sobre el patrón, selector de activas para el futuro formulario de obra, descripción única entre no eliminadas. El bloqueo por uso contará también las obras eliminadas (`countDeleted`); llega con obras | ADR-0004, migraciones 0033–0034 |
+| Maestro: tipos de contrato | Versión mínima: CRUD completo (servidor y cliente) sobre el patrón, selector de activos para el futuro formulario de obra, nombre único entre no eliminados, `ctt_config_version` en 1. Falta la configuración de campos por tipo (MAE-BD-09, MAE-BE-08, MAE-FE-08), que llega con contratos | ADR-0006, migraciones 0036–0037 |
 | Patrón de maestro | Fábrica reutilizable: un maestro se declara con `defineMaster` (dos archivos). Listado, obtener, selector, crear, editar, cambiar estado con permiso propio, eliminar con verificación de dependientes. En el cliente, `MasterPage` + `createMasterApi`: la pantalla se declara, con búsqueda de un solo campo y pestañas por estado con conteo | DEC-020, DEC-022 |
-| Tests | Servidor: 34 suites, 303 tests (Jest, unitarios con mocks) | [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
+| Obras | Obra con responsables y etapas (servidor y cliente), en el área `work/`. Guardado atómico con diferencial de colecciones, bloqueo obra → usuarios → maestros, permisos propios para asignar y retirar responsables y gestionar etapas, bitácora funcional, importes `DECIMAL(18,2)`. Responsables solo entre usuarios existentes. Faltan los contactos (PRO-BD-04) y el bloqueo por contratos | ADR-0011, DEC-026 a DEC-029, migraciones 0038–0041 |
+| Colecciones editables | `ui-component/extended/EditableList`: filas en memoria que se guardan con su padre; reutilizable para los contactos de obra y de proveedor. `MasterPage` acepta un diálogo propio (`dialog`) | DEC-022 |
+| Tests | Servidor: 38 suites, 366 tests (Jest, unitarios con mocks) | [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
 
 ## Parcial
 
@@ -40,15 +43,15 @@ Ver [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## No implementado
 
-Todo el dominio salvo seis maestros: los otros dos maestros (ADR 0006, 0019), obras (0011), proveedores (0012), contratos y conceptos (0015–0017), pólizas (0018), facturación (0020–0026) y dashboard (0002). El cliente no tiene tests. El servidor no tiene linter.
+Todo el dominio salvo siete maestros y obras: tipos de póliza (ADR 0019), la configuración de campos de tipos de contrato (0006), los contactos de obra (0011), proveedores (0012), contratos y conceptos (0015–0017), pólizas (0018), facturación (0020–0026) y dashboard (0002). El cliente no tiene tests. El servidor no tiene linter.
 
 ## ADR vigentes
 
 | Estado | ADR |
 | --- | --- |
 | Aceptado | 0001 (abierto: MFA), 0013 (abierto: retención y consulta), 0027 |
-| Aceptado parcial | 0003 (maestro; falta el bloqueo por pólizas), 0004 (maestro; falta obras), 0007 (maestro; falta obras y confirmar el anclaje), 0008 (maestro, usuarios y formato; falta proveedores), 0009 (maestro; faltan los contactos), 0010 (maestro; falta la columna en proveedores), 0014 |
-| Propuesto (arquitectura objetivo) | 0002, 0006, 0011, 0012, 0015–0026 |
+| Aceptado parcial | 0003 (maestro; falta el bloqueo por pólizas), 0004 (maestro y obras), 0006 (maestro mínimo; falta la configuración de campos), 0011 (obra, responsables y etapas; faltan contactos, bloqueo por contratos y exportación), 0007 (maestro y obras, anclado a la obra), 0008 (maestro, usuarios y formato; falta proveedores), 0009 (maestro; faltan los contactos), 0010 (maestro; falta la columna en proveedores), 0014 |
+| Propuesto (arquitectura objetivo) | 0002, 0012, 0015–0026 |
 | Reemplazado | 0005 → 0017 |
 
 ## Invariantes
@@ -61,7 +64,7 @@ Ver [`debt/TECHNICAL_DEBT.md`](debt/TECHNICAL_DEBT.md).
 
 ## Decisiones pendientes
 
-**De negocio** (bloquean tareas del backlog): `DEC-01` a `DEC-20` en `docs/backlog/BACKLOG.md` ("Decisiones de negocio pendientes"); quedan 19, porque DEC-10 se resolvió en [DEC-023](decisiones/DEC-023-tipo-proveedor-clasificacion.md). Las más urgentes: cómo se factura el avance de obra (DEC-01), la composición de las facturas (DEC-02, DEC-03) y precisión y redondeo monetario (DEC-06).
+**De negocio** (bloquean tareas del backlog): `DEC-01` a `DEC-20` en `docs/backlog/BACKLOG.md` ("Decisiones de negocio pendientes"); quedan 17. Resueltas: DEC-10 en [DEC-023](decisiones/DEC-023-tipo-proveedor-clasificacion.md), DEC-06 en [DEC-028](decisiones/DEC-028-convencion-monetaria.md) (importes) y DEC-20 en [DEC-027](decisiones/DEC-027-interventoria-en-obra.md). Las más urgentes: cómo se factura el avance de obra (DEC-01) y la composición de las facturas (DEC-02, DEC-03).
 
 **De ingeniería** (REQUIERE DECISIÓN):
 
@@ -71,7 +74,7 @@ Ver [`debt/TECHNICAL_DEBT.md`](debt/TECHNICAL_DEBT.md).
 | PD-02 | Código HTTP de un duplicado detectado por el service: `saveProfile` responde **400**, y el mismo duplicado detectado por la BD (`P2002`) responde **409** | El cliente trata 409 de forma especial; hoy la misma situación da dos códigos |
 | PD-03 | Nombre de las decisiones de negocio del backlog: `DEC-01`… choca visualmente con las fichas `DEC-001`… de `engineering/decisiones/` | Evita confundir una decisión pendiente con una regla vigente |
 | PD-04 | **Resuelto** en [DEC-019](decisiones/DEC-019-maestros-orden-bloqueo.md): los maestros van al final de `LOCK_ORDER` (ADR-0027 actualizado) | — |
-| PD-05 | **Resuelto para maestros** en [DEC-017](decisiones/DEC-017-area-idioma-maestros.md): área `admin/`, inglés, nombres fijados. **Sigue pendiente** para obras, proveedores, contratos, pólizas y facturación: su área en `server/src/modules/` y `client/src/views/`, y si el idioma inglés de DEC-017 se extiende al CORE | Fija rutas, URLs y nombres de los módulos del CORE |
+| PD-05 | **Resuelto para maestros** en [DEC-017](decisiones/DEC-017-area-idioma-maestros.md): área `admin/`, inglés, nombres fijados. Obras, en [DEC-026](decisiones/DEC-026-area-obras.md): área `work/`, en inglés. **Sigue pendiente** para proveedores, contratos, pólizas y facturación: su área en `server/src/modules/` y `client/src/views/` | Fija rutas, URLs y nombres de los módulos del CORE |
 
 ## Limitaciones conocidas
 

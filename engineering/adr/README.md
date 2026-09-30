@@ -68,12 +68,12 @@ Por eso casi todos los ADR están en estado `Propuesto`:
 | [0003](0003-aseguradoras.md) | Maestro con eliminación lógica bloqueada por uso | Configuración | Aceptado parcial | 0013, 0014 |
 | [0004](0004-constructoras.md) | Maestro; obras nunca ocultas por el estado del maestro | Configuración | Aceptado parcial | 0011, 0013, 0014 |
 | [0005](0005-estados-contrato.md) | Estados de contrato (versión inicial) | Contratos | **Reemplazado por ADR-0017** | — |
-| [0006](0006-tipos-contrato.md) | Configuración relacional de campos por tipo de contrato | Configuración | Propuesto | 0013, 0014 |
+| [0006](0006-tipos-contrato.md) | Configuración relacional de campos por tipo de contrato | Configuración | Aceptado parcial | 0013, 0014 |
 | [0007](0007-tipos-interventoria.md) | Maestro anclado a la obra | Configuración | Aceptado parcial | 0011 |
 | [0008](0008-tipos-identificacion.md) | Maestro sin datos personales; FK a tabla ausente | Configuración | Propuesto | 0012 |
 | [0009](0009-tipos-direccion.md) | Catálogo compartido; contactos en tablas separadas | Configuración | Aceptado parcial | 0011, 0012 |
 | [0010](0010-tipos-proveedor.md) | Clasificación del proveedor (DEC-023) | Configuración | Aceptado parcial | 0012 |
-| [0011](0011-obras.md) | Obra como raíz de agregado transaccional | Obras | Propuesto | 0004, 0006, 0007, 0009, 0012 |
+| [0011](0011-obras.md) | Obra como raíz de agregado transaccional | Obras | Aceptado parcial | 0004, 0006, 0007, 0009, 0012 |
 | [0012](0012-proveedores.md) | Proveedor único por documento con `UNIQUE`; relación proveedor-obra | Proveedores | Propuesto | 0008, 0009, 0010, 0011 |
 | [0013](0013-auditoria-trazabilidad.md) | Seis columnas de autoría con FK (incluida eliminación) + bitácora `tbl_audit_log` desde el servicio, con identificador de operación; autor desde el token | **Transversal** | Aceptado (abierto: retención, consulta) | — |
 | [0014](0014-autorizacion-permisos.md) | Backend como autoridad de autorización | **Transversal** | Aceptado parcial / Propuesto | 0001 |

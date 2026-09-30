@@ -26,6 +26,11 @@ const PAGES = [
   { pag_id: 10, pag_description: "Tipos de interventoría", pag_parent: 5, pag_url: "admin/supervisionTypes", pag_icon: "eye", pag_order: 5, pag_name: "Tipos de interventoría", pag_type: 2 },
   // database/migrations/0034_seed_construction_companies_pages_permissions.sql
   { pag_id: 11, pag_description: "Constructoras", pag_parent: 5, pag_url: "admin/constructionCompanies", pag_icon: "building", pag_order: 6, pag_name: "Constructoras", pag_type: 2 },
+  // database/migrations/0037_seed_contract_types_pages_permissions.sql
+  { pag_id: 12, pag_description: "Tipos de contrato", pag_parent: 5, pag_url: "admin/contractTypes", pag_icon: "contract", pag_order: 7, pag_name: "Tipos de contrato", pag_type: 2 },
+  // database/migrations/0041_seed_works_pages_permissions.sql
+  { pag_id: 13, pag_description: "Obras", pag_parent: 0, pag_url: null, pag_icon: "building", pag_order: 4, pag_name: "Obras", pag_type: 1 },
+  { pag_id: 14, pag_description: "Obras", pag_parent: 13, pag_url: "work/works", pag_icon: "building", pag_order: 1, pag_name: "Obras", pag_type: 2 },
 ];
 
 const PERMISSIONS = [
@@ -67,6 +72,19 @@ const PERMISSIONS = [
   { per_id: 44, per_name: "Modificar constructora", pag_id: 11, per_order: 2 },
   { per_id: 45, per_name: "Eliminar constructora", pag_id: 11, per_order: 3 },
   { per_id: 46, per_name: "Cambiar estado constructora", pag_id: 11, per_order: 4 },
+  // database/migrations/0037_seed_contract_types_pages_permissions.sql
+  { per_id: 48, per_name: "Crear tipo de contrato", pag_id: 12, per_order: 1 },
+  { per_id: 49, per_name: "Modificar tipo de contrato", pag_id: 12, per_order: 2 },
+  { per_id: 50, per_name: "Eliminar tipo de contrato", pag_id: 12, per_order: 3 },
+  { per_id: 51, per_name: "Cambiar estado tipo de contrato", pag_id: 12, per_order: 4 },
+  // database/migrations/0041_seed_works_pages_permissions.sql
+  { per_id: 53, per_name: "Crear obra", pag_id: 14, per_order: 1 },
+  { per_id: 54, per_name: "Modificar obra", pag_id: 14, per_order: 2 },
+  { per_id: 55, per_name: "Eliminar obra", pag_id: 14, per_order: 3 },
+  { per_id: 56, per_name: "Cambiar estado obra", pag_id: 14, per_order: 4 },
+  { per_id: 57, per_name: "Asignar responsable de obra", pag_id: 14, per_order: 5 },
+  { per_id: 58, per_name: "Retirar responsable de obra", pag_id: 14, per_order: 6 },
+  { per_id: 59, per_name: "Gestionar etapas de obra", pag_id: 14, per_order: 7 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -101,6 +119,8 @@ const VIEW_PERMISSIONS = [
   { per_id: 32, per_name: "Ver aseguradoras", pag_id: 9, per_order: 5 },
   { per_id: 37, per_name: "Ver tipos de interventoría", pag_id: 10, per_order: 5 },
   { per_id: 42, per_name: "Ver constructoras", pag_id: 11, per_order: 5 },
+  { per_id: 47, per_name: "Ver tipos de contrato", pag_id: 12, per_order: 5 },
+  { per_id: 52, per_name: "Ver obras", pag_id: 14, per_order: 8 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay

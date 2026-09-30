@@ -2,9 +2,11 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-09-30).
 
-El módulo de obras **no existe** en el código ni en el esquema. Este ADR documenta la decisión arquitectónica recomendada.
+Implementado: la obra con responsables y etapas (decisiones 1 a 4 y 7 a 15). Migraciones `0038`–`0041`, módulo `work/works` y pantalla `views/work/works`. Guardado atómico con diferencial de colecciones, bloqueo `OBRA` → usuarios → maestros, permisos propios para asignar y retirar responsables y gestionar etapas, bitácora funcional (entidad `OBRA`) e importes exactos. Falta: los contactos (PRO-BD-04), el bloqueo de eliminación por contratos (se conecta con contratos; responde 409) y la exportación (el permiso no se sembró). Pendiente de validación con el área usuaria: la unidad del plazo y el significado del valor máximo de orden de servicio.
+
+Decisiones posteriores (2026-09-30): área `work/`, módulo `works` y tablas `tbl_work*` ([DEC-026](../decisiones/DEC-026-area-obras.md)); tipo de interventoría anclado a la obra ([DEC-027](../decisiones/DEC-027-interventoria-en-obra.md)); importes en `DECIMAL(18,2)` ([DEC-028](../decisiones/DEC-028-convencion-monetaria.md)). **Las decisiones 5 y 6 quedan reemplazadas** por [DEC-029](../decisiones/DEC-029-responsables-usuarios-existentes.md): los responsables se eligen entre usuarios existentes y la obra no crea usuarios. Los contactos se implementan después (PRO-BD-04).
 
 ## Fecha
 

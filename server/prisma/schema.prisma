@@ -183,6 +183,7 @@ model tbl_status {
   sta_order                  Int?
   tbl_address_types          tbl_address_types[]
   tbl_construction_companies tbl_construction_companies[]
+  tbl_contract_types         tbl_contract_types[]
   tbl_documents              tbl_documents[]
   tbl_identity_documents     tbl_identity_documents[]
   tbl_insurers               tbl_insurers[]
@@ -190,6 +191,9 @@ model tbl_status {
   tbl_provider_types         tbl_provider_types[]
   tbl_supervision_types      tbl_supervision_types[]
   tbl_users                  tbl_users[]
+  tbl_work_managers          tbl_work_managers[]
+  tbl_work_stages            tbl_work_stages[]
+  tbl_works                  tbl_works[]
 }
 
 model tbl_user_permissions {
@@ -232,6 +236,17 @@ model tbl_users {
   construction_companies_created tbl_construction_companies[] @relation("ConstructionCompanyCreatedBy")
   construction_companies_deleted tbl_construction_companies[] @relation("ConstructionCompanyDeletedBy")
   construction_companies_updated tbl_construction_companies[] @relation("ConstructionCompanyUpdatedBy")
+  contract_types_created         tbl_contract_types[]         @relation("ContractTypeCreatedBy")
+  contract_types_deleted         tbl_contract_types[]         @relation("ContractTypeDeletedBy")
+  contract_types_updated         tbl_contract_types[]         @relation("ContractTypeUpdatedBy")
+  work_managers                  tbl_work_managers[]          @relation("WorkManagerUser")
+  work_managers_created          tbl_work_managers[]          @relation("WorkManagerCreatedBy")
+  work_managers_updated          tbl_work_managers[]          @relation("WorkManagerUpdatedBy")
+  work_stages_created            tbl_work_stages[]            @relation("WorkStageCreatedBy")
+  work_stages_updated            tbl_work_stages[]            @relation("WorkStageUpdatedBy")
+  works_created                  tbl_works[]                  @relation("WorkCreatedBy")
+  works_deleted                  tbl_works[]                  @relation("WorkDeletedBy")
+  works_updated                  tbl_works[]                  @relation("WorkUpdatedBy")
   documents_created              tbl_documents[]              @relation("DocumentCreatedBy")
   documents_deleted              tbl_documents[]              @relation("DocumentDeletedBy")
   documents_updated              tbl_documents[]              @relation("DocumentUpdatedBy")
@@ -424,22 +439,23 @@ model tbl_insurers {
 /// spt_name_active es una columna GENERADA por MySQL (respalda la unicidad entre no eliminados):
 /// nunca se escribe desde el código.
 model tbl_supervision_types {
-  spt_id               Int        @id @default(autoincrement())
-  spt_name             String     @db.VarChar(100)
-  sta_id               Int        @default(1)
+  spt_id               Int         @id @default(autoincrement())
+  spt_name             String      @db.VarChar(100)
+  sta_id               Int         @default(1)
   spt_create_by        Int?
-  spt_create_at        DateTime?  @default(now()) @db.Timestamp(0)
+  spt_create_at        DateTime?   @default(now()) @db.Timestamp(0)
   spt_update_by        Int?
-  spt_update_at        DateTime?  @default(now()) @db.Timestamp(0)
+  spt_update_at        DateTime?   @default(now()) @db.Timestamp(0)
   spt_delete_by        Int?
-  spt_delete_at        DateTime?  @db.Timestamp(0)
-  spt_idempotency_key  String?    @unique(map: "uq_supervision_types_idempotency_key") @db.Char(36)
-  spt_idempotency_hash String?    @db.Char(64)
-  spt_name_active      String?    @unique(map: "uq_supervision_types_name_active") @db.VarChar(100)
-  created_by_user      tbl_users? @relation("SupervisionTypeCreatedBy", fields: [spt_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_supervision_types_create_by")
-  deleted_by_user      tbl_users? @relation("SupervisionTypeDeletedBy", fields: [spt_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_supervision_types_delete_by")
-  tbl_status           tbl_status @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_supervision_types_status")
-  updated_by_user      tbl_users? @relation("SupervisionTypeUpdatedBy", fields: [spt_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_supervision_types_update_by")
+  spt_delete_at        DateTime?   @db.Timestamp(0)
+  spt_idempotency_key  String?     @unique(map: "uq_supervision_types_idempotency_key") @db.Char(36)
+  spt_idempotency_hash String?     @db.Char(64)
+  spt_name_active      String?     @unique(map: "uq_supervision_types_name_active") @db.VarChar(100)
+  created_by_user      tbl_users?  @relation("SupervisionTypeCreatedBy", fields: [spt_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_supervision_types_create_by")
+  deleted_by_user      tbl_users?  @relation("SupervisionTypeDeletedBy", fields: [spt_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_supervision_types_delete_by")
+  tbl_status           tbl_status  @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_supervision_types_status")
+  updated_by_user      tbl_users?  @relation("SupervisionTypeUpdatedBy", fields: [spt_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_supervision_types_update_by")
+  tbl_works            tbl_works[]
 
   @@index([spt_create_by], map: "tbl_supervision_types_create_by")
   @@index([spt_delete_by], map: "tbl_supervision_types_delete_by")
@@ -451,27 +467,58 @@ model tbl_supervision_types {
 /// cnc_description_active es una columna GENERADA por MySQL (respalda la unicidad entre no eliminadas):
 /// nunca se escribe desde el código.
 model tbl_construction_companies {
-  cnc_id                 Int        @id @default(autoincrement())
-  cnc_description        String     @db.VarChar(150)
-  sta_id                 Int        @default(1)
+  cnc_id                 Int         @id @default(autoincrement())
+  cnc_description        String      @db.VarChar(150)
+  sta_id                 Int         @default(1)
   cnc_create_by          Int?
-  cnc_create_at          DateTime?  @default(now()) @db.Timestamp(0)
+  cnc_create_at          DateTime?   @default(now()) @db.Timestamp(0)
   cnc_update_by          Int?
-  cnc_update_at          DateTime?  @default(now()) @db.Timestamp(0)
+  cnc_update_at          DateTime?   @default(now()) @db.Timestamp(0)
   cnc_delete_by          Int?
-  cnc_delete_at          DateTime?  @db.Timestamp(0)
-  cnc_idempotency_key    String?    @unique(map: "uq_construction_companies_idempotency_key") @db.Char(36)
-  cnc_idempotency_hash   String?    @db.Char(64)
-  cnc_description_active String?    @unique(map: "uq_construction_companies_description_active") @db.VarChar(150)
-  created_by_user        tbl_users? @relation("ConstructionCompanyCreatedBy", fields: [cnc_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_construction_companies_create_by")
-  deleted_by_user        tbl_users? @relation("ConstructionCompanyDeletedBy", fields: [cnc_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_construction_companies_delete_by")
-  tbl_status             tbl_status @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_construction_companies_status")
-  updated_by_user        tbl_users? @relation("ConstructionCompanyUpdatedBy", fields: [cnc_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_construction_companies_update_by")
+  cnc_delete_at          DateTime?   @db.Timestamp(0)
+  cnc_idempotency_key    String?     @unique(map: "uq_construction_companies_idempotency_key") @db.Char(36)
+  cnc_idempotency_hash   String?     @db.Char(64)
+  cnc_description_active String?     @unique(map: "uq_construction_companies_description_active") @db.VarChar(150)
+  created_by_user        tbl_users?  @relation("ConstructionCompanyCreatedBy", fields: [cnc_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_construction_companies_create_by")
+  deleted_by_user        tbl_users?  @relation("ConstructionCompanyDeletedBy", fields: [cnc_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_construction_companies_delete_by")
+  tbl_status             tbl_status  @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_construction_companies_status")
+  updated_by_user        tbl_users?  @relation("ConstructionCompanyUpdatedBy", fields: [cnc_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_construction_companies_update_by")
+  tbl_works              tbl_works[]
 
   @@index([cnc_create_by], map: "tbl_construction_companies_create_by")
   @@index([cnc_delete_by], map: "tbl_construction_companies_delete_by")
   @@index([cnc_update_by], map: "tbl_construction_companies_update_by")
   @@index([sta_id, cnc_description], map: "idx_construction_companies_status_description")
+}
+
+/// Maestro de tipos de contrato, versión mínima (database/migrations/0036_create_contract_types.sql).
+/// ctt_config_version la incrementa el guardado de la configuración de campos (MAE-BD-09), que todavía no existe.
+/// ctt_name_active es una columna GENERADA por MySQL (respalda la unicidad entre no eliminados):
+/// nunca se escribe desde el código.
+model tbl_contract_types {
+  ctt_id               Int         @id @default(autoincrement())
+  ctt_name             String      @db.VarChar(100)
+  ctt_config_version   Int         @default(1)
+  sta_id               Int         @default(1)
+  ctt_create_by        Int?
+  ctt_create_at        DateTime?   @default(now()) @db.Timestamp(0)
+  ctt_update_by        Int?
+  ctt_update_at        DateTime?   @default(now()) @db.Timestamp(0)
+  ctt_delete_by        Int?
+  ctt_delete_at        DateTime?   @db.Timestamp(0)
+  ctt_idempotency_key  String?     @unique(map: "uq_contract_types_idempotency_key") @db.Char(36)
+  ctt_idempotency_hash String?     @db.Char(64)
+  ctt_name_active      String?     @unique(map: "uq_contract_types_name_active") @db.VarChar(100)
+  created_by_user      tbl_users?  @relation("ContractTypeCreatedBy", fields: [ctt_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_types_create_by")
+  deleted_by_user      tbl_users?  @relation("ContractTypeDeletedBy", fields: [ctt_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_types_delete_by")
+  tbl_status           tbl_status  @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_contract_types_status")
+  updated_by_user      tbl_users?  @relation("ContractTypeUpdatedBy", fields: [ctt_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_types_update_by")
+  tbl_works            tbl_works[]
+
+  @@index([ctt_create_by], map: "tbl_contract_types_create_by")
+  @@index([ctt_delete_by], map: "tbl_contract_types_delete_by")
+  @@index([ctt_update_by], map: "tbl_contract_types_update_by")
+  @@index([sta_id, ctt_name], map: "idx_contract_types_status_name")
 }
 
 enum tbl_documents_doc_type {
@@ -483,4 +530,96 @@ enum tbl_documents_doc_type {
 
 enum tbl_status_sta_scope {
   GENERAL
+}
+
+/// Obra, raíz del agregado (database/migrations/0038_create_works.sql, DEC-026).
+/// Importes y área en DECIMAL(18,2) (DEC-028). CHECK en la BD: no negativos y ampliado >= inicial.
+/// wrk_initial_term: la unidad (días o meses) está pendiente de validación (ADR-0011).
+model tbl_works {
+  wrk_id                      Int                        @id @default(autoincrement())
+  wrk_code                    String                     @unique(map: "uq_works_code") @db.VarChar(30)
+  wrk_name                    String                     @db.VarChar(200)
+  cnc_id                      Int
+  ctt_id                      Int
+  spt_id                      Int
+  wrk_area                    Decimal?                   @db.Decimal(18, 2)
+  wrk_direct_cost             Decimal?                   @db.Decimal(18, 2)
+  wrk_initial_term            Int
+  wrk_extended_term           Int?
+  wrk_initial_value           Decimal                    @db.Decimal(18, 2)
+  wrk_extended_value          Decimal?                   @db.Decimal(18, 2)
+  wrk_max_service_order_value Decimal?                   @db.Decimal(18, 2)
+  sta_id                      Int                        @default(1)
+  wrk_create_by               Int?
+  wrk_create_at               DateTime?                  @default(now()) @db.Timestamp(0)
+  wrk_update_by               Int?
+  wrk_update_at               DateTime?                  @default(now()) @db.Timestamp(0)
+  wrk_delete_by               Int?
+  wrk_delete_at               DateTime?                  @db.Timestamp(0)
+  wrk_idempotency_key         String?                    @unique(map: "uq_works_idempotency_key") @db.Char(36)
+  wrk_idempotency_hash        String?                    @db.Char(64)
+  tbl_work_managers           tbl_work_managers[]
+  tbl_work_stages             tbl_work_stages[]
+  tbl_construction_companies  tbl_construction_companies @relation(fields: [cnc_id], references: [cnc_id], onUpdate: NoAction, map: "tbl_works_construction_company")
+  tbl_contract_types          tbl_contract_types         @relation(fields: [ctt_id], references: [ctt_id], onUpdate: NoAction, map: "tbl_works_contract_type")
+  created_by_user             tbl_users?                 @relation("WorkCreatedBy", fields: [wrk_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_works_create_by")
+  deleted_by_user             tbl_users?                 @relation("WorkDeletedBy", fields: [wrk_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_works_delete_by")
+  tbl_status                  tbl_status                 @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_works_status")
+  tbl_supervision_types       tbl_supervision_types      @relation(fields: [spt_id], references: [spt_id], onUpdate: NoAction, map: "tbl_works_supervision_type")
+  updated_by_user             tbl_users?                 @relation("WorkUpdatedBy", fields: [wrk_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_works_update_by")
+
+  @@index([cnc_id], map: "tbl_works_construction_company")
+  @@index([ctt_id], map: "tbl_works_contract_type")
+  @@index([spt_id], map: "tbl_works_supervision_type")
+  @@index([sta_id], map: "tbl_works_status")
+  @@index([wrk_create_by], map: "tbl_works_create_by")
+  @@index([wrk_delete_by], map: "tbl_works_delete_by")
+  @@index([wrk_update_by], map: "tbl_works_update_by")
+}
+
+/// Responsables de obra (database/migrations/0039_create_work_managers.sql). Solo usuarios existentes (DEC-029).
+/// wkm_role: MAIN o SUPPORT (CHECK en la BD). Retirar un responsable borra la fila; la bitácora conserva la asignación.
+model tbl_work_managers {
+  wkm_id          Int        @id @default(autoincrement())
+  wrk_id          Int
+  use_id          Int
+  wkm_role        String     @default("SUPPORT") @db.VarChar(10)
+  sta_id          Int        @default(1)
+  wkm_create_by   Int?
+  wkm_create_at   DateTime?  @default(now()) @db.Timestamp(0)
+  wkm_update_by   Int?
+  wkm_update_at   DateTime?  @default(now()) @db.Timestamp(0)
+  created_by_user tbl_users? @relation("WorkManagerCreatedBy", fields: [wkm_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_work_managers_create_by")
+  tbl_status      tbl_status @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_work_managers_status")
+  updated_by_user tbl_users? @relation("WorkManagerUpdatedBy", fields: [wkm_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_work_managers_update_by")
+  tbl_users       tbl_users  @relation("WorkManagerUser", fields: [use_id], references: [use_id], onUpdate: NoAction, map: "tbl_work_managers_user")
+  tbl_works       tbl_works  @relation(fields: [wrk_id], references: [wrk_id], onDelete: Cascade, onUpdate: NoAction, map: "tbl_work_managers_work")
+
+  @@unique([wrk_id, use_id], map: "uq_work_managers_work_user")
+  @@index([use_id], map: "tbl_work_managers_user")
+  @@index([sta_id], map: "tbl_work_managers_status")
+  @@index([wkm_create_by], map: "tbl_work_managers_create_by")
+  @@index([wkm_update_by], map: "tbl_work_managers_update_by")
+}
+
+/// Etapas de obra (database/migrations/0040_create_work_stages.sql). Orden explícito (CHECK wks_order > 0) y estado propio.
+model tbl_work_stages {
+  wks_id          Int        @id @default(autoincrement())
+  wrk_id          Int
+  wks_name        String     @db.VarChar(100)
+  wks_order       Int
+  sta_id          Int        @default(1)
+  wks_create_by   Int?
+  wks_create_at   DateTime?  @default(now()) @db.Timestamp(0)
+  wks_update_by   Int?
+  wks_update_at   DateTime?  @default(now()) @db.Timestamp(0)
+  created_by_user tbl_users? @relation("WorkStageCreatedBy", fields: [wks_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_work_stages_create_by")
+  tbl_status      tbl_status @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_work_stages_status")
+  updated_by_user tbl_users? @relation("WorkStageUpdatedBy", fields: [wks_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_work_stages_update_by")
+  tbl_works       tbl_works  @relation(fields: [wrk_id], references: [wrk_id], onDelete: Cascade, onUpdate: NoAction, map: "tbl_work_stages_work")
+
+  @@unique([wrk_id, wks_name], map: "uq_work_stages_work_name")
+  @@index([sta_id], map: "tbl_work_stages_status")
+  @@index([wks_create_by], map: "tbl_work_stages_create_by")
+  @@index([wks_update_by], map: "tbl_work_stages_update_by")
 }

@@ -40,8 +40,15 @@ describe("buildLockPlan — orden del protocolo", () => {
     ]);
   });
 
+  it("la obra va antes que el usuario y los maestros que asigna (DEC-026)", () => {
+    const plan = buildLockPlan({ CONSTRUCTORA: [2], USUARIO: [5], OBRA: [8] });
+
+    expect(plan.map(({ entity }) => entity)).toEqual(["OBRA", "USUARIO", "CONSTRUCTORA"]);
+    expect(plan[0]).toMatchObject({ table: "tbl_works", id: "wrk_id" });
+  });
+
   it("rechaza entidades fuera del protocolo o sin tabla registrada", () => {
-    expect(() => buildLockPlan({ OBRA: [1] })).toThrow(/fuera de LOCK_ORDER/);
+    expect(() => buildLockPlan({ PROVEEDOR: [1] })).toThrow(/fuera de LOCK_ORDER/);
     // CONTRATO tiene lugar en el orden, pero su tabla aún no existe.
     expect(() => buildLockPlan({ CONTRATO: [1] })).toThrow(/sin tabla registrada/);
   });

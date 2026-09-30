@@ -12,6 +12,7 @@ const prismaMock = {
     update: jest.fn(),
     create: jest.fn(),
   },
+  tbl_works: { count: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
 };
@@ -53,6 +54,7 @@ describe("tipos de interventoría", () => {
 
   it("se elimina de forma lógica, con evidencia", async () => {
     types.findUnique.mockResolvedValue({ sta_id: 1 });
+    prismaMock.tbl_works.count.mockResolvedValue(0);
 
     await service.remove({ id: 2, useBy: 9 });
 
@@ -60,6 +62,15 @@ describe("tipos de interventoría", () => {
       where: { spt_id: 2 },
       data: { sta_id: 3, spt_delete_by: 9, spt_delete_at: expect.any(Date) },
     });
+  });
+
+  it("un tipo con obras no se elimina (DEC-027)", async () => {
+    types.findUnique.mockResolvedValue({ sta_id: 1 });
+    prismaMock.tbl_works.count.mockResolvedValue(2);
+
+    await expect(service.remove({ id: 2, useBy: 9 })).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.tbl_works.count).toHaveBeenCalledWith({ where: { spt_id: 2, sta_id: { not: 3 } } });
+    expect(types.update).not.toHaveBeenCalled();
   });
 
   it("el selector devuelve el nombre, ordenado por nombre", async () => {

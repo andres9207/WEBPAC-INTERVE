@@ -35,6 +35,9 @@ const STATUS_NAMES = { 1: 'Activo', 2: 'Inactivo' };
  *   2 usuario(s)" al eliminar algo en uso).
  * - Después de guardar, cambiar el estado o eliminar se recarga la página
  *   actual: así los conteos de las pestañas siguen siendo exactos.
+ * - `dialog`: un registro con formulario propio (p. ej. la obra, con sus
+ *   colecciones) reutiliza el listado con su diálogo. Recibe por ref
+ *   `open(row?)`, y como props `title`, `idField`, `api` y `onSaved`.
  */
 export default function MasterPage({
   title,
@@ -45,7 +48,8 @@ export default function MasterPage({
   searchPlaceholder = 'Buscar…',
   formFields,
   defaultSort,
-  rowLabel
+  rowLabel,
+  dialog: Dialog
 }) {
   const { hasPermission } = useAuth();
   // perId != null: con el catálogo cargando, hasPermission(undefined) es true (FRONTEND_STANDARD, regla 5).
@@ -209,7 +213,11 @@ export default function MasterPage({
         actions={actionItems}
       />
 
-      <MasterDialog ref={dialogRef} title={title} idField={idField} fields={formFields} save={api.save} onSaved={fetchRows} />
+      {Dialog ? (
+        <Dialog ref={dialogRef} title={title} idField={idField} api={api} onSaved={fetchRows} />
+      ) : (
+        <MasterDialog ref={dialogRef} title={title} idField={idField} fields={formFields} save={api.save} onSaved={fetchRows} />
+      )}
     </MainCard>
   );
 }
@@ -232,10 +240,12 @@ MasterPage.propTypes = {
   columns: PropTypes.array.isRequired,
   /** Texto del campo de búsqueda: "Buscar por código o nombre". Busca en los campos `filter` del servidor. */
   searchPlaceholder: PropTypes.string,
-  /** Campos del formulario (GenericFormSection), con `editable: false` para los que no se editan. */
-  formFields: PropTypes.array.isRequired,
+  /** Campos del formulario (GenericFormSection), con `editable: false` para los que no se editan. Sin `dialog`, obligatorio. */
+  formFields: PropTypes.array,
   /** Campo de orden inicial (uno `sortable` del servidor). */
   defaultSort: PropTypes.string.isRequired,
   /** Texto que identifica una fila en confirmaciones y en la vista de tarjetas. */
-  rowLabel: PropTypes.func.isRequired
+  rowLabel: PropTypes.func.isRequired,
+  /** Diálogo propio en lugar de MasterDialog (forwardRef con `open(row?)`). */
+  dialog: PropTypes.elementType
 };

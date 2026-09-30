@@ -50,6 +50,8 @@ export const LOCK_WAIT_TIMEOUT_SECONDS = 3;
  * elimine en medio. Eliminar un maestro bloquea solo el maestro.
  */
 export const LOCK_ORDER = Object.freeze([
+  // La obra contiene a los contratos: va primero (DEC-026).
+  "OBRA",
   "CONTRATO",
   "FACTURA",
   "POLIZA",
@@ -64,6 +66,7 @@ export const LOCK_ORDER = Object.freeze([
   "ASEGURADORA",
   "TIPO_INTERVENTORIA",
   "CONSTRUCTORA",
+  "TIPO_CONTRATO",
 ]);
 
 /**
@@ -83,6 +86,8 @@ const LOCKABLE = Object.freeze({
   ASEGURADORA: { table: "tbl_insurers", id: "ins_id" },
   TIPO_INTERVENTORIA: { table: "tbl_supervision_types", id: "spt_id" },
   CONSTRUCTORA: { table: "tbl_construction_companies", id: "cnc_id" },
+  TIPO_CONTRATO: { table: "tbl_contract_types", id: "ctt_id" },
+  OBRA: { table: "tbl_works", id: "wrk_id" },
 });
 
 const transactionMisuse = (message) => new Error(`[transaction] ${message}`);

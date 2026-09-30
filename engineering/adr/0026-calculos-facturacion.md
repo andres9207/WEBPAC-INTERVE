@@ -4,6 +4,8 @@
 
 **Propuesto.**
 
+Precisión de importes resuelta (2026-09-30, [DEC-028](../decisiones/DEC-028-convencion-monetaria.md)): `DECIMAL(18,2)`, redondeo a dos decimales con medio hacia arriba. Siguen pendientes porcentajes, tarifas y la aplicación por línea (decisión 4).
+
 **No existe ninguna fórmula de cálculo en el código.** Todas las fórmulas de este ADR son **PROPUESTA PENDIENTE DE VALIDACIÓN** con el área contable y tributaria, no hallazgos.
 
 Este ADR es la **versión autoritativa** de la composición económica. [ADR-0016](0016-conceptos-contractuales.md), [ADR-0018](0018-polizas.md), [ADR-0019](0019-tipos-poliza.md), [ADR-0021](0021-facturacion-contrato-mayor.md) y [ADR-0023](0023-facturacion-simple.md) remiten aquí. Si difieren, prevalece este.

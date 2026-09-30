@@ -72,3 +72,13 @@ export const formatNumber = (value, locale = "es-CO") => {
         maximumFractionDigits: 2,
     });
 };
+
+// Importe que llega del servidor como texto ("1234567.50", DEC-028) → "$ 1.234.567,50".
+// Trabaja sobre el texto, sin pasar por Number: un DECIMAL(18,2) tiene más
+// dígitos de los que un double representa exactos. Solo muestra; no calcula.
+export function fMoneyText(value) {
+    if (value === null || value === undefined || value === "") return "";
+    const [integer, decimals = ""] = String(value).split(".");
+    const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return `$ ${grouped},${decimals.padEnd(2, "0").slice(0, 2)}`;
+}

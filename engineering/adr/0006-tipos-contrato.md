@@ -2,9 +2,11 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-09-30).
 
-El maestro de tipos de contrato **no existe** en el código ni en el esquema. Este ADR documenta la decisión arquitectónica recomendada.
+Implementado el maestro en su versión mínima (reglas 1, 2, 12 y 13, y la columna de la decisión 10): migraciones `0036`–`0037`, tabla `tbl_contract_types` con nombre, estado y `ctt_config_version` (nace en 1), módulo `admin/contractTypes` sobre el patrón de maestro ([DEC-020](../decisiones/DEC-020-patron-maestro.md), [DEC-022](../decisiones/DEC-022-vista-maestro.md)), selector de activos para el formulario de obra, entidad de bloqueo `TIPO_CONTRATO`. Sin semilla.
+
+Falta, con contratos: el catálogo de campos y la configuración por tipo (decisiones 1 a 9, MAE-BD-09, MAE-BE-08, MAE-FE-08), el incremento de la versión (decisión 10) y conectar obras y contratos como dependientes (regla 13). El texto de abajo es el análisis original.
 
 ## Fecha
 

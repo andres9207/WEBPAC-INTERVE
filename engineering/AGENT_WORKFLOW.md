@@ -30,7 +30,7 @@ Regla: **reutilizar un patrón existente antes de crear uno nuevo.**
 
 | Qué | Solo se permite | Ejemplos de lo que **no** existe y no se crea |
 | --- | --- | --- |
-| Área del servidor y prefijo de URL | `auth`, `security`, `app`, `admin` → `/api/<área>/…` | `/api/masters/`, `/api/management/`, `/api/config/`, `/api/contratos/` |
+| Área del servidor y prefijo de URL | `auth`, `security`, `app`, `admin`, `work` → `/api/<área>/…` | `/api/masters/`, `/api/management/`, `/api/config/`, `/api/contratos/` |
 | Pantallas del cliente | `client/src/views/<área>/<módulo>/` | `client/src/pages/`, `client/src/pages/admin/`, `client/src/screens/` |
 | Rutas del cliente | `client/src/routes/MainRoutes.jsx` | `client/src/routes.js` |
 | API del cliente | `client/src/api/requests/<módulo>Api.js` | `client/src/services/<módulo>.js`, axios en el componente |

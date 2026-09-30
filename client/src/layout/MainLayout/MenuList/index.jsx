@@ -49,6 +49,9 @@ const getIconByName = (iconName) => {
   if (name.includes('building')) {
     return TablerIcons.IconBuilding;
   }
+  if (name.includes('contract')) {
+    return TablerIcons.IconContract;
+  }
   return TablerIcons.IconCircleDot || null;
 };
 

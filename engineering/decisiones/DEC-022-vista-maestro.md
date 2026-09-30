@@ -20,6 +20,8 @@ La primera pantalla de maestro (tipos de identificación) tenía unas 280 línea
 - **Después de guardar, cambiar el estado o eliminar se recarga la página actual**, en lugar de actualizar la fila en memoria como pide `FRONTEND_STANDARD` para las demás pantallas. Así los conteos de las pestañas y el filtro por estado siguen siendo exactos.
 - **Ancho de teléfono:** `DataTable` pasa a tarjetas, `StatusTabs` a un menú, y los botones de la cabecera bajan de línea (`flexWrap`).
 
+- *Ampliación 2026-09-30 (obras, DEC-026):* `MasterPage` acepta `dialog`, un diálogo propio (forwardRef con `open(row?)`, recibe `title`, `idField`, `api` y `onSaved`). Lo usa un registro que no es maestro pero tiene el mismo listado, como la obra, cuyo formulario guarda colecciones. Sin `dialog`, sigue usando `MasterDialog`.
+
 ## Descartado
 
 - **Actualizar la fila en memoria:** deja mal los conteos y muestra en "Activos" una fila recién desactivada.

@@ -26,7 +26,7 @@ Ningún ADR fijaba en qué carpeta y bajo qué URL viven los maestros, ni el idi
   | --- | --- | --- | --- | --- | --- |
   | Aseguradoras | `insurers` | `tbl_insurers` | `ins_` | `ASEGURADORA` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0003 |
   | Constructoras | `constructionCompanies` | `tbl_construction_companies` | `cnc_` | `CONSTRUCTORA` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0004 |
-  | Tipos de contrato | `contractTypes` | `tbl_contract_types` | `ctt_` | PD-04 | 0006 |
+  | Tipos de contrato | `contractTypes` | `tbl_contract_types` | `ctt_` | `TIPO_CONTRATO` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0006 |
   | Tipos de interventoría | `supervisionTypes` | `tbl_supervision_types` | `spt_` | `TIPO_INTERVENTORIA` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0007 |
   | Tipos de identificación | `identityDocuments` | `tbl_identity_documents` | `idd_` | `TIPO_IDENTIFICACION` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0008 |
   | Tipos de dirección | `addressTypes` | `tbl_address_types` | `adt_` | `TIPO_DIRECCION` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0009 |
@@ -47,7 +47,7 @@ Ningún ADR fijaba en qué carpeta y bajo qué URL viven los maestros, ni el idi
 
 - Todo maestro nuevo usa la fila de esta tabla sin volver a discutirla. Un maestro que no esté aquí se agrega a esta tabla (con un prefijo verificado como libre) antes de implementarlo.
 - La página padre del menú (fila de `tbl_pages` con `pag_parent = 0`) se crea con el primer maestro; su texto visible se fija en la spec de ese maestro.
-- Obras, proveedores, contratos, pólizas y facturación **no** son maestros: su área sigue pendiente (PD-05, parte restante).
+- Obras, proveedores, contratos, pólizas y facturación **no** son maestros: obras vive en `work/` ([DEC-026](DEC-026-area-obras.md)); el área de los demás sigue pendiente (PD-05, parte restante).
 - La URL en español que propone el ADR-0006 queda reemplazada por `/api/admin/contractTypes/…`.
 
 ## Dónde

@@ -39,6 +39,10 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 | [DEC-023](DEC-023-tipo-proveedor-clasificacion.md) | 2026-09-29 | El tipo de proveedor es una clasificación de la empresa, sin reglas por tipo | Vigente | [0010](../adr/0010-tipos-proveedor.md) |
 | [DEC-024](DEC-024-busqueda-listados.md) | 2026-09-29 | Los listados (maestros, perfiles, usuarios) buscan con un solo campo de texto y filtran el estado con pestañas (reemplaza los filtros de DEC-022) | Obligatoria | 0003, 0004, 0006–0010, 0019 |
 | [DEC-025](DEC-025-indices-maestros.md) | 2026-09-29 | Índice (estado, nombre) en los maestros para el selector; la búsqueda con `LIKE '%texto%'` no usa índice | Obligatoria | 0003, 0004, 0006–0010, 0019 |
+| [DEC-026](DEC-026-area-obras.md) | 2026-09-30 | Las obras viven en el área `work/` (módulo `works`, tablas `tbl_work*`); `OBRA` al principio de `LOCK_ORDER`; eliminar con contratos responde 409 | Obligatoria | [0011](../adr/0011-obras.md), [0027](../adr/0027-integridad-transaccional.md) |
+| [DEC-027](DEC-027-interventoria-en-obra.md) | 2026-09-30 | El tipo de interventoría se ancla a la obra, no al contrato | Vigente | [0007](../adr/0007-tipos-interventoria.md), [0011](../adr/0011-obras.md) |
+| [DEC-028](DEC-028-convencion-monetaria.md) | 2026-09-30 | Importes en `DECIMAL(18,2)`; el servidor redondea a dos decimales, medio hacia arriba, solo si sobran | Obligatoria | [0026](../adr/0026-calculos-facturacion.md), [0011](../adr/0011-obras.md) |
+| [DEC-029](DEC-029-responsables-usuarios-existentes.md) | 2026-09-30 | Los responsables de obra se eligen entre usuarios existentes (reemplaza ADR-0011, decisiones 5 y 6) | Vigente | [0011](../adr/0011-obras.md) |
 
 **Tipo:**
 - **Obligatoria**: regla para todo código nuevo. El checklist de `ENDPOINT_STANDARD.md` la exige y, donde se puede, un test la hace cumplir.

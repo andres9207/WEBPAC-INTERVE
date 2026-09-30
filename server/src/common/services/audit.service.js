@@ -21,6 +21,7 @@ import { prisma } from "../configs/prismaClient.js";
 export const AUDIT_ENTITIES = Object.freeze({
   USER: "USUARIO",
   PROFILE: "PERFIL",
+  WORK: "OBRA",
 });
 
 export const AUDIT_OPERATIONS = Object.freeze({

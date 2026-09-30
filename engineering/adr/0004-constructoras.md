@@ -6,7 +6,7 @@
 
 Implementado el maestro `tbl_construction_companies` (decisiones 1, 2, 3, 5 y 8): migraciones `0033`–`0034`, módulo `admin/constructionCompanies` sobre el patrón de maestro ([DEC-020](../decisiones/DEC-020-patron-maestro.md), [DEC-022](../decisiones/DEC-022-vista-maestro.md)), selector de activas para el formulario de obra, entidad de bloqueo `CONSTRUCTORA`. Sin semilla. El patrón admite ya contar dependientes eliminados (`countDeleted`), que es lo que exige la decisión 4.
 
-Falta, con obras (ADR-0011): la FK `NOT NULL` `RESTRICT` (decisión 7), conectar la tabla de obras como dependiente con `countDeleted: true` (decisión 4) y el `JOIN` externo del listado de obras (decisión 6). El bloqueo responde 400, no 409, mientras PD-02 siga abierta. El texto de abajo es el análisis original.
+Con obras (2026-09-30, [DEC-026](../decisiones/DEC-026-area-obras.md)): FK `tbl_works.cnc_id` `NOT NULL` `RESTRICT` (decisión 7, migración `0038`), `tbl_works` como dependiente con `countDeleted: true` (decisión 4) y listado de obras sin filtrar por el estado de la constructora (decisión 6). El bloqueo responde 400, no 409, mientras PD-02 siga abierta. El texto de abajo es el análisis original.
 
 ## Fecha
 

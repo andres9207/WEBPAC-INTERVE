@@ -6,7 +6,7 @@
 
 Implementado el maestro `tbl_supervision_types` (decisiones 1, 2, 5, 6 y 8): migraciones `0030`–`0032`, módulo `admin/supervisionTypes` sobre el patrón de maestro ([DEC-020](../decisiones/DEC-020-patron-maestro.md), [DEC-022](../decisiones/DEC-022-vista-maestro.md)), selector de activos para el formulario de obra, entidad de bloqueo `TIPO_INTERVENTORIA`. Tipos iniciales: Técnica, Administrativa, Financiera e Integral.
 
-Falta, con obras (ADR-0011): la FK (`RESTRICT`) y el bloqueo de eliminación por uso (decisión 5), el `JOIN` externo del listado de obras (decisión 7) y **confirmar el anclaje** (decisión 3, sigue pendiente de validación): si es el contrato, la FK va en la tabla de contratos. El catálogo no cambia en ningún caso. El texto de abajo es el análisis original.
+El anclaje (decisión 3) quedó confirmado **en la obra** ([DEC-027](../decisiones/DEC-027-interventoria-en-obra.md), 2026-09-30). Con obras: FK `tbl_works.spt_id` `RESTRICT` (migración `0038`), bloqueo de eliminación por uso (decisión 5) y listado de obras sin filtrar por el estado del tipo (decisión 7). El texto de abajo es el análisis original.
 
 ## Fecha
 

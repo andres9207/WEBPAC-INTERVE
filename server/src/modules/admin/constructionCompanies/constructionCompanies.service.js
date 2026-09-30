@@ -19,11 +19,9 @@ export const constructionCompaniesConfig = defineMaster({
   ],
   defaultSort: "description",
   selectOrder: "description",
-  // ADR-0004, decisión 4. La tabla de obras todavía no existe: al crearla
-  // (ADR-0011) se agrega aquí con countDeleted: true, porque una obra
-  // eliminada sigue siendo historial y necesita su constructora:
-  //   { model: <tabla de obras, nombre pendiente de PD-05>, column: "cnc_id", label: "obra(s)", countDeleted: true }
-  dependents: [],
+  // ADR-0004, decisión 4. countDeleted: una obra eliminada sigue siendo
+  // historial y necesita su constructora.
+  dependents: [{ model: "tbl_works", column: "cnc_id", label: "obra(s)", countDeleted: true }],
   socketEvent: "refresh-construction-companies",
 });
 

@@ -1,8 +1,8 @@
 // assets
-import { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella, IconEye, IconBuilding } from '@tabler/icons-react';
+import { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella, IconEye, IconBuilding, IconContract } from '@tabler/icons-react';
 
 // constant
-const icons = { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella, IconEye, IconBuilding };
+const icons = { IconSettings, IconId, IconTruck, IconMapPin, IconUmbrella, IconEye, IconBuilding, IconContract };
 
 // ==============================|| ADMIN MENU ITEMS ||============================== //
 // Solo alimenta las migas de pan: el sidebar sale de tbl_pages.
@@ -64,6 +64,14 @@ const admin = {
           type: 'item',
           url: '/admin/constructionCompanies',
           icon: icons.IconBuilding,
+          breadcrumbs: true
+        },
+        {
+          id: 'contractTypes',
+          title: 'Tipos de contrato',
+          type: 'item',
+          url: '/admin/contractTypes',
+          icon: icons.IconContract,
           breadcrumbs: true
         }
       ]

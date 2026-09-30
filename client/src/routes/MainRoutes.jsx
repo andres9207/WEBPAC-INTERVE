@@ -21,6 +21,8 @@ const AddressTypePage = Loadable(lazy(() => import('views/admin/addressTypes/Add
 const InsurerPage = Loadable(lazy(() => import('views/admin/insurers/InsurerPage')));
 const SupervisionTypePage = Loadable(lazy(() => import('views/admin/supervisionTypes/SupervisionTypePage')));
 const ConstructionCompanyPage = Loadable(lazy(() => import('views/admin/constructionCompanies/ConstructionCompanyPage')));
+const ContractTypePage = Loadable(lazy(() => import('views/admin/contractTypes/ContractTypePage')));
+const WorksPage = Loadable(lazy(() => import('views/work/works/WorksPage')));
 
 // ==============================|| MAIN ROUTING ||============================== //
 
@@ -54,8 +56,13 @@ const MainRoutes = {
             { path: 'addressTypes', element: <AddressTypePage /> },
             { path: 'insurers', element: <InsurerPage /> },
             { path: 'supervisionTypes', element: <SupervisionTypePage /> },
-            { path: 'constructionCompanies', element: <ConstructionCompanyPage /> }
+            { path: 'constructionCompanies', element: <ConstructionCompanyPage /> },
+            { path: 'contractTypes', element: <ContractTypePage /> }
           ]
+        },
+        {
+          path: 'work',
+          children: [{ path: 'works', element: <WorksPage /> }]
         }
       ]
     }

@@ -80,7 +80,7 @@
     },
     {
       "id": "DEC-06",
-      "titulo": "Precisión, redondeo y librería decimal o enteros",
+      "titulo": "RESUELTA. Precisión, redondeo y librería decimal o enteros",
       "adr": "0026",
       "impacto": "Cierre exacto de saldos en todo el CORE",
       "prioridad": "Alta",
@@ -91,7 +91,8 @@
         "PRO-QA-03"
       ],
       "responsable": "Área contable + Tech Lead",
-      "detalle": "El cliente formatea importes con y sin decimales, lo que confirma que la regla no está decidida. Punto P12."
+      "detalle": "El cliente formatea importes con y sin decimales, lo que confirma que la regla no está decidida. Punto P12.",
+      "resolucion": "Resuelta el 2026-09-30 en DEC-028 (engineering/decisiones): importes en DECIMAL(18,2), redondeo a dos decimales con medio hacia arriba solo si sobran, Prisma.Decimal en el servidor. Porcentajes, tarifas y redondeo por línea siguen pendientes con facturación."
     },
     {
       "id": "DEC-07",
@@ -261,7 +262,7 @@
     },
     {
       "id": "DEC-20",
-      "titulo": "Anclaje del tipo de interventoría: a la obra o al contrato",
+      "titulo": "RESUELTA. Anclaje del tipo de interventoría: a la obra o al contrato",
       "adr": "0007",
       "impacto": "Decide en qué tabla va la FK al tipo de interventoría; el catálogo no cambia",
       "prioridad": "Alta",
@@ -270,7 +271,8 @@
         "PRO-BD-09"
       ],
       "responsable": "Área usuaria",
-      "detalle": "ADR-0007, decisión 3. Si un contrato puede tener un tipo distinto del de su obra, la FK va en el contrato y no en la obra."
+      "detalle": "ADR-0007, decisión 3. Si un contrato puede tener un tipo distinto del de su obra, la FK va en el contrato y no en la obra.",
+      "resolucion": "Resuelta el 2026-09-30 en DEC-027 (engineering/decisiones): el tipo de interventoría se ancla a la obra; la FK va en tbl_works."
     }
   ],
   "tareas": [

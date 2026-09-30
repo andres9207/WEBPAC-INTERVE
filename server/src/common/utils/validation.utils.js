@@ -46,6 +46,24 @@ export const emailRule = (field = "email", { optional = false } = {}) => {
     .withMessage("El correo admite hasta 255 caracteres.");
 };
 
+/**
+ * Importe en el body (DEC-028): cadena o número no negativo, con punto
+ * decimal y hasta 16 dígitos enteros (DECIMAL(18,2)). Los decimales de más
+ * no se rechazan: el service los redondea con `toMoney`. Con `optional`,
+ * vacío o null se acepta como "sin valor".
+ */
+export const moneyRule = (field, label, { optional = false } = {}) => {
+  const chain = optional ? body(field).optional(nullable) : body(field).exists({ values: "falsy" }).withMessage(`El ${label} es requerido.`).bail();
+  return chain
+    .customSanitizer((value) => (typeof value === "number" ? String(value) : value))
+    .isString()
+    .withMessage(`El ${label} no es válido.`)
+    .bail()
+    .trim()
+    .matches(/^\d{1,16}(\.\d+)?$/)
+    .withMessage(`El ${label} debe ser un número no negativo, con punto decimal y hasta 16 dígitos enteros.`);
+};
+
 /** Arreglo de ids enteros positivos en el body. */
 export const idArray = (field, { optional = false } = {}) => {
   const chain = optional ? body(field).optional({ values: "null" }) : body(field);

@@ -45,6 +45,7 @@ Referencia: `views/security/profiles/components/ProfileDialog.jsx`.
 - `react-hook-form` con `FormProvider` y `ui-component/extended/GenericFormSection` alimentado por un arreglo de campos.
 - Estados del registro con `STATUS_OPTIONS` de `utils/constants.js`.
 - Al guardar: `showSuccess(data.message)`, avisar a la página con `addItem` o `updateItem`, cerrar.
+- Colecciones de un agregado (responsables, etapas, contactos) que se guardan con el padre: `ui-component/extended/EditableList`, montado como campo `custom` de `GenericFormSection`. Referencia: `views/work/works/components/WorkDialog.jsx`.
 
 ## Rutas y menú
 

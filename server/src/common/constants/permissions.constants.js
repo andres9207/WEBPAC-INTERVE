@@ -71,5 +71,26 @@ export const PERMISSIONS = {
       delete: 45,
       changeStatus: 46,
     },
+    contractTypes: {
+      view: 47, // pagination_contract_types
+      create: 48,
+      edit: 49,
+      delete: 50,
+      changeStatus: 51,
+    },
+  },
+  // Obras (DEC-026). Asignar y retirar responsables son permisos aparte de
+  // editar: deciden quién responde por la obra (ADR-0011, "Autorización").
+  work: {
+    works: {
+      view: 52, // pagination_works, get_work, select_work_managers
+      create: 53,
+      edit: 54,
+      delete: 55,
+      changeStatus: 56,
+      assignManager: 57,
+      removeManager: 58,
+      manageStages: 59,
+    },
   },
 };
