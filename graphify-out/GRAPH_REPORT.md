@@ -1,17 +1,17 @@
-# Graph Report - WEBPAC-INTERVE  (2026-09-29)
+# Graph Report - WEBPAC-INTERVE  (2026-09-30)
 
 ## Corpus Check
-- 331 files · ~98,871 words
+- 332 files · ~99,144 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 9 file(s) not represented in the graph (top: (none) 6, .template 1, .css 1)
 
 ## Summary
-- 1478 nodes · 3174 edges · 111 communities (78 shown, 33 thin omitted)
+- 1485 nodes · 3174 edges · 118 communities (78 shown, 40 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 65 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `4e82e2a9`
+- Built from commit: `f97f8e68`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -97,6 +97,12 @@
 - Default/index.jsx
 - permissions.service.test.js
 - InputLabel.jsx
+- `tbl_address_types`
+- `tbl_construction_companies`
+- `tbl_identity_documents`
+- `tbl_insurers`
+- `tbl_provider_types`
+- `tbl_supervision_types`
 
 ## God Nodes (most connected - your core abstractions)
 1. `@mui/material` - 72 edges
@@ -108,24 +114,24 @@
 7. `MasterPage()` - 22 edges
 8. `showError()` - 21 edges
 9. `react-router-dom` - 20 edges
-10. `createMasterService()` - 19 edges
+10. `withLockedTransaction()` - 19 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `MenuList()` --calls--> `useAuth()`  [EXTRACTED]
-  client/src/layout/MainLayout/MenuList/index.jsx → client/src/contexts/authContext.jsx
-- `createMasterService()` --calls--> `diffFields()`  [EXTRACTED]
-  server/src/common/services/master.service.js → server/src/common/services/audit.service.js
-- `createMasterService()` --calls--> `newOperationId()`  [EXTRACTED]
-  server/src/common/services/master.service.js → server/src/common/services/audit.service.js
-- `createMasterService()` --calls--> `writeAudit()`  [EXTRACTED]
-  server/src/common/services/master.service.js → server/src/common/services/audit.service.js
-- `createMasterService()` --calls--> `withLockedTransaction()`  [EXTRACTED]
-  server/src/common/services/master.service.js → server/src/common/services/transaction.service.js
+- `ComponentsOverrides()` --indirect_call--> `CardActions()`  [INFERRED]
+  client/src/themes/overrides/index.js → client/src/themes/overrides/CardActions.jsx
+- `ThemeCustomization()` --calls--> `ComponentsOverrides()`  [EXTRACTED]
+  client/src/themes/index.jsx → client/src/themes/overrides/index.js
+- `ComponentsOverrides()` --calls--> `Alert()`  [EXTRACTED]
+  client/src/themes/overrides/index.js → client/src/themes/overrides/Alert.jsx
+- `ComponentsOverrides()` --calls--> `Chip()`  [EXTRACTED]
+  client/src/themes/overrides/index.js → client/src/themes/overrides/Chip.jsx
+- `DocumentManagement()` --calls--> `showError()`  [EXTRACTED]
+  client/src/ui-component/DocumentManagement.jsx → client/src/services/ToastService.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (111 total, 33 thin omitted)
+## Communities (118 total, 40 thin omitted)
 
 ### Community 0 - "overrides/index.js"
 Cohesion: 0.09
@@ -440,20 +446,20 @@ Cohesion: 0.50
 Nodes (3): mockGetEffectivePermissionIds, mockGetIO, prismaMock
 
 ## Knowledge Gaps
-- **455 isolated node(s):** `getConstructionCompaniesSelectAPI`, `icons`, `COLUMNS`, `FORM_FIELDS`, `ADR-0004` (+450 more)
-  These have ≤1 connection - possible missing edges. (Counts symbols only; 596 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **33 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **455 isolated node(s):** `axios`, `@azure/identity`, `bcrypt`, `compression`, `cookie-parser` (+450 more)
+  These have ≤1 connection - possible missing edges. (Counts symbols only; 603 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **40 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `lodash` connect `DebouncedInput.jsx` to `master.service.js`, `server/package.json`?**
-  _High betweenness centrality (0.426) - this node is a cross-community bridge._
+  _High betweenness centrality (0.419) - this node is a cross-community bridge._
 - **Why does `@mui/material` connect `@mui/material` to `UserDialog.jsx`, `withAlpha`, `authContext.jsx`, `react`, `constants.js`, `showError`, `Default/index.jsx`, `InputLabel.jsx`, `useAuth`, `client/package.json`, `DebouncedInput.jsx`, `themes/index.jsx`, `EasyCrop.jsx`, `MainLayout/index.jsx`, `DocumentManagement.jsx`?**
-  _High betweenness centrality (0.252) - this node is a cross-community bridge._
+  _High betweenness centrality (0.274) - this node is a cross-community bridge._
 - **Why does `react` connect `react` to `UserDialog.jsx`, `authContext.jsx`, `constants.js`, `showError`, `useAuth`, `client/package.json`, `MainRoutes.jsx`, `DebouncedInput.jsx`, `@mui/material`, `themes/index.jsx`, `ConfigContext.jsx`, `EasyCrop.jsx`, `MainLayout/index.jsx`, `DocumentManagement.jsx`?**
-  _High betweenness centrality (0.240) - this node is a cross-community bridge._
-- **What connects `getConstructionCompaniesSelectAPI`, `icons`, `COLUMNS` to the rest of the system?**
+  _High betweenness centrality (0.226) - this node is a cross-community bridge._
+- **What connects `axios`, `@azure/identity`, `bcrypt` to the rest of the system?**
   _455 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `overrides/index.js` be split into smaller, more focused modules?**
   _Cohesion score 0.08599033816425121 - nodes in this community are weakly interconnected._

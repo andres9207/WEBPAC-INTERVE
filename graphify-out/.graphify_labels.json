@@ -109,5 +109,12 @@
   "107": "0034_seed_construction_companies_pages_permissions.sql",
   "108": "InputLabel.jsx",
   "109": "0031_seed_supervision_types.sql",
-  "110": "0032_seed_supervision_types_pages_permissions.sql"
+  "110": "0032_seed_supervision_types_pages_permissions.sql",
+  "111": "0035_index_masters_status_name.sql",
+  "112": "`tbl_address_types`",
+  "113": "`tbl_construction_companies`",
+  "114": "`tbl_identity_documents`",
+  "115": "`tbl_insurers`",
+  "116": "`tbl_provider_types`",
+  "117": "`tbl_supervision_types`"
 }
