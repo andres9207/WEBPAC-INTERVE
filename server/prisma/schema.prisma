@@ -335,8 +335,8 @@ model tbl_identity_documents {
 
   @@index([idd_create_by], map: "tbl_identity_documents_create_by")
   @@index([idd_delete_by], map: "tbl_identity_documents_delete_by")
-  @@index([sta_id], map: "tbl_identity_documents_status")
   @@index([idd_update_by], map: "tbl_identity_documents_update_by")
+  @@index([sta_id, idd_name], map: "idx_identity_documents_status_name")
 }
 
 /// Maestro de tipos de proveedor (database/migrations/0022_create_provider_types.sql).
@@ -362,8 +362,8 @@ model tbl_provider_types {
 
   @@index([pvt_create_by], map: "tbl_provider_types_create_by")
   @@index([pvt_delete_by], map: "tbl_provider_types_delete_by")
-  @@index([sta_id], map: "tbl_provider_types_status")
   @@index([pvt_update_by], map: "tbl_provider_types_update_by")
+  @@index([sta_id, pvt_name], map: "idx_provider_types_status_name")
 }
 
 /// Maestro de tipos de dirección (database/migrations/0025_create_address_types.sql).
@@ -389,8 +389,8 @@ model tbl_address_types {
 
   @@index([adt_create_by], map: "tbl_address_types_create_by")
   @@index([adt_delete_by], map: "tbl_address_types_delete_by")
-  @@index([sta_id], map: "tbl_address_types_status")
   @@index([adt_update_by], map: "tbl_address_types_update_by")
+  @@index([sta_id, adt_name], map: "idx_address_types_status_name")
 }
 
 /// Maestro de aseguradoras (database/migrations/0028_create_insurers.sql).
@@ -416,8 +416,8 @@ model tbl_insurers {
 
   @@index([ins_create_by], map: "tbl_insurers_create_by")
   @@index([ins_delete_by], map: "tbl_insurers_delete_by")
-  @@index([sta_id], map: "tbl_insurers_status")
   @@index([ins_update_by], map: "tbl_insurers_update_by")
+  @@index([sta_id, ins_description], map: "idx_insurers_status_description")
 }
 
 /// Maestro de tipos de interventoría (database/migrations/0030_create_supervision_types.sql).
@@ -443,8 +443,8 @@ model tbl_supervision_types {
 
   @@index([spt_create_by], map: "tbl_supervision_types_create_by")
   @@index([spt_delete_by], map: "tbl_supervision_types_delete_by")
-  @@index([sta_id], map: "tbl_supervision_types_status")
   @@index([spt_update_by], map: "tbl_supervision_types_update_by")
+  @@index([sta_id, spt_name], map: "idx_supervision_types_status_name")
 }
 
 /// Maestro de constructoras (database/migrations/0033_create_construction_companies.sql).
@@ -470,8 +470,8 @@ model tbl_construction_companies {
 
   @@index([cnc_create_by], map: "tbl_construction_companies_create_by")
   @@index([cnc_delete_by], map: "tbl_construction_companies_delete_by")
-  @@index([sta_id], map: "tbl_construction_companies_status")
   @@index([cnc_update_by], map: "tbl_construction_companies_update_by")
+  @@index([sta_id, cnc_description], map: "idx_construction_companies_status_description")
 }
 
 enum tbl_documents_doc_type {

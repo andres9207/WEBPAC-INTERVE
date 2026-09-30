@@ -14,6 +14,7 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 | Aplicar las migraciones `0028` y `0029` (maestro de aseguradoras) junto con su código, y después `yarn db:seed` | Alta | ADR-0003 |
 | Aplicar las migraciones `0030` a `0032` (maestro de tipos de interventoría) junto con su código, y después `yarn db:seed` | Alta | ADR-0007 |
 | Aplicar las migraciones `0033` y `0034` (maestro de constructoras) junto con su código, y después `yarn db:seed` | Alta | ADR-0004 |
+| Aplicar la migración `0035` (índice estado + nombre en los maestros). Después, `SHOW INDEX` en cada maestro: si queda un índice simple `tbl_<maestro>_status`, es redundante y se quita a mano (DEC-025) | Media | MAE-BD-12 |
 | Restringir el usuario de BD de la aplicación a `INSERT`/`SELECT` sobre `tbl_audit_log`. Hoy ningún código la modifica, pero el usuario tiene privilegios para hacerlo ([DEC-007](../decisiones/DEC-007-bitacora-funcional.md), sugerencia en `0013_create_audit_log.sql`) | Alta | `SECURITY.md` |
 
 ## Funcionalidad abierta

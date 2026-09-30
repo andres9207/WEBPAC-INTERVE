@@ -45,7 +45,8 @@ Migración `database/migrations/NNNN_create_<tabla>.sql` según [`DATABASE_STAND
   UNIQUE INDEX `uq_<tabla>_name_active` (`<pre>_name_active`)
   ```
 
-  La colación de la columna decide qué es igual (con `utf8mb4_0900_ai_ci`, "Cédula" y "cedula" son el mismo nombre). La columna generada nunca se escribe desde el código: se documenta con `///` en `schema.prisma`. Una carrera que pasa el control del service llega como `P2002` y responde 409 (PD-02). Referencia: `0017_create_identity_documents.sql`.
+  La colación de la columna decide qué es igual (con `utf8mb4_0900_ai_ci`, "Cédula" y "cedula" son el mismo nombre).
+- Un maestro lleva además `INDEX idx_<tabla>_status_<campo> (sta_id, <nombre o descripción>)`: el selector filtra y ordena desde él ([DEC-025](../decisiones/DEC-025-indices-maestros.md)). Reemplaza al índice simple de la FK de estado; MySQL lo quita solo. La columna generada nunca se escribe desde el código: se documenta con `///` en `schema.prisma`. Una carrera que pasa el control del service llega como `P2002` y responde 409 (PD-02). Referencia: `0017_create_identity_documents.sql`.
 
 Aplicarla en la BD de desarrollo y correr `npx prisma db pull` en `server/`. Renombrar las relaciones de autoría a `created_by_user` / `updated_by_user` / `deleted_by_user` (ver `database/migrations/README.md`, "Relación con Prisma").
 
