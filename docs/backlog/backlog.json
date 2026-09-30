@@ -134,7 +134,8 @@
     },
     {
       "id": "DEC-10",
-      "titulo": "Naturaleza del tipo de proveedor: clasificación, comportamiento, jerarquía o tipo contractual",
+      "titulo": "RESUELTA. Naturaleza del tipo de proveedor: clasificación, comportamiento, jerarquía o tipo contractual",
+      "resolucion": "Resuelta el 2026-09-29 en DEC-023 (engineering/decisiones): el tipo es una clasificación de la empresa; vive en el proveedor, no en la relación proveedor-obra ni en el contrato.",
       "adr": "0010",
       "impacto": "Determina si el atributo vive en el proveedor, en la relación proveedor-obra o en el contrato",
       "prioridad": "Alta",
@@ -257,6 +258,19 @@
       ],
       "responsable": "Área usuaria + Seguridad",
       "detalle": "Apartarse del valor por defecto exigiría AJUSTAR AMORTIZACIÓN y AJUSTAR RETENIDO."
+    },
+    {
+      "id": "DEC-20",
+      "titulo": "Anclaje del tipo de interventoría: a la obra o al contrato",
+      "adr": "0007",
+      "impacto": "Decide en qué tabla va la FK al tipo de interventoría; el catálogo no cambia",
+      "prioridad": "Alta",
+      "bloquea": [
+        "PRO-BD-01",
+        "PRO-BD-09"
+      ],
+      "responsable": "Área usuaria",
+      "detalle": "ADR-0007, decisión 3. Si un contrato puede tener un tipo distinto del de su obra, la FK va en el contrato y no en la obra."
     }
   ],
   "tareas": [
@@ -2754,9 +2768,10 @@
       "descripcion": "Tabla raíz del agregado de obra con código único, constructora, tipo de contrato, tipo de interventoría, área, costo directo, plazos inicial y ampliado, valores inicial y ampliado, valor máximo de orden de servicio, estado y auditoría. Los valores monetarios usan el tipo decimal exacto de la convención, nunca punto flotante.",
       "criterios": [
         "UNIQUE sobre el código de obra",
-        "FK obligatorias y RESTRICT a constructora, tipo de contrato, tipo de interventoría y estado",
+        "FK obligatorias y RESTRICT a constructora, tipo de contrato y estado; la del tipo de interventoría según el criterio 5",
         "CHECK de coherencia entre valores y plazos, inicial frente a ampliado",
-        "Todas las columnas monetarias siguen la convención decimal y ninguna es FLOAT"
+        "Todas las columnas monetarias siguen la convención decimal y ninguna es FLOAT",
+        "Obligatorio (cierra MAE-BD-03), si DEC-20 confirma el anclaje a la obra: FK al tipo de interventoría en RESTRICT con índice, la tabla agregada a los dependents de supervisionTypes.service.js con label \"obra(s)\", y prueba de que eliminar un tipo de interventoría en uso es rechazado"
       ],
       "prioridad": "Crítica",
       "responsable": "Dev BD",
@@ -2764,7 +2779,8 @@
         "FND-BD-02",
         "MAE-BD-02",
         "MAE-BD-03",
-        "MAE-BD-08"
+        "MAE-BD-08",
+        "DEC-20"
       ],
       "estado": "Pendiente",
       "estimacion": 12,
@@ -2837,7 +2853,8 @@
         "UNIQUE sobre columna generada que admite un solo principal por obra",
         "Un mismo tipo de dirección puede repetirse dentro de la obra si no es principal",
         "FK a la obra en CASCADE y al tipo de dirección en RESTRICT",
-        "Prueba que intenta dos contactos principales y es rechazada"
+        "Prueba que intenta dos contactos principales y es rechazada",
+        "Obligatorio (cierra MAE-BD-05): la tabla agregada a los dependents de addressTypes.service.js con label \"contacto(s)\", y prueba de que eliminar un tipo de dirección en uso es rechazado"
       ],
       "prioridad": "Alta",
       "responsable": "Dev BD",
@@ -2891,7 +2908,8 @@
         "Tabla creada con UNIQUE de contacto principal sobre columna generada",
         "Los datos embebidos migrados y verificados fila a fila",
         "Las columnas embebidas retiradas solo después de la verificación",
-        "Migración reversible con respaldo de los datos originales"
+        "Migración reversible con respaldo de los datos originales",
+        "Obligatorio (cierra MAE-BD-05): FK al tipo de dirección en RESTRICT con índice, la tabla agregada a los dependents de addressTypes.service.js con label \"contacto(s)\", y prueba de que eliminar un tipo de dirección en uso es rechazado"
       ],
       "prioridad": "Alta",
       "responsable": "Dev BD",
@@ -2972,7 +2990,8 @@
         "UNIQUE del número dentro de la obra, según lo que resuelva DEC-17",
         "CHECK de fecha fin mayor o igual a fecha de inicio",
         "La unidad es un dominio cerrado de día, mes y año, sin campo de frecuencia separado",
-        "No existen columnas de valor del contrato, de saldos ni de fecha de vencimiento"
+        "No existen columnas de valor del contrato, de saldos ni de fecha de vencimiento",
+        "Obligatorio (cierra MAE-BD-03), si DEC-20 ancla el tipo de interventoría al contrato: FK al tipo de interventoría en RESTRICT con índice, la tabla agregada a los dependents de supervisionTypes.service.js con label \"contrato(s)\", y prueba de que eliminar un tipo de interventoría en uso es rechazado"
       ],
       "prioridad": "Crítica",
       "responsable": "Dev BD",
@@ -2985,7 +3004,8 @@
         "FND-BD-14",
         "DEC-12",
         "DEC-13",
-        "DEC-17"
+        "DEC-17",
+        "DEC-20"
       ],
       "estado": "Pendiente",
       "estimacion": 14,

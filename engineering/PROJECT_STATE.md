@@ -61,7 +61,7 @@ Ver [`debt/TECHNICAL_DEBT.md`](debt/TECHNICAL_DEBT.md).
 
 ## Decisiones pendientes
 
-**De negocio** (bloquean tareas del backlog): 19 decisiones, `DEC-01` a `DEC-19`, en `docs/backlog/BACKLOG.md` ("Decisiones de negocio pendientes"). Las más urgentes: cómo se factura el avance de obra (DEC-01), la composición de las facturas (DEC-02, DEC-03) y precisión y redondeo monetario (DEC-06).
+**De negocio** (bloquean tareas del backlog): `DEC-01` a `DEC-20` en `docs/backlog/BACKLOG.md` ("Decisiones de negocio pendientes"); quedan 19, porque DEC-10 se resolvió en [DEC-023](decisiones/DEC-023-tipo-proveedor-clasificacion.md). Las más urgentes: cómo se factura el avance de obra (DEC-01), la composición de las facturas (DEC-02, DEC-03) y precisión y redondeo monetario (DEC-06).
 
 **De ingeniería** (REQUIERE DECISIÓN):
 
