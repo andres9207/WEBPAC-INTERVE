@@ -182,14 +182,8 @@ export default function NavCollapse({ menu, level, parentId }) {
               primary={
                 <Typography
                   ref={ref}
-                  noWrap
                   variant={isSelected || anchorEl ? 'h5' : 'body1'}
-                  sx={{
-                    color: 'inherit',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    width: 120
-                  }}
+                  sx={{ color: 'inherit' }}
                 >
                   {menu.title}
                 </Typography>

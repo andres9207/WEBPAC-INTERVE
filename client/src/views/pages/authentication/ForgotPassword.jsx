@@ -22,9 +22,9 @@ export default function ForgotPassword() {
           <Box sx={{ m: { xs: 1, sm: 3 }, mb: 0 }}>
             <AuthCardWrapper>
               <Stack sx={{ alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-                <Box sx={{ mb: 3 }}>
-                  <Link to="/pages/login" aria-label="logo">
-                    <Logo />
+                <Box sx={{ mb: 2 }}>
+                  <Link to="/pages/login" aria-label="Ir al inicio de sesión">
+                    <Logo height={downMD ? 60 : 76} />
                   </Link>
                 </Box>
                 <Stack sx={{ alignItems: 'center', justifyContent: 'center', gap: 1 }}>

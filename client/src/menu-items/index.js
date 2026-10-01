@@ -9,7 +9,7 @@ import work from './work';
 // ==============================|| MENU ITEMS ||============================== //
 
 const menuItems = {
-  items: [dashboard, security, admin, work, pages, utilities, other]
+  items: [dashboard, work, admin, security, pages, utilities, other]
 };
 
 export default menuItems;

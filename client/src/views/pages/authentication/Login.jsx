@@ -1,5 +1,3 @@
-import { Link } from 'react-router-dom';
-
 import useMediaQuery from '@mui/material/useMediaQuery';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -24,17 +22,15 @@ export default function Login() {
           <Box sx={{ m: { xs: 1, sm: 3 }, mb: 0 }}>
             <AuthCardWrapper>
               <Stack sx={{ alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-                <Box sx={{ mb: 3 }}>
-                  <Link to="/pages/forgot-password" aria-label="logo">
-                    <Logo />
-                  </Link>
+                <Box sx={{ mb: 2 }}>
+                  <Logo height={downMD ? 60 : 76} />
                 </Box>
                 <Stack sx={{ alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                  <Typography variant={downMD ? 'h3' : 'h2'} sx={{ color: 'secondary.main' }}>
-                    Hi, Welcome Back
+                  <Typography variant={downMD ? 'h3' : 'h2'} sx={{ color: 'secondary.main', textAlign: 'center' }}>
+                    Bienvenido a Interve 360
                   </Typography>
-                  <Typography variant="caption" sx={{ fontSize: '16px', textAlign: { xs: 'center', md: 'inherit' } }}>
-                    Enter your credentials to continue
+                  <Typography variant="caption" sx={{ fontSize: '16px', textAlign: 'center' }}>
+                    Ingresa tus credenciales para continuar
                   </Typography>
                 </Stack>
                 <Box sx={{ width: 1 }}>
