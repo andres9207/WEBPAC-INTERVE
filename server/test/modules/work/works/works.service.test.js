@@ -47,6 +47,8 @@ const input = (overrides = {}) => ({
   cncId: 1,
   cttId: 2,
   sptId: 3,
+  startDate: "2026-01-31",
+  termUnit: "MES",
   area: "1500.5",
   directCost: "100000",
   initialTerm: 12,
@@ -65,6 +67,8 @@ const existingWork = {
   cnc_id: 1,
   ctt_id: 2,
   spt_id: 3,
+  wrk_start_date: new Date("2026-01-31T00:00:00Z"),
+  wrk_term_unit: "MES",
   wrk_area: "1500.50",
   wrk_direct_cost: "100000.00",
   wrk_initial_term: 12,
@@ -103,6 +107,9 @@ describe("saveWork — crear", () => {
     // DEC-028: 250000.005 → 250000.01; vacío → null.
     expect(data.wrk_initial_value.toFixed(2)).toBe("250000.01");
     expect(data.wrk_extended_value).toBeNull();
+    // DEC-030: fecha sin hora a medianoche UTC y unidad del plazo.
+    expect(data.wrk_start_date.toISOString()).toBe("2026-01-31T00:00:00.000Z");
+    expect(data.wrk_term_unit).toBe("MES");
     expect(prismaMock.tbl_work_managers.createMany.mock.calls[0][0].data).toEqual([
       { wrk_id: 40, use_id: 5, wkm_role: "MAIN", sta_id: 1, wkm_create_by: 9, wkm_update_by: 9 },
     ]);
@@ -119,6 +126,8 @@ describe("saveWork — crear", () => {
     expect(rows.every((r) => r.aud_entity === "OBRA" && r.aud_record_id === 40)).toBe(true);
     expect(rows.find((r) => r.aud_field === "wrk_initial_value").aud_new_value).toBe("250000.01");
     expect(rows.some((r) => r.aud_field === "wrk_area")).toBe(false);
+    expect(rows.find((r) => r.aud_field === "wrk_start_date").aud_new_value).toBe("2026-01-31");
+    expect(rows.find((r) => r.aud_field === "wrk_term_unit").aud_new_value).toBe("MES");
     expect(rows.find((r) => r.aud_operation === "ASIGNAR")).toMatchObject({
       aud_field: "responsable",
       aud_new_value: "usuario=5 rol=MAIN estado=1",
@@ -217,6 +226,15 @@ describe("saveWork — crear", () => {
       statusCode: 400,
     });
     expect(prismaMock.tbl_works.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("saveWork — fecha de inicio", () => {
+  it("una fecha que no existe se rechaza antes de abrir la transacción", async () => {
+    await expect(
+      service.saveWork({ wrkId: 0, input: input({ startDate: "2026-02-30" }), useBy: 9, granted: ALL, ctx, idempotencyKey: KEY })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });
 
@@ -385,6 +403,39 @@ describe("changeWorkStatus y deleteWork", () => {
   });
 });
 
+describe("getWork", () => {
+  it("devuelve la fecha de inicio, la fecha final calculada, el valor vigente y los nombres de los maestros", async () => {
+    prismaMock.tbl_works.findFirst.mockResolvedValue({
+      wrk_id: 40,
+      ...existingWork,
+      wrk_initial_term: 14,
+      wrk_extended_value: "260000.00",
+      tbl_status: { sta_name: "Activo" },
+      tbl_construction_companies: { cnc_description: "Andina" },
+      tbl_contract_types: { ctt_name: "Suministro" },
+      tbl_supervision_types: { spt_name: "Técnica" },
+      tbl_work_managers: [],
+      tbl_work_stages: [],
+    });
+
+    await expect(service.getWork({ wrkId: 40 })).resolves.toMatchObject({
+      startDate: "2026-01-31",
+      termUnit: "MES",
+      // 31 ene 2026 + 14 meses = 31 mar 2027.
+      endDate: "2027-03-31",
+      currentValue: "260000.00",
+      constructionCompany: "Andina",
+      contractType: "Suministro",
+      supervisionType: "Técnica",
+    });
+  });
+
+  it("una obra eliminada o inexistente responde 404", async () => {
+    prismaMock.tbl_works.findFirst.mockResolvedValue(null);
+    await expect(service.getWork({ wrkId: 99 })).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
 describe("paginationWorks y selectWorkManagers", () => {
   it("lista sin eliminadas, busca por código, nombre o constructora y devuelve el valor vigente", async () => {
     prismaMock.tbl_works.findMany.mockResolvedValue([
@@ -394,6 +445,9 @@ describe("paginationWorks y selectWorkManagers", () => {
         wrk_name: "Torre Norte",
         wrk_initial_value: "250000.01",
         wrk_extended_value: "300000",
+        wrk_start_date: new Date("2026-01-31T00:00:00Z"),
+        wrk_initial_term: 1,
+        wrk_term_unit: "MES",
         sta_id: 1,
         wrk_update_at: null,
         tbl_construction_companies: { cnc_description: "Andina" },
@@ -401,6 +455,7 @@ describe("paginationWorks y selectWorkManagers", () => {
         tbl_supervision_types: { spt_name: "Técnica" },
         tbl_status: { sta_name: "Activo" },
         updated_by_user: { use_name: "Ana", use_last_name: "Paz" },
+        tbl_work_managers: [{ tbl_users: { use_name: "Luis", use_last_name: "Mora" } }],
       },
     ]);
     prismaMock.tbl_works.count.mockResolvedValue(1);
@@ -412,7 +467,17 @@ describe("paginationWorks y selectWorkManagers", () => {
     expect(args.where.sta_id).toEqual({ not: 3 });
     expect(args.where.OR).toContainEqual({ tbl_construction_companies: { cnc_description: { contains: "andina" } } });
     expect(args.orderBy).toEqual({ tbl_construction_companies: { cnc_description: "asc" } });
-    expect(page.results[0]).toMatchObject({ wrkId: 40, initialValue: "250000.01", currentValue: "300000.00", updatedByName: "Ana Paz" });
+    expect(page.results[0]).toMatchObject({
+      wrkId: 40,
+      initialValue: "250000.01",
+      currentValue: "300000.00",
+      updatedByName: "Ana Paz",
+      mainManagerName: "Luis Mora",
+      startDate: "2026-01-31",
+      // 31 ene + 1 mes: último día de febrero.
+      endDate: "2026-02-28",
+    });
+    expect(args.select.tbl_work_managers.where).toEqual({ wkm_role: "MAIN", sta_id: 1 });
     expect(page.statusCounts).toEqual({ 1: 1 });
   });
 

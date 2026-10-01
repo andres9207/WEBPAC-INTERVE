@@ -1,29 +1,18 @@
-import { useState, useEffect, useCallback } from "react";
-import Autocomplete from "@mui/material/Autocomplete";
-import TextField from "@mui/material/TextField";
-import { useSocket } from "socket/SocketProvider";
+import { useState, useEffect, useCallback } from 'react';
+import PropTypes from 'prop-types';
 
-function RequiredLabel({ required, label }) {
-  return (
-    <>
-      {required && <span style={{ color: "red" }}>* </span>}
-      {label}
-    </>
-  );
-}
+import SearchSelect from 'ui-component/extended/SearchSelect';
+import { useSocket } from 'socket/SocketProvider';
+import { showError } from 'services/ToastService';
 
-const SelectSocket = ({
-  value,
-  onChange,
-  error,
-  disabled,
-  label,
-  required,
-  fetchApi,
-  mapOptions,
-  socketEvent,
-  onOptionChange,
-}) => {
+/**
+ * Selector de un maestro: carga las opciones con `fetchApi` y las recarga
+ * cuando llega `socketEvent` (otro usuario cambió el maestro). Se ve y se
+ * comporta como el desplegable con buscador de todo el sistema (SearchSelect).
+ *
+ * `error` es el objeto de react-hook-form (`{ message }`).
+ */
+const SelectSocket = ({ value, onChange, error, disabled, label, required, fetchApi, mapOptions, socketEvent, onOptionChange }) => {
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const socket = useSocket();
@@ -33,63 +22,51 @@ const SelectSocket = ({
     try {
       const res = await fetchApi();
       const data = res?.data ?? res ?? [];
-      setOptions(mapOptions ? mapOptions(data) : data);
+      const mapped = mapOptions ? mapOptions(data) : data;
+      setOptions(mapped.map((o) => ({ ...o, value: o.value ?? o.id, label: o.label ?? o.nombre ?? '' })));
     } catch (err) {
-      console.error("Error fetching socket options:", err);
+      showError(err.response?.data?.message || `Error al cargar ${label?.toLowerCase() ?? 'las opciones'}`);
     } finally {
       setLoading(false);
     }
-  }, [fetchApi, mapOptions]);
+  }, [fetchApi, mapOptions, label]);
 
   useEffect(() => {
     refreshOptions();
   }, [refreshOptions]);
 
   useEffect(() => {
-    if (!socket || !socketEvent) return;
-
-    const handler = () => {
-      refreshOptions();
-    };
-
-    socket.on(socketEvent, handler);
-    return () => {
-      socket.off(socketEvent, handler);
-    };
+    if (!socket || !socketEvent) return undefined;
+    socket.on(socketEvent, refreshOptions);
+    return () => socket.off(socketEvent, refreshOptions);
   }, [socket, socketEvent, refreshOptions]);
 
-  const hasError = Boolean(error);
-
-  const selectedOption = options.find(
-    (o) => (o.value ?? o.id) === value
-  ) ?? null;
-
   return (
-    <Autocomplete
-      value={selectedOption}
-      onChange={(event, newValue) => {
-        onChange(newValue?.value ?? newValue?.id ?? "");
-        if (onOptionChange && newValue) onOptionChange(newValue);
-      }}
+    <SearchSelect
+      value={value}
+      onChange={onChange}
+      onOptionChange={onOptionChange}
       options={options}
-      getOptionLabel={(opt) => opt.label ?? opt.nombre ?? ""}
-      isOptionEqualToValue={(opt, val) =>
-        (opt.value ?? opt.id) === (val.value ?? val.id)
-      }
       loading={loading}
       disabled={disabled}
-      size="small"
-      fullWidth
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          label={<RequiredLabel required={required} label={label} />}
-          error={hasError}
-          helperText={hasError ? error.message : null}
-        />
-      )}
+      label={label}
+      required={required}
+      error={error?.message}
     />
   );
+};
+
+SelectSocket.propTypes = {
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onChange: PropTypes.func.isRequired,
+  error: PropTypes.object,
+  disabled: PropTypes.bool,
+  label: PropTypes.string,
+  required: PropTypes.bool,
+  fetchApi: PropTypes.func.isRequired,
+  mapOptions: PropTypes.func,
+  socketEvent: PropTypes.string,
+  onOptionChange: PropTypes.func
 };
 
 export default SelectSocket;

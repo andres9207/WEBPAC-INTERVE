@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
-import { IconEdit, IconTrash, IconPlus, IconToggleLeft, IconToggleRight } from '@tabler/icons-react';
+import { IconEdit, IconEye, IconTrash, IconPlus, IconToggleLeft, IconToggleRight } from '@tabler/icons-react';
 
 import MainCard from 'ui-component/cards/MainCard';
 import SearchInput from 'ui-component/extended/SearchInput';
@@ -40,6 +40,9 @@ const STATUS_NAMES = { 1: 'Activo', 2: 'Inactivo' };
  *   `open(row?)`, y como props `title`, `idField`, `api`, `onSaved` y `feminine`.
  * - Acciones con los tonos del tema de ActionButton, no colores fijos.
  * - Tabla vacía: con búsqueda, lo dice; sin registros, ofrece crear el primero.
+ * - `navigation`: un agregado con páginas propias (p. ej. la obra, DEC-030).
+ *   Crear, ver y editar navegan en vez de abrir un diálogo, y el listado solo
+ *   ofrece ver y editar: activar, desactivar y eliminar viven en el detalle.
  */
 export default function MasterPage({
   title,
@@ -53,7 +56,8 @@ export default function MasterPage({
   rowLabel,
   feminine = false,
   pluralTitle,
-  dialog: Dialog
+  dialog: Dialog,
+  navigation
 }) {
   const { hasPermission } = useAuth();
   // perId != null: con el catálogo cargando, hasPermission(undefined) es true (FRONTEND_STANDARD, regla 5).
@@ -147,6 +151,12 @@ export default function MasterPage({
 
   const actionItems = (row) => {
     const label = rowLabel(row);
+    if (navigation) {
+      return [
+        { label: 'Ver detalle', icon: <IconEye size={16} />, command: () => navigation.view(row), tone: 'info' },
+        ...(can.edit ? [{ label: 'Editar', icon: <IconEdit size={16} />, command: () => navigation.edit(row), tone: 'edit' }] : [])
+      ];
+    }
     const items = [];
     if (can.edit) {
       items.push({ label: 'Editar', icon: <IconEdit size={16} />, command: () => dialogRef.current?.open(row), tone: 'edit' });
@@ -179,7 +189,7 @@ export default function MasterPage({
   };
 
   const statusTabs = statusTabsWithCounts(statusCounts);
-  const openNew = () => dialogRef.current?.open();
+  const openNew = () => (navigation ? navigation.create() : dialogRef.current?.open());
 
   const plural = (pluralTitle ?? `${lowerTitle}s`).toLowerCase();
   const emptyMessage = search
@@ -233,7 +243,7 @@ export default function MasterPage({
         emptyAction={emptyAction}
       />
 
-      {Dialog ? (
+      {navigation ? null : Dialog ? (
         <Dialog ref={dialogRef} title={title} idField={idField} api={api} onSaved={fetchRows} feminine={feminine} />
       ) : (
         <MasterDialog
@@ -279,5 +289,7 @@ MasterPage.propTypes = {
   /** Plural para los mensajes de tabla vacía, si no basta con agregar "s": "Tipos de identificación". */
   pluralTitle: PropTypes.string,
   /** Diálogo propio en lugar de MasterDialog (forwardRef con `open(row?)`). */
-  dialog: PropTypes.elementType
+  dialog: PropTypes.elementType,
+  /** Páginas propias en vez de diálogo: `{ create(), view(row), edit(row) }`. */
+  navigation: PropTypes.shape({ create: PropTypes.func.isRequired, view: PropTypes.func.isRequired, edit: PropTypes.func.isRequired })
 };

@@ -82,3 +82,23 @@ export function fMoneyText(value) {
     const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
     return `$ ${grouped},${decimals.padEnd(2, "0").slice(0, 2)}`;
 }
+
+// Importe mientras se escribe (es-CO): el valor del formulario es el texto que
+// recibe el servidor ("1234567.5"); el campo muestra "1.234.567,5". Sin Number.
+export function moneyInputText(raw) {
+    if (raw === null || raw === undefined || raw === "") return "";
+    const [integer, decimals] = String(raw).split(".");
+    const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return decimals === undefined ? grouped : `${grouped},${decimals}`;
+}
+
+// Lo que el usuario escribe ("1.234.567,5") → texto para el servidor
+// ("1234567.5"). Punto = miles, coma = decimal, hasta dos decimales.
+export function parseMoneyInput(text) {
+    const clean = String(text ?? "").replace(/[^\d,]/g, "");
+    const comma = clean.indexOf(",");
+    if (comma < 0) return clean.replace(/^0+(?=\d)/, "");
+    const integer = clean.slice(0, comma).replace(/^0+(?=\d)/, "") || "0";
+    const decimals = clean.slice(comma + 1).replace(/,/g, "").slice(0, 2);
+    return `${integer}.${decimals}`;
+}

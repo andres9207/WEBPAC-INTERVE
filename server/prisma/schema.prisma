@@ -542,9 +542,11 @@ model tbl_works {
   cnc_id                      Int
   ctt_id                      Int
   spt_id                      Int
+  wrk_start_date              DateTime                   @db.Date
   wrk_area                    Decimal?                   @db.Decimal(18, 2)
   wrk_direct_cost             Decimal?                   @db.Decimal(18, 2)
   wrk_initial_term            Int
+  wrk_term_unit               String                     @default("MES") @db.VarChar(4)
   wrk_extended_term           Int?
   wrk_initial_value           Decimal                    @db.Decimal(18, 2)
   wrk_extended_value          Decimal?                   @db.Decimal(18, 2)

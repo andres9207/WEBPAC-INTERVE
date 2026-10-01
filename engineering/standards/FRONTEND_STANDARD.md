@@ -48,7 +48,11 @@ Referencia: `views/security/profiles/components/ProfileDialog.jsx`.
 - `react-hook-form` con `FormProvider` y `ui-component/extended/GenericFormSection` alimentado por un arreglo de campos.
 - Estados del registro con `STATUS_OPTIONS` de `utils/constants.js`.
 - Al guardar: `showSuccess(data.message)`, avisar a la página con `addItem` o `updateItem`, cerrar.
-- Colecciones de un agregado (responsables, etapas, contactos) que se guardan con el padre: `ui-component/extended/EditableList`, montado como campo `custom` de `GenericFormSection`. Referencia: `views/work/works/components/WorkDialog.jsx`.
+- Colecciones de un agregado (responsables, etapas, contactos) que se guardan con el padre: tabla + modal, o `ui-component/extended/EditableList` para filas cortas. Referencia: `views/work/works/WorkFormPage.jsx`.
+
+## Agregado con páginas propias
+
+Un agregado que crece (obra; después contrato) no usa diálogo: listado, detalle y formulario a página completa, con rutas `<área>/<módulo>`, `/new`, `/:id` y `/:id/edit` ([DEC-030](../decisiones/DEC-030-obra-paginas-propias-plazo.md)). El listado es `MasterPage` con `navigation`. Cómo se ve: [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md), "Página de detalle".
 
 ## Rutas y menú
 

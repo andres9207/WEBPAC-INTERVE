@@ -54,11 +54,11 @@ Roboto (`config.js`). Escala de Berry, más compacta que la de MUI: el texto de 
 | --- | --- | --- |
 | Importe | `$ 1.234.567,50` (punto de miles, coma decimal, siempre dos decimales) | `fMoneyText` (sobre el texto del servidor, sin `Number`, [DEC-028](../decisiones/DEC-028-convencion-monetaria.md)) |
 | Porcentaje | `12,5 %` | `fPercent` |
-| Fecha | `30 sep 2026` | `fDate` |
+| Fecha | `30 sep 2026` | `fDate`; una fecha sin hora (`AAAA-MM-DD`), con `fDateOnly` |
 | Fecha y hora | `30 sep 2026 16:28` (hora local del navegador; el servidor entrega UTC) | `fDateTime` |
 | Plazo | `6 meses`, `180 días`: siempre con su unidad | — |
 
-Al **capturar** un importe: prefijo `$`, teclado decimal, punto como separador decimal (es lo que recibe el servidor). El formato con miles se muestra solo al leer.
+Al **capturar** un importe: `MoneyField`. Se escribe con punto de miles y coma decimal (`1.234.567,50`) y el valor del formulario es el texto que recibe el servidor (`1234567.50`). Una fecha: `DateField` (DD/MM/AAAA, calendario en español). Un plazo: número + unidad (días, meses, años), y `fTerm` para mostrarlo.
 
 ## Componentes y cuándo usar cada uno
 
@@ -69,8 +69,10 @@ Al **capturar** un importe: prefijo `$`, teclado decimal, punto como separador d
 | Listado | `DataTable` | Paginado y ordenado en el servidor. Se convierte en tarjetas por debajo de `md` |
 | Estado de un registro | `StatusChip` | Siempre con texto, nunca solo color |
 | Acción por fila | `ActionButton` / `TableActions` | Color por `tone` (`edit`, `info`, `danger`, `neutral`, `success`). Hasta 2 acciones, botones visibles; desde 3, menú ⋮ |
-| Crear o editar | `BaseDialog` (+ `MasterDialog` en maestros) | Ver comportamiento abajo |
-| Colección dentro de un registro | `EditableList` | Filas en memoria, se guardan con el padre. `orderField` si el orden importa |
+| Crear o editar | `BaseDialog` (+ `MasterDialog` en maestros) | Ver comportamiento abajo. Un agregado que crece (obra, contrato) usa páginas propias: ver "Página de detalle" |
+| Elegir una opción de una lista | `SearchSelect` (en maestros, `SelectSocket`, que lo usa) | Siempre con buscador; filtra sin distinguir tildes ni mayúsculas |
+| Fecha o importe | `DateField` / `MoneyField` | Ver "Formatos" |
+| Colección dentro de un registro | Tabla + modal para agregar y editar (responsables de obra), o `EditableList` para filas cortas (etapas) | En memoria, se guardan con el padre. El botón "Agregar" va en el encabezado de la sección, a la derecha. `orderField` si el orden importa |
 | Confirmar | `ConfirmDialog` | Toda acción destructiva o irreversible. El texto nombra el registro: `¿Eliminar "Obra 012"?` |
 | Avisos | `ToastService` (`showSuccess`, `showError`) | Toda escritura avisa el resultado. Los errores muestran el mensaje del servidor |
 
@@ -122,11 +124,21 @@ La corrección va en `themes/overrides/Chip.jsx` y en la paleta, no en cada pant
 
 ## Patrones de las pantallas que vienen
 
-Hoy todo es listado + diálogo. El CORE necesita patrones que todavía no existen; se diseñan antes de programarlos y se registran aquí al aprobarse.
+### Página de detalle y formulario a página completa (aprobado, DEC-030)
+
+Referencia: `views/work/works/WorkDetailPage.jsx` y `WorkFormPage.jsx`.
+
+- **Listado → detalle → edición.** El listado (`MasterPage` con `navigation`) ofrece *Ver detalle* y *Editar*; activar, desactivar y eliminar están en el detalle.
+- **Detalle**: enlace de vuelta, encabezado con código, nombre, estado y autoría; botones Eliminar · Desactivar · Editar (uno solo contenido); cifras clave calculadas por el servidor; pestañas por parte del agregado, con conteo. Una parte que todavía no existe tiene su pestaña con un estado vacío que explica cuándo llega.
+- **Formulario**: secciones con `SubCard`, alerta de errores arriba, barra fija abajo con Cancelar y Guardar. Cancelar con cambios sin guardar pide confirmación.
+
+## Patrones que vienen
+
+El CORE necesita patrones que todavía no existen; se diseñan antes de programarlos y se registran aquí al aprobarse.
 
 | Patrón | Para | Estado |
 | --- | --- | --- |
-| **Página de expediente**: encabezado con identidad, estado y cifras clave; pestañas por parte del agregado | Contrato (PRO-FE-05) | Prototipo en revisión con el área usuaria |
+| **Página de expediente**: encabezado con identidad, estado y cifras clave; pestañas por parte del agregado | Contrato (PRO-FE-05) | La base está aprobada y aplicada en obras (arriba); el expediente de contrato agrega estados y condiciones |
 | **Estado y transiciones**: chip de estado, acciones de transición con motivo, historial en línea de tiempo, lista de condiciones (C1–C8) | Contrato (PRO-FE-08), facturas | Incluido en el prototipo del expediente |
 | **Formulario con resumen financiero**: captura a la izquierda, saldos y vista previa calculada por el servidor a la derecha | Facturas (PRO-FE-12 a 14) | Pendiente; depende de DEC-02 y DEC-03 |
 | **Buscar o crear**: selector con búsqueda remota que ofrece crear si no encuentra | Proveedor en obra (PRO-FE-04), responsables con más de 100 usuarios | Pendiente |

@@ -43,3 +43,19 @@ export const truncateText = (text, maxLength = 100) => {
   }
   return toNlBr(text);
 };
+
+// Unidades del plazo (DEC-030): mismo dominio que el servidor (term.utils.js).
+export const TERM_UNIT_OPTIONS = [
+  { value: 'DIA', label: 'Días' },
+  { value: 'MES', label: 'Meses' },
+  { value: 'ANIO', label: 'Años' }
+];
+
+const TERM_UNIT_NAMES = { DIA: ['día', 'días'], MES: ['mes', 'meses'], ANIO: ['año', 'años'] };
+
+/** Plazo para mostrar: "14 meses", "1 año". */
+export const fTerm = (amount, unit) => {
+  if (amount === null || amount === undefined || amount === '') return '';
+  const names = TERM_UNIT_NAMES[unit];
+  return names ? `${amount} ${Number(amount) === 1 ? names[0] : names[1]}` : String(amount);
+};

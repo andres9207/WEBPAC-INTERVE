@@ -12,7 +12,7 @@ const DashboardDefault = Loadable(lazy(() => import('views/dashboard/Default')))
 
 // security routing
 const ProfilesPage = Loadable(lazy(() => import('views/security/profiles/ProfilePage')));
-const UsersPage    = Loadable(lazy(() => import('views/security/users/UsersPage')));
+const UsersPage = Loadable(lazy(() => import('views/security/users/UsersPage')));
 
 // admin routing
 const IdentityDocumentPage = Loadable(lazy(() => import('views/admin/identityDocuments/IdentityDocumentPage')));
@@ -23,6 +23,8 @@ const SupervisionTypePage = Loadable(lazy(() => import('views/admin/supervisionT
 const ConstructionCompanyPage = Loadable(lazy(() => import('views/admin/constructionCompanies/ConstructionCompanyPage')));
 const ContractTypePage = Loadable(lazy(() => import('views/admin/contractTypes/ContractTypePage')));
 const WorksPage = Loadable(lazy(() => import('views/work/works/WorksPage')));
+const WorkDetailPage = Loadable(lazy(() => import('views/work/works/WorkDetailPage')));
+const WorkFormPage = Loadable(lazy(() => import('views/work/works/WorkFormPage')));
 
 // ==============================|| MAIN ROUTING ||============================== //
 
@@ -37,15 +39,13 @@ const MainRoutes = {
         { path: '/', element: <Navigate to="/home/default" replace /> },
         {
           path: 'home',
-          children: [
-            { path: 'default', element: <DashboardDefault /> }
-          ]
+          children: [{ path: 'default', element: <DashboardDefault /> }]
         },
         {
           path: 'security',
           children: [
             { path: 'profiles', element: <ProfilesPage /> },
-            { path: 'users',    element: <UsersPage /> }
+            { path: 'users', element: <UsersPage /> }
           ]
         },
         {
@@ -62,7 +62,13 @@ const MainRoutes = {
         },
         {
           path: 'work',
-          children: [{ path: 'works', element: <WorksPage /> }]
+          // Obras con páginas propias (DEC-030): listado, alta, detalle y edición.
+          children: [
+            { path: 'works', element: <WorksPage /> },
+            { path: 'works/new', element: <WorkFormPage /> },
+            { path: 'works/:wrkId', element: <WorkDetailPage /> },
+            { path: 'works/:wrkId/edit', element: <WorkFormPage /> }
+          ]
         }
       ]
     }

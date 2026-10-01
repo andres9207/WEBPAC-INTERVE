@@ -119,3 +119,12 @@ export const formatearTotalJornada = (horaInicio, horaFinal) => {
 
     return `${horas}h ${minutos}m`;
 }
+// Fecha sin hora que llega como "AAAA-MM-DD" → "15 mar 2026". Se lee del
+// texto: new Date("2026-03-15") es medianoche UTC y en Colombia mostraría el
+// día anterior.
+const SHORT_MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+export function fDateOnly(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ""));
+  if (!match) return "";
+  return `${match[3]} ${SHORT_MONTHS[Number(match[2]) - 1]} ${match[1]}`;
+}

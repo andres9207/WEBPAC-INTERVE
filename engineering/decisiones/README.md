@@ -43,6 +43,7 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 | [DEC-027](DEC-027-interventoria-en-obra.md) | 2026-09-30 | El tipo de interventoría se ancla a la obra, no al contrato | Vigente | [0007](../adr/0007-tipos-interventoria.md), [0011](../adr/0011-obras.md) |
 | [DEC-028](DEC-028-convencion-monetaria.md) | 2026-09-30 | Importes en `DECIMAL(18,2)`; el servidor redondea a dos decimales, medio hacia arriba, solo si sobran | Obligatoria | [0026](../adr/0026-calculos-facturacion.md), [0011](../adr/0011-obras.md) |
 | [DEC-029](DEC-029-responsables-usuarios-existentes.md) | 2026-09-30 | Los responsables de obra se eligen entre usuarios existentes (reemplaza ADR-0011, decisiones 5 y 6) | Vigente | [0011](../adr/0011-obras.md) |
+| [DEC-030](DEC-030-obra-paginas-propias-plazo.md) | 2026-10-01 | La obra tiene páginas propias (detalle y edición) y su plazo es fecha de inicio + número + unidad, con fecha final calculada | Vigente | [0011](../adr/0011-obras.md), [0015](../adr/0015-contratos.md) |
 
 **Tipo:**
 - **Obligatoria**: regla para todo código nuevo. El checklist de `ENDPOINT_STANDARD.md` la exige y, donde se puede, un test la hace cumplir.

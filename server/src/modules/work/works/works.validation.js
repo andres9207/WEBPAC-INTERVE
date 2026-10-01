@@ -8,6 +8,7 @@ import {
   moneyRule,
 } from "../../../common/utils/validation.utils.js";
 import { MANAGER_ROLES } from "./works.service.js";
+import { TERM_UNITS } from "../../../common/utils/term.utils.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). Las reglas de
 // negocio (ampliado >= inicial, al menos un responsable…) viven en el service.
@@ -40,6 +41,8 @@ export const saveWorkSchema = [
   requiredId("cncId").withMessage("Selecciona la constructora."),
   requiredId("cttId").withMessage("Selecciona el tipo de contrato."),
   requiredId("sptId").withMessage("Selecciona el tipo de interventoría."),
+  body("startDate").matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("La fecha de inicio es requerida (AAAA-MM-DD)."),
+  body("termUnit").isIn(TERM_UNITS).withMessage("La unidad del plazo debe ser días, meses o años."),
   moneyRule("area", "área", { optional: true }),
   moneyRule("directCost", "costo directo", { optional: true }),
   term("initialTerm", "plazo inicial"),

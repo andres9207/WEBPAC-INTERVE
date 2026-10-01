@@ -3,6 +3,7 @@ import { PERMISSIONS } from "../../../common/constants/permissions.constants.js"
 import { paginate, MAX_ROWS, countByStatus } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { toMoney, moneyText } from "../../../common/utils/money.utils.js";
+import { addTerm, dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
@@ -25,6 +26,8 @@ import { supervisionTypesService } from "../../admin/supervisionTypes/supervisio
  * - Importes en Prisma.Decimal, redondeados por toMoney (DEC-028).
  * - Bitácora funcional de valores, plazos, maestros, código, nombre, estado y
  *   responsables (ADR-0011, "Auditoría"). Área y etapas: auditoría técnica.
+ * - Plazo = número + unidad, desde una fecha de inicio. La fecha final
+ *   (inicio + plazo inicial) se calcula al leer y no se guarda (DEC-030).
  */
 
 export const ACTIVE_STATUS = 1;
@@ -51,6 +54,7 @@ const SORT_FIELDS = {
   contractType: (order) => ({ tbl_contract_types: { ctt_name: order } }),
   supervisionType: (order) => ({ tbl_supervision_types: { spt_name: order } }),
   initialValue: (order) => ({ wrk_initial_value: order }),
+  startDate: (order) => ({ wrk_start_date: order }),
   statusName: (order) => ({ tbl_status: { sta_name: order } }),
   updatedAt: (order) => ({ wrk_update_at: order }),
 };
@@ -64,6 +68,9 @@ const LIST_SELECT = {
   wrk_name: true,
   wrk_initial_value: true,
   wrk_extended_value: true,
+  wrk_start_date: true,
+  wrk_initial_term: true,
+  wrk_term_unit: true,
   sta_id: true,
   wrk_update_at: true,
   tbl_construction_companies: { select: { cnc_description: true } },
@@ -71,6 +78,13 @@ const LIST_SELECT = {
   tbl_supervision_types: { select: { spt_name: true } },
   tbl_status: { select: { sta_name: true } },
   updated_by_user: USER_NAME_SELECT,
+  // Responsable principal activo, para la columna del listado.
+  tbl_work_managers: {
+    where: { wkm_role: "MAIN", sta_id: ACTIVE_STATUS },
+    select: { tbl_users: USER_NAME_SELECT },
+    orderBy: { wkm_id: "asc" },
+    take: 1,
+  },
 };
 
 const toListDto = (row) => ({
@@ -83,6 +97,11 @@ const toListDto = (row) => ({
   initialValue: moneyText(row.wrk_initial_value),
   // Valor vigente: el ampliado cuando existe (ADR-0011, regla 7).
   currentValue: moneyText(row.wrk_extended_value ?? row.wrk_initial_value),
+  startDate: dateOnlyText(row.wrk_start_date),
+  initialTerm: row.wrk_initial_term,
+  termUnit: row.wrk_term_unit,
+  endDate: addTerm(row.wrk_start_date, row.wrk_initial_term, row.wrk_term_unit),
+  mainManagerName: userFullName(row.tbl_work_managers?.[0]?.tbl_users),
   staId: row.sta_id,
   statusName: row.tbl_status?.sta_name ?? null,
   updatedAt: row.wrk_update_at,
@@ -124,9 +143,11 @@ const HEADER_COLUMNS = [
   "cnc_id",
   "ctt_id",
   "spt_id",
+  "wrk_start_date",
   "wrk_area",
   "wrk_direct_cost",
   "wrk_initial_term",
+  "wrk_term_unit",
   "wrk_extended_term",
   "wrk_initial_value",
   "wrk_extended_value",
@@ -145,6 +166,10 @@ export const getWork = async ({ wrkId }) => {
       wrk_create_at: true,
       wrk_update_at: true,
       tbl_status: { select: { sta_name: true } },
+      // Nombres para la página de detalle; el formulario usa los ids.
+      tbl_construction_companies: { select: { cnc_description: true } },
+      tbl_contract_types: { select: { ctt_name: true } },
+      tbl_supervision_types: { select: { spt_name: true } },
       created_by_user: USER_NAME_SELECT,
       updated_by_user: USER_NAME_SELECT,
       tbl_work_managers: {
@@ -172,13 +197,20 @@ export const getWork = async ({ wrkId }) => {
     cncId: row.cnc_id,
     cttId: row.ctt_id,
     sptId: row.spt_id,
+    constructionCompany: row.tbl_construction_companies?.cnc_description ?? null,
+    contractType: row.tbl_contract_types?.ctt_name ?? null,
+    supervisionType: row.tbl_supervision_types?.spt_name ?? null,
+    startDate: dateOnlyText(row.wrk_start_date),
     area: moneyText(row.wrk_area),
     directCost: moneyText(row.wrk_direct_cost),
     initialTerm: row.wrk_initial_term,
+    termUnit: row.wrk_term_unit,
+    endDate: addTerm(row.wrk_start_date, row.wrk_initial_term, row.wrk_term_unit),
     extendedTerm: row.wrk_extended_term,
     initialValue: moneyText(row.wrk_initial_value),
     extendedValue: moneyText(row.wrk_extended_value),
     maxServiceOrderValue: moneyText(row.wrk_max_service_order_value),
+    currentValue: moneyText(row.wrk_extended_value ?? row.wrk_initial_value),
     staId: row.sta_id,
     statusName: row.tbl_status?.sta_name ?? null,
     createdAt: row.wrk_create_at,
@@ -228,9 +260,11 @@ const headerValuesOf = (input) => ({
   cnc_id: Number(input.cncId),
   ctt_id: Number(input.cttId),
   spt_id: Number(input.sptId),
+  wrk_start_date: toDateOnly(input.startDate),
   wrk_area: toMoney(input.area),
   wrk_direct_cost: toMoney(input.directCost),
   wrk_initial_term: Number(input.initialTerm),
+  wrk_term_unit: input.termUnit,
   wrk_extended_term: optionalInt(input.extendedTerm),
   wrk_initial_value: toMoney(input.initialValue),
   wrk_extended_value: toMoney(input.extendedValue),
@@ -239,6 +273,7 @@ const headerValuesOf = (input) => ({
 
 /** Reglas 5 a 7 de ADR-0011. La BD repite las dos primeras con CHECK. */
 const assertHeader = (values) => {
+  if (!values.wrk_start_date) throw httpError(400, "La fecha de inicio no es una fecha válida.");
   if (values.wrk_extended_value && values.wrk_extended_value.lt(values.wrk_initial_value)) {
     throw httpError(400, "El valor ampliado no puede ser menor que el valor inicial.");
   }
@@ -429,12 +464,15 @@ const applyStages = async (tx, { wrkId, diff, useBy }) => {
 };
 
 // Bitácora de la cabecera: sin área (auditoría técnica). Los importes se
-// comparan como texto con dos decimales, igual en ambos lados.
+// comparan como texto con dos decimales y la fecha como "AAAA-MM-DD", igual
+// en ambos lados.
 const AUDITED_HEADER = HEADER_COLUMNS.filter((column) => column !== "wrk_area");
-const auditable = (row) =>
-  Object.fromEntries(
-    Object.entries(row).map(([column, value]) => [column, MONEY_COLUMNS.has(column) ? moneyText(value) : value])
-  );
+const auditableValue = (column, value) => {
+  if (MONEY_COLUMNS.has(column)) return moneyText(value);
+  if (column === "wrk_start_date") return dateOnlyText(value);
+  return value;
+};
+const auditable = (row) => Object.fromEntries(Object.entries(row).map(([column, value]) => [column, auditableValue(column, value)]));
 
 // Huella de la creación (DEC-016): lo que define "la misma obra".
 const fingerprintOf = (values, managers, stages) => ({ ...auditable(values), managers, stages });
