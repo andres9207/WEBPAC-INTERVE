@@ -25,6 +25,9 @@ const ContractTypePage = Loadable(lazy(() => import('views/admin/contractTypes/C
 const WorksPage = Loadable(lazy(() => import('views/work/works/WorksPage')));
 const WorkDetailPage = Loadable(lazy(() => import('views/work/works/WorkDetailPage')));
 const WorkFormPage = Loadable(lazy(() => import('views/work/works/WorkFormPage')));
+const ProvidersPage = Loadable(lazy(() => import('views/work/providers/ProvidersPage')));
+const ProviderDetailPage = Loadable(lazy(() => import('views/work/providers/ProviderDetailPage')));
+const ProviderFormPage = Loadable(lazy(() => import('views/work/providers/ProviderFormPage')));
 
 // ==============================|| MAIN ROUTING ||============================== //
 
@@ -62,12 +65,17 @@ const MainRoutes = {
         },
         {
           path: 'work',
-          // Obras con páginas propias (DEC-030): listado, alta, detalle y edición.
+          // Obras y proveedores con páginas propias (DEC-030, DEC-031):
+          // listado, alta, detalle y edición.
           children: [
             { path: 'works', element: <WorksPage /> },
             { path: 'works/new', element: <WorkFormPage /> },
             { path: 'works/:wrkId', element: <WorkDetailPage /> },
-            { path: 'works/:wrkId/edit', element: <WorkFormPage /> }
+            { path: 'works/:wrkId/edit', element: <WorkFormPage /> },
+            { path: 'providers', element: <ProvidersPage /> },
+            { path: 'providers/new', element: <ProviderFormPage /> },
+            { path: 'providers/:prvId', element: <ProviderDetailPage /> },
+            { path: 'providers/:prvId/edit', element: <ProviderFormPage /> }
           ]
         }
       ]

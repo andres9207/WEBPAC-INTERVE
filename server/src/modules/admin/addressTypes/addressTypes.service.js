@@ -17,10 +17,10 @@ export const addressTypesConfig = defineMaster({
   fields: [{ name: "name", column: "adt_name", label: "nombre", maxLength: 100, unique: true, filter: true, sortable: true }],
   defaultSort: "name",
   selectOrder: "name",
-  // ADR-0009, decisión 8. Las tablas de contacto todavía no existen: al
-  // crearlas (PRO-BD-04 obra, PRO-BD-06 proveedor) se agregan aquí, con
-  // label "contacto(s)".
-  dependents: [],
+  // ADR-0009, decisión 8. Los contactos no tienen estado ni eliminación
+  // lógica (se borran al quitarlos), así que se cuentan todos. La tabla de
+  // contactos de obra (PRO-BD-04) se agrega aquí cuando exista.
+  dependents: [{ model: "tbl_provider_contacts", column: "adt_id", label: "contacto(s) de proveedor", countDeleted: true }],
   socketEvent: "refresh-address-types",
 });
 

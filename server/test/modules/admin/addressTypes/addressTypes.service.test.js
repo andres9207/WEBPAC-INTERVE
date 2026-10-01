@@ -12,6 +12,7 @@ const prismaMock = {
     update: jest.fn(),
     create: jest.fn(),
   },
+  tbl_provider_contacts: { count: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
 };
@@ -28,9 +29,22 @@ beforeEach(() => {
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
   types.findUnique.mockResolvedValue(null);
   types.findFirst.mockResolvedValue(null);
+  prismaMock.tbl_provider_contacts.count.mockResolvedValue(0);
 });
 
 describe("tipos de dirección", () => {
+  it("no se elimina si lo usan contactos de proveedor, que no tienen estado: cuenta todos (ADR-0009, decisión 8)", async () => {
+    types.findUnique.mockResolvedValue({ sta_id: 1 });
+    prismaMock.tbl_provider_contacts.count.mockResolvedValue(2);
+
+    await expect(service.remove({ id: 5, useBy: 9 })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining("lo usan 2 contacto(s) de proveedor"),
+    });
+    expect(prismaMock.tbl_provider_contacts.count).toHaveBeenCalledWith({ where: { adt_id: 5 } });
+    expect(types.update).not.toHaveBeenCalled();
+  });
+
   it("crea el tipo activo, solo con nombre", async () => {
     types.create.mockResolvedValue({ adt_id: 4 });
 

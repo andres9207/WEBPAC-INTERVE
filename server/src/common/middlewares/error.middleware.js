@@ -204,6 +204,10 @@ const errorMiddleware = (err, req, res, next) => {
   res.status(statusCode).json({
     success: false,
     message,
+    // Datos que el service adjunta a propósito para que el cliente actúe
+    // (p. ej. el proveedor existente en el 409 de un documento duplicado,
+    // ADR-0012, decisión 7). Solo en errores lanzados con estado explícito.
+    ...(hasExplicitStatus && err.data !== undefined && { data: err.data }),
     // Mostrar detalles adicionales en desarrollo
     ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
   });

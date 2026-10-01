@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-09-30 · **Tipo:** Obligatoria · **ADR:** [0011](../adr/0011-obras.md), [0027](../adr/0027-integridad-transaccional.md)
 
-Resuelve PD-05 ([`PROJECT_STATE`](../PROJECT_STATE.md)) **solo para obras**.
+Resuelve PD-05 ([`PROJECT_STATE`](../PROJECT_STATE.md)) **solo para obras**. Ampliada por [DEC-031](DEC-031-area-proveedores.md): `work/` contiene también el módulo de proveedores.
 
 ## Contexto
 

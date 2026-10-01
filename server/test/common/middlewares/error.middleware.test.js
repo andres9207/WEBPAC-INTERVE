@@ -43,6 +43,23 @@ describe("errorMiddleware — mensaje expuesto al cliente", () => {
     );
   });
 
+  it("devuelve `data` solo si el service la adjuntó a un error con estado explícito (409 del proveedor existente)", () => {
+    process.env.NODE_ENV = "production";
+    const existing = { prvId: 77, name: "Andina" };
+    const curated = Object.assign(new Error("Ya existe un proveedor con ese documento."), { statusCode: 409, data: { existing } });
+    const res = buildRes();
+
+    errorMiddleware(curated, {}, res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ success: false, message: "Ya existe un proveedor con ese documento.", data: { existing } });
+
+    const unclassified = Object.assign(new Error("interno"), { data: { secreto: 1 } });
+    const res2 = buildRes();
+    errorMiddleware(unclassified, {}, res2, jest.fn());
+    expect(res2.json.mock.calls[0][0]).not.toHaveProperty("data");
+  });
+
   it("en producción, un error SIN .statusCode/.status (excepción no clasificada) nunca expone err.message", () => {
     process.env.NODE_ENV = "production";
     const err = new Error("ENOENT: no such file or directory, open '/var/www/secreto.env'");

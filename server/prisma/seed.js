@@ -31,6 +31,8 @@ const PAGES = [
   // database/migrations/0041_seed_works_pages_permissions.sql
   { pag_id: 13, pag_description: "Obras", pag_parent: 0, pag_url: null, pag_icon: "building", pag_order: 4, pag_name: "Obras", pag_type: 1 },
   { pag_id: 14, pag_description: "Obras", pag_parent: 13, pag_url: "work/works", pag_icon: "building", pag_order: 1, pag_name: "Obras", pag_type: 2 },
+  // database/migrations/0047_seed_providers_pages_permissions.sql
+  { pag_id: 15, pag_description: "Proveedores", pag_parent: 13, pag_url: "work/providers", pag_icon: "truck", pag_order: 2, pag_name: "Proveedores", pag_type: 2 },
 ];
 
 const PERMISSIONS = [
@@ -85,6 +87,14 @@ const PERMISSIONS = [
   { per_id: 57, per_name: "Asignar responsable de obra", pag_id: 14, per_order: 5 },
   { per_id: 58, per_name: "Retirar responsable de obra", pag_id: 14, per_order: 6 },
   { per_id: 59, per_name: "Gestionar etapas de obra", pag_id: 14, per_order: 7 },
+  // database/migrations/0047_seed_providers_pages_permissions.sql
+  { per_id: 61, per_name: "Crear proveedor", pag_id: 15, per_order: 1 },
+  { per_id: 62, per_name: "Modificar proveedor", pag_id: 15, per_order: 2 },
+  { per_id: 63, per_name: "Eliminar proveedor", pag_id: 15, per_order: 3 },
+  { per_id: 64, per_name: "Cambiar estado proveedor", pag_id: 15, per_order: 4 },
+  { per_id: 65, per_name: "Cambiar identificación de proveedor", pag_id: 15, per_order: 5 },
+  { per_id: 66, per_name: "Asignar proveedor a obra", pag_id: 15, per_order: 6 },
+  { per_id: 67, per_name: "Desasignar proveedor de obra", pag_id: 15, per_order: 7 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -121,6 +131,7 @@ const VIEW_PERMISSIONS = [
   { per_id: 42, per_name: "Ver constructoras", pag_id: 11, per_order: 5 },
   { per_id: 47, per_name: "Ver tipos de contrato", pag_id: 12, per_order: 5 },
   { per_id: 52, per_name: "Ver obras", pag_id: 14, per_order: 8 },
+  { per_id: 60, per_name: "Ver proveedores", pag_id: 15, per_order: 8 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay

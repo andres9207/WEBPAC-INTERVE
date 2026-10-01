@@ -12,6 +12,7 @@ const prismaMock = {
     update: jest.fn(),
     create: jest.fn(),
   },
+  tbl_providers: { count: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
 };
@@ -28,6 +29,7 @@ beforeEach(() => {
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
   types.findUnique.mockResolvedValue(null);
   types.findFirst.mockResolvedValue(null);
+  prismaMock.tbl_providers.count.mockResolvedValue(0);
 });
 
 describe("tipos de proveedor", () => {
@@ -60,6 +62,18 @@ describe("tipos de proveedor", () => {
       where: { pvt_id: 2 },
       data: { sta_id: 3, pvt_delete_by: 9, pvt_delete_at: expect.any(Date) },
     });
+  });
+
+  it("no se elimina si lo usan proveedores no eliminados (ADR-0010, decisión 8)", async () => {
+    types.findUnique.mockResolvedValue({ sta_id: 1 });
+    prismaMock.tbl_providers.count.mockResolvedValue(3);
+
+    await expect(service.remove({ id: 2, useBy: 9 })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining("lo usan 3 proveedor(es)"),
+    });
+    expect(prismaMock.tbl_providers.count).toHaveBeenCalledWith({ where: { pvt_id: 2, sta_id: { not: 3 } } });
+    expect(types.update).not.toHaveBeenCalled();
   });
 
   it("el selector devuelve el nombre, ordenado por nombre", async () => {

@@ -53,7 +53,7 @@ Un módulo puede mezclar niveles: el contrato es nivel 3 y algunas de sus operac
 | --- | --- | --- |
 | `auth/`, `security/`, `app/` | Existentes: autenticación, usuarios/perfiles/permisos, transversales | — |
 | `admin/` | Los ocho maestros, con módulo, tabla y prefijo fijados | [DEC-017](../decisiones/DEC-017-area-idioma-maestros.md) |
-| `work/` | Obras y sus partes (responsables, etapas, contactos), en el módulo `works` | [DEC-026](../decisiones/DEC-026-area-obras.md) |
-| *(pendiente)* | Proveedores, contratos, pólizas, facturación | **REQUIERE DECISIÓN** (PD-05, parte restante) |
+| `work/` | Obras y sus partes (responsables, etapas, contactos), en el módulo `works`; proveedores, sus contactos y su asignación a obras, en el módulo `providers` | [DEC-026](../decisiones/DEC-026-area-obras.md), [DEC-031](../decisiones/DEC-031-area-proveedores.md) |
+| *(pendiente)* | Contratos, pólizas, facturación | **REQUIERE DECISIÓN** (PD-05, parte restante) |
 
 Nombres de varias palabras: carpeta, archivos y segmento de URL en camelCase (`contractTypes`); acciones en snake_case (`save_contract_type`). Ver DEC-017.

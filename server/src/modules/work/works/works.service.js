@@ -186,6 +186,9 @@ export const getWork = async ({ wrkId }) => {
         select: { wks_id: true, wks_name: true, wks_order: true, sta_id: true },
         orderBy: [{ wks_order: "asc" }, { wks_name: "asc" }],
       },
+      // Proveedores asignados: solo el conteo, para la pestaña. La lista la
+      // sirve pagination_work_providers (DEC-031).
+      _count: { select: { tbl_work_providers: true } },
     },
   });
   if (!row) throw httpError(404, "No se encontró la obra.");
@@ -226,6 +229,7 @@ export const getWork = async ({ wrkId }) => {
       staId: m.sta_id,
     })),
     stages: row.tbl_work_stages.map((s) => ({ wksId: s.wks_id, name: s.wks_name, order: s.wks_order, staId: s.sta_id })),
+    providersCount: row._count?.tbl_work_providers ?? 0,
   };
 };
 

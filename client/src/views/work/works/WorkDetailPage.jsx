@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import PropTypes from 'prop-types';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 
 import Avatar from '@mui/material/Avatar';
@@ -18,7 +17,9 @@ import { IconChevronLeft } from '@tabler/icons-react';
 import MainCard from 'ui-component/cards/MainCard';
 import SubCard from 'ui-component/cards/SubCard';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
+import { DataList, Figure, Pending } from 'ui-component/extended/DetailBlocks';
 import StatusChip from 'ui-component/extended/StatusChip';
+import WorkProvidersTab from 'views/work/providers/components/WorkProvidersTab';
 import { worksApi } from 'api/requests/worksApi';
 import { useAuth } from 'contexts/AuthContext';
 import { showError, showSuccess } from 'services/ToastService';
@@ -31,15 +32,17 @@ import { fTerm } from 'utils/constants';
  * clave, y pestañas por parte del agregado. Todo lo que se muestra lo calcula
  * el servidor (valor vigente, fecha final); aquí solo se formatea.
  *
- * Activar, desactivar y eliminar viven aquí, no en el listado. Contactos y
- * contratos ya tienen su pestaña, aunque todavía no existen (PRO-BD-04 y el
- * módulo de contratos).
+ * Activar, desactivar y eliminar viven aquí, no en el listado. Los proveedores
+ * se asignan y desasignan desde su pestaña, con endpoints propios (DEC-031).
+ * Contactos y contratos ya tienen su pestaña, aunque todavía no existen
+ * (PRO-BD-04 y el módulo de contratos).
  */
 
 const TABS = [
   { key: 'summary', label: 'Resumen' },
   { key: 'managers', label: 'Responsables' },
   { key: 'stages', label: 'Etapas' },
+  { key: 'providers', label: 'Proveedores' },
   { key: 'contacts', label: 'Contactos' },
   { key: 'contracts', label: 'Contratos' }
 ];
@@ -52,60 +55,6 @@ const initials = (name = '') =>
     .map((part) => part.charAt(0))
     .join('')
     .toUpperCase();
-
-function Figure({ label, value, hint }) {
-  return (
-    <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'grey.50', px: 2, py: 1.5, height: '100%' }}>
-      <Typography variant="caption" color="text.secondary">
-        {label}
-      </Typography>
-      <Typography variant="h4" component="p" sx={{ fontVariantNumeric: 'tabular-nums', color: 'text.dark', my: 0.5 }}>
-        {value || '—'}
-      </Typography>
-      {hint && (
-        <Typography variant="caption" color="text.secondary">
-          {hint}
-        </Typography>
-      )}
-    </Box>
-  );
-}
-
-Figure.propTypes = { label: PropTypes.string.isRequired, value: PropTypes.node, hint: PropTypes.string };
-
-function DataList({ items }) {
-  return (
-    <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: 'minmax(140px, auto) 1fr', columnGap: 2, rowGap: 1 }}>
-      {items.map(([label, value]) => (
-        <Box key={label} sx={{ display: 'contents' }}>
-          <Typography component="dt" variant="body2" color="text.secondary">
-            {label}
-          </Typography>
-          <Typography component="dd" variant="body2" sx={{ m: 0, fontVariantNumeric: 'tabular-nums' }}>
-            {value || '—'}
-          </Typography>
-        </Box>
-      ))}
-    </Box>
-  );
-}
-
-DataList.propTypes = { items: PropTypes.arrayOf(PropTypes.array).isRequired };
-
-function Pending({ title, text }) {
-  return (
-    <Box sx={{ border: '1px dashed', borderColor: 'grey.300', borderRadius: 2, py: 5, px: 2, textAlign: 'center' }}>
-      <Typography variant="subtitle1" sx={{ color: 'text.primary', mb: 1 }}>
-        {title}
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 520, mx: 'auto' }}>
-        {text}
-      </Typography>
-    </Box>
-  );
-}
-
-Pending.propTypes = { title: PropTypes.string.isRequired, text: PropTypes.string.isRequired };
 
 export default function WorkDetailPage() {
   const { wrkId } = useParams();
@@ -202,7 +151,13 @@ export default function WorkDetailPage() {
     { label: 'Etapas', value: String(work.stages.length) }
   ];
 
-  const tabBadge = { managers: work.managers.length, stages: work.stages.length, contacts: 0, contracts: 0 };
+  const tabBadge = {
+    managers: work.managers.length,
+    stages: work.stages.length,
+    providers: work.providersCount,
+    contacts: 0,
+    contracts: 0
+  };
 
   return (
     <Stack spacing={2}>
@@ -379,6 +334,8 @@ export default function WorkDetailPage() {
                   ))}
               </Box>
             ))}
+
+          {tab === 'providers' && <WorkProvidersTab wrkId={work.wrkId} workCode={work.code} onChanged={load} />}
 
           {tab === 'contacts' && (
             <Pending

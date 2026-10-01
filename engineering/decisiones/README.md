@@ -44,6 +44,8 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 | [DEC-028](DEC-028-convencion-monetaria.md) | 2026-09-30 | Importes en `DECIMAL(18,2)`; el servidor redondea a dos decimales, medio hacia arriba, solo si sobran | Obligatoria | [0026](../adr/0026-calculos-facturacion.md), [0011](../adr/0011-obras.md) |
 | [DEC-029](DEC-029-responsables-usuarios-existentes.md) | 2026-09-30 | Los responsables de obra se eligen entre usuarios existentes (reemplaza ADR-0011, decisiones 5 y 6) | Vigente | [0011](../adr/0011-obras.md) |
 | [DEC-030](DEC-030-obra-paginas-propias-plazo.md) | 2026-10-01 | La obra tiene páginas propias (detalle y edición) y su plazo es fecha de inicio + número + unidad, con fecha final calculada | Vigente | [0011](../adr/0011-obras.md), [0015](../adr/0015-contratos.md) |
+| [DEC-031](DEC-031-area-proveedores.md) | 2026-10-01 | Los proveedores viven en `work/` (módulo `providers`, tablas `tbl_providers`, `tbl_provider_contacts`, `tbl_work_providers`); la asignación a obras tiene endpoints propios; `PROVEEDOR` después de `OBRA` en `LOCK_ORDER` | Obligatoria | [0012](../adr/0012-proveedores.md), [0027](../adr/0027-integridad-transaccional.md) |
+| [DEC-032](DEC-032-identidad-proveedor.md) | 2026-10-01 | La identidad del proveedor es única entre no eliminados; el duplicado responde 409 con el proveedor existente; tipo de servicio en texto libre | Vigente | [0012](../adr/0012-proveedores.md), [0008](../adr/0008-tipos-identificacion.md), [0009](../adr/0009-tipos-direccion.md) |
 
 **Tipo:**
 - **Obligatoria**: regla para todo código nuevo. El checklist de `ENDPOINT_STANDARD.md` la exige y, donde se puede, un test la hace cumplir.

@@ -66,8 +66,16 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 
 **Aplicadas (2026-09-29), para el tipo de identificación:**
 
-- **DOM-20:** eliminar (`remove` del patrón de maestro, [DEC-020](../decisiones/DEC-020-patron-maestro.md)) bloquea el tipo y cuenta los usuarios no eliminados que lo usan; si hay alguno, responde 400. Además, la FK `tbl_users_identity_documents` impide el borrado físico. Cuando existan proveedores, se cuentan también.
+- **DOM-20:** eliminar (`remove` del patrón de maestro, [DEC-020](../decisiones/DEC-020-patron-maestro.md)) bloquea el tipo y cuenta los usuarios y proveedores no eliminados que lo usan; si hay alguno, responde 400. Además, las FK `tbl_users_identity_documents` y `tbl_providers_identity_document` impiden el borrado físico. Lo mismo para el tipo de proveedor (proveedores) y el tipo de dirección (contactos de proveedor).
 - **DOM-21:** `saveUser` conserva el tipo que el usuario ya tenía aunque esté inactivo, y el selector lo incluye con `includeId` ([DEC-018](../decisiones/DEC-018-selector-maestros.md)).
 - **DOM-26:** `CHECK ck_users_identification_type` en `tbl_users`, más validación en la ruta y en el service.
 
-Tests en `server/test/modules/admin/identityDocuments/` y `security/users/users.service.test.js`. DOM-22 sigue propuesta: `tbl_providers` no existe. Para usuarios, el par (tipo, número) solo se controla en el service, sin `UNIQUE` (ver deuda).
+Tests en `server/test/modules/admin/identityDocuments/` y `security/users/users.service.test.js`. Para usuarios, el par (tipo, número) solo se controla en el service, sin `UNIQUE` (ver deuda).
+
+**Aplicadas (2026-10-01), para proveedores ([DEC-031](../decisiones/DEC-031-area-proveedores.md), [DEC-032](../decisiones/DEC-032-identidad-proveedor.md)):**
+
+- **DOM-22:** `UNIQUE uq_providers_identity_active (idd_id, prv_identification_active)` en `tbl_providers`, entre no eliminados (columna generada). El service verifica antes para responder 409 con el proveedor existente, y traduce el `P2002` de una carrera al mismo 409. Probado en vivo: cinco altas simultáneas con el mismo documento dejan una sola fila.
+- **DOM-23:** `UNIQUE uq_work_providers_work_provider (wrk_id, prv_id)` en `tbl_work_providers`; el service responde 409 antes.
+- **DOM-21:** desactivar un proveedor no toca sus asignaciones; el selector de asignación solo ofrece activos.
+
+Tests en `server/test/modules/work/providers/`.

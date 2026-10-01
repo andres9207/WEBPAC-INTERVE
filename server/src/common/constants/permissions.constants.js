@@ -92,5 +92,18 @@ export const PERMISSIONS = {
       removeManager: 58,
       manageStages: 59,
     },
+    // Proveedores (DEC-031). Asignar y desasignar a obras van aparte de
+    // editar (cambian una obra, no el maestro), y cambiar la identificación
+    // también: reasigna el historial de la empresa (ADR-0012, "Autorización").
+    providers: {
+      view: 60, // pagination_providers, get_provider, check_provider_identification, select_providers
+      create: 61,
+      edit: 62,
+      delete: 63,
+      changeStatus: 64,
+      changeIdentity: 65,
+      assignWork: 66,
+      unassignWork: 67,
+    },
   },
 };

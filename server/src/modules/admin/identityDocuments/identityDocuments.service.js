@@ -35,8 +35,11 @@ export const identityDocumentsConfig = defineMaster({
   // El formato viaja con la opción: el cliente avisa antes de enviar con la
   // misma regla que aplica el servidor (identityDocuments.formats.js).
   selectExtra: (row) => ({ code: row.idd_code, format: formatFor(row.idd_code) }),
-  // ADR-0008, decisión 6. Cuando exista tbl_providers, se agrega aquí.
-  dependents: [{ model: "tbl_users", column: "idd_id", label: "usuario(s)" }],
+  // ADR-0008, decisión 6.
+  dependents: [
+    { model: "tbl_users", column: "idd_id", label: "usuario(s)" },
+    { model: "tbl_providers", column: "idd_id", label: "proveedor(es)" },
+  ],
   socketEvent: "refresh-identity-documents",
 });
 

@@ -14,6 +14,7 @@ const prismaMock = {
     create: jest.fn(),
   },
   tbl_users: { count: jest.fn() },
+  tbl_providers: { count: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
 };
@@ -34,6 +35,7 @@ beforeEach(() => {
   docs.findUnique.mockResolvedValue(null);
   docs.findFirst.mockResolvedValue(null);
   prismaMock.tbl_users.count.mockResolvedValue(0);
+  prismaMock.tbl_providers.count.mockResolvedValue(0);
 });
 
 describe("tipos de identificación", () => {
@@ -73,6 +75,18 @@ describe("tipos de identificación", () => {
       message: expect.stringContaining("lo usan 2 usuario(s)"),
     });
     expect(prismaMock.tbl_users.count).toHaveBeenCalledWith({ where: { idd_id: 1, sta_id: { not: 3 } } });
+    expect(docs.update).not.toHaveBeenCalled();
+  });
+
+  it("no se elimina si lo usan proveedores no eliminados", async () => {
+    docs.findUnique.mockResolvedValue({ sta_id: 1 });
+    prismaMock.tbl_providers.count.mockResolvedValue(4);
+
+    await expect(service.remove({ id: 1, useBy: 9 })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining("lo usan 4 proveedor(es)"),
+    });
+    expect(prismaMock.tbl_providers.count).toHaveBeenCalledWith({ where: { idd_id: 1, sta_id: { not: 3 } } });
     expect(docs.update).not.toHaveBeenCalled();
   });
 

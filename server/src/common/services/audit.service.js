@@ -22,6 +22,7 @@ export const AUDIT_ENTITIES = Object.freeze({
   USER: "USUARIO",
   PROFILE: "PERFIL",
   WORK: "OBRA",
+  PROVIDER: "PROVEEDOR",
 });
 
 export const AUDIT_OPERATIONS = Object.freeze({

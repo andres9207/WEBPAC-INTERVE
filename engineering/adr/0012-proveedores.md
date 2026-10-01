@@ -2,9 +2,11 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-10-01).
 
-La tabla `tbl_providers` **existe en el esquema** pero es una tabla huérfana: **ningún archivo del repositorio la referencia**. No hay módulo backend, ni vista, ni API, ni permisos. Este ADR documenta la decisión arquitectónica recomendada y registra los defectos de la estructura existente.
+Implementado: decisiones 1 a 14 (fases 1 a 5 del plan) en el área `work/`, módulo `providers` ([DEC-031](../decisiones/DEC-031-area-proveedores.md), [DEC-032](../decisiones/DEC-032-identidad-proveedor.md)). Migraciones `0044`–`0047`: `tbl_providers` con `UNIQUE` de la identidad entre no eliminados, `tbl_provider_contacts` y `tbl_work_providers` con `UNIQUE (obra, proveedor)`. Backend con búsqueda parametrizada, 409 con el proveedor existente (también ante `P2002`), asignación y desasignación con endpoints propios y bitácora funcional. Cliente con listado, detalle, formulario con contactos y aviso reactivo del documento, y la pestaña de proveedores de la obra con los dos flujos convergentes. Ocho permisos (60 a 67): exportar se reemplazó por **cambiar identificación**, que la regla 5 pide; exportar se define cuando exista.
+
+La tabla del esquema de origen no estaba en este repositorio: se creó limpia, así que no hubo duplicados ni contacto embebido que migrar (B16 sin datos). "Tipo de servicio" queda en texto libre. Falta: la fase 6 (documentos de proveedor), el bloqueo por contratos al desasignar y al eliminar, y la exportación. El texto de abajo es el análisis original.
 
 ## Fecha
 

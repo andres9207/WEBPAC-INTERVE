@@ -47,8 +47,15 @@ describe("buildLockPlan — orden del protocolo", () => {
     expect(plan[0]).toMatchObject({ table: "tbl_works", id: "wrk_id" });
   });
 
+  it("el proveedor va después de la obra y antes del usuario y los maestros (DEC-031)", () => {
+    const plan = buildLockPlan({ TIPO_PROVEEDOR: [3], PROVEEDOR: [6], OBRA: [8] });
+
+    expect(plan.map(({ entity }) => entity)).toEqual(["OBRA", "PROVEEDOR", "TIPO_PROVEEDOR"]);
+    expect(plan[1]).toMatchObject({ table: "tbl_providers", id: "prv_id" });
+  });
+
   it("rechaza entidades fuera del protocolo o sin tabla registrada", () => {
-    expect(() => buildLockPlan({ PROVEEDOR: [1] })).toThrow(/fuera de LOCK_ORDER/);
+    expect(() => buildLockPlan({ PROYECTO: [1] })).toThrow(/fuera de LOCK_ORDER/);
     // CONTRATO tiene lugar en el orden, pero su tabla aún no existe.
     expect(() => buildLockPlan({ CONTRATO: [1] })).toThrow(/sin tabla registrada/);
   });

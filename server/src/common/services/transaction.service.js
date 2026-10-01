@@ -52,6 +52,9 @@ export const LOCK_WAIT_TIMEOUT_SECONDS = 3;
 export const LOCK_ORDER = Object.freeze([
   // La obra contiene a los contratos: va primero (DEC-026).
   "OBRA",
+  // El proveedor es contraparte de contratos y facturas: va después de la
+  // obra (asignar bloquea obra → proveedor) y antes del contrato (DEC-031).
+  "PROVEEDOR",
   "CONTRATO",
   "FACTURA",
   "POLIZA",
@@ -88,6 +91,7 @@ const LOCKABLE = Object.freeze({
   CONSTRUCTORA: { table: "tbl_construction_companies", id: "cnc_id" },
   TIPO_CONTRATO: { table: "tbl_contract_types", id: "ctt_id" },
   OBRA: { table: "tbl_works", id: "wrk_id" },
+  PROVEEDOR: { table: "tbl_providers", id: "prv_id" },
 });
 
 const transactionMisuse = (message) => new Error(`[transaction] ${message}`);

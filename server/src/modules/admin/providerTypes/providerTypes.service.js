@@ -16,9 +16,8 @@ export const providerTypesConfig = defineMaster({
   fields: [{ name: "name", column: "pvt_name", label: "nombre", maxLength: 100, unique: true, filter: true, sortable: true }],
   defaultSort: "name",
   selectOrder: "name",
-  // ADR-0010, decisión 8. tbl_providers todavía no existe: al crearla con su
-  // columna pvt_id (MAE-BD-11), se agrega aquí.
-  dependents: [],
+  // ADR-0010, decisión 8.
+  dependents: [{ model: "tbl_providers", column: "pvt_id", label: "proveedor(es)" }],
   socketEvent: "refresh-provider-types",
 });
 

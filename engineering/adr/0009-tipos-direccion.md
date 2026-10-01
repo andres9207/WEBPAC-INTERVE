@@ -6,7 +6,7 @@
 
 Implementado el maestro `tbl_address_types` (decisiones 1, 2, 8, 9 y 10, fases 1 y 2): migraciones `0025`–`0027`, módulo `admin/addressTypes` sobre el patrón de maestro ([DEC-020](../decisiones/DEC-020-patron-maestro.md), [DEC-022](../decisiones/DEC-022-vista-maestro.md)), selector de activos, entidad de bloqueo `TIPO_DIRECCION`. Tipos iniciales: Oficina, Sucursal, Correspondencia, Facturación y Bodega. La validación de correo del backend (B6) es `emailRule` de `common/utils/validation.utils.js`, ya usada por usuarios y autenticación.
 
-Falta: las tablas de contacto de obra y de proveedor (decisiones 3 a 7, fases 3 y 4). Al crearlas, se agregan a los `dependents` del maestro. El texto de abajo es el análisis original.
+Contactos de proveedor implementados (decisiones 3 a 7 para proveedor): `tbl_provider_contacts` (migración `0045`), a lo sumo un principal por proveedor con `UNIQUE` sobre columna generada, y el componente compartido `ui-component/extended/ContactsEditor` ([DEC-032](../decisiones/DEC-032-identidad-proveedor.md)). Falta la tabla de contactos de obra (PRO-BD-04), que reutiliza ese componente y se agrega a los `dependents` del maestro. El texto de abajo es el análisis original.
 
 ## Fecha
 

@@ -6,7 +6,7 @@
 
 La decisión 2 se resolvió: el tipo es una **clasificación** de la empresa ([DEC-023](../decisiones/DEC-023-tipo-proveedor-clasificacion.md)). Implementado el maestro `tbl_provider_types` (decisiones 1, 6, 8, 9 y 10): migraciones `0022`–`0024`, módulo `admin/providerTypes` sobre el patrón de maestro ([DEC-020](../decisiones/DEC-020-patron-maestro.md), [DEC-022](../decisiones/DEC-022-vista-maestro.md)) y selector de activos.
 
-Falta: la columna `pvt_id` en `tbl_providers` y la depuración de `dot_id`, `are_id` y `cos_id` (MAE-BD-11). `tbl_providers` todavía no existe en este esquema. El texto de abajo es el análisis original.
+La columna `pvt_id` (obligatoria, FK `RESTRICT`) llegó con `tbl_providers` (migración `0044`, [DEC-031](../decisiones/DEC-031-area-proveedores.md)), y el maestro cuenta los proveedores al eliminar. `tbl_providers` se creó sin `dot_id`, `are_id` ni `cos_id`, así que MAE-BD-11 quedó cubierta. El texto de abajo es el análisis original.
 
 ## Fecha
 
