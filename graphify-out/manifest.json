@@ -2034,9 +2034,9 @@
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/EditableList.jsx": {
-    "mtime": 1790863325.8406954,
-    "seen": 1790877373.105084,
-    "ast_hash": "5eacfdcf13392cce965804245eadb2df",
+    "mtime": 1790886951.0405638,
+    "seen": 1790887028.7928727,
+    "ast_hash": "3bf5ecc68581a1e14eb41792d2b363c9",
     "semantic_hash": ""
   },
   "client/src/views/admin/contractTypes/ContractTypePage.jsx": {
@@ -2184,9 +2184,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/works/WorkFormPage.jsx": {
-    "mtime": 1790886048.2239542,
-    "seen": 1790886317.659119,
-    "ast_hash": "5c7224f08fb13f107140b20bcdfb370d",
+    "mtime": 1790886951.0429604,
+    "seen": 1790887028.7929401,
+    "ast_hash": "3b90d9a32b2361ceedc5ae5c87cfe8f1",
     "semantic_hash": ""
   },
   "client/src/views/work/works/components/ManagerDialog.jsx": {
