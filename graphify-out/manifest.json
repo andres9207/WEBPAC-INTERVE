@@ -210,9 +210,9 @@
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/MenuList/NavCollapse/index.jsx": {
-    "mtime": 1789652993.6067686,
-    "seen": 1790694517.6644943,
-    "ast_hash": "c5d2d03ac3139360065b62d34d21d836",
+    "mtime": 1790886551.1410062,
+    "seen": 1790886831.1433861,
+    "ast_hash": "28b117eca77da39ba3c815f31634f1d9",
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/MenuList/NavGroup/index.jsx": {
@@ -222,9 +222,9 @@
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/MenuList/NavItem/index.jsx": {
-    "mtime": 1789652993.6067686,
-    "seen": 1790694517.664497,
-    "ast_hash": "51d767319dbfa68f48105feca28af6e5",
+    "mtime": 1790886550.0912337,
+    "seen": 1790886831.1433885,
+    "ast_hash": "5f1a5da07939200411ff668f7cdd5770",
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/MenuList/index.jsx": {
@@ -270,9 +270,9 @@
     "semantic_hash": ""
   },
   "client/src/menu-items/index.js": {
-    "mtime": 1790794490.6954286,
-    "seen": 1790803705.9150913,
-    "ast_hash": "2489d4ce5004f383f9345978210ed78f",
+    "mtime": 1790886552.2476864,
+    "seen": 1790886831.1433976,
+    "ast_hash": "3683c58ce9eda59832c1822906bce845",
     "semantic_hash": ""
   },
   "client/src/menu-items/other.js": {
@@ -576,9 +576,9 @@
     "semantic_hash": ""
   },
   "client/src/ui-component/Logo.jsx": {
-    "mtime": 1790168080.4413893,
-    "seen": 1790694517.6645627,
-    "ast_hash": "ec3410e788dcc44b09eb05b1ee7b5bd0",
+    "mtime": 1790886560.5586221,
+    "seen": 1790886831.143452,
+    "ast_hash": "1e41791deca680bfc33ffabbc8c0460c",
     "semantic_hash": ""
   },
   "client/src/ui-component/TooltipLongText.jsx": {
@@ -828,15 +828,15 @@
     "semantic_hash": ""
   },
   "client/src/views/pages/authentication/ForgotPassword.jsx": {
-    "mtime": 1789652993.6505897,
-    "seen": 1790694517.6646047,
-    "ast_hash": "2a254daa3c668ddaf3f7bf01a28f3912",
+    "mtime": 1790886377.9854398,
+    "seen": 1790886831.1435118,
+    "ast_hash": "4bac3d3ca13437c5ca0c7a8033b4dde3",
     "semantic_hash": ""
   },
   "client/src/views/pages/authentication/Login.jsx": {
-    "mtime": 1790256253.6094594,
-    "seen": 1790694517.6646054,
-    "ast_hash": "34cd22bcd0d93e74b1246ed8df58ed8d",
+    "mtime": 1790886372.371589,
+    "seen": 1790886831.1435127,
+    "ast_hash": "6e1823df208ed68c26e996ca6e4c3de8",
     "semantic_hash": ""
   },
   "client/src/views/sample-page/index.jsx": {
@@ -2217,6 +2217,12 @@
     "mtime": 1790886048.248655,
     "seen": 1790886317.6592815,
     "ast_hash": "3d4db52047bb31ab3cfbefbf0f50056b",
+    "semantic_hash": ""
+  },
+  "database/migrations/0043_reorder_menu_groups.sql": {
+    "mtime": 1790886750.434756,
+    "seen": 1790886831.1435769,
+    "ast_hash": "09a253b0c15bf9b6572832d41f0708f8",
     "semantic_hash": ""
   }
 }

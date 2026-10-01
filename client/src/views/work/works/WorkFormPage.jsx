@@ -514,7 +514,7 @@ export default function WorkFormPage() {
                 onChange={field.onChange}
                 error={fieldState.error}
                 columns={[
-                  { name: 'name', label: 'Nombre', type: 'text', maxLength: 100, grid: { xs: 12, sm: true } },
+                  { name: 'name', label: 'Nombre', type: 'text', maxLength: 100, grid: { xs: 12, sm: 'grow' } },
                   { name: 'staId', label: 'Estado', type: 'select', options: STATUS_OPTIONS, grid: { xs: 12, sm: 3 } }
                 ]}
                 newRow={() => ({ key: rowKey('s'), name: '', order: 0, staId: 1 })}

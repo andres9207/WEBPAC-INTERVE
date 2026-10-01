@@ -146,7 +146,7 @@ export default function EditableList({
                   </Grid>
                 )}
                 {columns.map((column) => (
-                  <Grid key={column.name} size={column.grid ?? { xs: 12, sm: true }}>
+                  <Grid key={column.name} size={column.grid ?? { xs: 12, sm: 'grow' }}>
                     {renderCell(column, row, index)}
                   </Grid>
                 ))}
