@@ -65,7 +65,9 @@ instance.interceptors.response.use(
     // se limpia el cache local y se fuerza el login.
     if (status === 401 && !config?.skipAuthRedirect) {
       Cookies.remove("id");
-      window.location.href = "/pages/login";
+      // BASE_URL lleva el prefijo del despliegue (/interve360/): una ruta
+      // absoluta sin él saca al usuario de la aplicación.
+      window.location.href = `${import.meta.env.BASE_URL}pages/login`;
       return Promise.reject(error);
     }
 
