@@ -1,6 +1,6 @@
 # Estándar del frontend
 
-React 19 + Vite, MUI 7 sobre el template Berry. Comandos, autenticación y capa HTTP en detalle: [`client/CLAUDE.md`](../../client/CLAUDE.md).
+React 19 + Vite, MUI 7 sobre el template Berry. Cómo se ve (colores, tipografía, formatos, estados, accesibilidad): [`DESIGN_SYSTEM`](DESIGN_SYSTEM.md). Comandos, autenticación y capa HTTP en detalle: [`client/CLAUDE.md`](../../client/CLAUDE.md).
 
 ## Reglas
 
@@ -31,7 +31,8 @@ Referencia: `views/security/profiles/ProfilePage.jsx`.
 | Tabla | `ui-component/extended/DataTable`, paginado y ordenado en el servidor (`page`, `rowsPerPage`, `sortField`, `sortOrder`) |
 | Estado de la fila | `ui-component/extended/StatusChip` |
 | Autoría | `ui-component/extended/LastModifiedCell` con `updatedByName` y `updatedAt` ([DEC-014](../decisiones/DEC-014-autor-por-nombre.md)) |
-| Acciones por fila | `actions` de `DataTable` (usa `TableActions`), cada una filtrada con `canDo`; eliminar lleva `confirm` |
+| Acciones por fila | `actions` de `DataTable` (usa `TableActions`), cada una filtrada con `canDo`; eliminar lleva `confirm`. El color sale de `tone` (`edit`, `info`, `danger`, `neutral`, `success`, en `ui-component/extended/ActionButton`), nunca de un hex fijo: los tonos usan la paleta del tema y cumplen contraste |
+| Tabla vacía | `emptyMessage` distinto con búsqueda, con filtro de estado y sin registros; `emptyAction` ofrece crear el primero |
 | Diálogo | Montado una vez, controlado por `ref` |
 
 Al cambiar la búsqueda o la pestaña, la página vuelve a 0. Al guardar o eliminar se recarga el listado, para que los conteos de las pestañas sigan exactos.
@@ -41,7 +42,9 @@ Al cambiar la búsqueda o la pestaña, la página vuelve a 0. Al guardar o elimi
 Referencia: `views/security/profiles/components/ProfileDialog.jsx`.
 
 - `forwardRef` + `useImperativeHandle` que expone `new<X>()` y `edit<X>(item)`.
-- `ui-component/extended/BaseDialog` con acciones Cancelar / Guardar.
+- `ui-component/extended/BaseDialog` con acciones Cancelar / Guardar. No se cierra con un clic fuera (perdería lo escrito); sí con Cancelar, la ✕ o Esc. `loading` es solo la carga inicial: al guardar, el formulario sigue visible y el botón dice "Guardando…" y queda deshabilitado. Formularios largos: `fullScreenOnMobile`.
+- Textos de botones con mayúscula solo al inicio: "Guardar cambios".
+- Formularios con varias partes: una sección por parte con `ui-component/cards/SubCard` (Berry). Referencia: `WorkDialog.jsx`.
 - `react-hook-form` con `FormProvider` y `ui-component/extended/GenericFormSection` alimentado por un arreglo de campos.
 - Estados del registro con `STATUS_OPTIONS` de `utils/constants.js`.
 - Al guardar: `showSuccess(data.message)`, avisar a la página con `addItem` o `updateItem`, cerrar.

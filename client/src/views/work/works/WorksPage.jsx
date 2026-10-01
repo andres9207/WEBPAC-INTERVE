@@ -27,6 +27,7 @@ export default function WorksPage() {
   return (
     <MasterPage
       title="Obra"
+      feminine
       idField="wrkId"
       api={worksApi}
       permissions={permissionsCatalog.work?.works}

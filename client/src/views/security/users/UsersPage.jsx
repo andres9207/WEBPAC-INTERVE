@@ -16,7 +16,7 @@ import PermissionsDrawer from '../profiles/components/PermissionsDrawer';
 import { paginationUsersAPI, deleteUserAPI } from 'api/requests/usersApi';
 import { useAuth } from 'contexts/AuthContext';
 import { statusTabsWithCounts } from 'utils/constants';
-import { showError } from 'services/ToastService';
+import { showError, showSuccess } from 'services/ToastService';
 
 export default function UsersPage() {
   const { hasPermission, permissionsCatalog } = useAuth();
@@ -63,7 +63,6 @@ export default function UsersPage() {
   const handleNewUser = () => userFormRef.current?.newUser();
   const handleEditUser = (item) => userFormRef.current?.editUser(item);
 
-
   const handleOpenPermissions = (item) => {
     setSelectedUser(item);
     setPermissionsVisible(true);
@@ -106,7 +105,8 @@ export default function UsersPage() {
 
   const handleDelete = async (useId) => {
     try {
-      await deleteUserAPI({ useId });
+      const { data } = await deleteUserAPI({ useId });
+      showSuccess(data?.message || 'Usuario eliminado.');
       fetchUsers();
     } catch (err) {
       showError(err.response?.data?.message || 'Error al eliminar el usuario');
@@ -126,27 +126,31 @@ export default function UsersPage() {
     {
       id: 'status',
       label: 'Estado',
-      render: (row) => (
-        <StatusChip staId={row.staId} label={row.statusName} />
-      ),
+      render: (row) => <StatusChip staId={row.staId} label={row.statusName} />
     },
     {
       id: 'modified',
       label: 'Últ. modificación',
-      render: (row) => <LastModifiedCell name={row.updatedByName} date={row.updatedAt} />,
-    },
+      render: (row) => <LastModifiedCell name={row.updatedByName} date={row.updatedAt} />
+    }
   ];
 
   const actionItems = (row) => [
     ...(canAssignPermission
-      ? [{ label: 'Permisos', icon: <IconKey size={16} />, command: () => handleOpenPermissions(row), color: '#0eb0e9' }]
+      ? [{ label: 'Permisos', icon: <IconKey size={16} />, command: () => handleOpenPermissions(row), tone: 'info' }]
       : []),
-    ...(canEdit
-      ? [{ label: 'Editar', icon: <IconEdit size={16} />, command: () => handleEditUser(row), color: '#fda53a' }]
-      : []),
+    ...(canEdit ? [{ label: 'Editar', icon: <IconEdit size={16} />, command: () => handleEditUser(row), tone: 'edit' }] : []),
     ...(canDelete
-      ? [{ label: 'Eliminar', icon: <IconTrash size={16} />, command: () => handleDelete(row.useId), color: '#f43f51', confirm: `¿Está seguro de eliminar el usuario "${row.name} ${row.lastName}"?` }]
-      : []),
+      ? [
+          {
+            label: 'Eliminar',
+            icon: <IconTrash size={16} />,
+            command: () => handleDelete(row.useId),
+            tone: 'danger',
+            confirm: `¿Está seguro de eliminar el usuario "${row.name} ${row.lastName}"?`
+          }
+        ]
+      : [])
   ];
 
   return (
@@ -166,7 +170,6 @@ export default function UsersPage() {
         </Stack>
       }
     >
-
       <DataTable
         columns={columns}
         rows={rows}
@@ -175,13 +178,19 @@ export default function UsersPage() {
         page={page}
         rowsPerPage={rowsPerPage}
         onPageChange={(_, p) => setPage(p)}
-        onRowsPerPageChange={(e) => { setRowsPerPage(+e.target.value); setPage(0); }}
+        onRowsPerPageChange={(e) => {
+          setRowsPerPage(+e.target.value);
+          setPage(0);
+        }}
         sortField={sortField}
         sortOrder={sortOrder}
         onSort={handleSort}
         keyExtractor={(row) => row.useId}
         cardTitleRender={(row) => `${row.name} ${row.lastName}`}
         actions={actionItems}
+        emptyMessage={
+          search ? `No hay resultados para «${search}».` : status !== 'all' ? 'No hay usuarios en este estado.' : 'Todavía no hay usuarios.'
+        }
       />
 
       {/* Recarga después de guardar, en vez de tocar la fila en memoria: los conteos de las pestañas siguen exactos (DEC-022). */}

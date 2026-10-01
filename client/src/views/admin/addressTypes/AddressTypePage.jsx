@@ -27,6 +27,7 @@ export default function AddressTypePage() {
   return (
     <MasterPage
       title="Tipo de dirección"
+      pluralTitle="Tipos de dirección"
       idField="adtId"
       api={addressTypesApi}
       permissions={permissionsCatalog.admin?.addressTypes}

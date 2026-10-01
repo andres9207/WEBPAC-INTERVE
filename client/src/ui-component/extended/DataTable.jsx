@@ -10,6 +10,7 @@ import CardActions from '@mui/material/CardActions';
 import CardContent from '@mui/material/CardContent';
 import Checkbox from '@mui/material/Checkbox';
 import Divider from '@mui/material/Divider';
+import LinearProgress from '@mui/material/LinearProgress';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
@@ -24,8 +25,8 @@ import Typography from '@mui/material/Typography';
 
 import TableActions from './TableActions';
 import ConfirmDialog from './ConfirmDialog';
-import IconButton from '@mui/material/IconButton';
-import Tooltip from '@mui/material/Tooltip';
+import ActionButton, { toneOf } from './ActionButton';
+
 export default function DataTable({
   columns,
   rows,
@@ -41,22 +42,22 @@ export default function DataTable({
   onSort,
   keyExtractor = (row) => row?.id ?? row?.invId,
   emptyMessage = 'Sin resultados',
+  emptyAction,
   loadingMessage = 'Cargando…',
   cardTitleRender,
   actions,
   footerRender,
   selectedRows,
-  onSelectionChange,
+  onSelectionChange
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [confirmItem, setConfirmItem] = useState(null);
-  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const isSelectionEnabled = Array.isArray(selectedRows) && onSelectionChange;
 
   const selectedKeys = useMemo(
-    () => isSelectionEnabled ? new Set(selectedRows.map((r) => keyExtractor(r))) : new Set(),
+    () => (isSelectionEnabled ? new Set(selectedRows.map((r) => keyExtractor(r))) : new Set()),
     [selectedRows, isSelectionEnabled, keyExtractor]
   );
 
@@ -83,40 +84,13 @@ export default function DataTable({
     }
   };
 
-  const handleConfirmAction = async () => {
-    setConfirmLoading(true);
-    try {
-      await confirmItem?.command?.();
-    } finally {
-      setConfirmLoading(false);
-      setConfirmItem(null);
-    }
+  // Con confirmación, la acción corre desde ConfirmDialog, que espera a que termine.
+  const runAction = (item) => {
+    if (item.confirm) setConfirmItem(item);
+    else item.command?.();
   };
 
-const renderInlineActions = (row) => {
-    const actionItems = actions(row);
-
-    return actionItems.map((item, i) => {
-      return (
-        <Tooltip key={i} title={item.label} arrow>
-          <IconButton
-            onClick={(e) => {
-              e.stopPropagation();
-              if (item.confirm) {
-                setConfirmItem(item);
-              } else {
-                item.command?.();
-              }
-            }}
-            disabled={item.disabled}
-            sx={{ bgcolor: item.color, color: 'white', minWidth: 0, '&:hover': { bgcolor: item.color } }}
-          >
-            {item.icon}
-          </IconButton>
-        </Tooltip>
-      );
-    });
-  };
+  const renderInlineActions = (row) => actions(row).map((item, i) => <ActionButton key={i} item={item} onClick={runAction} size="small" />);
 
   const allColumns = useMemo(() => {
     if (!actions) return columns;
@@ -136,15 +110,12 @@ const renderInlineActions = (row) => {
           ) : (
             <TableActions items={actionItems} />
           );
-        },
-      },
+        }
+      }
     ];
   }, [columns, actions]);
 
-
-  const visibleColumns = allColumns.filter((col) =>
-    isMobile ? !col.hideInCard : !col.hideInTable
-  );
+  const visibleColumns = allColumns.filter((col) => (isMobile ? !col.hideInCard : !col.hideInTable));
 
   const getCellValue = (row, col, index) => {
     if (isMobile) {
@@ -164,8 +135,35 @@ const renderInlineActions = (row) => {
         onRowsPerPageChange={onRowsPerPageChange}
         rowsPerPageOptions={rowsPerPageOptions}
         labelRowsPerPage="Filas:"
+        labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
       />
     );
+
+  // Al recargar, las filas siguen visibles (atenuadas) bajo una barra de
+  // progreso: la pantalla no salta. El texto de carga solo aparece la primera vez.
+  const firstLoad = loading && rows.length === 0;
+  const reloading = loading && rows.length > 0;
+
+  const renderMessage = () => (
+    <Stack spacing={1.5} alignItems="center" sx={{ py: 3 }}>
+      <Typography align="center" color="text.secondary">
+        {firstLoad ? loadingMessage : emptyMessage}
+      </Typography>
+      {!firstLoad && emptyAction}
+    </Stack>
+  );
+
+  const confirmDialog = (
+    <ConfirmDialog
+      open={!!confirmItem}
+      onClose={() => setConfirmItem(null)}
+      onConfirm={() => confirmItem?.command?.()}
+      title={confirmItem?.confirmTitle || 'Confirmar'}
+      message={confirmItem?.confirm || '¿Está seguro de realizar esta acción?'}
+      confirmLabel={confirmItem?.confirmLabel || 'Eliminar'}
+      confirmColor={confirmItem?.confirmColor || 'error'}
+    />
+  );
 
   if (isMobile) {
     const cardFields = visibleColumns.filter((col) => !col.cardFooter);
@@ -173,22 +171,11 @@ const renderInlineActions = (row) => {
 
     return (
       <>
-        <Stack spacing={1.5}>
-          {loading ? (
+        {reloading && <LinearProgress sx={{ mb: 1 }} aria-label={loadingMessage} />}
+        <Stack spacing={1.5} sx={{ opacity: reloading ? 0.6 : 1, transition: 'opacity 150ms' }} aria-busy={loading}>
+          {rows.length === 0 ? (
             <Card variant="outlined">
-              <CardContent>
-                <Typography align="center" color="text.secondary">
-                  {loadingMessage}
-                </Typography>
-              </CardContent>
-            </Card>
-          ) : rows.length === 0 ? (
-            <Card variant="outlined">
-              <CardContent>
-                <Typography align="center" color="text.secondary">
-                  {emptyMessage}
-                </Typography>
-              </CardContent>
+              <CardContent>{renderMessage()}</CardContent>
             </Card>
           ) : (
             rows.map((row, index) => (
@@ -205,11 +192,7 @@ const renderInlineActions = (row) => {
                   <Stack spacing={1}>
                     {cardFields.map((col) => (
                       <Box key={col.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ whiteSpace: 'nowrap', fontWeight: 500 }}
-                        >
+                        <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap', fontWeight: 500 }}>
                           {col.label}:
                         </Typography>
                         <Typography variant="body2" component="div" sx={{ flex: 1 }}>
@@ -222,59 +205,36 @@ const renderInlineActions = (row) => {
                 {cardActionsList.length > 0 && (
                   <>
                     <Divider />
-                    <CardActions sx={{ justifyContent: 'center', py: 1 }}>
+                    <CardActions sx={{ justifyContent: 'center', flexWrap: 'wrap', gap: 1, py: 1 }}>
                       {cardActionsList.map((col) => {
                         if (col.id === '__actions__' && actions) {
                           const actionItems = actions(row);
-                          const showOnlyIcons = actionItems.length > 3;
-                          
-                          if (showOnlyIcons) {
-                            return actionItems.map((item, i) => (
-                              <Tooltip key={i} title={item.label} arrow>
-                                <IconButton
-                                  size="lg"
-                                  variant="contained"
-                                  startIcon={item.icon}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (item.confirm) {
-                                      setConfirmItem(item);
-                                    } else {
-                                      item.command?.();
-                                    }
-                                  }}
-                                  disabled={item.disabled}
-                                  sx={{ bgcolor: item.color ?? 'inherit', color: 'white', minWidth: 0 }}
-                                >
-                                  {item.icon}
-                                </IconButton>
-                              </Tooltip>
-                            ));
+                          // Con más de tres, solo íconos (con nombre accesible); si no, ícono y texto.
+                          if (actionItems.length > 3) {
+                            return actionItems.map((item, i) => <ActionButton key={i} item={item} onClick={runAction} size="large" />);
                           }
-
-                          return actionItems.map((item, i) => (
-                            <span key={i}>
-                                <Tooltip key={i} title={item.label} arrow>
-                                <Button
-                                  size="lg"
-                                  variant="contained"
-                                  startIcon={showOnlyIcons ? item.icon : null}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (item.confirm) {
-                                      setConfirmItem(item);
-                                    } else {
-                                      item.command?.();
-                                    }
-                                  }}
-                                  disabled={item.disabled}
-                                  sx={{ bgcolor: item.color ?? 'inherit', color: 'white', minWidth: 0 }}
-                                >
-                                  {item.label}
-                                </Button>
-                            </Tooltip>
-                              </span>
-                          ));
+                          return actionItems.map((item, i) => {
+                            const tone = toneOf(item);
+                            return (
+                              <Button
+                                key={i}
+                                startIcon={item.icon}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  runAction(item);
+                                }}
+                                disabled={item.disabled}
+                                sx={{
+                                  minHeight: 44,
+                                  bgcolor: tone.bg,
+                                  color: tone.fg,
+                                  '&:hover': { bgcolor: tone.hoverBg, color: tone.hoverFg }
+                                }}
+                              >
+                                {item.label}
+                              </Button>
+                            );
+                          });
                         }
                         return <Box key={col.id}>{getCellValue(row, col, index)}</Box>;
                       })}
@@ -282,34 +242,24 @@ const renderInlineActions = (row) => {
                   </>
                 )}
               </Card>
-              ))
-            )}
-            {footerRender && !loading && rows.length > 0 && (
-              <Card variant="outlined" sx={{ bgcolor: 'grey.50' }}>
-                <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                  {footerRender(rows, visibleColumns)}
-                </CardContent>
-              </Card>
-            )}
-          </Stack>
-          {renderPagination()}
-          <ConfirmDialog
-            open={!!confirmItem}
-            onClose={() => { if (!confirmLoading) setConfirmItem(null); }}
-            onConfirm={handleConfirmAction}
-            title={confirmItem?.confirmTitle || 'Confirmar'}
-            message={confirmItem?.confirm || '¿Está seguro de realizar esta acción?'}
-            confirmLabel={confirmItem?.confirmLabel || 'Eliminar'}
-            confirmColor={confirmItem?.confirmColor || 'error'}
-            loading={confirmLoading}
-          />
+            ))
+          )}
+          {footerRender && !loading && rows.length > 0 && (
+            <Card variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+              <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>{footerRender(rows, visibleColumns)}</CardContent>
+            </Card>
+          )}
+        </Stack>
+        {renderPagination()}
+        {confirmDialog}
       </>
     );
   }
 
   return (
     <>
-      <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
+      <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto', position: 'relative' }} aria-busy={loading}>
+        {reloading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 }} aria-label={loadingMessage} />}
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -320,6 +270,7 @@ const renderInlineActions = (row) => {
                     checked={allSelected}
                     onChange={handleToggleAll}
                     size="small"
+                    slotProps={{ input: { 'aria-label': 'Seleccionar todas las filas de la página' } }}
                   />
                 </TableCell>
               )}
@@ -328,6 +279,7 @@ const renderInlineActions = (row) => {
                   key={col.id}
                   align={col.align || 'left'}
                   sx={{ whiteSpace: 'nowrap', ...(col.width ? { width: col.width } : {}) }}
+                  sortDirection={col.sortable && sortField === col.id ? (sortOrder === 1 ? 'asc' : 'desc') : false}
                 >
                   {col.sortable ? (
                     <TableSortLabel
@@ -344,32 +296,23 @@ const renderInlineActions = (row) => {
               ))}
             </TableRow>
           </TableHead>
-          <TableBody>
-            {loading ? (
+          <TableBody sx={{ opacity: reloading ? 0.6 : 1, transition: 'opacity 150ms' }}>
+            {rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={(isSelectionEnabled ? 1 : 0) + visibleColumns.length} align="center">
-                  {loadingMessage}
-                </TableCell>
-              </TableRow>
-            ) : rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={(isSelectionEnabled ? 1 : 0) + visibleColumns.length} align="center">
-                  {emptyMessage}
+                  {renderMessage()}
                 </TableCell>
               </TableRow>
             ) : (
               rows.map((row, index) => (
-                <TableRow
-                  key={keyExtractor(row)}
-                  hover
-                  selected={isSelectionEnabled && selectedKeys.has(keyExtractor(row))}
-                >
+                <TableRow key={keyExtractor(row)} hover selected={isSelectionEnabled && selectedKeys.has(keyExtractor(row))}>
                   {isSelectionEnabled && (
                     <TableCell padding="checkbox">
                       <Checkbox
                         checked={selectedKeys.has(keyExtractor(row))}
                         onChange={() => handleToggleRow(row)}
                         size="small"
+                        slotProps={{ input: { 'aria-label': 'Seleccionar fila' } }}
                       />
                     </TableCell>
                   )}
@@ -379,26 +322,14 @@ const renderInlineActions = (row) => {
                     </TableCell>
                   ))}
                 </TableRow>
-              )))}
-            </TableBody>
-            {footerRender && !loading && rows.length > 0 && (
-              <tfoot>
-                {footerRender(rows, visibleColumns)}
-              </tfoot>
+              ))
             )}
-          </Table>
-        </TableContainer>
+          </TableBody>
+          {footerRender && !loading && rows.length > 0 && <tfoot>{footerRender(rows, visibleColumns)}</tfoot>}
+        </Table>
+      </TableContainer>
       {renderPagination()}
-      <ConfirmDialog
-        open={!!confirmItem}
-        onClose={() => { if (!confirmLoading) setConfirmItem(null); }}
-        onConfirm={handleConfirmAction}
-        title={confirmItem?.confirmTitle || 'Confirmar'}
-        message={confirmItem?.confirm || '¿Está seguro de realizar esta acción?'}
-        confirmLabel={confirmItem?.confirmLabel || 'Eliminar'}
-        confirmColor={confirmItem?.confirmColor || 'error'}
-        loading={confirmLoading}
-      />
+      {confirmDialog}
     </>
   );
 }
@@ -416,7 +347,7 @@ DataTable.propTypes = {
       cardFooter: PropTypes.bool,
       render: PropTypes.func,
       cardRender: PropTypes.func,
-      tableRender: PropTypes.func,
+      tableRender: PropTypes.func
     })
   ).isRequired,
   rows: PropTypes.array.isRequired,
@@ -432,10 +363,12 @@ DataTable.propTypes = {
   onSort: PropTypes.func,
   keyExtractor: PropTypes.func,
   emptyMessage: PropTypes.string,
+  /** Acción bajo el mensaje de tabla vacía (p. ej. el botón de crear). */
+  emptyAction: PropTypes.node,
   loadingMessage: PropTypes.string,
   cardTitleRender: PropTypes.func,
   actions: PropTypes.func,
   footerRender: PropTypes.func,
   selectedRows: PropTypes.array,
-  onSelectionChange: PropTypes.func,
+  onSelectionChange: PropTypes.func
 };

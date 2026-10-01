@@ -273,7 +273,7 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
         <>
           <Button onClick={() => setVisible(false)}>Cancelar</Button>
           <Button variant="contained" color="secondary" onClick={handleSubmit(onSubmit)} disabled={loading}>
-            {useId ? 'Guardar Cambios' : 'Guardar'}
+            {useId ? 'Guardar cambios' : 'Guardar'}
           </Button>
         </>
       }

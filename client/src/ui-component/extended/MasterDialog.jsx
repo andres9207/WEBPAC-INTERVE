@@ -19,12 +19,13 @@ import { newIdempotencyKey } from 'utils/idempotency';
  * - Sin estado: se activa o desactiva desde el listado (DEC-020).
  *
  * `fields` usa el formato de GenericFormSection, más `editable` (por defecto true).
+ * `feminine`: el título dice "Nueva" (aseguradora, constructora).
  */
-const MasterDialog = forwardRef(({ title, idField, fields, save, onSaved }, ref) => {
+const MasterDialog = forwardRef(({ title, idField, fields, save, onSaved, feminine = false }, ref) => {
   const [visible, setVisible] = useState(false);
   const [id, setId] = useState(0);
   const [idempotencyKey, setIdempotencyKey] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const emptyForm = useMemo(() => Object.fromEntries(fields.map((f) => [f.name, f.defaultValue ?? ''])), [fields]);
   const methods = useForm({ defaultValues: emptyForm });
@@ -58,7 +59,7 @@ const MasterDialog = forwardRef(({ title, idField, fields, save, onSaved }, ref)
         .map((f) => [f.name, typeof formData[f.name] === 'string' ? formData[f.name].trim() : formData[f.name]])
     );
 
-    setLoading(true);
+    setSaving(true);
     try {
       const { data } = await save({ [idField]: id, ...values }, isEdit ? undefined : idempotencyKey);
       setVisible(false);
@@ -67,7 +68,7 @@ const MasterDialog = forwardRef(({ title, idField, fields, save, onSaved }, ref)
     } catch (err) {
       showError(err.response?.data?.message || 'Error al guardar');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -75,14 +76,15 @@ const MasterDialog = forwardRef(({ title, idField, fields, save, onSaved }, ref)
     <BaseDialog
       open={visible}
       onClose={() => setVisible(false)}
-      title={`${isEdit ? 'Editar' : 'Nuevo'} ${title}`}
+      title={`${isEdit ? 'Editar' : feminine ? 'Nueva' : 'Nuevo'} ${title.charAt(0).toLowerCase()}${title.slice(1)}`}
       maxWidth="sm"
-      loading={loading}
       actions={
         <>
-          <Button onClick={() => setVisible(false)}>Cancelar</Button>
-          <Button variant="contained" color="secondary" onClick={handleSubmit(onSubmit)} disabled={loading}>
-            {isEdit ? 'Guardar Cambios' : 'Guardar'}
+          <Button onClick={() => setVisible(false)} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button variant="contained" color="secondary" onClick={handleSubmit(onSubmit)} disabled={saving}>
+            {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar'}
           </Button>
         </>
       }
@@ -99,7 +101,8 @@ MasterDialog.propTypes = {
   idField: PropTypes.string.isRequired,
   fields: PropTypes.arrayOf(PropTypes.shape({ name: PropTypes.string.isRequired, editable: PropTypes.bool })).isRequired,
   save: PropTypes.func.isRequired,
-  onSaved: PropTypes.func
+  onSaved: PropTypes.func,
+  feminine: PropTypes.bool
 };
 
 export default MasterDialog;

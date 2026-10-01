@@ -202,10 +202,14 @@ const GenericFormSection = memo(
                       error={hasError}
                       helperText={hasError ? error.message : null}
                       disabled={field.disabled || globalDisabled}
+                      // Respeta los slotProps del campo (p. ej. un prefijo "$")
+                      // sin perder el maxLength ni el autoComplete.
                       slotProps={{
+                        ...field.props?.slotProps,
                         htmlInput: {
                           maxLength: field.maxLength ?? 50,
                           autoComplete: "off",
+                          ...field.props?.slotProps?.htmlInput,
                         },
                       }}
                     />
@@ -884,17 +888,22 @@ const GenericFormSection = memo(
                   rules={field.validation}
                   render={({ field: controllerField }) => (
                     <>
-                      <InputLabel sx={{ mb: 0.5, fontWeight: 500 }}>
-                        <RequiredLabel
-                          required={field.required}
-                          label={field.label}
-                        />
-                      </InputLabel>
+                      {/* hideLabel: el título ya lo da el contenedor (p. ej. un SubCard). */}
+                      {!field.hideLabel && (
+                        <InputLabel sx={{ mb: 0.5, fontWeight: 500 }}>
+                          <RequiredLabel
+                            required={field.required}
+                            label={field.label}
+                          />
+                        </InputLabel>
+                      )}
+                      {/* error: el objeto de react-hook-form, para mostrar su mensaje.
+                          disabled: también el que trae el campo en `props`. */}
                       <CustomComponent
                         {...controllerField}
                         {...field.props}
-                        error={hasError}
-                        disabled={field.disabled || globalDisabled}
+                        error={error}
+                        disabled={field.disabled || field.props?.disabled || globalDisabled}
                       />
                     </>
                   )}

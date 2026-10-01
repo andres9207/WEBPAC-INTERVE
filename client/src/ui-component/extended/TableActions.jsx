@@ -10,6 +10,7 @@ import ListItemText from '@mui/material/ListItemText';
 import { IconDotsVertical } from '@tabler/icons-react';
 
 import ConfirmDialog from './ConfirmDialog';
+import { ACTION_TONES, toneOf } from './ActionButton';
 
 export default function TableActions({ items }) {
   const [anchorEl, setAnchorEl] = useState(null);
@@ -36,7 +37,7 @@ export default function TableActions({ items }) {
 
   return (
     <>
-      <IconButton size="small" onClick={handleOpen}>
+      <IconButton size="small" onClick={handleOpen} aria-label="Más acciones" aria-haspopup="menu" aria-expanded={open}>
         <IconDotsVertical size={16} />
       </IconButton>
       <Menu
@@ -48,17 +49,8 @@ export default function TableActions({ items }) {
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
         {items.map((item, i) => (
-          <MenuItem
-            key={i}
-            disabled={item.disabled}
-            sx={{ color: item.color }}
-            onClick={() => handleCommand(item)}
-          >
-            {item.icon && (
-              <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
-                {item.icon}
-              </ListItemIcon>
-            )}
+          <MenuItem key={i} disabled={item.disabled} sx={{ color: toneOf(item).fg }} onClick={() => handleCommand(item)}>
+            {item.icon && <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>{item.icon}</ListItemIcon>}
             <ListItemText>{item.label}</ListItemText>
           </MenuItem>
         ))}
@@ -84,11 +76,12 @@ TableActions.propTypes = {
       icon: PropTypes.node,
       command: PropTypes.func,
       disabled: PropTypes.bool,
-      color: PropTypes.string,
+      /** Tono del tema (ActionButton): edit, info, danger, neutral, success. */
+      tone: PropTypes.oneOf(Object.keys(ACTION_TONES)),
       confirm: PropTypes.string,
       confirmTitle: PropTypes.string,
       confirmLabel: PropTypes.string,
-      confirmColor: PropTypes.string,
+      confirmColor: PropTypes.string
     })
-  ).isRequired,
+  ).isRequired
 };

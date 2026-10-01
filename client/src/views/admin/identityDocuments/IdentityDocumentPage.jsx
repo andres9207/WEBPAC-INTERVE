@@ -43,6 +43,7 @@ export default function IdentityDocumentPage() {
   return (
     <MasterPage
       title="Tipo de identificación"
+      pluralTitle="Tipos de identificación"
       idField="iddId"
       api={identityDocumentsApi}
       permissions={permissionsCatalog.admin?.identityDocuments}

@@ -146,8 +146,8 @@ const ProfileDialog = forwardRef(({ addItem, updateItem }, ref) => {
   };
 
   const customList = (title, items) => (
-    <Paper sx={{ width: '100%', height: 260, overflow: 'auto', border: '1px solid #e0e0e0' }}>
-      <Box sx={{ p: 1, bgcolor: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }}>
+    <Paper sx={{ width: '100%', height: 260, overflow: 'auto', border: '1px solid', borderColor: 'divider' }}>
+      <Box sx={{ p: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
           {title} ({items.length})
         </Typography>
@@ -191,7 +191,7 @@ const ProfileDialog = forwardRef(({ addItem, updateItem }, ref) => {
         <>
           <Button onClick={() => setVisible(false)}>Cancelar</Button>
           <Button variant="contained" color="secondary" onClick={handleSubmit(onSubmit)} disabled={loading}>
-            {proId ? 'Guardar Cambios' : 'Guardar'}
+            {proId ? 'Guardar cambios' : 'Guardar'}
           </Button>
         </>
       }

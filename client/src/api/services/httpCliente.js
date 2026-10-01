@@ -2,7 +2,7 @@ import axios from "axios";
 import Cookies from "js-cookie";
 
 // ─── Instancia con baseURL desde .env ────────────────────────────────────────
-const baseURL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const baseURL = import.meta.env.VITE_API_URL || "http://localhost:5063/api";
 
 const instance = axios.create({
   baseURL,

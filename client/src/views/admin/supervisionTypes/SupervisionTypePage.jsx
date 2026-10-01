@@ -27,6 +27,7 @@ export default function SupervisionTypePage() {
   return (
     <MasterPage
       title="Tipo de interventoría"
+      pluralTitle="Tipos de interventoría"
       idField="sptId"
       api={supervisionTypesApi}
       permissions={permissionsCatalog.admin?.supervisionTypes}

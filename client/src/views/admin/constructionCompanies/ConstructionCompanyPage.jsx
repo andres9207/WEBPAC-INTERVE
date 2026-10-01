@@ -27,6 +27,7 @@ export default function ConstructionCompanyPage() {
   return (
     <MasterPage
       title="Constructora"
+      feminine
       idField="cncId"
       api={constructionCompaniesApi}
       permissions={permissionsCatalog.admin?.constructionCompanies}

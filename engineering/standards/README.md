@@ -13,6 +13,7 @@ Reglas **obligatorias** por capa. Un estándar dice qué se debe cumplir; el *c�
 | [`DATABASE_STANDARD.md`](DATABASE_STANDARD.md) | Migraciones y tablas | Prefijos, auditoría, eliminación lógica, UTC, Prisma |
 | [`BACKEND_STANDARD.md`](BACKEND_STANDARD.md) | Código del servidor | Capas, servicios transversales, dónde va cada cosa |
 | [`FRONTEND_STANDARD.md`](FRONTEND_STANDARD.md) | Código del cliente | Anatomía de página y diálogo, permisos en UI, errores |
+| [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) | Toda pantalla | Tokens del tema Berry, formatos es-CO, componentes, estados de pantalla, accesibilidad y patrones por diseñar |
 | [`SECURITY_STANDARD.md`](SECURITY_STANDARD.md) | Todo | Índice de las reglas de seguridad y dónde viven |
 | [`TESTING_STANDARD.md`](TESTING_STANDARD.md) | Todo cambio con lógica | Qué se prueba y cómo |
 | [`ERROR_HANDLING_STANDARD.md`](ERROR_HANDLING_STANDARD.md) | Todo | Cómo se lanza, se traduce y se muestra un error |

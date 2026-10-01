@@ -37,7 +37,9 @@ const STATUS_NAMES = { 1: 'Activo', 2: 'Inactivo' };
  *   actual: así los conteos de las pestañas siguen siendo exactos.
  * - `dialog`: un registro con formulario propio (p. ej. la obra, con sus
  *   colecciones) reutiliza el listado con su diálogo. Recibe por ref
- *   `open(row?)`, y como props `title`, `idField`, `api` y `onSaved`.
+ *   `open(row?)`, y como props `title`, `idField`, `api`, `onSaved` y `feminine`.
+ * - Acciones con los tonos del tema de ActionButton, no colores fijos.
+ * - Tabla vacía: con búsqueda, lo dice; sin registros, ofrece crear el primero.
  */
 export default function MasterPage({
   title,
@@ -49,6 +51,8 @@ export default function MasterPage({
   formFields,
   defaultSort,
   rowLabel,
+  feminine = false,
+  pluralTitle,
   dialog: Dialog
 }) {
   const { hasPermission } = useAuth();
@@ -145,7 +149,7 @@ export default function MasterPage({
     const label = rowLabel(row);
     const items = [];
     if (can.edit) {
-      items.push({ label: 'Editar', icon: <IconEdit size={16} />, command: () => dialogRef.current?.open(row), color: '#fda53a' });
+      items.push({ label: 'Editar', icon: <IconEdit size={16} />, command: () => dialogRef.current?.open(row), tone: 'edit' });
     }
     if (can.changeStatus) {
       items.push(
@@ -154,12 +158,12 @@ export default function MasterPage({
               label: 'Desactivar',
               icon: <IconToggleLeft size={16} />,
               command: () => handleChangeStatus(row),
-              color: '#8e8e8e',
+              tone: 'neutral',
               confirm: `¿Desactivar "${label}"? No se podrá asignar en registros nuevos; los que ya lo tienen lo conservan.`,
               confirmLabel: 'Desactivar',
               confirmColor: 'warning'
             }
-          : { label: 'Activar', icon: <IconToggleRight size={16} />, command: () => handleChangeStatus(row), color: '#00c853' }
+          : { label: 'Activar', icon: <IconToggleRight size={16} />, command: () => handleChangeStatus(row), tone: 'success' }
       );
     }
     if (can.remove) {
@@ -167,7 +171,7 @@ export default function MasterPage({
         label: 'Eliminar',
         icon: <IconTrash size={16} />,
         command: () => handleRemove(row),
-        color: '#f43f51',
+        tone: 'danger',
         confirm: `¿Está seguro de eliminar "${label}"?`
       });
     }
@@ -175,6 +179,20 @@ export default function MasterPage({
   };
 
   const statusTabs = statusTabsWithCounts(statusCounts);
+  const openNew = () => dialogRef.current?.open();
+
+  const plural = (pluralTitle ?? `${lowerTitle}s`).toLowerCase();
+  const emptyMessage = search
+    ? `No hay resultados para «${search}».`
+    : status !== 'all'
+      ? `No hay ${plural} en este estado.`
+      : `Todavía no hay ${plural}.`;
+  const emptyAction =
+    !search && status === 'all' && can.create ? (
+      <Button variant="outlined" size="small" startIcon={<IconPlus size={16} />} onClick={openNew}>
+        {feminine ? 'Crear la primera' : 'Crear el primero'}
+      </Button>
+    ) : null;
 
   return (
     <MainCard
@@ -185,7 +203,7 @@ export default function MasterPage({
           <Stack direction="row" alignItems="center" sx={{ flexWrap: 'wrap', gap: 1.5, ml: 'auto' }}>
             <StatusTabs statusTabs={statusTabs} selectedStatus={status} onChange={handleStatus} />
             {can.create && (
-              <Button variant="contained" size="small" startIcon={<IconPlus size={16} />} onClick={() => dialogRef.current?.open()}>
+              <Button variant="contained" size="small" startIcon={<IconPlus size={16} />} onClick={openNew}>
                 Nuevo
               </Button>
             )}
@@ -211,12 +229,22 @@ export default function MasterPage({
         keyExtractor={(row) => row[idField]}
         cardTitleRender={rowLabel}
         actions={actionItems}
+        emptyMessage={emptyMessage}
+        emptyAction={emptyAction}
       />
 
       {Dialog ? (
-        <Dialog ref={dialogRef} title={title} idField={idField} api={api} onSaved={fetchRows} />
+        <Dialog ref={dialogRef} title={title} idField={idField} api={api} onSaved={fetchRows} feminine={feminine} />
       ) : (
-        <MasterDialog ref={dialogRef} title={title} idField={idField} fields={formFields} save={api.save} onSaved={fetchRows} />
+        <MasterDialog
+          ref={dialogRef}
+          title={title}
+          idField={idField}
+          fields={formFields}
+          save={api.save}
+          onSaved={fetchRows}
+          feminine={feminine}
+        />
       )}
     </MainCard>
   );
@@ -246,6 +274,10 @@ MasterPage.propTypes = {
   defaultSort: PropTypes.string.isRequired,
   /** Texto que identifica una fila en confirmaciones y en la vista de tarjetas. */
   rowLabel: PropTypes.func.isRequired,
+  /** Género del registro: "Nueva aseguradora", "Crear la primera". */
+  feminine: PropTypes.bool,
+  /** Plural para los mensajes de tabla vacía, si no basta con agregar "s": "Tipos de identificación". */
+  pluralTitle: PropTypes.string,
   /** Diálogo propio en lugar de MasterDialog (forwardRef con `open(row?)`). */
   dialog: PropTypes.elementType
 };

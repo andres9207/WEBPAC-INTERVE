@@ -2,7 +2,10 @@ import { useState, forwardRef, useImperativeHandle, useMemo, useCallback } from 
 import PropTypes from 'prop-types';
 import { useForm, FormProvider } from 'react-hook-form';
 import Button from '@mui/material/Button';
+import InputAdornment from '@mui/material/InputAdornment';
+import Stack from '@mui/material/Stack';
 
+import SubCard from 'ui-component/cards/SubCard';
 import BaseDialog from 'ui-component/extended/BaseDialog';
 import GenericFormSection from 'ui-component/extended/GenericFormSection';
 import EditableList from 'ui-component/extended/EditableList';
@@ -27,6 +30,10 @@ import { STATUS_OPTIONS } from 'utils/constants';
  * - Crear: clave de idempotencia nueva al abrir (FRONTEND_STANDARD, regla 7).
  * - Los permisos de responsables y etapas solo deshabilitan: el servidor los
  *   exige según lo que cambia.
+ * - Secciones con SubCard (Berry): datos generales, valores y plazos,
+ *   responsables y etapas. En teléfono ocupa toda la pantalla.
+ * - El orden de las etapas es su posición en la lista (flechas); se envía
+ *   renumerado 1, 2, 3…
  */
 
 const MONEY = { value: /^\d{1,16}(\.\d+)?$/, message: 'Solo números, con punto decimal' };
@@ -54,13 +61,22 @@ const EMPTY_FORM = {
   stages: []
 };
 
+const SECTIONS = [
+  { key: 'general', title: 'Datos generales' },
+  { key: 'values', title: 'Valores y plazos' },
+  { key: 'managers', title: 'Responsables' },
+  { key: 'stages', title: 'Etapas' }
+];
+
 let rowSeq = 0;
 const rowKey = (prefix) => `${prefix}-new-${(rowSeq += 1)}`;
 
 const toForm = (work) => ({
   ...Object.fromEntries(Object.keys(EMPTY_FORM).map((field) => [field, work[field] ?? ''])),
   managers: work.managers.map((m) => ({ key: `m-${m.wkmId}`, useId: m.useId, role: m.role, staId: m.staId })),
-  stages: work.stages.map((s) => ({ key: `s-${s.wksId}`, wksId: s.wksId, name: s.name, order: String(s.order), staId: s.staId }))
+  stages: [...work.stages]
+    .sort((a, b) => a.order - b.order)
+    .map((s) => ({ key: `s-${s.wksId}`, wksId: s.wksId, name: s.name, order: s.order, staId: s.staId }))
 });
 
 const text = (value) => String(value ?? '').trim();
@@ -100,7 +116,7 @@ const validateStages = (rows) => {
   return new Set(names).size === names.length || 'Hay etapas con el mismo nombre';
 };
 
-const WorkDialog = forwardRef(({ title, idField, api, onSaved }, ref) => {
+const WorkDialog = forwardRef(({ title, idField, api, onSaved, feminine = true }, ref) => {
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
   const perms = permissionsCatalog.work?.works;
@@ -173,7 +189,13 @@ const WorkDialog = forwardRef(({ title, idField, api, onSaved }, ref) => {
       maxLength: 20,
       validation: { ...(required ? { required: `El ${label.toLowerCase()} es requerido` } : {}), pattern: MONEY },
       grid,
-      props: { placeholder: '0.00' }
+      props: {
+        placeholder: '0.00',
+        slotProps: {
+          input: { startAdornment: <InputAdornment position="start">$</InputAdornment> },
+          htmlInput: { inputMode: 'decimal' }
+        }
+      }
     });
     const integer = (name, label, { required = false } = {}) => ({
       key: name,
@@ -183,7 +205,8 @@ const WorkDialog = forwardRef(({ title, idField, api, onSaved }, ref) => {
       required,
       maxLength: 6,
       validation: { ...(required ? { required: `El ${label.toLowerCase()} es requerido` } : {}), pattern: INTEGER },
-      grid: { xs: 12, sm: 6, md: 4 }
+      grid: { xs: 12, sm: 6, md: 4 },
+      props: { slotProps: { htmlInput: { inputMode: 'numeric' } } }
     });
     const master = (name, label, fetchApi, socketEvent) => ({
       key: name,
@@ -200,81 +223,103 @@ const WorkDialog = forwardRef(({ title, idField, api, onSaved }, ref) => {
     const userSelect = (row, rows) =>
       userOptions.filter((option) => option.value === row.useId || !rows.some((r) => r.useId === option.value));
 
-    return [
-      {
-        key: 'code',
-        name: 'code',
-        type: 'text',
-        label: 'Código',
-        required: true,
-        maxLength: 30,
-        validation: { required: 'El código es requerido' },
-        grid: { xs: 12, sm: 4 }
-      },
-      {
-        key: 'name',
-        name: 'name',
-        type: 'text',
-        label: 'Nombre',
-        required: true,
-        maxLength: 200,
-        validation: { required: 'El nombre es requerido' },
-        grid: { xs: 12, sm: 8 }
-      },
-      master('cncId', 'Constructora', fetchCompanies, 'refresh-construction-companies'),
-      master('cttId', 'Tipo de contrato', fetchContractTypes, 'refresh-contract-types'),
-      master('sptId', 'Tipo de interventoría', fetchSupervisionTypes, 'refresh-supervision-types'),
-      money('initialValue', 'Valor inicial', { required: true }),
-      money('extendedValue', 'Valor ampliado'),
-      money('maxServiceOrderValue', 'Valor máximo de orden de servicio'),
-      integer('initialTerm', 'Plazo inicial', { required: true }),
-      integer('extendedTerm', 'Plazo ampliado'),
-      money('directCost', 'Costo directo'),
-      money('area', 'Área total'),
-      {
-        key: 'managers',
-        name: 'managers',
-        type: 'custom',
-        label: 'Responsables',
-        required: true,
-        component: EditableList,
-        validation: { validate: validateManagers },
-        grid: { xs: 12 },
-        props: {
-          columns: [
-            { name: 'useId', label: 'Usuario', type: 'select', options: userSelect, grid: { xs: 12, sm: 6 } },
-            { name: 'role', label: 'Rol', type: 'select', options: ROLE_OPTIONS, grid: { xs: 6, sm: 3 } },
-            { name: 'staId', label: 'Estado', type: 'select', options: STATUS_OPTIONS, grid: { xs: 6, sm: true } }
-          ],
-          newRow: () => ({ key: rowKey('m'), useId: '', role: 'SUPPORT', staId: 1 }),
-          canAdd: canAssign,
-          canEdit: canAssign,
-          canRemove: canRemoveManager,
-          addLabel: 'Agregar responsable',
-          emptyText: 'Sin responsables.'
+    return {
+      general: [
+        {
+          key: 'code',
+          name: 'code',
+          type: 'text',
+          label: 'Código',
+          required: true,
+          maxLength: 30,
+          validation: { required: 'El código es requerido' },
+          grid: { xs: 12, sm: 4 }
+        },
+        {
+          key: 'name',
+          name: 'name',
+          type: 'text',
+          label: 'Nombre',
+          required: true,
+          maxLength: 200,
+          validation: { required: 'El nombre es requerido' },
+          grid: { xs: 12, sm: 8 }
+        },
+        master('cncId', 'Constructora', fetchCompanies, 'refresh-construction-companies'),
+        master('cttId', 'Tipo de contrato', fetchContractTypes, 'refresh-contract-types'),
+        master('sptId', 'Tipo de interventoría', fetchSupervisionTypes, 'refresh-supervision-types')
+      ],
+      values: [
+        money('initialValue', 'Valor inicial', { required: true }),
+        money('extendedValue', 'Valor ampliado'),
+        money('maxServiceOrderValue', 'Valor máximo de orden de servicio'),
+        integer('initialTerm', 'Plazo inicial', { required: true }),
+        integer('extendedTerm', 'Plazo ampliado'),
+        money('directCost', 'Costo directo'),
+        // Área: cantidad con decimales, no importe (sin "$").
+        {
+          key: 'area',
+          name: 'area',
+          type: 'text',
+          label: 'Área total',
+          maxLength: 20,
+          validation: { pattern: MONEY },
+          grid: { xs: 12, sm: 6, md: 4 },
+          props: { placeholder: '0.00', slotProps: { htmlInput: { inputMode: 'decimal' } } }
         }
-      },
-      {
-        key: 'stages',
-        name: 'stages',
-        type: 'custom',
-        label: 'Etapas',
-        component: EditableList,
-        validation: { validate: validateStages },
-        grid: { xs: 12 },
-        props: {
-          columns: [
-            { name: 'name', label: 'Nombre', type: 'text', maxLength: 100, grid: { xs: 12, sm: 6 } },
-            { name: 'order', label: 'Orden', type: 'number', maxLength: 4, grid: { xs: 6, sm: 2 } },
-            { name: 'staId', label: 'Estado', type: 'select', options: STATUS_OPTIONS, grid: { xs: 6, sm: true } }
-          ],
-          newRow: () => ({ key: rowKey('s'), name: '', order: '', staId: 1 }),
-          disabled: !canManageStages,
-          addLabel: 'Agregar etapa',
-          emptyText: 'Sin etapas.'
+      ],
+      managers: [
+        {
+          key: 'managers',
+          name: 'managers',
+          type: 'custom',
+          label: 'Responsables',
+          hideLabel: true,
+          required: true,
+          component: EditableList,
+          validation: { validate: validateManagers },
+          grid: { xs: 12 },
+          props: {
+            columns: [
+              { name: 'useId', label: 'Usuario', type: 'select', options: userSelect, grid: { xs: 12, sm: 6 } },
+              { name: 'role', label: 'Rol', type: 'select', options: ROLE_OPTIONS, grid: { xs: 6, sm: 3 } },
+              { name: 'staId', label: 'Estado', type: 'select', options: STATUS_OPTIONS, grid: { xs: 6, sm: true } }
+            ],
+            newRow: () => ({ key: rowKey('m'), useId: '', role: 'SUPPORT', staId: 1 }),
+            canAdd: canAssign,
+            canEdit: canAssign,
+            canRemove: canRemoveManager,
+            addLabel: 'Agregar responsable',
+            emptyText: 'Sin responsables.',
+            rowLabel: 'Responsable'
+          }
         }
-      }
-    ];
+      ],
+      stages: [
+        {
+          key: 'stages',
+          name: 'stages',
+          type: 'custom',
+          label: 'Etapas',
+          hideLabel: true,
+          component: EditableList,
+          validation: { validate: validateStages },
+          grid: { xs: 12 },
+          props: {
+            columns: [
+              { name: 'name', label: 'Nombre', type: 'text', maxLength: 100, grid: { xs: 12, sm: true } },
+              { name: 'staId', label: 'Estado', type: 'select', options: STATUS_OPTIONS, grid: { xs: 12, sm: 3 } }
+            ],
+            newRow: () => ({ key: rowKey('s'), name: '', order: 0, staId: 1 }),
+            orderField: 'order',
+            disabled: !canManageStages,
+            addLabel: 'Agregar etapa',
+            emptyText: 'Sin etapas.',
+            rowLabel: 'Etapa'
+          }
+        }
+      ]
+    };
   }, [fetchCompanies, fetchContractTypes, fetchSupervisionTypes, userOptions, canAssign, canRemoveManager, canManageStages]);
 
   const onSubmit = async (form) => {
@@ -295,20 +340,29 @@ const WorkDialog = forwardRef(({ title, idField, api, onSaved }, ref) => {
     <BaseDialog
       open={visible}
       onClose={() => setVisible(false)}
-      title={`${isEdit ? 'Editar' : 'Nueva'} ${title.toLowerCase()}`}
+      title={`${isEdit ? 'Editar' : feminine ? 'Nueva' : 'Nuevo'} ${title.toLowerCase()}`}
       maxWidth="md"
+      fullScreenOnMobile
       loading={loading}
       actions={
         <>
-          <Button onClick={() => setVisible(false)}>Cancelar</Button>
+          <Button onClick={() => setVisible(false)} disabled={saving}>
+            Cancelar
+          </Button>
           <Button variant="contained" color="secondary" onClick={handleSubmit(onSubmit)} disabled={loading || saving}>
-            {isEdit ? 'Guardar Cambios' : 'Guardar'}
+            {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar'}
           </Button>
         </>
       }
     >
       <FormProvider {...methods}>
-        <GenericFormSection fields={fields} />
+        <Stack spacing={2}>
+          {SECTIONS.map(({ key, title: sectionTitle }) => (
+            <SubCard key={key} title={sectionTitle} contentSX={{ pt: 0.5 }}>
+              <GenericFormSection fields={fields[key]} />
+            </SubCard>
+          ))}
+        </Stack>
       </FormProvider>
     </BaseDialog>
   );
@@ -318,7 +372,8 @@ WorkDialog.propTypes = {
   title: PropTypes.string.isRequired,
   idField: PropTypes.string.isRequired,
   api: PropTypes.shape({ getById: PropTypes.func.isRequired, save: PropTypes.func.isRequired }).isRequired,
-  onSaved: PropTypes.func
+  onSaved: PropTypes.func,
+  feminine: PropTypes.bool
 };
 
 export default WorkDialog;

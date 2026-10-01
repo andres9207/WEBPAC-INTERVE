@@ -15,7 +15,7 @@ Carga progresiva: no hace falta leer todo en cada tarea.
 | | Entidad con estados → [`standards/WORKFLOW_STANDARD.md`](standards/WORKFLOW_STANDARD.md) + [`patterns/STATE_MACHINE.md`](patterns/STATE_MACHINE.md) |
 | | Endpoint nuevo o modificado → [`standards/ENDPOINT_STANDARD.md`](standards/ENDPOINT_STANDARD.md) (**obligatorio**) |
 | | Cambio de BD → [`standards/DATABASE_STANDARD.md`](standards/DATABASE_STANDARD.md) |
-| | Pantalla → [`standards/FRONTEND_STANDARD.md`](standards/FRONTEND_STANDARD.md) |
+| | Pantalla → [`standards/FRONTEND_STANDARD.md`](standards/FRONTEND_STANDARD.md) + [`standards/DESIGN_SYSTEM.md`](standards/DESIGN_SYSTEM.md) |
 | | Cualquier cambio → las invariantes que toque, en [`invariants/`](invariants/README.md), y los ADR del módulo |
 
 ## Mapa de la carpeta

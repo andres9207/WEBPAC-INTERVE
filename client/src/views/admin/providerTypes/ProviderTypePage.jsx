@@ -27,6 +27,7 @@ export default function ProviderTypePage() {
   return (
     <MasterPage
       title="Tipo de proveedor"
+      pluralTitle="Tipos de proveedor"
       idField="pvtId"
       api={providerTypesApi}
       permissions={permissionsCatalog.admin?.providerTypes}

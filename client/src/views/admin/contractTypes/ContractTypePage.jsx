@@ -27,6 +27,7 @@ export default function ContractTypePage() {
   return (
     <MasterPage
       title="Tipo de contrato"
+      pluralTitle="Tipos de contrato"
       idField="cttId"
       api={contractTypesApi}
       permissions={permissionsCatalog.admin?.contractTypes}

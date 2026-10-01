@@ -59,6 +59,12 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 | Nombres de los archivos de API del cliente mezclados: `authAPI.js`, `documentsAPI.js` frente a `usersApi.js`, `profilesApi.js`, `appApi.js`, `permissionsApi.js`, `notificationsApi.js`. `client/CLAUDE.md` dice `<dominio>API.js` | Baja | Descubrimiento de `engineering/` |
 | `ProfileDialog.jsx` y otros diálogos hacen `console.error` en la carga de datos auxiliares sin avisar al usuario (`getModules`) | Baja | Descubrimiento de `engineering/` |
 | `AUDIT_ENTITIES` solo tiene `USUARIO` y `PERFIL`: los documentos son auditoría técnica sin bitácora, a propósito (`server/CLAUDE.md`). Revisar al crear el primer módulo de negocio | Baja | ADR-0013 |
+| El dashboard (`views/dashboard/Default`) muestra tarjetas de ejemplo de otro negocio (Ventas, Pedidos, Productos) con números fijos y colores hex. Reemplazar por accesos a los módulos o dejarlo vacío hasta ADR-0002 | Media | Revisión UX 2026-10-01 |
+| Restos de la plantilla sin ruta: `views/utilities/*` y `views/sample-page`. Borrarlos requiere aprobación | Baja | Revisión UX 2026-10-01 |
+| `UsersPage` y `ProfilePage` repiten la lógica de listado de `MasterPage` (búsqueda, pestañas, paginación). Una prop para acciones extra (Permisos) permitiría reutilizarla | Baja | Revisión UX 2026-10-01 |
+| Contraste del tema base de Berry por debajo de WCAG AA: chips de estado `warning` (~1,5:1), `success` (~2:1) y `error` (~3,3:1), y botón contenido `primary` (~3,1:1). Propuesta en [`DESIGN_SYSTEM`](../standards/DESIGN_SYSTEM.md), "Problemas conocidos"; se corrige en `themes/overrides/Chip.jsx` y la paleta | Media | Revisión UX 2026-10-01 |
+| Colores hex fijos en `CardGrid`, `PermissionsDrawer` y el dashboard. El tema solo define el esquema claro (`themes/index.jsx`), así que hoy no hay modo oscuro que romper; si se agrega, hay que pasarlos a la paleta | Baja | Revisión UX 2026-10-01 |
+| `GenericFormSection` tipo `currency` convierte el importe con `Number`, contra [DEC-028](../decisiones/DEC-028-convencion-monetaria.md). No lo usa ningún formulario; los importes de obra van como `text` con prefijo `$` | Baja | Revisión UX 2026-10-01 |
 
 ## Documentación
 

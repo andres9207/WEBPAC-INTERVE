@@ -27,6 +27,7 @@ export default function InsurerPage() {
   return (
     <MasterPage
       title="Aseguradora"
+      feminine
       idField="insId"
       api={insurersApi}
       permissions={permissionsCatalog.admin?.insurers}
