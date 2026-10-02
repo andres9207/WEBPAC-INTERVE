@@ -8,6 +8,8 @@ import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
+import { resolveContractFields } from "../../admin/contractTypes/contractTypeFields.service.js";
+import { FIELD_GROUPS, enforceFields } from "../../admin/contractTypes/contractFields.js";
 import {
   CONCEPT_TYPES,
   CONCEPT_TYPE_NAMES,
@@ -37,6 +39,10 @@ import {
  * - Fecha fin: la calcula contractEndDate, nunca el cliente.
  * - Estado: solo cambia por las transiciones de contractTerms.js, con
  *   historial. Editar exige que el estado lo admita (409 si no).
+ * - Campos configurables (etapa, observaciones, porcentajes; DEC-037): se
+ *   aplican con la configuración actual del tipo, resuelta dentro de la
+ *   transacción por la misma función que entrega los descriptores al
+ *   formulario. El contrato guarda la versión con que se capturó.
  */
 
 export const ACTIVE_STATUS = 1;
@@ -448,12 +454,33 @@ export const getContractFormOptions = async ({ wrkId, includeWksId, includePrvId
   };
 };
 
+/**
+ * Descriptores de campo de un tipo de contrato para el formulario (ADR-0006,
+ * decisión 5): la configuración actual o, con `version`, la de esa versión.
+ * El cliente no deduce la configuración: la recibe.
+ */
+export const getContractFields = async ({ cttId, version }) => {
+  const type = await prisma.tbl_contract_types.findUnique({
+    where: { ctt_id: Number(cttId) },
+    select: { ctt_id: true, ctt_config_version: true, sta_id: true },
+  });
+  if (!type || type.sta_id === DELETED_STATUS) throw httpError(404, "No se encontró el tipo de contrato.");
+  const byVersion = Number(version) > 0;
+  const configVersion = byVersion ? Number(version) : type.ctt_config_version;
+  return {
+    cttId: type.ctt_id,
+    configVersion,
+    currentVersion: type.ctt_config_version,
+    fields: await resolveContractFields(prisma, type.ctt_id, byVersion ? { version: configVersion } : {}),
+  };
+};
+
 // ─── Guardado ────────────────────────────────────────────────────────────────
 
 /** Cabecera del cliente → columnas. La fecha fin y el estado nunca vienen del cliente. */
 const headerValuesOf = (input) => ({
   prv_id: Number(input.prvId),
-  wks_id: Number(input.wksId),
+  wks_id: Number(input.wksId) > 0 ? Number(input.wksId) : null,
   ctt_id: Number(input.cttId),
   ctr_number: text(input.number),
   ctr_name: text(input.name),
@@ -477,8 +504,9 @@ const assertWork = async (tx, wrkId, { isNew }) => {
   if (isNew && work.sta_id !== ACTIVE_STATUS) throw httpError(400, `La obra ${work.wrk_code} está inactiva: no admite contratos nuevos.`);
 };
 
-/** La etapa es de la obra (ADR-0015, regla 2) y está activa, salvo que sea la que ya tenía. */
+/** La etapa, si hay, es de la obra (ADR-0015, regla 2) y está activa, salvo que sea la que ya tenía. */
 const assertStage = async (tx, { wrkId, wksId, currentWksId }) => {
+  if (wksId === null) return;
   const stage = await tx.tbl_work_stages.findUnique({ where: { wks_id: wksId }, select: { wrk_id: true, sta_id: true, wks_name: true } });
   if (!stage || stage.wrk_id !== wrkId) throw httpError(400, "La etapa seleccionada no pertenece a la obra del contrato.");
   if (stage.sta_id !== ACTIVE_STATUS && wksId !== currentWksId) {
@@ -515,6 +543,12 @@ const assertHeader = (values) => {
   if (!values.ctr_start_date) throw httpError(400, "La fecha de inicio no es una fecha válida.");
 };
 
+/** Versión vigente de la configuración del tipo (bloqueado por quien llama). */
+const typeConfigVersion = async (tx, cttId) => {
+  const type = await tx.tbl_contract_types.findUnique({ where: { ctt_id: cttId }, select: { ctt_config_version: true } });
+  return type.ctt_config_version;
+};
+
 const IDEMPOTENCY_TARGET = {
   model: prisma.tbl_contracts,
   keyField: "ctr_idempotency_key",
@@ -524,12 +558,25 @@ const IDEMPOTENCY_TARGET = {
   toResult: (row) => ({ message: "Contrato creado correctamente", ctrId: row.ctr_id }),
 };
 
-const createContract = ({ wrkId, values, initialConcept, useBy, ctx, idempotencyData }) =>
-  withLockedTransaction({ OBRA: wrkId, PROVEEDOR: values.prv_id, TIPO_CONTRATO: values.ctt_id }, async (tx) => {
+const createContract = ({ wrkId, input, useBy, ctx, idempotencyData }) =>
+  withLockedTransaction({ OBRA: wrkId, PROVEEDOR: Number(input.prvId), TIPO_CONTRATO: Number(input.cttId) }, async (tx) => {
+    const cttId = Number(input.cttId);
+    await contractTypesService.assertAssignable(tx, cttId);
+    // Configuración del tipo, con el tipo bloqueado: la versión que se guarda
+    // es la que se aplicó.
+    const descriptors = await resolveContractFields(tx, cttId);
+    const values = {
+      ...headerValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONTRACT, input })),
+      ctr_config_version: await typeConfigVersion(tx, cttId),
+    };
+    // El valor inicial toma la fecha del contrato y no lleva descripción propia.
+    const { ccp_start_date: _start, ccp_description: _description, ...initialConcept } = conceptValuesOf(
+      enforceFields({ descriptors, group: FIELD_GROUPS.CONCEPT, input: input.initialConcept ?? {}, skip: ["CONCEPT_DESCRIPTION"] })
+    );
+
     await assertWork(tx, wrkId, { isNew: true });
     await assertStage(tx, { wrkId, wksId: values.wks_id });
     await assertProviderAssigned(tx, { wrkId, prvId: values.prv_id });
-    await contractTypesService.assertAssignable(tx, values.ctt_id);
     await assertUniqueNumber(tx, { wrkId, number: values.ctr_number });
 
     // Sin otrosí ni suspensiones todavía: inicio + plazo.
@@ -592,7 +639,7 @@ const createContract = ({ wrkId, values, initialConcept, useBy, ctx, idempotency
 
 // Editar fija la cabecera: repetirlo deja lo mismo, así que se puede
 // reintentar ante un interbloqueo. La obra no cambia.
-const updateContract = async ({ ctrId, values, useBy, ctx }) => {
+const updateContract = async ({ ctrId, input, useBy, ctx }) => {
   // La obra del contrato no cambia nunca después de crearlo, así que leerla
   // antes del bloqueo no da una foto vieja de nada que decida: solo dice qué
   // obra bloquear primero (ADR-0027, regla 3). Bajo bloqueo se vuelve a leer.
@@ -600,16 +647,24 @@ const updateContract = async ({ ctrId, values, useBy, ctx }) => {
   if (!known) throw httpError(404, "No se encontró el contrato.");
 
   return withLockedTransaction(
-    { OBRA: known.wrk_id, PROVEEDOR: values.prv_id, CONTRATO: ctrId, TIPO_CONTRATO: values.ctt_id },
+    { OBRA: known.wrk_id, PROVEEDOR: Number(input.prvId), CONTRATO: ctrId, TIPO_CONTRATO: Number(input.cttId) },
     async (tx) => {
       const before = await findLockedContract(tx, ctrId);
       assertStateAllows(before.ctr_state, "editContract");
       const wrkId = before.wrk_id;
+      const cttId = Number(input.cttId);
+      await contractTypesService.assertAssignable(tx, cttId, before.ctt_id);
+
+      // Configuración actual del tipo. Un valor guardado en un campo que dejó
+      // de aplicar se conserva como heredado (ADR-0006, decisiones 7 y 8).
+      const descriptors = await resolveContractFields(tx, cttId);
+      const values = headerValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONTRACT, input, before }));
+      // Si cambia el tipo, el contrato pasa a registrar la versión del nuevo.
+      if (cttId !== before.ctt_id) values.ctr_config_version = await typeConfigVersion(tx, cttId);
 
       await assertWork(tx, wrkId, { isNew: false });
       await assertStage(tx, { wrkId, wksId: values.wks_id, currentWksId: before.wks_id });
       await assertProviderAssigned(tx, { wrkId, prvId: values.prv_id, currentPrvId: before.prv_id });
-      await contractTypesService.assertAssignable(tx, values.ctt_id, before.ctt_id);
       await assertUniqueNumber(tx, { wrkId, number: values.ctr_number, excludeId: before.ctr_id });
 
       // La fecha fin se recalcula en la misma transacción (ADR-0015, decisión 5).
@@ -645,10 +700,11 @@ export const saveContract = async ({ ctrId, input, useBy, ctx = { useId: useBy }
   const values = headerValuesOf(input);
   assertHeader(values);
 
-  if (Number(ctrId) > 0) return updateContract({ ctrId: Number(ctrId), values, useBy: Number(useBy), ctx });
+  if (Number(ctrId) > 0) return updateContract({ ctrId: Number(ctrId), input, useBy: Number(useBy), ctx });
 
   const wrkId = Number(input.wrkId);
-  // El valor inicial toma la fecha del contrato y no lleva descripción propia.
+  // La huella de idempotencia es de lo que pidió el cliente; la
+  // configuración del tipo se aplica dentro de la transacción.
   const { ccp_start_date: _start, ccp_description: _description, ...initialConcept } = conceptValuesOf(input.initialConcept ?? {});
 
   // La clave se busca antes que el número repetido: el reintento de una
@@ -658,7 +714,7 @@ export const saveContract = async ({ ctrId, input, useBy, ctx = { useId: useBy }
     key: idempotencyKey,
     ownerId: useBy,
     payload: { wrkId, ...auditableContract(values), initialConcept: auditableConcept(initialConcept) },
-    execute: (idempotencyData) => createContract({ wrkId, values, initialConcept, useBy: Number(useBy), ctx, idempotencyData }),
+    execute: (idempotencyData) => createContract({ wrkId, input, useBy: Number(useBy), ctx, idempotencyData }),
   });
 };
 

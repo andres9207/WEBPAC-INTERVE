@@ -213,92 +213,95 @@ model tbl_user_permissions {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model tbl_users {
-  use_id                         Int                           @id @default(autoincrement())
-  use_name                       String?                       @db.VarChar(255)
-  use_last_name                  String?                       @db.VarChar(255)
-  use_identification             String?                       @db.VarChar(255)
+  use_id                         Int                                @id @default(autoincrement())
+  use_name                       String?                            @db.VarChar(255)
+  use_last_name                  String?                            @db.VarChar(255)
+  use_identification             String?                            @db.VarChar(255)
   idd_id                         Int?
-  use_user                       String?                       @unique(map: "use_user") @db.VarChar(100)
-  use_email                      String?                       @unique(map: "use_email") @db.VarChar(255)
-  use_password                   String?                       @db.VarChar(255)
+  use_user                       String?                            @unique(map: "use_user") @db.VarChar(100)
+  use_email                      String?                            @unique(map: "use_email") @db.VarChar(255)
+  use_password                   String?                            @db.VarChar(255)
   pro_id                         Int?
-  sta_id                         Int?                          @default(1)
-  use_access                     Int?                          @default(1) @db.SmallInt
-  use_change_password            Int?                          @default(1) @db.SmallInt
+  sta_id                         Int?                               @default(1)
+  use_access                     Int?                               @default(1) @db.SmallInt
+  use_change_password            Int?                               @default(1) @db.SmallInt
   use_create_by                  Int?
-  use_create_at                  DateTime?                     @default(now()) @db.Timestamp(0)
+  use_create_at                  DateTime?                          @default(now()) @db.Timestamp(0)
   use_update_by                  Int?
-  use_update_at                  DateTime?                     @default(now()) @db.Timestamp(0)
+  use_update_at                  DateTime?                          @default(now()) @db.Timestamp(0)
   use_delete_by                  Int?
-  use_delete_at                  DateTime?                     @db.Timestamp(0)
-  use_idempotency_key            String?                       @unique(map: "uq_users_idempotency_key") @db.Char(36)
-  use_idempotency_hash           String?                       @db.Char(64)
-  address_types_created          tbl_address_types[]           @relation("AddressTypeCreatedBy")
-  address_types_deleted          tbl_address_types[]           @relation("AddressTypeDeletedBy")
-  address_types_updated          tbl_address_types[]           @relation("AddressTypeUpdatedBy")
+  use_delete_at                  DateTime?                          @db.Timestamp(0)
+  use_idempotency_key            String?                            @unique(map: "uq_users_idempotency_key") @db.Char(36)
+  use_idempotency_hash           String?                            @db.Char(64)
+  address_types_created          tbl_address_types[]                @relation("AddressTypeCreatedBy")
+  address_types_deleted          tbl_address_types[]                @relation("AddressTypeDeletedBy")
+  address_types_updated          tbl_address_types[]                @relation("AddressTypeUpdatedBy")
   tbl_audit_log                  tbl_audit_log[]
-  construction_companies_created tbl_construction_companies[]  @relation("ConstructionCompanyCreatedBy")
-  construction_companies_deleted tbl_construction_companies[]  @relation("ConstructionCompanyDeletedBy")
-  construction_companies_updated tbl_construction_companies[]  @relation("ConstructionCompanyUpdatedBy")
-  contract_types_created         tbl_contract_types[]          @relation("ContractTypeCreatedBy")
-  contract_types_deleted         tbl_contract_types[]          @relation("ContractTypeDeletedBy")
-  contract_types_updated         tbl_contract_types[]          @relation("ContractTypeUpdatedBy")
-  contracts_created              tbl_contracts[]               @relation("ContractCreatedBy")
-  contracts_deleted              tbl_contracts[]               @relation("ContractDeletedBy")
-  contracts_updated              tbl_contracts[]               @relation("ContractUpdatedBy")
-  contract_concepts_created      tbl_contract_concepts[]       @relation("ContractConceptCreatedBy")
-  contract_concepts_updated      tbl_contract_concepts[]       @relation("ContractConceptUpdatedBy")
-  contract_status_history        tbl_contract_status_history[] @relation("ContractStatusHistoryCreatedBy")
-  work_managers                  tbl_work_managers[]           @relation("WorkManagerUser")
-  work_managers_created          tbl_work_managers[]           @relation("WorkManagerCreatedBy")
-  work_managers_updated          tbl_work_managers[]           @relation("WorkManagerUpdatedBy")
-  work_stages_created            tbl_work_stages[]             @relation("WorkStageCreatedBy")
-  work_stages_updated            tbl_work_stages[]             @relation("WorkStageUpdatedBy")
-  works_created                  tbl_works[]                   @relation("WorkCreatedBy")
-  works_deleted                  tbl_works[]                   @relation("WorkDeletedBy")
-  works_updated                  tbl_works[]                   @relation("WorkUpdatedBy")
-  work_providers_created         tbl_work_providers[]          @relation("WorkProviderCreatedBy")
-  work_providers_updated         tbl_work_providers[]          @relation("WorkProviderUpdatedBy")
-  providers_created              tbl_providers[]               @relation("ProviderCreatedBy")
-  providers_deleted              tbl_providers[]               @relation("ProviderDeletedBy")
-  providers_updated              tbl_providers[]               @relation("ProviderUpdatedBy")
-  provider_contacts_created      tbl_provider_contacts[]       @relation("ProviderContactCreatedBy")
-  provider_contacts_updated      tbl_provider_contacts[]       @relation("ProviderContactUpdatedBy")
-  documents_created              tbl_documents[]               @relation("DocumentCreatedBy")
-  documents_deleted              tbl_documents[]               @relation("DocumentDeletedBy")
-  documents_updated              tbl_documents[]               @relation("DocumentUpdatedBy")
-  identity_documents_created     tbl_identity_documents[]      @relation("IdentityDocumentCreatedBy")
-  identity_documents_deleted     tbl_identity_documents[]      @relation("IdentityDocumentDeletedBy")
-  identity_documents_updated     tbl_identity_documents[]      @relation("IdentityDocumentUpdatedBy")
-  insurers_created               tbl_insurers[]                @relation("InsurerCreatedBy")
-  insurers_deleted               tbl_insurers[]                @relation("InsurerDeletedBy")
-  insurers_updated               tbl_insurers[]                @relation("InsurerUpdatedBy")
+  construction_companies_created tbl_construction_companies[]       @relation("ConstructionCompanyCreatedBy")
+  construction_companies_deleted tbl_construction_companies[]       @relation("ConstructionCompanyDeletedBy")
+  construction_companies_updated tbl_construction_companies[]       @relation("ConstructionCompanyUpdatedBy")
+  contract_types_created         tbl_contract_types[]               @relation("ContractTypeCreatedBy")
+  contract_types_deleted         tbl_contract_types[]               @relation("ContractTypeDeletedBy")
+  contract_types_updated         tbl_contract_types[]               @relation("ContractTypeUpdatedBy")
+  contracts_created              tbl_contracts[]                    @relation("ContractCreatedBy")
+  contracts_deleted              tbl_contracts[]                    @relation("ContractDeletedBy")
+  contracts_updated              tbl_contracts[]                    @relation("ContractUpdatedBy")
+  contract_concepts_created      tbl_contract_concepts[]            @relation("ContractConceptCreatedBy")
+  contract_concepts_updated      tbl_contract_concepts[]            @relation("ContractConceptUpdatedBy")
+  contract_status_history        tbl_contract_status_history[]      @relation("ContractStatusHistoryCreatedBy")
+  contract_type_fields_created   tbl_contract_type_fields[]         @relation("ContractTypeFieldCreatedBy")
+  contract_type_fields_updated   tbl_contract_type_fields[]         @relation("ContractTypeFieldUpdatedBy")
+  contract_type_field_versions   tbl_contract_type_field_versions[] @relation("ContractTypeFieldVersionCreatedBy")
+  work_managers                  tbl_work_managers[]                @relation("WorkManagerUser")
+  work_managers_created          tbl_work_managers[]                @relation("WorkManagerCreatedBy")
+  work_managers_updated          tbl_work_managers[]                @relation("WorkManagerUpdatedBy")
+  work_stages_created            tbl_work_stages[]                  @relation("WorkStageCreatedBy")
+  work_stages_updated            tbl_work_stages[]                  @relation("WorkStageUpdatedBy")
+  works_created                  tbl_works[]                        @relation("WorkCreatedBy")
+  works_deleted                  tbl_works[]                        @relation("WorkDeletedBy")
+  works_updated                  tbl_works[]                        @relation("WorkUpdatedBy")
+  work_providers_created         tbl_work_providers[]               @relation("WorkProviderCreatedBy")
+  work_providers_updated         tbl_work_providers[]               @relation("WorkProviderUpdatedBy")
+  providers_created              tbl_providers[]                    @relation("ProviderCreatedBy")
+  providers_deleted              tbl_providers[]                    @relation("ProviderDeletedBy")
+  providers_updated              tbl_providers[]                    @relation("ProviderUpdatedBy")
+  provider_contacts_created      tbl_provider_contacts[]            @relation("ProviderContactCreatedBy")
+  provider_contacts_updated      tbl_provider_contacts[]            @relation("ProviderContactUpdatedBy")
+  documents_created              tbl_documents[]                    @relation("DocumentCreatedBy")
+  documents_deleted              tbl_documents[]                    @relation("DocumentDeletedBy")
+  documents_updated              tbl_documents[]                    @relation("DocumentUpdatedBy")
+  identity_documents_created     tbl_identity_documents[]           @relation("IdentityDocumentCreatedBy")
+  identity_documents_deleted     tbl_identity_documents[]           @relation("IdentityDocumentDeletedBy")
+  identity_documents_updated     tbl_identity_documents[]           @relation("IdentityDocumentUpdatedBy")
+  insurers_created               tbl_insurers[]                     @relation("InsurerCreatedBy")
+  insurers_deleted               tbl_insurers[]                     @relation("InsurerDeletedBy")
+  insurers_updated               tbl_insurers[]                     @relation("InsurerUpdatedBy")
   tbl_login_attempts             tbl_login_attempts?
   tbl_notifications              tbl_notifications[]
-  password_resets_created        tbl_password_resets[]         @relation("PasswordResetCreatedBy")
-  password_resets_updated        tbl_password_resets[]         @relation("PasswordResetUpdatedBy")
-  tbl_password_resets            tbl_password_resets?          @relation("PasswordResetUser")
-  profiles_created               tbl_profiles[]                @relation("ProfileCreatedBy")
-  profiles_deleted               tbl_profiles[]                @relation("ProfileDeletedBy")
-  profiles_updated               tbl_profiles[]                @relation("ProfileUpdatedBy")
-  provider_types_created         tbl_provider_types[]          @relation("ProviderTypeCreatedBy")
-  provider_types_deleted         tbl_provider_types[]          @relation("ProviderTypeDeletedBy")
-  provider_types_updated         tbl_provider_types[]          @relation("ProviderTypeUpdatedBy")
+  password_resets_created        tbl_password_resets[]              @relation("PasswordResetCreatedBy")
+  password_resets_updated        tbl_password_resets[]              @relation("PasswordResetUpdatedBy")
+  tbl_password_resets            tbl_password_resets?               @relation("PasswordResetUser")
+  profiles_created               tbl_profiles[]                     @relation("ProfileCreatedBy")
+  profiles_deleted               tbl_profiles[]                     @relation("ProfileDeletedBy")
+  profiles_updated               tbl_profiles[]                     @relation("ProfileUpdatedBy")
+  provider_types_created         tbl_provider_types[]               @relation("ProviderTypeCreatedBy")
+  provider_types_deleted         tbl_provider_types[]               @relation("ProviderTypeDeletedBy")
+  provider_types_updated         tbl_provider_types[]               @relation("ProviderTypeUpdatedBy")
   tbl_sessions                   tbl_sessions?
-  supervision_types_created      tbl_supervision_types[]       @relation("SupervisionTypeCreatedBy")
-  supervision_types_deleted      tbl_supervision_types[]       @relation("SupervisionTypeDeletedBy")
-  supervision_types_updated      tbl_supervision_types[]       @relation("SupervisionTypeUpdatedBy")
+  supervision_types_created      tbl_supervision_types[]            @relation("SupervisionTypeCreatedBy")
+  supervision_types_deleted      tbl_supervision_types[]            @relation("SupervisionTypeDeletedBy")
+  supervision_types_updated      tbl_supervision_types[]            @relation("SupervisionTypeUpdatedBy")
   tbl_user_pages                 tbl_user_pages[]
   tbl_user_permissions           tbl_user_permissions[]
-  created_by_user                tbl_users?                    @relation("UserCreatedBy", fields: [use_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_create_by")
-  users_created                  tbl_users[]                   @relation("UserCreatedBy")
-  deleted_by_user                tbl_users?                    @relation("UserDeletedBy", fields: [use_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_delete_by")
-  users_deleted                  tbl_users[]                   @relation("UserDeletedBy")
-  tbl_identity_documents         tbl_identity_documents?       @relation("UserIdentityDocument", fields: [idd_id], references: [idd_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_identity_documents")
-  tbl_profiles                   tbl_profiles?                 @relation("UserProfile", fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_profiles")
-  tbl_status                     tbl_status?                   @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_status")
-  updated_by_user                tbl_users?                    @relation("UserUpdatedBy", fields: [use_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_update_by")
-  users_updated                  tbl_users[]                   @relation("UserUpdatedBy")
+  created_by_user                tbl_users?                         @relation("UserCreatedBy", fields: [use_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_create_by")
+  users_created                  tbl_users[]                        @relation("UserCreatedBy")
+  deleted_by_user                tbl_users?                         @relation("UserDeletedBy", fields: [use_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_delete_by")
+  users_deleted                  tbl_users[]                        @relation("UserDeletedBy")
+  tbl_identity_documents         tbl_identity_documents?            @relation("UserIdentityDocument", fields: [idd_id], references: [idd_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_identity_documents")
+  tbl_profiles                   tbl_profiles?                      @relation("UserProfile", fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_profiles")
+  tbl_status                     tbl_status?                        @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_status")
+  updated_by_user                tbl_users?                         @relation("UserUpdatedBy", fields: [use_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_update_by")
+  users_updated                  tbl_users[]                        @relation("UserUpdatedBy")
 
   @@index([pro_id], map: "tbl_users_profiles")
   @@index([sta_id], map: "tbl_users_status")
@@ -516,25 +519,27 @@ model tbl_construction_companies {
 /// ctt_name_active es una columna GENERADA por MySQL (respalda la unicidad entre no eliminados):
 /// nunca se escribe desde el código.
 model tbl_contract_types {
-  ctt_id               Int             @id @default(autoincrement())
-  ctt_name             String          @db.VarChar(100)
-  ctt_config_version   Int             @default(1)
-  sta_id               Int             @default(1)
-  ctt_create_by        Int?
-  ctt_create_at        DateTime?       @default(now()) @db.Timestamp(0)
-  ctt_update_by        Int?
-  ctt_update_at        DateTime?       @default(now()) @db.Timestamp(0)
-  ctt_delete_by        Int?
-  ctt_delete_at        DateTime?       @db.Timestamp(0)
-  ctt_idempotency_key  String?         @unique(map: "uq_contract_types_idempotency_key") @db.Char(36)
-  ctt_idempotency_hash String?         @db.Char(64)
-  ctt_name_active      String?         @unique(map: "uq_contract_types_name_active") @db.VarChar(100)
-  created_by_user      tbl_users?      @relation("ContractTypeCreatedBy", fields: [ctt_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_types_create_by")
-  deleted_by_user      tbl_users?      @relation("ContractTypeDeletedBy", fields: [ctt_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_types_delete_by")
-  tbl_status           tbl_status      @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_contract_types_status")
-  updated_by_user      tbl_users?      @relation("ContractTypeUpdatedBy", fields: [ctt_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_types_update_by")
-  tbl_contracts        tbl_contracts[]
-  tbl_works            tbl_works[]
+  ctt_id                           Int                                @id @default(autoincrement())
+  ctt_name                         String                             @db.VarChar(100)
+  ctt_config_version               Int                                @default(1)
+  sta_id                           Int                                @default(1)
+  ctt_create_by                    Int?
+  ctt_create_at                    DateTime?                          @default(now()) @db.Timestamp(0)
+  ctt_update_by                    Int?
+  ctt_update_at                    DateTime?                          @default(now()) @db.Timestamp(0)
+  ctt_delete_by                    Int?
+  ctt_delete_at                    DateTime?                          @db.Timestamp(0)
+  ctt_idempotency_key              String?                            @unique(map: "uq_contract_types_idempotency_key") @db.Char(36)
+  ctt_idempotency_hash             String?                            @db.Char(64)
+  ctt_name_active                  String?                            @unique(map: "uq_contract_types_name_active") @db.VarChar(100)
+  created_by_user                  tbl_users?                         @relation("ContractTypeCreatedBy", fields: [ctt_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_types_create_by")
+  deleted_by_user                  tbl_users?                         @relation("ContractTypeDeletedBy", fields: [ctt_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_types_delete_by")
+  tbl_status                       tbl_status                         @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_contract_types_status")
+  updated_by_user                  tbl_users?                         @relation("ContractTypeUpdatedBy", fields: [ctt_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_types_update_by")
+  tbl_contracts                    tbl_contracts[]
+  tbl_works                        tbl_works[]
+  tbl_contract_type_fields         tbl_contract_type_fields[]
+  tbl_contract_type_field_versions tbl_contract_type_field_versions[]
 
   @@index([ctt_create_by], map: "tbl_contract_types_create_by")
   @@index([ctt_delete_by], map: "tbl_contract_types_delete_by")
@@ -762,7 +767,7 @@ model tbl_contracts {
   ctr_id                      Int                           @id @default(autoincrement())
   wrk_id                      Int
   prv_id                      Int
-  wks_id                      Int
+  wks_id                      Int?
   ctt_id                      Int
   ctr_number                  String                        @db.VarChar(50)
   ctr_name                    String                        @db.VarChar(200)
@@ -794,7 +799,7 @@ model tbl_contracts {
   updated_by_user             tbl_users?                    @relation("ContractUpdatedBy", fields: [ctr_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contracts_update_by")
   tbl_works                   tbl_works                     @relation(fields: [wrk_id], references: [wrk_id], onUpdate: NoAction, map: "tbl_contracts_work")
   tbl_work_providers          tbl_work_providers            @relation(fields: [wrk_id, prv_id], references: [wrk_id, prv_id], onUpdate: NoAction, map: "tbl_contracts_work_provider")
-  tbl_work_stages             tbl_work_stages               @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: NoAction, map: "tbl_contracts_work_stage")
+  tbl_work_stages             tbl_work_stages?              @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: NoAction, map: "tbl_contracts_work_stage")
 
   @@unique([wrk_id, ctr_number_active], map: "uq_contracts_work_number_active")
   @@index([ctr_state], map: "idx_contracts_state")
@@ -866,4 +871,61 @@ model tbl_contract_status_history {
 
   @@index([ctr_id, csh_create_at], map: "idx_contract_status_history_contract")
   @@index([csh_create_by], map: "tbl_contract_status_history_create_by")
+}
+
+/// Catálogo cerrado de campos configurables del contrato (ADR-0006, DEC-037). Sembrado con el código: no se edita desde la interfaz.
+model tbl_contract_fields {
+  cfd_id                           Int                                @id
+  cfd_key                          String                             @unique(map: "uq_contract_fields_key") @db.VarChar(40)
+  cfd_label                        String                             @db.VarChar(100)
+  cfd_data_type                    String                             @db.VarChar(20)
+  cfd_group                        String                             @db.VarChar(20)
+  cfd_order                        Int
+  tbl_contract_type_fields         tbl_contract_type_fields[]
+  tbl_contract_type_field_versions tbl_contract_type_field_versions[]
+}
+
+/// Configuración de campos por tipo de contrato (ADR-0006, DEC-037). Jerarquía obligatorio ⇒ visible ⇒ aplica con CHECK.
+model tbl_contract_type_fields {
+  ctf_id              Int                 @id @default(autoincrement())
+  ctt_id              Int
+  cfd_id              Int
+  ctf_applies         Boolean             @default(false)
+  ctf_visible         Boolean             @default(false)
+  ctf_required        Boolean             @default(false)
+  ctf_order           Int                 @default(0)
+  ctf_create_by       Int?
+  ctf_create_at       DateTime?           @default(now()) @db.Timestamp(0)
+  ctf_update_by       Int?
+  ctf_update_at       DateTime?           @default(now()) @db.Timestamp(0)
+  tbl_contract_types  tbl_contract_types  @relation(fields: [ctt_id], references: [ctt_id], onUpdate: NoAction, map: "tbl_contract_type_fields_contract_type")
+  tbl_contract_fields tbl_contract_fields @relation(fields: [cfd_id], references: [cfd_id], onUpdate: NoAction, map: "tbl_contract_type_fields_field")
+  created_by_user     tbl_users?          @relation("ContractTypeFieldCreatedBy", fields: [ctf_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_type_fields_create_by")
+  updated_by_user     tbl_users?          @relation("ContractTypeFieldUpdatedBy", fields: [ctf_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_type_fields_update_by")
+
+  @@unique([ctt_id, cfd_id], map: "uq_contract_type_fields_type_field")
+  @@index([cfd_id], map: "idx_contract_type_fields_field")
+  @@index([ctf_create_by], map: "tbl_contract_type_fields_create_by")
+  @@index([ctf_update_by], map: "tbl_contract_type_fields_update_by")
+}
+
+/// Historial de versiones de la configuración de un tipo de contrato (ADR-0006 decisión 10, DEC-037). Solo inserción.
+model tbl_contract_type_field_versions {
+  cfv_id              Int                 @id @default(autoincrement())
+  ctt_id              Int
+  cfv_version         Int
+  cfd_id              Int
+  cfv_applies         Boolean
+  cfv_visible         Boolean
+  cfv_required        Boolean
+  cfv_order           Int
+  cfv_create_by       Int?
+  cfv_create_at       DateTime?           @default(now()) @db.Timestamp(0)
+  tbl_contract_types  tbl_contract_types  @relation(fields: [ctt_id], references: [ctt_id], onUpdate: NoAction, map: "tbl_contract_type_field_versions_contract_type")
+  tbl_contract_fields tbl_contract_fields @relation(fields: [cfd_id], references: [cfd_id], onUpdate: NoAction, map: "tbl_contract_type_field_versions_field")
+  created_by_user     tbl_users?          @relation("ContractTypeFieldVersionCreatedBy", fields: [cfv_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_type_field_versions_create_by")
+
+  @@unique([ctt_id, cfv_version, cfd_id], map: "uq_contract_type_field_versions")
+  @@index([cfd_id], map: "idx_contract_type_field_versions_field")
+  @@index([cfv_create_by], map: "tbl_contract_type_field_versions_create_by")
 }

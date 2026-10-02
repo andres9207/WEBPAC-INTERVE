@@ -1,10 +1,10 @@
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import { defineMaster, createMasterService } from "../../../common/services/master.service.js";
 
-// Maestro de tipos de contrato (ADR-0006, DEC-017), en su versión mínima:
-// nombre y estado. La configuración de campos por tipo (MAE-BD-09) llega con
-// contratos; ctt_config_version queda en 1 hasta entonces y este maestro no la
-// toca. Nivel 1: auditoría técnica.
+// Maestro de tipos de contrato (ADR-0006, DEC-017): nombre y estado, con
+// auditoría técnica. La configuración de campos por tipo y su versión
+// (ctt_config_version) viven en contractTypeFields.service.js (DEC-037), con
+// permiso y bitácora propios: este maestro no las toca.
 export const contractTypesConfig = defineMaster({
   model: "tbl_contract_types",
   prefix: "ctt",

@@ -8,6 +8,7 @@ import {
   getContractSchema,
   selectContractWorksSchema,
   getContractFormOptionsSchema,
+  getContractFieldsSchema,
   saveContractSchema,
   deleteContractSchema,
   createAmendmentSchema,
@@ -19,6 +20,7 @@ import {
   getContractController,
   selectContractWorksController,
   getContractFormOptionsController,
+  getContractFieldsController,
   saveContractController,
   deleteContractController,
   createAmendmentController,
@@ -45,6 +47,9 @@ contractsRoutes.get(
   validate,
   getContractFormOptionsController
 );
+// Descriptores de los campos configurables de un tipo (ADR-0006, decisión 5),
+// para el formulario de contrato y el de otrosí.
+contractsRoutes.get("/get_contract_fields", verifyToken, requirePermission(can.view), getContractFieldsSchema, validate, getContractFieldsController);
 // save_contract sirve crear (ctrId 0, con el valor inicial) y editar la cabecera.
 contractsRoutes.post(
   "/save_contract",

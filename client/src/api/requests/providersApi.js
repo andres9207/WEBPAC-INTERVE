@@ -23,6 +23,12 @@ export const checkProviderIdentificationAPI = (params) => httpCliente.get('work/
  */
 export const getProvidersSelectAPI = (params) => httpCliente.get('work/providers/select_providers', params);
 
+/**
+ * Obras activas a las que se puede asignar el proveedor, sin aquellas donde ya está.
+ * @param {{ prvId: number, search?: string }} params
+ */
+export const getAssignableWorksAPI = (params) => httpCliente.get('work/providers/select_assignable_works', params);
+
 /** Asignación proveedor-obra: endpoints propios (DEC-031). */
 export const workProvidersApi = {
   /** @param {{ wrkId: number, rows, first, search? }} params */

@@ -1,11 +1,12 @@
 import { jest } from "@jest/globals";
 import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
+import { CONTRACT_FIELDS_CATALOG, typeFieldRows } from "../../../helpers/contractFields.fixtures.js";
 
 // Contratos (ADR-0015 a ADR-0017, DEC-035): creación atómica con valor
 // inicial e historial, coherencia obra-etapa-proveedor, número único en la
 // obra, fecha fin derivada, edición según el estado y eliminación lógica.
 
-const state = { contract: null };
+const state = { contract: null, typeFields: [] };
 
 const prismaMock = {
   tbl_contracts: {
@@ -23,6 +24,9 @@ const prismaMock = {
   tbl_work_stages: { findUnique: jest.fn() },
   tbl_work_providers: { findUnique: jest.fn() },
   tbl_contract_types: { findUnique: jest.fn() },
+  tbl_contract_fields: { findMany: jest.fn(async () => CONTRACT_FIELDS_CATALOG) },
+  tbl_contract_type_fields: { findMany: jest.fn(async () => state.typeFields) },
+  tbl_contract_type_field_versions: { findMany: jest.fn(async () => []) },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
@@ -82,6 +86,7 @@ const storedContract = {
 beforeEach(() => {
   jest.clearAllMocks();
   state.contract = null;
+  state.typeFields = typeFieldRows();
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
   prismaMock.tbl_contracts.findFirst.mockResolvedValue(null);
   prismaMock.tbl_contracts.create.mockResolvedValue({ ctr_id: 30 });
@@ -90,7 +95,7 @@ beforeEach(() => {
   prismaMock.tbl_works.findUnique.mockResolvedValue({ sta_id: 1, wrk_code: "OB-1" });
   prismaMock.tbl_work_stages.findUnique.mockResolvedValue({ wrk_id: 8, sta_id: 1, wks_name: "Estructura" });
   prismaMock.tbl_work_providers.findUnique.mockResolvedValue({ sta_id: 1, tbl_providers: { prv_name: "Aceros SA", sta_id: 1 } });
-  prismaMock.tbl_contract_types.findUnique.mockResolvedValue({ ctt_name: "Suministro", sta_id: 1 });
+  prismaMock.tbl_contract_types.findUnique.mockResolvedValue({ ctt_id: 2, ctt_name: "Suministro", ctt_config_version: 3, sta_id: 1 });
 });
 
 describe("saveContract — crear", () => {
@@ -310,5 +315,76 @@ describe("paginationContracts", () => {
     expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, wrk_id: 8 });
     expect(page.statusCounts).toEqual({ IN_PROGRESS: 4 });
     expect(page.results[0]).toMatchObject({ ctrId: 30, currentValue: "1190.00", stateName: "En ejecución", endDate: "2026-07-31" });
+  });
+});
+
+describe("campos configurables del tipo de contrato (DEC-037)", () => {
+  it("al crear, aplica la configuración del tipo y guarda la versión con que se capturó", async () => {
+    state.typeFields = typeFieldRows({ ADVANCE_PCT: { ctf_visible: false } });
+    await service.saveContract({ ctrId: 0, input: input({ initialConcept: { ...input().initialConcept, advancePct: "40" } }), useBy: 9, ctx, idempotencyKey: KEY });
+
+    expect(prismaMock.tbl_contracts.create.mock.calls[0][0].data.ctr_config_version).toBe(3);
+    // Aplica y no se muestra: el valor por defecto, no el que mandó el cliente.
+    expect(prismaMock.tbl_contract_concepts.create.mock.calls[0][0].data.ccp_advance_pct.toFixed(2)).toBe("15.00");
+  });
+
+  it("rechaza un valor en un campo que no aplica para el tipo", async () => {
+    state.typeFields = typeFieldRows({ VAT_PCT: { ctf_applies: null } });
+    await expect(service.saveContract({ ctrId: 0, input: input(), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "IVA: no aplica para este tipo de contrato.",
+    });
+    expect(prismaMock.tbl_contracts.create).not.toHaveBeenCalled();
+  });
+
+  it("si la etapa no aplica, el contrato se crea sin etapa y no se valida contra la obra", async () => {
+    state.typeFields = typeFieldRows({ STAGE: { ctf_applies: null } });
+    await service.saveContract({ ctrId: 0, input: input({ wksId: "" }), useBy: 9, ctx, idempotencyKey: KEY });
+
+    expect(prismaMock.tbl_contracts.create.mock.calls[0][0].data.wks_id).toBeNull();
+    expect(prismaMock.tbl_work_stages.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("exige los campos obligatorios del tipo", async () => {
+    await expect(service.saveContract({ ctrId: 0, input: input({ wksId: null }), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Etapa: es obligatorio para este tipo de contrato.",
+    });
+  });
+
+  it("al editar, conserva el valor heredado de un campo que dejó de aplicar", async () => {
+    state.contract = { ...storedContract, ctr_observation: "Pactado antes" };
+    state.typeFields = typeFieldRows({ OBSERVATION: { ctf_applies: null } });
+
+    await service.saveContract({ ctrId: 30, input: input({ observation: "" }), useBy: 9, ctx });
+    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data.ctr_observation).toBe("Pactado antes");
+
+    await expect(service.saveContract({ ctrId: 30, input: input({ observation: "Otra cosa" }), useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 400,
+    });
+  });
+
+  it("al editar, la versión solo cambia si cambia el tipo", async () => {
+    state.contract = { ...storedContract };
+    await service.saveContract({ ctrId: 30, input: input(), useBy: 9, ctx });
+    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).not.toHaveProperty("ctr_config_version");
+
+    await service.saveContract({ ctrId: 30, input: input({ cttId: 5 }), useBy: 9, ctx });
+    expect(prismaMock.tbl_contracts.update.mock.calls[1][0].data.ctr_config_version).toBe(3);
+  });
+
+  it("getContractFields entrega los descriptores vigentes del tipo, o los de una versión", async () => {
+    const current = await service.getContractFields({ cttId: 2 });
+    expect(current).toMatchObject({ cttId: 2, configVersion: 3, currentVersion: 3 });
+    expect(current.fields.find((f) => f.key === "STAGE")).toMatchObject({ applies: true, visible: true, required: true, label: "Etapa" });
+
+    const old = await service.getContractFields({ cttId: 2, version: 1 });
+    expect(old).toMatchObject({ configVersion: 1, currentVersion: 3 });
+    expect(old.fields.every((f) => !f.applies)).toBe(true);
+  });
+
+  it("getContractFields: 404 si el tipo está eliminado", async () => {
+    prismaMock.tbl_contract_types.findUnique.mockResolvedValueOnce({ ctt_id: 2, ctt_config_version: 3, sta_id: 3 });
+    await expect(service.getContractFields({ cttId: 2 })).rejects.toMatchObject({ statusCode: 404 });
   });
 });

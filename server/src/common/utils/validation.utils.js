@@ -69,15 +69,16 @@ export const moneyRule = (field, label, { optional = false, when } = {}) => {
 
 /**
  * Porcentaje en el body (DEC-036): cadena o número entre 0 y 100, con punto
- * decimal y hasta dos decimales (DECIMAL(5,2)). Obligatorio: 0 es un valor
- * pactado, no "sin valor". `when(req)` igual que en `moneyRule`.
+ * decimal y hasta dos decimales (DECIMAL(5,2)). Obligatorio por defecto: 0
+ * es un valor pactado, no "sin valor". Con `optional`, ausente, null o vacío
+ * se aceptan (los campos configurables: si es obligatorio lo decide la
+ * configuración del tipo de contrato, en el service). `when(req)` igual que
+ * en `moneyRule`.
  */
-export const percentRule = (field, label, { when } = {}) => {
+export const percentRule = (field, label, { when, optional = false } = {}) => {
   const base = when ? body(field).if((_value, { req }) => when(req)) : body(field);
-  return base
-    .exists({ values: "null" })
-    .withMessage(`El ${label} es requerido.`)
-    .bail()
+  const chain = optional ? base.optional({ values: "falsy" }) : base.exists({ values: "null" }).withMessage(`El ${label} es requerido.`).bail();
+  return chain
     .customSanitizer((value) => (typeof value === "number" ? String(value) : value))
     .isString()
     .withMessage(`El ${label} no es válido.`)

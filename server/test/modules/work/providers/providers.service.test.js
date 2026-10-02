@@ -30,7 +30,7 @@ const prismaMock = {
     update: jest.fn(),
     delete: jest.fn(),
   },
-  tbl_works: { findUnique: jest.fn() },
+  tbl_works: { findUnique: jest.fn(), findMany: jest.fn() },
   tbl_identity_documents: { findUnique: jest.fn() },
   tbl_provider_types: { findUnique: jest.fn() },
   tbl_address_types: { findUnique: jest.fn() },
@@ -491,6 +491,22 @@ describe("consultas", () => {
     ]);
     expect(prismaMock.tbl_providers.findMany.mock.calls[0][0]).toMatchObject({
       where: { sta_id: 1, tbl_work_providers: { none: { wrk_id: 8 } } },
+      take: 100,
+    });
+  });
+
+  it("el selector de obras para asignar el proveedor devuelve solo obras activas donde todavía no está", async () => {
+    prismaMock.tbl_works.findMany.mockResolvedValue([{ wrk_id: 8, wrk_code: "OB-1", wrk_name: "Torre Norte" }]);
+
+    await expect(service.selectAssignableWorks({ search: " torre ", prvId: "77" })).resolves.toEqual([
+      { value: 8, label: "OB-1 — Torre Norte", code: "OB-1", name: "Torre Norte" },
+    ]);
+    expect(prismaMock.tbl_works.findMany.mock.calls[0][0]).toMatchObject({
+      where: {
+        sta_id: 1,
+        OR: [{ wrk_code: { contains: "torre" } }, { wrk_name: { contains: "torre" } }],
+        tbl_work_providers: { none: { prv_id: 77 } },
+      },
       take: 100,
     });
   });

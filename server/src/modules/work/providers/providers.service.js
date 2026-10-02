@@ -281,6 +281,26 @@ export const selectProviders = async ({ search, wrkId } = {}) => {
   }));
 };
 
+/**
+ * Obras a las que se puede asignar el proveedor (el selector del lado del
+ * proveedor, simétrico de selectProviders): activas, donde todavía no está, por
+ * código o nombre, con tope fijo.
+ */
+export const selectAssignableWorks = async ({ search, prvId } = {}) => {
+  const value = text(search);
+  const rows = await prisma.tbl_works.findMany({
+    where: {
+      sta_id: ACTIVE_STATUS,
+      ...(value ? { OR: [{ wrk_code: { contains: value } }, { wrk_name: { contains: value } }] } : {}),
+      ...(Number(prvId) > 0 ? { tbl_work_providers: { none: { prv_id: Number(prvId) } } } : {}),
+    },
+    select: { wrk_id: true, wrk_code: true, wrk_name: true },
+    orderBy: { wrk_code: "asc" },
+    take: MAX_ROWS,
+  });
+  return rows.map((row) => ({ value: row.wrk_id, label: `${row.wrk_code} — ${row.wrk_name}`, code: row.wrk_code, name: row.wrk_name }));
+};
+
 // ─── Guardado ────────────────────────────────────────────────────────────────
 
 /** Cabecera del cliente → columnas. */

@@ -4,8 +4,9 @@ import { Controller } from 'react-hook-form';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 
+import GenericFormSection from 'ui-component/extended/GenericFormSection';
 import MoneyField from 'ui-component/extended/MoneyField';
-import PercentField from 'ui-component/extended/PercentField';
+import { toFormFields } from './configurableFields';
 
 /**
  * Datos económicos de un concepto contractual (DEC-036): costo directo, AIU
@@ -14,11 +15,14 @@ import PercentField from 'ui-component/extended/PercentField';
  * captura ni se calcula aquí: lo deriva el servidor (FRONTEND_STANDARD,
  * regla 9).
  *
+ * El costo directo aplica siempre. Los porcentajes son campos configurables
+ * del tipo de contrato (DEC-037): llegan en `fields` (ver `shownFields`) y se
+ * dibujan con GenericFormSection, que necesita un FormProvider arriba.
+ *
  * `prefix` anida los campos en el formulario (p. ej. "initialConcept.").
  */
 
 const MONEY = /^\d{1,16}(\.\d{0,2})?$/;
-const PERCENT = /^\d{1,3}(\.\d{1,2})?$/;
 
 /** Valores por defecto de un concepto nuevo: anticipo 15 % (DEC-036), IVA 19 %. */
 export const EMPTY_CONCEPT = {
@@ -35,22 +39,11 @@ export const EMPTY_CONCEPT = {
 export const conceptToForm = (concept) =>
   Object.fromEntries(Object.keys(EMPTY_CONCEPT).map((field) => [field, concept?.[field] ?? EMPTY_CONCEPT[field]]));
 
-const percentRules = (label) => ({
-  required: `El ${label} es requerido.`,
-  pattern: { value: PERCENT, message: 'Porcentaje no válido.' },
-  validate: (value) => Number(value) <= 100 || 'Debe estar entre 0 y 100.'
-});
+const PERCENT_GRID = { PERCENT: { xs: 6, sm: 4, md: 2 } };
 
-const PERCENTS = [
-  ['adminPct', 'Administración', 'porcentaje de administración'],
-  ['contingencyPct', 'Imprevistos', 'porcentaje de imprevistos'],
-  ['profitPct', 'Utilidad', 'porcentaje de utilidad'],
-  ['vatPct', 'IVA', 'porcentaje de IVA'],
-  ['advancePct', 'Anticipo', 'porcentaje de anticipo'],
-  ['retentionPct', 'Retenido', 'porcentaje de retenido']
-];
+export default function ConceptFields({ control, prefix = '', fields }) {
+  const percents = fields.filter((field) => field.dataType === 'PERCENT');
 
-export default function ConceptFields({ control, prefix = '' }) {
   return (
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, sm: 6, md: 4 }}>
@@ -75,25 +68,15 @@ export default function ConceptFields({ control, prefix = '' }) {
           Cada acto pacta sus propios porcentajes: no se heredan del contrato ni del concepto anterior.
         </Typography>
       </Grid>
-      {PERCENTS.map(([name, label, ruleLabel]) => (
-        <Grid key={name} size={{ xs: 6, sm: 4, md: 2 }}>
-          <Controller
-            name={`${prefix}${name}`}
-            control={control}
-            rules={percentRules(ruleLabel)}
-            render={({ field, fieldState }) => (
-              <PercentField
-                value={field.value}
-                onChange={field.onChange}
-                onBlur={field.onBlur}
-                label={label}
-                required
-                error={fieldState.error?.message}
-              />
-            )}
-          />
-        </Grid>
-      ))}
+      <Grid size={12} sx={{ mt: -2 }}>
+        {percents.length > 0 ? (
+          <GenericFormSection fields={toFormFields(percents, { prefix, grid: PERCENT_GRID })} />
+        ) : (
+          <Typography variant="caption" color="text.secondary">
+            El tipo de contrato no pide porcentajes: el valor es el costo directo.
+          </Typography>
+        )}
+      </Grid>
       <Grid size={12}>
         <Typography variant="caption" color="text.secondary">
           AIU: administración, imprevistos y utilidad sobre el costo directo. El IVA se liquida sobre la utilidad si hay AIU; si no, sobre
@@ -106,5 +89,7 @@ export default function ConceptFields({ control, prefix = '' }) {
 
 ConceptFields.propTypes = {
   control: PropTypes.object.isRequired,
-  prefix: PropTypes.string
+  prefix: PropTypes.string,
+  /** Campos configurables del grupo de conceptos a mostrar (`shownFields`); aquí se usan los porcentajes. */
+  fields: PropTypes.array.isRequired
 };

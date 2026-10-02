@@ -83,6 +83,8 @@ const PERMISSIONS = [
   { per_id: 49, per_name: "Modificar tipo de contrato", pag_id: 12, per_order: 2 },
   { per_id: 50, per_name: "Eliminar tipo de contrato", pag_id: 12, per_order: 3 },
   { per_id: 51, per_name: "Cambiar estado tipo de contrato", pag_id: 12, per_order: 4 },
+  // database/migrations/0057_seed_contract_type_fields_permissions.sql
+  { per_id: 75, per_name: "Configurar campos del tipo de contrato", pag_id: 12, per_order: 6 },
   // database/migrations/0041_seed_works_pages_permissions.sql
   { per_id: 53, per_name: "Crear obra", pag_id: 14, per_order: 1 },
   { per_id: 54, per_name: "Modificar obra", pag_id: 14, per_order: 2 },
@@ -197,6 +199,22 @@ const SUPERVISION_TYPES = [
   { spt_id: 4, spt_name: "Integral", sta_id: 1 },
 ];
 
+// Catálogo cerrado de campos configurables del contrato
+// (database/migrations/0053_create_contract_fields.sql, DEC-037). Versionado
+// con el código: cada clave tiene su columna en
+// src/modules/admin/contractTypes/contractFields.js. Se actualiza siempre.
+const CONTRACT_FIELDS = [
+  { cfd_id: 1, cfd_key: "STAGE", cfd_label: "Etapa", cfd_data_type: "SELECT", cfd_group: "CONTRACT", cfd_order: 1 },
+  { cfd_id: 2, cfd_key: "OBSERVATION", cfd_label: "Observaciones", cfd_data_type: "TEXTAREA", cfd_group: "CONTRACT", cfd_order: 2 },
+  { cfd_id: 3, cfd_key: "CONCEPT_DESCRIPTION", cfd_label: "Objeto o descripción del otrosí", cfd_data_type: "TEXTAREA", cfd_group: "CONCEPT", cfd_order: 1 },
+  { cfd_id: 4, cfd_key: "ADMIN_PCT", cfd_label: "Administración", cfd_data_type: "PERCENT", cfd_group: "CONCEPT", cfd_order: 2 },
+  { cfd_id: 5, cfd_key: "CONTINGENCY_PCT", cfd_label: "Imprevistos", cfd_data_type: "PERCENT", cfd_group: "CONCEPT", cfd_order: 3 },
+  { cfd_id: 6, cfd_key: "PROFIT_PCT", cfd_label: "Utilidad", cfd_data_type: "PERCENT", cfd_group: "CONCEPT", cfd_order: 4 },
+  { cfd_id: 7, cfd_key: "VAT_PCT", cfd_label: "IVA", cfd_data_type: "PERCENT", cfd_group: "CONCEPT", cfd_order: 5 },
+  { cfd_id: 8, cfd_key: "ADVANCE_PCT", cfd_label: "Anticipo", cfd_data_type: "PERCENT", cfd_group: "CONCEPT", cfd_order: 6 },
+  { cfd_id: 9, cfd_key: "RETENTION_PCT", cfd_label: "Retenido", cfd_data_type: "PERCENT", cfd_group: "CONCEPT", cfd_order: 7 },
+];
+
 async function main() {
   for (const status of STATUSES) {
     await prisma.tbl_status.upsert({
@@ -242,6 +260,11 @@ async function main() {
     });
   }
   console.log(`tbl_supervision_types: ${SUPERVISION_TYPES.length} tipos sembrados (los existentes no se modifican).`);
+
+  for (const field of CONTRACT_FIELDS) {
+    await prisma.tbl_contract_fields.upsert({ where: { cfd_id: field.cfd_id }, update: field, create: field });
+  }
+  console.log(`tbl_contract_fields: ${CONTRACT_FIELDS.length} campos configurables sembrados/actualizados.`);
 
   for (const page of PAGES) {
     await prisma.tbl_pages.upsert({

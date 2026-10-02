@@ -1,5 +1,5 @@
 import { memo, useMemo, useCallback } from "react";
-import { Controller, useFormContext } from "react-hook-form";
+import { Controller, get, useFormContext } from "react-hook-form";
 import Grid from "@mui/material/Grid";
 import TextField from "@mui/material/TextField";
 import Autocomplete from "@mui/material/Autocomplete";
@@ -167,7 +167,8 @@ const GenericFormSection = memo(
 
     const renderField = useCallback(
       (field, index) => {
-        const error = errors[field.name];
+        // get: también los nombres anidados ("initialConcept.vatPct").
+        const error = get(errors, field.name);
         const hasError = Boolean(error);
         const gridSizes = field.grid ?? { xs: 12 };
 

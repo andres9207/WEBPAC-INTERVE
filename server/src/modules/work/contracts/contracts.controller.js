@@ -38,6 +38,10 @@ export const getContractFormOptionsController = handle((req) => {
   return contractsService.getContractFormOptions({ wrkId, includeWksId, includePrvId });
 });
 
+export const getContractFieldsController = handle((req) =>
+  contractsService.getContractFields({ cttId: req.query.cttId, version: req.query.version })
+);
+
 export const saveContractController = handle(async (req) => {
   const result = await contractsService.saveContract({
     ctrId: req.body.ctrId,

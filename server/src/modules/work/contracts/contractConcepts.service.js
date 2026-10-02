@@ -4,6 +4,8 @@ import { dateOnlyText } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
+import { resolveContractFields } from "../../admin/contractTypes/contractTypeFields.service.js";
+import { FIELD_GROUPS, enforceFields } from "../../admin/contractTypes/contractFields.js";
 import { CONCEPT_TYPES, CONTRACT_STATES, assertStateAllows, chronologyError, contractTotals, historyRow, sortConcepts } from "./contractTerms.js";
 import {
   CONCEPT_AUDITED,
@@ -29,6 +31,9 @@ import {
  *   no se guarde (ADR-0016, "Auditoría").
  * - Inmutabilidad tras la primera factura aprobada (PRO-BE-16): llega con
  *   facturación; hoy no hay facturas que la activen.
+ * - Descripción y porcentajes son campos configurables (DEC-037): se aplican
+ *   con la configuración actual del tipo del contrato, resuelta en la
+ *   transacción por la misma función que alimenta el formulario.
  */
 
 const optionalInt = (value) => (value === null || value === undefined || String(value).trim() === "" ? null : Number(value));
@@ -38,6 +43,12 @@ const listConcepts = (tx, ctrId) => tx.tbl_contract_concepts.findMany({ where: {
 const activeSequence = (concepts) => sortConcepts(concepts.filter((c) => c.sta_id !== DELETED_STATUS));
 
 const valueText = (concepts) => moneyText(contractTotals(concepts).value);
+
+/** Datos del acto con la configuración del tipo del contrato aplicada (ADR-0006, decisión 6). */
+const configuredConcept = async (tx, contract, input, { before = null, skip = [] } = {}) => {
+  const descriptors = await resolveContractFields(tx, contract.ctt_id);
+  return conceptValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONCEPT, input, before, skip }));
+};
 
 const assertStartDate = (values) => {
   if (!values.ccp_start_date) throw httpError(400, "La fecha de inicio no es una fecha válida.");
@@ -99,18 +110,21 @@ const liquidationResult = (row) => ({
  * Su prórroga extiende la fecha fin en la misma transacción.
  */
 export const createAmendment = async ({ ctrId, input, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
-  const values = { ...conceptValuesOf(input), ccp_extension: optionalInt(input.extension) };
-  assertStartDate(values);
+  // Lo que pidió el cliente: huella de idempotencia. La configuración del
+  // tipo se aplica dentro de la transacción.
+  const requested = { ...conceptValuesOf(input), ccp_extension: optionalInt(input.extension) };
+  assertStartDate(requested);
 
   return runIdempotent({
     target: conceptTarget(amendmentResult),
     key: idempotencyKey,
     ownerId: useBy,
-    payload: { ctrId: Number(ctrId), type: CONCEPT_TYPES.AMENDMENT, ...auditableConcept(values) },
+    payload: { ctrId: Number(ctrId), type: CONCEPT_TYPES.AMENDMENT, ...auditableConcept(requested) },
     execute: (idempotencyData) =>
       withLockedTransaction({ CONTRATO: ctrId }, async (tx) => {
         const contract = await findLockedContract(tx, ctrId);
         assertStateAllows(contract.ctr_state, "createAmendment");
+        const values = { ...(await configuredConcept(tx, contract, input)), ccp_extension: optionalInt(input.extension) };
 
         const concepts = await listConcepts(tx, contract.ctr_id);
         const sequence = activeSequence(concepts);
@@ -147,18 +161,19 @@ export const createAmendment = async ({ ctrId, input, useBy, ctx = { useId: useB
  * decisión 13), y desde ahí no se admiten otrosí.
  */
 export const createLiquidation = async ({ ctrId, input, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
-  const values = conceptValuesOf(input);
-  assertStartDate(values);
+  const requested = conceptValuesOf(input);
+  assertStartDate(requested);
 
   return runIdempotent({
     target: conceptTarget(liquidationResult),
     key: idempotencyKey,
     ownerId: useBy,
-    payload: { ctrId: Number(ctrId), type: CONCEPT_TYPES.LIQUIDATION, ...auditableConcept(values) },
+    payload: { ctrId: Number(ctrId), type: CONCEPT_TYPES.LIQUIDATION, ...auditableConcept(requested) },
     execute: (idempotencyData) =>
       withLockedTransaction({ CONTRATO: ctrId }, async (tx) => {
         const contract = await findLockedContract(tx, ctrId);
         assertStateAllows(contract.ctr_state, "createLiquidation");
+        const values = await configuredConcept(tx, contract, input);
 
         const concepts = await listConcepts(tx, contract.ctr_id);
         if (concepts.some((c) => c.ccp_type === CONCEPT_TYPES.LIQUIDATION)) {
@@ -227,8 +242,9 @@ export const updateConcept = async ({ ccpId, input, useBy, ctx = { useId: useBy 
       assertStateAllows(contract.ctr_state, before.ccp_type === CONCEPT_TYPES.LIQUIDATION ? "editLiquidationConcept" : "editConcept");
 
       const isInitial = before.ccp_type === CONCEPT_TYPES.INITIAL;
+      // Un valor guardado en un campo que dejó de aplicar se conserva (heredado).
       const values = {
-        ...conceptValuesOf(input),
+        ...(await configuredConcept(tx, contract, input, { before, skip: isInitial ? ["CONCEPT_DESCRIPTION"] : [] })),
         ...(isInitial ? { ccp_start_date: before.ccp_start_date, ccp_description: before.ccp_description } : {}),
         ccp_extension: before.ccp_type === CONCEPT_TYPES.AMENDMENT ? optionalInt(input.extension) : null,
       };

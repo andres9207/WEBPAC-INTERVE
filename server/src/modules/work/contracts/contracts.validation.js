@@ -14,7 +14,10 @@ import { CONTRACT_STATES } from "./contractTerms.js";
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). Las reglas de
 // negocio (etapa de la obra, estado que admite el acto, cronología…) viven en
 // el service. La fecha fin, el estado, el número de otrosí y los valores
-// derivados no se aceptan: si llegan, se ignoran.
+// derivados no se aceptan: si llegan, se ignoran. Los campos configurables
+// (etapa, observaciones, descripción, porcentajes; DEC-037) son opcionales
+// aquí: si aplican o son obligatorios lo decide la configuración del tipo de
+// contrato, en el service.
 
 const isCreate = (req) => !(Number(req.body.ctrId) > 0);
 
@@ -38,7 +41,7 @@ const PERCENTS = [
 /** Datos económicos de un concepto, con `prefix` para el valor inicial anidado en el contrato. */
 const conceptRules = (prefix = "", when) => [
   moneyRule(`${prefix}directCost`, "costo directo", { when }),
-  ...PERCENTS.map(([field, label]) => percentRule(`${prefix}${field}`, label, { when })),
+  ...PERCENTS.map(([field, label]) => percentRule(`${prefix}${field}`, label, { when, optional: true })),
 ];
 
 const extensionRule = body("extension")
@@ -65,13 +68,18 @@ export const getContractFormOptionsSchema = [
   query("includePrvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePrvId debe ser un entero positivo."),
 ];
 
+export const getContractFieldsSchema = [
+  query("cttId").isInt({ min: 1 }).withMessage("cttId es obligatorio y debe ser un entero positivo."),
+  query("version").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("version debe ser un entero positivo."),
+];
+
 export const saveContractSchema = [
   idempotencyKeyRule(isCreate),
   body("ctrId").optional({ values: "falsy" }).isInt({ min: 0 }).withMessage("ctrId debe ser un entero."),
   // La obra solo se elige al crear: después no cambia.
   body("wrkId").if((_value, { req }) => isCreate(req)).isInt({ min: 1 }).withMessage("Selecciona la obra."),
   requiredId("prvId").withMessage("Selecciona el proveedor."),
-  requiredId("wksId").withMessage("Selecciona la etapa."),
+  optionalId("wksId"),
   requiredId("cttId").withMessage("Selecciona el tipo de contrato."),
   requiredText("number", "número de contrato", 50),
   requiredText("name", "nombre", 200),

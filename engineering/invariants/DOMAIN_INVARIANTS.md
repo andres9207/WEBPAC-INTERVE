@@ -73,6 +73,8 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | DOM-24 | El código de obra es único | ADR-0011 |
 | DOM-25 | La etapa de un contrato pertenece a la obra del contrato, y su proveedor está asignado a esa obra | ADR-0015 |
 | DOM-26 | Un número de documento siempre tiene tipo de identificación, y un tipo sin número no se guarda | ADR-0008, decisión 8 |
+| DOM-27 | Un campo configurable obligatorio es visible, y uno visible aplica; un campo sin configuración no aplica | ADR-0006, decisión 4 |
+| DOM-28 | Un contrato no recibe valor en un campo que no aplica para su tipo, salvo el que ya tenía (heredado), que se conserva sin cambios | ADR-0006, decisiones 6 a 8 |
 
 **Aplicadas (2026-09-29), para el tipo de identificación:**
 
@@ -96,3 +98,15 @@ Tests en `server/test/modules/work/providers/`.
 - **DOM-11 (conceptos):** `CHECK ck_contract_concepts_percentages` y `percentRule` en la ruta.
 
 Tests en `server/test/modules/work/contracts/`.
+
+**Aplicadas (2026-10-02), con la configuración de campos por tipo de contrato ([DEC-037](../decisiones/DEC-037-configuracion-campos-tipo-contrato.md)):**
+
+- **DOM-27:**
+  - `CHECK ck_contract_type_fields_hierarchy` en la configuración y en el historial de versiones;
+  - validación en el service (400);
+  - el editor no deja romper la jerarquía.
+
+  Probado en vivo: la BD rechaza "visible sin aplicar" y "obligatorio oculto" aunque se salte el service.
+- **DOM-28:** `enforceFields`, con la configuración resuelta dentro de la transacción. Se aplica al crear y editar el contrato, al crear un otrosí o el de liquidación, y al modificar un concepto. La BD no puede expresarlo.
+
+Tests en `server/test/modules/admin/contractTypes/` y `server/test/modules/work/contracts/`.

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, FormProvider, useForm } from 'react-hook-form';
 import { format } from 'date-fns';
 
 import Alert from '@mui/material/Alert';
@@ -11,11 +11,14 @@ import FormHelperText from '@mui/material/FormHelperText';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
 
 import BaseDialog from 'ui-component/extended/BaseDialog';
 import DateField from 'ui-component/extended/DateField';
+import GenericFormSection from 'ui-component/extended/GenericFormSection';
 import ConceptFields, { EMPTY_CONCEPT, conceptToForm } from './ConceptFields';
-import { contractConceptsApi } from 'api/requests/contractsApi';
+import { FIELD_INPUTS, shownFields, toFormFields, visiblePayload } from './configurableFields';
+import { contractConceptsApi, getContractFieldsAPI } from 'api/requests/contractsApi';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
 import { fDateOnly } from 'utils/formatTime';
@@ -30,6 +33,11 @@ import { TERM_UNIT_OPTIONS } from 'utils/constants';
  *   - `edit`: modificar un concepto existente (permiso propio). El tipo no
  *     cambia; la fecha del valor inicial es la del contrato.
  * Crear lleva clave de idempotencia, una por diálogo abierto.
+ *
+ * Descripción y porcentajes son campos configurables del tipo de contrato
+ * (DEC-037): se piden al abrir y se dibujan con GenericFormSection. Al
+ * modificar un concepto, un valor en un campo que dejó de aplicar se muestra
+ * en solo lectura, marcado como heredado.
  */
 
 const TITLES = { amendment: 'Registrar otrosí', liquidation: 'Registrar otrosí de liquidación', edit: 'Modificar concepto' };
@@ -46,7 +54,24 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
 
   const [saving, setSaving] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState(null);
-  const { control, handleSubmit, reset } = useForm();
+  const [descriptors, setDescriptors] = useState(null);
+  const methods = useForm();
+  const { control, handleSubmit, reset } = methods;
+
+  useEffect(() => {
+    if (!open || !contract?.cttId) return;
+    let cancelled = false;
+    setDescriptors(null);
+    getContractFieldsAPI({ cttId: contract.cttId })
+      .then(({ data }) => !cancelled && setDescriptors(data.fields))
+      .catch((err) => {
+        showError(err.response?.data?.message || 'Error al cargar los campos del tipo de contrato');
+        onClose();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, contract?.cttId, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -64,12 +89,21 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
     );
   }, [open, isEdit, concept, reset]);
 
+  // Valores guardados del concepto que se modifica, para reconocer los heredados.
+  const stored = isEdit ? Object.fromEntries(Object.values(FIELD_INPUTS).map((name) => [name, concept?.[name]])) : null;
+  const skip = isInitial ? ['CONCEPT_DESCRIPTION'] : [];
+  const fields = shownFields(descriptors, 'CONCEPT', stored, { skip });
+  const descriptionFields = toFormFields(fields.filter((field) => field.key === 'CONCEPT_DESCRIPTION'));
+  const inherited = fields.filter((field) => field.inherited);
+
   const save = async (form) => {
     setSaving(true);
+    const configured = visiblePayload(descriptors, 'CONCEPT', form, { skip });
+    if ('description' in configured) configured.description = text(configured.description);
     const payload = {
       startDate: form.startDate,
-      description: text(form.description),
-      ...Object.fromEntries(Object.keys(EMPTY_CONCEPT).map((field) => [field, form[field]])),
+      directCost: form.directCost,
+      ...configured,
       ...(hasExtension ? { extension: text(form.extension) } : {})
     };
     try {
@@ -101,7 +135,7 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
           <Button onClick={onClose} disabled={saving}>
             Cancelar
           </Button>
-          <Button variant="contained" color="secondary" onClick={handleSubmit(save)} disabled={saving}>
+          <Button variant="contained" color="secondary" onClick={handleSubmit(save)} disabled={saving || !descriptors}>
             {saving
               ? 'Guardando…'
               : isEdit
@@ -113,100 +147,99 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
         </>
       }
     >
-      <Stack spacing={2} sx={{ pt: 1 }}>
-        {mode === 'liquidation' && (
-          <Alert severity="warning">
-            Al registrar el otrosí de liquidación, el contrato <strong>{contract?.number}</strong> pasa a <strong>en liquidación</strong>:
-            ya no admite otrosí ni cambios en sus datos contractuales. Solo puede haber uno por contrato.
-          </Alert>
-        )}
-        <Grid container spacing={2}>
-          {isInitial ? (
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <DateField value={concept?.startDate ?? ''} label="Fecha de inicio" readOnly helperText="La del contrato" />
-            </Grid>
-          ) : (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <Controller
-                name="startDate"
-                control={control}
-                rules={{ required: 'La fecha de inicio es requerida.' }}
-                render={({ field, fieldState }) => (
-                  <DateField
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                    label="Fecha de inicio"
-                    required
-                    error={fieldState.error?.message}
-                    helperText={!isEdit && contract?.lastConceptDate ? `No antes del ${fDateOnly(contract.lastConceptDate)}` : ''}
-                  />
-                )}
-              />
-            </Grid>
+      <FormProvider {...methods}>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          {mode === 'liquidation' && (
+            <Alert severity="warning">
+              Al registrar el otrosí de liquidación, el contrato <strong>{contract?.number}</strong> pasa a <strong>en liquidación</strong>:
+              ya no admite otrosí ni cambios en sus datos contractuales. Solo puede haber uno por contrato.
+            </Alert>
           )}
-          {hasExtension && (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <Controller
-                name="extension"
-                control={control}
-                rules={{ pattern: { value: /^\d*$/, message: 'Solo números enteros.' } }}
-                render={({ field, fieldState }) => (
-                  <TextField
-                    {...field}
-                    value={field.value ?? ''}
-                    onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    label={`Prórroga (${unitName(contract?.termUnit)})`}
-                    size="small"
-                    fullWidth
-                    error={Boolean(fieldState.error)}
-                    helperText={fieldState.error?.message ?? 'Vacío si no amplía el plazo. Extiende la fecha fin.'}
-                    slotProps={{ htmlInput: { inputMode: 'numeric', style: { textAlign: 'right', fontVariantNumeric: 'tabular-nums' } } }}
-                  />
-                )}
-              />
-            </Grid>
+          {inherited.length > 0 && (
+            <Alert severity="warning">
+              {inherited.map((field) => field.label).join(', ')}: ya no aplica para este tipo de contrato. Se muestra en solo lectura con el
+              valor pactado con una configuración anterior, y se conserva al guardar.
+            </Alert>
           )}
-          {!isInitial && (
-            <Grid size={12}>
-              <Controller
-                name="description"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    value={field.value ?? ''}
-                    label="Objeto o descripción"
-                    size="small"
-                    fullWidth
-                    multiline
-                    minRows={2}
-                    slotProps={{ htmlInput: { maxLength: 500 } }}
-                  />
-                )}
-              />
-            </Grid>
-          )}
-        </Grid>
-
-        <ConceptFields control={control} />
-
-        {mode === 'liquidation' && (
-          <Controller
-            name="confirmed"
-            control={control}
-            rules={{ validate: (value) => value === true || 'Confirma que el contrato pasará a liquidación.' }}
-            render={({ field, fieldState }) => (
-              <>
-                <FormControlLabel
-                  control={<Checkbox checked={Boolean(field.value)} onChange={(e) => field.onChange(e.target.checked)} />}
-                  label="Entiendo que el contrato pasará a liquidación y no admitirá más otrosí."
+          <Grid container spacing={2}>
+            {isInitial ? (
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <DateField value={concept?.startDate ?? ''} label="Fecha de inicio" readOnly helperText="La del contrato" />
+              </Grid>
+            ) : (
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Controller
+                  name="startDate"
+                  control={control}
+                  rules={{ required: 'La fecha de inicio es requerida.' }}
+                  render={({ field, fieldState }) => (
+                    <DateField
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      label="Fecha de inicio"
+                      required
+                      error={fieldState.error?.message}
+                      helperText={!isEdit && contract?.lastConceptDate ? `No antes del ${fDateOnly(contract.lastConceptDate)}` : ''}
+                    />
+                  )}
                 />
-                {fieldState.error && <FormHelperText error>{fieldState.error.message}</FormHelperText>}
-              </>
+              </Grid>
             )}
-          />
-        )}
-      </Stack>
+            {hasExtension && (
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Controller
+                  name="extension"
+                  control={control}
+                  rules={{ pattern: { value: /^\d*$/, message: 'Solo números enteros.' } }}
+                  render={({ field, fieldState }) => (
+                    <TextField
+                      {...field}
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      label={`Prórroga (${unitName(contract?.termUnit)})`}
+                      size="small"
+                      fullWidth
+                      error={Boolean(fieldState.error)}
+                      helperText={fieldState.error?.message ?? 'Vacío si no amplía el plazo. Extiende la fecha fin.'}
+                      slotProps={{ htmlInput: { inputMode: 'numeric', style: { textAlign: 'right', fontVariantNumeric: 'tabular-nums' } } }}
+                    />
+                  )}
+                />
+              </Grid>
+            )}
+            {descriptionFields.length > 0 && (
+              <Grid size={12} sx={{ mt: -2 }}>
+                <GenericFormSection fields={descriptionFields} />
+              </Grid>
+            )}
+          </Grid>
+
+          {descriptors ? (
+            <ConceptFields control={control} fields={fields} />
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Cargando los campos del tipo de contrato…
+            </Typography>
+          )}
+
+          {mode === 'liquidation' && (
+            <Controller
+              name="confirmed"
+              control={control}
+              rules={{ validate: (value) => value === true || 'Confirma que el contrato pasará a liquidación.' }}
+              render={({ field, fieldState }) => (
+                <>
+                  <FormControlLabel
+                    control={<Checkbox checked={Boolean(field.value)} onChange={(e) => field.onChange(e.target.checked)} />}
+                    label="Entiendo que el contrato pasará a liquidación y no admitirá más otrosí."
+                  />
+                  {fieldState.error && <FormHelperText error>{fieldState.error.message}</FormHelperText>}
+                </>
+              )}
+            />
+          )}
+        </Stack>
+      </FormProvider>
     </BaseDialog>
   );
 }
@@ -215,7 +248,7 @@ ConceptDialog.propTypes = {
   open: PropTypes.bool.isRequired,
   /** amendment | liquidation | edit */
   mode: PropTypes.oneOf(['amendment', 'liquidation', 'edit']),
-  /** Contrato del detalle: `{ ctrId, number, termUnit, lastConceptDate }`. */
+  /** Contrato del detalle: `{ ctrId, cttId, number, termUnit, lastConceptDate }`. */
   contract: PropTypes.object,
   /** Concepto a modificar (fila de `concepts` del detalle). */
   concept: PropTypes.object,

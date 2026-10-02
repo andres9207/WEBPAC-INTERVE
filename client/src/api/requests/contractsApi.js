@@ -20,6 +20,13 @@ export const getContractWorksSelectAPI = (search) => httpCliente.get('work/contr
  */
 export const getContractFormOptionsAPI = (params) => httpCliente.get('work/contracts/get_contract_form_options', params);
 
+/**
+ * Descriptores de los campos configurables de un tipo de contrato (ADR-0006,
+ * DEC-037): la configuración vigente o, con `version`, la de esa versión.
+ * @param {{ cttId: number, version?: number }} params
+ */
+export const getContractFieldsAPI = (params) => httpCliente.get('work/contracts/get_contract_fields', params);
+
 /** Actos sobre los conceptos: cada uno con su endpoint y su permiso (ADR-0016). */
 export const contractConceptsApi = {
   /** @param {{ ctrId, startDate, description, directCost, ...porcentajes, extension }} params  el número lo asigna el servidor */

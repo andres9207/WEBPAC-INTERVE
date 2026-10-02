@@ -32,6 +32,11 @@ export const checkIdentificationSchema = [
   query("excludeId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("excludeId debe ser un entero positivo."),
 ];
 
+export const selectAssignableWorksSchema = [
+  query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
+  query("prvId").isInt({ min: 1 }).withMessage("prvId es obligatorio y debe ser un entero positivo."),
+];
+
 export const selectProvidersSchema = [
   query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
   query("wrkId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("wrkId debe ser un entero positivo."),

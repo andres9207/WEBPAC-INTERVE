@@ -8,6 +8,7 @@ import {
   getProviderSchema,
   checkIdentificationSchema,
   selectProvidersSchema,
+  selectAssignableWorksSchema,
   saveProviderSchema,
   changeProviderStatusSchema,
   deleteProviderSchema,
@@ -21,6 +22,7 @@ import {
   getProviderController,
   checkIdentificationController,
   selectProvidersController,
+  selectAssignableWorksController,
   saveProviderController,
   changeProviderStatusController,
   deleteProviderController,
@@ -52,6 +54,15 @@ providersRoutes.get(
 // Candidatos para asignar a una obra: activos, con tope fijo. Con el permiso
 // de asignar, que es para lo que sirve.
 providersRoutes.get("/select_providers", verifyToken, requirePermission(can.assignWork), selectProvidersSchema, validate, selectProvidersController);
+// Y al revés, desde el proveedor: obras activas donde todavía no está.
+providersRoutes.get(
+  "/select_assignable_works",
+  verifyToken,
+  requirePermission(can.assignWork),
+  selectAssignableWorksSchema,
+  validate,
+  selectAssignableWorksController
+);
 // save_provider sirve crear (prvId 0) y editar. Cambiar la identificación y
 // crear asignando a una obra los exige el service, según lo que cambia.
 providersRoutes.post(

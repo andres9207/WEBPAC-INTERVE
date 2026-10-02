@@ -42,6 +42,10 @@ export const checkIdentificationController = handle((req) => {
 
 export const selectProvidersController = handle((req) => providersService.selectProviders({ search: req.query.search, wrkId: req.query.wrkId }));
 
+export const selectAssignableWorksController = handle((req) =>
+  providersService.selectAssignableWorks({ search: req.query.search, prvId: req.query.prvId })
+);
+
 export const saveProviderController = handle(async (req) => {
   const { useId, proId } = req.user;
   // Cambiar la identificación y asignar a una obra tienen permiso propio: el

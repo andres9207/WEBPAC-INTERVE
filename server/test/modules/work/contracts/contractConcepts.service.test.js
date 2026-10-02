@@ -1,11 +1,12 @@
 import { jest } from "@jest/globals";
 import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
+import { CONTRACT_FIELDS_CATALOG, typeFieldRows } from "../../../helpers/contractFields.fixtures.js";
 
 // Conceptos contractuales (ADR-0016, DEC-036): numeración del otrosí bajo
 // bloqueo, prórroga y fecha fin, otrosí de liquidación con su transición, y
 // modificación según el estado.
 
-const state = { contract: null, concepts: [] };
+const state = { contract: null, concepts: [], typeFields: [] };
 
 const prismaMock = {
   tbl_contracts: { findUnique: jest.fn(async () => state.contract), update: jest.fn() },
@@ -16,6 +17,8 @@ const prismaMock = {
     update: jest.fn(),
   },
   tbl_contract_status_history: { create: jest.fn() },
+  tbl_contract_fields: { findMany: jest.fn(async () => CONTRACT_FIELDS_CATALOG) },
+  tbl_contract_type_fields: { findMany: jest.fn(async () => state.typeFields) },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
@@ -32,6 +35,7 @@ const auditRows = () => prismaMock.tbl_audit_log.createMany.mock.calls.flatMap((
 const contract = (overrides = {}) => ({
   ctr_id: 30,
   wrk_id: 8,
+  ctt_id: 2,
   ctr_start_date: new Date("2026-01-31T00:00:00Z"),
   ctr_term: 6,
   ctr_term_unit: "MES",
@@ -77,6 +81,7 @@ const act = (overrides = {}) => ({
 beforeEach(() => {
   jest.clearAllMocks();
   state.contract = contract();
+  state.typeFields = typeFieldRows();
   state.concepts = [concept(), concept({ ccp_id: 301, ccp_type: "AMENDMENT", ccp_number: 1, ccp_start_date: new Date("2026-02-15T00:00:00Z") })];
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
   prismaMock.tbl_contract_concepts.create.mockImplementation(async ({ data }) => ({ ccp_id: 310, ccp_number: data.ccp_number ?? null }));
@@ -188,5 +193,28 @@ describe("updateConcept", () => {
     prismaMock.tbl_contract_concepts.findUnique.mockResolvedValueOnce(null);
     await expect(service.updateConcept({ ccpId: 999, input: act(), useBy: 9, ctx })).rejects.toMatchObject({ statusCode: 404 });
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("campos configurables del tipo de contrato (DEC-037)", () => {
+  it("un otrosí con valor en un campo que no aplica se rechaza", async () => {
+    state.typeFields = typeFieldRows({ RETENTION_PCT: { ctf_applies: null } });
+    await expect(service.createAmendment({ ctrId: 30, input: act(), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Retenido: no aplica para este tipo de contrato.",
+    });
+    expect(prismaMock.tbl_contract_concepts.create).not.toHaveBeenCalled();
+  });
+
+  it("la liquidación toma el valor por defecto de un campo oculto", async () => {
+    state.typeFields = typeFieldRows({ VAT_PCT: { ctf_visible: false } });
+    await service.createLiquidation({ ctrId: 30, input: act({ startDate: "2026-04-01", vatPct: "5" }), useBy: 9, ctx, idempotencyKey: KEY });
+    expect(prismaMock.tbl_contract_concepts.create.mock.calls[0][0].data.ccp_vat_pct.toFixed(2)).toBe("19.00");
+  });
+
+  it("modificar un concepto conserva el porcentaje heredado de un campo que dejó de aplicar", async () => {
+    state.typeFields = typeFieldRows({ VAT_PCT: { ctf_applies: null } });
+    await service.updateConcept({ ccpId: 300, input: act({ vatPct: "" }), useBy: 9, ctx });
+    expect(prismaMock.tbl_contract_concepts.update.mock.calls[0][0].data.ccp_vat_pct.toFixed(2)).toBe("19.00");
   });
 });

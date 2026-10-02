@@ -81,6 +81,9 @@ const saveView = (key, value) => {
  *   del filtro y de la fila (`state`); los conteos llegan en `statusCounts`
  *   por ese valor, y la columna de estado usa `stateName` de la fila.
  * - `filters`: filtros fijos que viajan en cada petición (p. ej. la obra).
+ * - `extraActions(row)`: acciones propias del maestro, después de Editar (p.
+ *   ej. "Configurar campos" del tipo de contrato, DEC-037). Cada una con
+ *   `label`, `icon`, `command` y `tone`; las filtra por permiso quien las da.
  */
 export default function MasterPage({
   title,
@@ -100,7 +103,8 @@ export default function MasterPage({
   renderCard,
   reloadKey,
   stateTabs,
-  filters
+  filters,
+  extraActions
 }) {
   const { hasPermission } = useAuth();
   // perId != null: con el catálogo cargando, hasPermission(undefined) es true (FRONTEND_STANDARD, regla 5).
@@ -225,6 +229,7 @@ export default function MasterPage({
     if (can.edit) {
       items.push({ label: 'Editar', icon: <IconEdit size={16} />, command: () => dialogRef.current?.open(row), tone: 'edit' });
     }
+    if (extraActions) items.push(...extraActions(row));
     if (can.changeStatus) {
       items.push(
         row.staId === 1
@@ -276,35 +281,35 @@ export default function MasterPage({
     setPage(0);
   };
 
-  const cards =
-    rows.length === 0 ? (
-      <Stack alignItems="center" spacing={1.5} sx={{ py: 5 }}>
-        <Typography color="text.secondary">{loading ? 'Cargando…' : emptyMessage}</Typography>
-        {!loading && emptyAction}
-      </Stack>
-    ) : (
-      <Box sx={{ position: 'relative' }}>
-        {/* Recarga: las tarjetas siguen visibles, atenuadas, con la barra arriba. */}
-        {loading && <LinearProgress sx={{ position: 'absolute', top: -12, left: 0, right: 0 }} aria-label="Cargando…" />}
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))',
-            gap: 2,
-            opacity: loading ? 0.6 : 1
-          }}
-        >
-          {rows.map((row) => (
-            <Box key={row[idField]} sx={{ minWidth: 0 }}>
-              {renderCard(
-                row,
-                actionItems(row).map((item) => (item.confirm ? { ...item, command: () => setConfirmItem(item) } : item))
-              )}
-            </Box>
-          ))}
-        </Box>
+  // Solo con la vista de tarjetas activa: sin `renderCard` no hay con qué dibujarlas.
+  const cards = !showCards ? null : rows.length === 0 ? (
+    <Stack alignItems="center" spacing={1.5} sx={{ py: 5 }}>
+      <Typography color="text.secondary">{loading ? 'Cargando…' : emptyMessage}</Typography>
+      {!loading && emptyAction}
+    </Stack>
+  ) : (
+    <Box sx={{ position: 'relative' }}>
+      {/* Recarga: las tarjetas siguen visibles, atenuadas, con la barra arriba. */}
+      {loading && <LinearProgress sx={{ position: 'absolute', top: -12, left: 0, right: 0 }} aria-label="Cargando…" />}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))',
+          gap: 2,
+          opacity: loading ? 0.6 : 1
+        }}
+      >
+        {rows.map((row) => (
+          <Box key={row[idField]} sx={{ minWidth: 0 }}>
+            {renderCard(
+              row,
+              actionItems(row).map((item) => (item.confirm ? { ...item, command: () => setConfirmItem(item) } : item))
+            )}
+          </Box>
+        ))}
       </Box>
-    );
+    </Box>
+  );
 
   const list = (
     <MainCard
@@ -449,5 +454,7 @@ MasterPage.propTypes = {
   /** Pestañas por estado del ciclo de vida: `{ param, tabs: [{ id, name, color }], colors: { [id]: color } }`. */
   stateTabs: PropTypes.shape({ param: PropTypes.string.isRequired, tabs: PropTypes.array.isRequired, colors: PropTypes.object }),
   /** Filtros fijos de la petición, p. ej. `{ wrkId }`. Debe ser estable (useMemo). */
-  filters: PropTypes.object
+  filters: PropTypes.object,
+  /** Acciones propias de una fila, después de Editar: `(row) => [{ label, icon, command, tone }]`. */
+  extraActions: PropTypes.func
 };

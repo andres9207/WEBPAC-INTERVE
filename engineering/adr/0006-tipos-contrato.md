@@ -2,11 +2,24 @@
 
 ## Estado
 
-**Aceptado parcial** (2026-09-30).
+**Aceptado parcial** (2026-10-02).
 
-Implementado el maestro en su versión mínima (reglas 1, 2, 12 y 13, y la columna de la decisión 10): migraciones `0036`–`0037`, tabla `tbl_contract_types` con nombre, estado y `ctt_config_version` (nace en 1), módulo `admin/contractTypes` sobre el patrón de maestro ([DEC-020](../decisiones/DEC-020-patron-maestro.md), [DEC-022](../decisiones/DEC-022-vista-maestro.md)), selector de activos para el formulario de obra, entidad de bloqueo `TIPO_CONTRATO`. Sin semilla.
+Implementado:
+- El maestro (2026-09-30): migraciones `0036`–`0037`, módulo `admin/contractTypes` sobre el patrón de maestro ([DEC-020](../decisiones/DEC-020-patron-maestro.md), [DEC-022](../decisiones/DEC-022-vista-maestro.md)), entidad de bloqueo `TIPO_CONTRATO`; obras y contratos como dependientes (regla 13).
+- La configuración de campos (2026-10-02, [DEC-037](../decisiones/DEC-037-configuracion-campos-tipo-contrato.md), migraciones `0053`–`0057`): decisiones 1 a 10 y reglas 1 a 10, 12, 13 y 14.
+  - Catálogo cerrado `tbl_contract_fields`.
+  - Configuración `tbl_contract_type_fields`, con la jerarquía en un `CHECK`.
+  - Historial de versiones `tbl_contract_type_field_versions`.
+  - Resolución única para el formulario y el guardado.
+  - Valores heredados en solo lectura.
+  - Bitácora funcional y permiso propio (75).
 
-Falta, con contratos: el catálogo de campos y la configuración por tipo (decisiones 1 a 9, MAE-BD-09, MAE-BE-08, MAE-FE-08), el incremento de la versión (decisión 10) y conectar obras y contratos como dependientes (regla 13). El texto de abajo es el análisis original.
+Diferencias con el texto de abajo:
+- El catálogo solo tiene los campos que varían por tipo. Los estructurales del contrato aplican siempre.
+- La jerarquía es obligatorio ⇒ visible ⇒ aplica: un campo oculto tampoco puede ser obligatorio.
+- El flujo de consumo usa `GET /api/work/contracts/get_contract_fields`, no `/api/contratos/...` (área `work/`, [DEC-035](../decisiones/DEC-035-contratos-area-modelo.md)).
+
+Falta la regla 11: cambiar el tipo de un contrato existente con un permiso propio. Hoy lo permite el permiso de modificar contrato, sin borrar valores. El texto de abajo es el análisis original.
 
 ## Fecha
 

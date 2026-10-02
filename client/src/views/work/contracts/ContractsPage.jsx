@@ -46,7 +46,7 @@ export const CONTRACT_COLUMNS = [
         </Typography>
       </>
     ),
-    cardRender: (row) => `${row.workCode} · ${row.stageName ?? ''}`
+    cardRender: (row) => [row.workCode, row.stageName].filter(Boolean).join(' · ')
   },
   {
     id: 'currentValue',

@@ -77,6 +77,9 @@ export const PERMISSIONS = {
       edit: 49,
       delete: 50,
       changeStatus: 51,
+      // Aparte de editar: la configuración de campos afecta a todos los
+      // contratos futuros del tipo (ADR-0006, "Autorización"; DEC-037).
+      configureFields: 75,
     },
   },
   // Obras (DEC-026). Asignar y retirar responsables son permisos aparte de
