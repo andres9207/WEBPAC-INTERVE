@@ -7,10 +7,12 @@ import { prisma } from "../src/common/configs/prismaClient.js";
 // ya asignados y la navegación de cualquier ambiente que ya tenga datos.
 //
 // pag_type: 1 = página padre (grupo en el sidebar), 2 = página hija (item).
+// pag_order de los grupos: el de la migración 0043 (Dashboard, Obras,
+// Administración, Seguridad). El upsert lo reescribe en cada `yarn db:seed`.
 
 const PAGES = [
   { pag_id: 1, pag_description: "Dashboard", pag_parent: 0, pag_url: "home/default", pag_icon: "dashboard", pag_order: 1, pag_name: "Dashboard", pag_type: 1 },
-  { pag_id: 2, pag_description: "Seguridad", pag_parent: 0, pag_url: null, pag_icon: "shield", pag_order: 2, pag_name: "Seguridad", pag_type: 1 },
+  { pag_id: 2, pag_description: "Seguridad", pag_parent: 0, pag_url: null, pag_icon: "shield", pag_order: 4, pag_name: "Seguridad", pag_type: 1 },
   { pag_id: 3, pag_description: "Perfiles", pag_parent: 2, pag_url: "security/profiles", pag_icon: "id", pag_order: 1, pag_name: "Perfiles", pag_type: 2 },
   { pag_id: 4, pag_description: "Usuarios", pag_parent: 2, pag_url: "security/users", pag_icon: "users", pag_order: 2, pag_name: "Usuarios", pag_type: 2 },
   // database/migrations/0020_seed_admin_identity_documents_pages_permissions.sql
@@ -29,7 +31,7 @@ const PAGES = [
   // database/migrations/0037_seed_contract_types_pages_permissions.sql
   { pag_id: 12, pag_description: "Tipos de contrato", pag_parent: 5, pag_url: "admin/contractTypes", pag_icon: "contract", pag_order: 7, pag_name: "Tipos de contrato", pag_type: 2 },
   // database/migrations/0041_seed_works_pages_permissions.sql
-  { pag_id: 13, pag_description: "Obras", pag_parent: 0, pag_url: null, pag_icon: "building", pag_order: 4, pag_name: "Obras", pag_type: 1 },
+  { pag_id: 13, pag_description: "Obras", pag_parent: 0, pag_url: null, pag_icon: "building", pag_order: 2, pag_name: "Obras", pag_type: 1 },
   { pag_id: 14, pag_description: "Obras", pag_parent: 13, pag_url: "work/works", pag_icon: "building", pag_order: 1, pag_name: "Obras", pag_type: 2 },
   // database/migrations/0047_seed_providers_pages_permissions.sql
   { pag_id: 15, pag_description: "Proveedores", pag_parent: 13, pag_url: "work/providers", pag_icon: "truck", pag_order: 2, pag_name: "Proveedores", pag_type: 2 },
