@@ -23,7 +23,7 @@ import { useAuth } from 'contexts/AuthContext';
 import { showError, showSuccess } from 'services/ToastService';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
-import { fTerm } from 'utils/constants';
+import { STATUS, fTerm } from 'utils/constants';
 
 /**
  * Detalle de una obra (DEC-030), en un modal sobre el listado con dirección
@@ -89,12 +89,12 @@ export default function WorkDetailPage() {
 
   if (!work) return <RouteDialog onClose={close} loading={loading} />;
 
-  const active = work.staId === 1;
-  const activeManagers = work.managers.filter((m) => m.staId === 1);
+  const active = work.staId === STATUS.ACTIVE;
+  const activeManagers = work.managers.filter((m) => m.staId === STATUS.ACTIVE);
   const mainManager = activeManagers.find((m) => m.role === 'MAIN');
 
   const changeStatus = async () => {
-    const { data } = await worksApi.changeStatus({ wrkId: work.wrkId, staId: active ? 2 : 1 });
+    const { data } = await worksApi.changeStatus({ wrkId: work.wrkId, staId: active ? STATUS.INACTIVE : STATUS.ACTIVE });
     showSuccess(data.message);
     load();
     refresh?.();
@@ -288,7 +288,7 @@ export default function WorkDetailPage() {
                       {m.userStaId !== 1 ? ' · usuario inactivo' : ''}
                     </Typography>
                   </Box>
-                  <StatusChip staId={m.staId} label={m.staId === 1 ? 'Activo' : 'Inactivo'} />
+                  <StatusChip staId={m.staId} label={m.staId === STATUS.ACTIVE ? 'Activo' : 'Inactivo'} />
                 </Stack>
               </Grid>
             ))}
@@ -317,7 +317,7 @@ export default function WorkDetailPage() {
                   <Typography variant="subtitle1" sx={{ flexGrow: 1 }}>
                     {s.name}
                   </Typography>
-                  <StatusChip staId={s.staId} label={s.staId === 1 ? 'Activa' : 'Inactiva'} />
+                  <StatusChip staId={s.staId} label={s.staId === STATUS.ACTIVE ? 'Activa' : 'Inactiva'} />
                 </Stack>
               ))}
           </Box>

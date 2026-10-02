@@ -22,6 +22,7 @@ import {
   verifyResetCode,
 } from "../../common/utils/resetCode.utils.js";
 import { userFullName } from "../../common/utils/user.utils.js";
+import { ACTIVE_STATUS } from "../../common/constants/status.constants.js";
 
 // ── Bloqueo por intentos fallidos de login (por cuenta) ─────────────────────
 // Complementa el rate limit por IP (authRateLimit), que se esquiva rotando
@@ -112,7 +113,7 @@ export const login = async ({ usuario, clave, password, ctx = {} }) => {
 
   const userData = await prisma.tbl_users.findFirst({
     where: {
-      sta_id: 1,
+      sta_id: ACTIVE_STATUS,
       OR: [{ use_email: usuario }, { use_user: usuario }],
     },
     select: {
@@ -348,7 +349,7 @@ const consumeResetAttempt = async ({ email, codeTemp, ctx }) => {
   const reset = await prisma.tbl_password_resets.findFirst({
     where: {
       par_create_at: { gte: new Date(Date.now() - RESET_CODE_TTL_MS) },
-      tbl_users: { use_email: email, sta_id: 1 },
+      tbl_users: { use_email: email, sta_id: ACTIVE_STATUS },
     },
     select: { par_id: true, use_id: true, par_code_hash: true },
   });
@@ -452,7 +453,7 @@ export const forgotPassword = async ({ email, ctx = {} }) => {
   const start = Date.now();
 
   const user = await prisma.tbl_users.findFirst({
-    where: { use_email: email, sta_id: 1 },
+    where: { use_email: email, sta_id: ACTIVE_STATUS },
     select: { use_id: true, use_name: true },
   });
 

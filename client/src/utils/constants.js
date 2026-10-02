@@ -1,12 +1,17 @@
+// Estados de visibilidad (tbl_status, DEC-038): los mismos ids que
+// server/src/common/constants/status.constants.js. El ciclo de vida de un
+// contrato no va aquí: tiene su propio estado (CONTRACT_STATE_*).
+export const STATUS = Object.freeze({ ACTIVE: 1, INACTIVE: 2, DELETED: 3 });
+
 export const STATUS_OPTIONS = [
-  { value: 1, label: 'Activo' },
-  { value: 2, label: 'Inactivo' },
+  { value: STATUS.ACTIVE, label: 'Activo' },
+  { value: STATUS.INACTIVE, label: 'Inactivo' },
 ];
 
 // Pestañas por estado de los listados (StatusTabs): activo e inactivo; eliminado nunca se lista.
 export const STATUS_TABS = [
-  { staId: 1, staName: 'Activos', staColor: 'success' },
-  { staId: 2, staName: 'Inactivos', staColor: 'warning' }
+  { staId: STATUS.ACTIVE, staName: 'Activos', staColor: 'success' },
+  { staId: STATUS.INACTIVE, staName: 'Inactivos', staColor: 'warning' }
 ];
 
 /** Pestañas con el conteo que devuelve el servidor (`statusCounts`). */

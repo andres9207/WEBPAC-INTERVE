@@ -10,6 +10,7 @@ import { identityDocumentsService } from "../../admin/identityDocuments/identity
 import { identificationError } from "../../admin/identityDocuments/identityDocuments.formats.js";
 import { providerTypesService } from "../../admin/providerTypes/providerTypes.service.js";
 import { addressTypesService } from "../../admin/addressTypes/addressTypes.service.js";
+import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
  * Proveedores (ADR-0012, DEC-031, DEC-032). Una fila por empresa, reutilizada
@@ -27,10 +28,6 @@ import { addressTypesService } from "../../admin/addressTypes/addressTypes.servi
  * - Bitácora funcional: identidad, nombre, tipo, estado, y la asignación y
  *   desasignación a obras. Técnica (columnas de autoría) para el resto.
  */
-
-export const ACTIVE_STATUS = 1;
-export const INACTIVE_STATUS = 2;
-export const DELETED_STATUS = 3;
 
 const CAN = PERMISSIONS.work.providers;
 

@@ -22,6 +22,7 @@ import { providersApi, workProvidersApi } from 'api/requests/providersApi';
 import { useAuth } from 'contexts/AuthContext';
 import { showError, showSuccess } from 'services/ToastService';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
+import { STATUS } from 'utils/constants';
 
 /**
  * Detalle de un proveedor (ADR-0012, DEC-031), en un modal sobre el listado
@@ -84,13 +85,13 @@ export default function ProviderDetailPage() {
 
   if (!provider) return <RouteDialog onClose={close} loading={loading} />;
 
-  const active = provider.staId === 1;
+  const active = provider.staId === STATUS.ACTIVE;
   const documentText = `${provider.identityCode ?? ''} ${provider.identification}`;
   const mainContact = provider.contacts.find((c) => c.main);
-  const activeWorks = provider.works.filter((w) => w.staId === 1).length;
+  const activeWorks = provider.works.filter((w) => w.staId === STATUS.ACTIVE).length;
 
   const changeStatus = async () => {
-    const { data } = await providersApi.changeStatus({ prvId: provider.prvId, staId: active ? 2 : 1 });
+    const { data } = await providersApi.changeStatus({ prvId: provider.prvId, staId: active ? STATUS.INACTIVE : STATUS.ACTIVE });
     showSuccess(data.message);
     load();
     refresh?.();
@@ -366,7 +367,7 @@ export default function ProviderDetailPage() {
                       {w.observation ? ` · ${w.observation}` : ''}
                     </Typography>
                   </Box>
-                  <StatusChip staId={w.staId} label={w.staId === 1 ? 'Asignación activa' : 'Asignación inactiva'} />
+                  <StatusChip staId={w.staId} label={w.staId === STATUS.ACTIVE ? 'Asignación activa' : 'Asignación inactiva'} />
                   {(canAssign || canUnassign) && (
                     <Stack direction="row" spacing={1}>
                       {canAssign && (

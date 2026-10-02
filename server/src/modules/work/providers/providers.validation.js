@@ -7,6 +7,7 @@ import {
   idempotencyKeyRule,
   emailRule,
 } from "../../../common/utils/validation.utils.js";
+import { EDITABLE_STATUS_VALUES } from "../../../common/constants/status.constants.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). El formato del
 // número según su tipo, la unicidad de la identidad y "un solo principal"
@@ -75,7 +76,7 @@ export const saveProviderSchema = [
 
 export const changeProviderStatusSchema = [
   requiredId("prvId"),
-  body("staId").isIn([1, 2, "1", "2"]).withMessage("El estado debe ser activo o inactivo."),
+  body("staId").isIn(EDITABLE_STATUS_VALUES).withMessage("El estado debe ser activo o inactivo."),
 ];
 
 export const deleteProviderSchema = [requiredId("prvId")];
@@ -95,7 +96,7 @@ export const updateWorkProviderSchema = [
   requiredId("prvId"),
   assignmentDate("assignmentDate"),
   optionalBodyText("observation", "La observación", 500),
-  body("staId").isIn([1, 2, "1", "2"]).withMessage("El estado debe ser activo o inactivo."),
+  body("staId").isIn(EDITABLE_STATUS_VALUES).withMessage("El estado debe ser activo o inactivo."),
 ];
 
 export const unassignProviderSchema = [requiredId("wrkId"), requiredId("prvId")];

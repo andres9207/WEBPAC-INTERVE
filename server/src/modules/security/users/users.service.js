@@ -13,6 +13,7 @@ import {
 } from "../../../common/services/audit.service.js";
 import { identityDocumentsService } from "../../admin/identityDocuments/identityDocuments.service.js";
 import { identificationError } from "../../admin/identityDocuments/identityDocuments.formats.js";
+import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 const USER_SORT_FIELDS = {
   name: (order) => ({ use_name: order }),
@@ -28,7 +29,6 @@ const USER_SORT_FIELDS = {
   profileName: (order) => ({ tbl_profiles: { pro_name: order } }),
   statusName: (order) => ({ tbl_status: { sta_name: order } }),
 };
-
 
 export const paginationUsers = async ({
   proId,
@@ -65,10 +65,10 @@ export const paginationUsers = async ({
     ...(username ? { use_user: { contains: username } } : {}),
     // Búsqueda general (DEC-024): nombre, apellido, correo, número de documento o usuario.
     ...searchWhere(["use_name", "use_last_name", "use_email", "use_identification", "use_user"], search),
-    sta_id: { not: 3 },
+    sta_id: { not: DELETED_STATUS },
     // JOIN tbl_profiles p ON u.pro_id = p.pro_id AND p.sta_id = 1 del SQL
     // original: solo usuarios cuyo perfil sigue activo.
-    tbl_profiles: { sta_id: 1 },
+    tbl_profiles: { sta_id: ACTIVE_STATUS },
   };
   const where = { ...baseWhere, ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}) };
 
@@ -135,13 +135,13 @@ export const paginationUsers = async ({
 export const countUsers = async ({ useId }) => {
   const profiles = await prisma.tbl_profiles.findMany({
     where: {
-      sta_id: 1,
+      sta_id: ACTIVE_STATUS,
       ...(Number(useId) !== 1 ? { NOT: { pro_id: 1 } } : {}),
     },
     select: {
       pro_id: true,
       pro_name: true,
-      _count: { select: { tbl_users: { where: { sta_id: { not: 3 } } } } },
+      _count: { select: { tbl_users: { where: { sta_id: { not: DELETED_STATUS } } } } },
     },
     orderBy: { pro_name: "asc" },
   });
@@ -166,7 +166,7 @@ async function checkIfUserExists({ identification, iddId, email, username, useId
 
   return prisma.tbl_users.findFirst({
     where: {
-      sta_id: { not: 3 },
+      sta_id: { not: DELETED_STATUS },
       OR: conditions,
       ...(useId > 0 ? { NOT: { use_id: Number(useId) } } : {}),
     },
@@ -197,8 +197,6 @@ const AUDITED_USER_FIELDS = [
   "use_access",
   "use_change_password",
 ];
-
-const DELETED_STATUS = 3;
 
 // El perfil asignado se verifica con su fila ya bloqueada: deleteProfile
 // bloquea el mismo perfil antes de comprobar que no tenga usuarios, así que

@@ -24,6 +24,7 @@ import {
   sortConcepts,
   totalExtensions,
 } from "./contractTerms.js";
+import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
  * Contratos (ADR-0015 a ADR-0017, DEC-035). El contrato es la raíz del
@@ -44,9 +45,6 @@ import {
  *   transacción por la misma función que entrega los descriptores al
  *   formulario. El contrato guarda la versión con que se capturó.
  */
-
-export const ACTIVE_STATUS = 1;
-export const DELETED_STATUS = 3;
 
 export const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 

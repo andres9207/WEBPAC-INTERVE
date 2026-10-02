@@ -18,6 +18,7 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 | Aplicar las migraciones `0044` a `0047` (proveedores, contactos de proveedor, asignación proveedor-obra, menú y permisos 60 a 67) junto con su código, y después `yarn db:seed`. Requieren `0038` (obras). En desarrollo ya están aplicadas y sembradas (2026-10-01) | Alta | ADR-0012, DEC-031 |
 | Aplicar las migraciones `0048` a `0052` (índice de etapas, contratos, conceptos, historial de estado, menú y permisos 68 a 74) junto con su código, y después `yarn db:seed`. Requieren `0046` (asignación proveedor-obra). Después de la `0049`, una etapa o una asignación proveedor-obra con contratos ya no se pueden borrar (FK compuestas): el código nuevo de obras y proveedores da el mensaje 409. En desarrollo ya están aplicadas y sembradas (2026-10-02) | Alta | ADR-0015, DEC-035 |
 | Aplicar las migraciones `0053` a `0057` (catálogo de campos configurables, configuración por tipo de contrato, historial de versiones, etapa opcional en contratos, configuración inicial de los tipos existentes y permiso 75) junto con su código, y después `yarn db:seed`. La `0057` da a cada tipo existente todos los campos aplicables y visibles, con la etapa obligatoria; un tipo creado después nace sin configuración y su formulario solo trae los datos fijos. En desarrollo ya están aplicadas y sembradas (2026-10-02) | Alta | ADR-0006, DEC-037 |
+| Aplicar la migración `0058` (clave simbólica de `tbl_status`) **antes** de desplegar su código, y después `yarn db:seed`. El servidor nuevo verifica el catálogo al arrancar y no arranca si falta la clave. En desarrollo ya está aplicada (2026-10-02) | Alta | DEC-038 |
 | Restringir el usuario de BD de la aplicación a `INSERT`/`SELECT` sobre `tbl_audit_log`. Hoy ningún código la modifica, pero el usuario tiene privilegios para hacerlo ([DEC-007](../decisiones/DEC-007-bitacora-funcional.md), sugerencia en `0013_create_audit_log.sql`) | Alta | `SECURITY.md` |
 
 ## Funcionalidad abierta
@@ -63,13 +64,13 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
 | `app.options('*', cors())` en `server/app.js` responde los preflight con la configuración por defecto de `cors` (cualquier origen) en vez de la allowlist de `cors.config.js`. Impacto bajo: las peticiones reales sí pasan por la allowlist y el navegador no acepta `*` con credenciales. Es inconsistente | Media | Revisión de ADR-0001 |
-| `getStatusesByScope` (`app/general/app.service.js`) filtra por `sta_key`, columna que no existe en `tbl_status`. Si alguien envía `excludesKeys`, Prisma lanza. Hoy ningún caller lo envía | Media | Revisión de ADR-0001 |
 | `client/src/api/requests/permissionsApi.js` exporta `getPermissionsUserAPI`, que apunta a una ruta inexistente (`security/permissions/get_permissions_user`) y no tiene caller. `GET /app/get_permissions_user` (la ruta real) tampoco tiene caller en el cliente: confirmar si sigue haciendo falta | Baja | Auditoría de rutas |
 
 ## Deriva entre código y estándares
 
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
+| `saveProfile` y `saveUser` validan `staId` con `requiredId`: aceptan `3` y eliminan por el guardado, sin las verificaciones de `deleteProfile`/`deleteUser` (usuarios activos del perfil, limpieza de permisos). Los maestros, obras y proveedores ya lo restringen con `EDITABLE_STATUS_VALUES` (DEC-038) | Media | DEC-038 |
 | `deleteProfile` responde **400** al eliminar un perfil ya eliminado; [DEC-006](../decisiones/DEC-006-columnas-autoria-eliminacion.md) exige **404**, y `deleteUser` ya lo cumple | Media | Descubrimiento de `engineering/` |
 | Duplicado por nombre: `saveProfile`/`saveUser` responden 400; el mismo duplicado detectado por la BD responde 409. Pendiente de decisión (PD-02 en [`PROJECT_STATE`](../PROJECT_STATE.md)) | Media | Descubrimiento de `engineering/` |
 | `GET /app/get_profiles` es un selector sin paginar, como permite [DEC-018](../decisiones/DEC-018-selector-maestros.md), pero sin el tope fijo `take: MAX_ROWS` | Baja | Descubrimiento de `engineering/` |

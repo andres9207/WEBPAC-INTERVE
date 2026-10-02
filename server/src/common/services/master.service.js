@@ -4,6 +4,7 @@ import { USER_NAME_SELECT, userFullName } from "../utils/user.utils.js";
 import { runIdempotent } from "./idempotency.service.js";
 import { withLockedTransaction, withTransaction } from "./transaction.service.js";
 import { AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "./audit.service.js";
+import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../constants/status.constants.js";
 
 /**
  * Patrón reutilizable de maestro (MAE-BE-01). Un maestro se declara con
@@ -28,10 +29,6 @@ import { AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "./audi
  * solo con `changeStatus`, que tiene su propio permiso (ADR-0003 y
  * siguientes: desactivar tiene otro impacto que corregir un nombre).
  */
-
-export const ACTIVE_STATUS = 1;
-export const INACTIVE_STATUS = 2;
-export const DELETED_STATUS = 3;
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 

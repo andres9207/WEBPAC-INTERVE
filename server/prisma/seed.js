@@ -155,14 +155,14 @@ const VIEW_PERMISSIONS = [
 // filas también vería el sidebar vacío, igual que cualquier otro perfil.
 const SUPERADMIN_PROFILE_ID = 1;
 
-// Catálogo de estados (database/migrations/0010_seed_status.sql). Ids fijos:
-// 1 = activo, 2 = inactivo, 3 = eliminado lógico — codificados en el backend
-// y en client/src/utils/constants.js. `update: {}` para no pisar nombres o
+// Catálogo de estados (migraciones 0010 y 0058). Ids fijos con su clave
+// simbólica, los mismos de src/common/constants/status.constants.js (DEC-038;
+// un test los cruza). `update` solo fija la clave, para no pisar nombres o
 // colores ya personalizados en una BD existente.
 const STATUSES = [
-  { sta_id: 1, sta_name: "Activo", sta_scope: "GENERAL", sta_color: "success", sta_order: 1 },
-  { sta_id: 2, sta_name: "Inactivo", sta_scope: "GENERAL", sta_color: "warning", sta_order: 2 },
-  { sta_id: 3, sta_name: "Eliminado", sta_scope: "GENERAL", sta_color: "error", sta_order: 3 },
+  { sta_id: 1, sta_name: "Activo", sta_key: "ACTIVE", sta_scope: "GENERAL", sta_color: "success", sta_order: 1 },
+  { sta_id: 2, sta_name: "Inactivo", sta_key: "INACTIVE", sta_scope: "GENERAL", sta_color: "warning", sta_order: 2 },
+  { sta_id: 3, sta_name: "Eliminado", sta_key: "DELETED", sta_scope: "GENERAL", sta_color: "error", sta_order: 3 },
 ];
 
 // Tipos de identificación iniciales (database/migrations/0018_seed_identity_documents.sql).
@@ -219,11 +219,11 @@ async function main() {
   for (const status of STATUSES) {
     await prisma.tbl_status.upsert({
       where: { sta_id: status.sta_id },
-      update: {},
+      update: { sta_key: status.sta_key },
       create: status,
     });
   }
-  console.log(`tbl_status: ${STATUSES.length} estados sembrados (los existentes no se modifican).`);
+  console.log(`tbl_status: ${STATUSES.length} estados sembrados (de los existentes solo se fija la clave).`);
 
   for (const document of IDENTITY_DOCUMENTS) {
     await prisma.tbl_identity_documents.upsert({

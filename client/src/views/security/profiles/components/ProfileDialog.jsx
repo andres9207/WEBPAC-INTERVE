@@ -5,7 +5,7 @@ import { getModulesAPI, saveProfileAPI } from 'api/requests/profilesApi';
 import { newIdempotencyKey } from 'utils/idempotency';
 
 import GenericFormSection from 'ui-component/extended/GenericFormSection';
-import { STATUS_OPTIONS } from 'utils/constants';
+import { STATUS, STATUS_OPTIONS } from 'utils/constants';
 import Box from '@mui/material/Box';
 import BaseDialog from 'ui-component/extended/BaseDialog';
 import Button from '@mui/material/Button';
@@ -39,7 +39,7 @@ const ProfileDialog = forwardRef(({ addItem, updateItem }, ref) => {
   const [originalAssociated, setOriginalAssociated] = useState([]);
 
   const methods = useForm({
-    defaultValues: { name: '', staId: 1 },
+    defaultValues: { name: '', staId: STATUS.ACTIVE },
   });
 
   const { handleSubmit, reset } = methods;
@@ -61,7 +61,7 @@ const ProfileDialog = forwardRef(({ addItem, updateItem }, ref) => {
   const newProfile = () => {
     setProId(0);
     setIdempotencyKey(newIdempotencyKey());
-    reset({ name: '', staId: 1 });
+    reset({ name: '', staId: STATUS.ACTIVE });
     setAssociated([]);
     setUnassociated([]);
     setOriginalAssociated([]);
@@ -128,7 +128,7 @@ const ProfileDialog = forwardRef(({ addItem, updateItem }, ref) => {
         proId: proId > 0 ? proId : data.proId,
         name: formData.name,
         staId: formData.staId,
-        statusName: formData.staId === 1 ? 'Activo' : 'Inactivo',
+        statusName: formData.staId === STATUS.ACTIVE ? 'Activo' : 'Inactivo',
       };
 
       if (proId > 0) {

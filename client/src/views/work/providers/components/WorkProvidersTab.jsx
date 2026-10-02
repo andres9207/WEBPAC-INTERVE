@@ -17,6 +17,7 @@ import { useAuth } from 'contexts/AuthContext';
 import { useSocket } from 'socket/SocketProvider';
 import { showError, showSuccess } from 'services/ToastService';
 import { fDateOnly } from 'utils/formatTime';
+import { STATUS } from 'utils/constants';
 
 /**
  * Proveedores de una obra (ADR-0012). Dos flujos que convergen (decisión 7):
@@ -107,7 +108,11 @@ export default function WorkProvidersTab({ wrkId, workCode, onChanged }) {
     { id: 'providerType', label: 'Tipo' },
     { id: 'assignmentDate', label: 'Asignado el', render: (row) => fDateOnly(row.assignmentDate) },
     { id: 'observation', label: 'Observaciones', render: (row) => row.observation || '—' },
-    { id: 'staId', label: 'Asignación', render: (row) => <StatusChip staId={row.staId} label={row.staId === 1 ? 'Activa' : 'Inactiva'} /> }
+    {
+      id: 'staId',
+      label: 'Asignación',
+      render: (row) => <StatusChip staId={row.staId} label={row.staId === STATUS.ACTIVE ? 'Activa' : 'Inactiva'} />
+    }
   ];
 
   const actions = (row) => [

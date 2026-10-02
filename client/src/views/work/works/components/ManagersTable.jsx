@@ -13,6 +13,7 @@ import { IconEdit, IconTrash } from '@tabler/icons-react';
 import ActionButton from 'ui-component/extended/ActionButton';
 import StatusChip from 'ui-component/extended/StatusChip';
 import { MANAGER_ROLE_OPTIONS } from './ManagerDialog';
+import { STATUS } from 'utils/constants';
 
 const roleLabel = (role) => MANAGER_ROLE_OPTIONS.find((o) => o.value === role)?.label ?? role;
 
@@ -55,7 +56,7 @@ export default function ManagersTable({ rows, canEdit, canRemove, onEdit, onRemo
                 </TableCell>
                 <TableCell>{roleLabel(row.role)}</TableCell>
                 <TableCell>
-                  <StatusChip staId={row.staId} label={row.staId === 1 ? 'Activo' : 'Inactivo'} />
+                  <StatusChip staId={row.staId} label={row.staId === STATUS.ACTIVE ? 'Activo' : 'Inactivo'} />
                 </TableCell>
                 <TableCell align="center">
                   <Stack direction="row" spacing={0.5} justifyContent="center">

@@ -19,6 +19,7 @@ import { providersApi } from 'api/requests/providersApi';
 import { showError, showSuccess } from 'services/ToastService';
 import { identificationFormatError } from 'utils/identification';
 import { newIdempotencyKey } from 'utils/idempotency';
+import { STATUS } from 'utils/constants';
 
 /**
  * "Crear proveedor nuevo" desde la obra (ADR-0012, decisiones 6 y 7): crea el
@@ -171,7 +172,7 @@ export default function NewProviderDialog({ open, wrkId, onClose, onSaved, onUse
               severity="info"
               role="status"
               action={
-                existing.staId === 1 ? (
+                existing.staId === STATUS.ACTIVE ? (
                   <Button color="inherit" size="small" onClick={() => onUseExisting(existing)}>
                     Asignar este proveedor
                   </Button>
@@ -179,7 +180,9 @@ export default function NewProviderDialog({ open, wrkId, onClose, onSaved, onUse
               }
             >
               Ya existe: <strong>{existing.name}</strong> ({existing.identityCode} {existing.identification}).{' '}
-              {existing.staId === 1 ? 'No se crea otro: asígnalo a la obra.' : 'Está inactivo: actívalo en Proveedores para asignarlo.'}
+              {existing.staId === STATUS.ACTIVE
+                ? 'No se crea otro: asígnalo a la obra.'
+                : 'Está inactivo: actívalo en Proveedores para asignarlo.'}
             </Alert>
           </Grid>
         )}

@@ -4,6 +4,7 @@ import { prisma } from "../configs/prismaClient.js";
 import { getIO } from "../configs/socket.manager.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, writeAudit } from "./audit.service.js";
 import { withTransaction } from "./transaction.service.js";
+import { ACTIVE_STATUS } from "../constants/status.constants.js";
 
 /**
  * Sesiones de usuario (ADR-0001, B14) — tbl_sessions.
@@ -206,7 +207,7 @@ export const refreshSession = async ({ refreshToken }) => {
     if (!reused) throw sessionError();
 
     const withinGrace = reused.ses_rotated_at && now - reused.ses_rotated_at.getTime() <= ROTATION_GRACE_MS;
-    const usable = reused.ses_expires_at.getTime() > now && reused.tbl_users.sta_id === 1;
+    const usable = reused.ses_expires_at.getTime() > now && reused.tbl_users.sta_id === ACTIVE_STATUS;
 
     if (withinGrace && usable) {
       return {
@@ -228,7 +229,7 @@ export const refreshSession = async ({ refreshToken }) => {
     throw sessionError();
   }
 
-  if (session.ses_expires_at.getTime() <= now || session.tbl_users.sta_id !== 1) {
+  if (session.ses_expires_at.getTime() <= now || session.tbl_users.sta_id !== ACTIVE_STATUS) {
     await revokeSession({ useId: session.tbl_users.use_id });
     throw sessionError();
   }
@@ -331,7 +332,7 @@ export const isSessionActive = async ({ sid, useId, email }) => {
       ses_key: sid,
       use_id: useId,
       ses_expires_at: { gt: new Date() },
-      tbl_users: { use_email: email, sta_id: 1 },
+      tbl_users: { use_email: email, sta_id: ACTIVE_STATUS },
     },
     select: { ses_id: true },
   });

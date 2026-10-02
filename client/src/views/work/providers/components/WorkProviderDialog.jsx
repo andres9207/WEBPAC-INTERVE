@@ -14,7 +14,7 @@ import SearchSelect from 'ui-component/extended/SearchSelect';
 import { getAssignableWorksAPI, getProvidersSelectAPI, workProvidersApi } from 'api/requests/providersApi';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
-import { STATUS_OPTIONS } from 'utils/constants';
+import { STATUS, STATUS_OPTIONS } from 'utils/constants';
 
 /**
  * Asignar un proveedor a una obra, o editar una asignación (ADR-0012,
@@ -37,7 +37,7 @@ export default function WorkProviderDialog({ open, wrkId, prvId, assignment, pre
   const isEdit = Boolean(assignment);
   // Lado desde el que se abre: qué se elige en el buscador.
   const fromProvider = Boolean(prvId) && !wrkId;
-  const [form, setForm] = useState({ targetId: '', assignmentDate: '', observation: '', staId: 1 });
+  const [form, setForm] = useState({ targetId: '', assignmentDate: '', observation: '', staId: STATUS.ACTIVE });
   const [errors, setErrors] = useState({});
   const [options, setOptions] = useState([]);
   // Opción elegida: se conserva aunque una búsqueda nueva no la traiga.
@@ -62,7 +62,7 @@ export default function WorkProviderDialog({ open, wrkId, prvId, assignment, pre
             observation: assignment.observation ?? '',
             staId: assignment.staId
           }
-        : { targetId: preset?.prvId ?? '', assignmentDate: today(), observation: '', staId: 1 }
+        : { targetId: preset?.prvId ?? '', assignmentDate: today(), observation: '', staId: STATUS.ACTIVE }
     );
     setOptions([]);
     setChosen(

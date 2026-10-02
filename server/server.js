@@ -3,6 +3,7 @@ import http from "http";
 import { app } from "./app.js";
 import { init } from "./socket.js";
 import { testConnection } from "./src/common/configs/prismaClient.js";
+import { verifyStatusCatalog } from "./src/common/services/status.service.js";
 import { startCronJobs, stopCronJobs } from "./src/cron/index.js";
 
 if (!process.env.JWT_SECRET) {
@@ -16,6 +17,17 @@ const server = http.createServer(app);
 init(server);
 
 testConnection();
+
+// Los ids de estado están en el código (status.constants.js): si la BD no
+// coincide, el servidor no arranca (DEC-038). Si la BD no responde, solo se
+// registra, igual que testConnection.
+verifyStatusCatalog()
+  .then((problems) => {
+    if (problems.length === 0) return;
+    console.error(`El catálogo de estados (tbl_status) no coincide con el código: ${problems.join("; ")}. Aplica la migración 0058.`);
+    process.exit(1);
+  })
+  .catch((error) => console.error("No se pudo verificar el catálogo de estados:", error.message));
 
 startCronJobs();
 

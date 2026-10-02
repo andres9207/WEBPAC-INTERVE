@@ -6,7 +6,7 @@ import Typography from '@mui/material/Typography';
 
 import BaseDialog from 'ui-component/extended/BaseDialog';
 import SearchSelect from 'ui-component/extended/SearchSelect';
-import { STATUS_OPTIONS } from 'utils/constants';
+import { STATUS, STATUS_OPTIONS } from 'utils/constants';
 
 /**
  * Agregar o editar un responsable de la obra, en memoria: el cambio se guarda
@@ -23,12 +23,12 @@ export const MANAGER_ROLE_OPTIONS = [
 
 export default function ManagerDialog({ open, manager, userOptions, onClose, onSave }) {
   const isEdit = Boolean(manager?.key);
-  const [form, setForm] = useState({ useId: '', role: 'SUPPORT', staId: 1 });
+  const [form, setForm] = useState({ useId: '', role: 'SUPPORT', staId: STATUS.ACTIVE });
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (open) {
-      setForm({ useId: manager?.useId ?? '', role: manager?.role ?? 'SUPPORT', staId: manager?.staId ?? 1 });
+      setForm({ useId: manager?.useId ?? '', role: manager?.role ?? 'SUPPORT', staId: manager?.staId ?? STATUS.ACTIVE });
       setError('');
     }
   }, [open, manager]);
@@ -41,7 +41,7 @@ export default function ManagerDialog({ open, manager, userOptions, onClose, onS
       return;
     }
     const option = userOptions.find((o) => o.value === form.useId);
-    onSave({ ...manager, ...form, name: option?.label ?? manager?.name, staId: isEdit ? form.staId : 1 });
+    onSave({ ...manager, ...form, name: option?.label ?? manager?.name, staId: isEdit ? form.staId : STATUS.ACTIVE });
   };
 
   return (

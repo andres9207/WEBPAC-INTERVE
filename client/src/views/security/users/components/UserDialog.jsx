@@ -12,7 +12,7 @@ import BaseDialog from 'ui-component/extended/BaseDialog';
 import Button from '@mui/material/Button';
 
 import GenericFormSection from 'ui-component/extended/GenericFormSection';
-import { STATUS_OPTIONS } from 'utils/constants';
+import { STATUS, STATUS_OPTIONS } from 'utils/constants';
 // import DocumentManagement from 'ui-component/DocumentManagement';
 
 const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
@@ -43,7 +43,7 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
       password: '',
       access: true,
       changePassword: false,
-      staId: 1,
+      staId: STATUS.ACTIVE,
       usePages: [],
     },
   });
@@ -165,7 +165,7 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
       password: '',
       access: true,
       changePassword: false,
-      staId: 1,
+      staId: STATUS.ACTIVE,
       usePages: [],
     });
     setVisible(true);
@@ -188,7 +188,7 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
       password: '',
       access: item.access === 1 || item.access === true,
       changePassword: item.changePassword === 1 || item.changePassword === true,
-      staId: item.staId || 1,
+      staId: item.staId || STATUS.ACTIVE,
       usePages: item.usePages ? item.usePages.split(',').map(Number) : [],
     });
     setVisible(true);
@@ -239,7 +239,7 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
         access: payload.access,
         changePassword: payload.changePassword,
         staId: formData.staId,
-        statusName: formData.staId === 1 ? 'Activo' : 'Inactivo',
+        statusName: formData.staId === STATUS.ACTIVE ? 'Activo' : 'Inactivo',
         profileName,
         usePages: payload.usePages,
       };

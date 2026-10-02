@@ -9,6 +9,7 @@ import {
 } from "../../../common/utils/validation.utils.js";
 import { MANAGER_ROLES } from "./works.service.js";
 import { TERM_UNITS } from "../../../common/utils/term.utils.js";
+import { EDITABLE_STATUS_VALUES } from "../../../common/constants/status.constants.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). Las reglas de
 // negocio (ampliado >= inicial, al menos un responsable…) viven en el service.
@@ -23,7 +24,7 @@ const term = (field, label, { optional = false } = {}) =>
     .isInt({ min: 0, max: 100000 })
     .withMessage(`El ${label} debe ser un entero no negativo.`);
 
-const status = (field) => body(field).optional({ values: "null" }).isIn([1, 2, "1", "2"]).withMessage("El estado debe ser activo o inactivo.");
+const status = (field) => body(field).optional({ values: "null" }).isIn(EDITABLE_STATUS_VALUES).withMessage("El estado debe ser activo o inactivo.");
 
 export const paginationWorksSchema = [...paginationRules(), optionalText("search", 100), optionalId("staId")];
 
@@ -65,7 +66,7 @@ export const saveWorkSchema = [
 
 export const changeWorkStatusSchema = [
   requiredId("wrkId"),
-  body("staId").isIn([1, 2, "1", "2"]).withMessage("El estado debe ser activo o inactivo."),
+  body("staId").isIn(EDITABLE_STATUS_VALUES).withMessage("El estado debe ser activo o inactivo."),
 ];
 
 export const deleteWorkSchema = [requiredId("wrkId")];

@@ -178,6 +178,7 @@ model tbl_profiles {
 model tbl_status {
   sta_id                     Int                          @id @default(autoincrement())
   sta_name                   String                       @db.VarChar(100)
+  sta_key                    String                       @unique(map: "uq_status_key") @db.VarChar(30)
   sta_scope                  tbl_status_sta_scope         @default(GENERAL)
   sta_color                  String?                      @db.VarChar(20)
   sta_order                  Int?

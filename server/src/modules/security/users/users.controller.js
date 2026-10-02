@@ -2,6 +2,7 @@ import * as usersService from "./users.service.js";
 import { revokeSession } from "../../../common/services/session.service.js";
 import { AUDIT_OPERATIONS, auditContext } from "../../../common/services/audit.service.js";
 import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
+import { ACTIVE_STATUS } from "../../../common/constants/status.constants.js";
 
 export const paginationUsersController = async (req, res, next) => {
   try {
@@ -93,13 +94,13 @@ export const saveUserController = async (req, res, next) => {
     // contraseña, pierde su sesión de inmediato (verifyToken ya rechazaría
     // un inactivo por sta_id, pero así también muere su refresh token y se
     // cierran sus sockets).
-    if (useId > 0 && (Number(staId) !== 1 || password)) {
+    if (useId > 0 && (Number(staId) !== ACTIVE_STATUS || password)) {
       await revokeSession({
         useId,
         audit: {
           operation: AUDIT_OPERATIONS.SESSION_REVOKED,
           ctx: auditContext(req),
-          reason: Number(staId) !== 1 ? "usuario inactivado" : "contraseña cambiada por un administrador",
+          reason: Number(staId) !== ACTIVE_STATUS ? "usuario inactivado" : "contraseña cambiada por un administrador",
         },
       });
     }

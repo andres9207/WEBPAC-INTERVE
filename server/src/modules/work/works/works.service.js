@@ -18,6 +18,7 @@ import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudi
 import { constructionCompaniesService } from "../../admin/constructionCompanies/constructionCompanies.service.js";
 import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
 import { supervisionTypesService } from "../../admin/supervisionTypes/supervisionTypes.service.js";
+import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
  * Obras (ADR-0011, DEC-026). La obra es la raíz de un agregado: responsables
@@ -38,9 +39,6 @@ import { supervisionTypesService } from "../../admin/supervisionTypes/supervisio
  *   (inicio + plazo inicial) se calcula al leer y no se guarda (DEC-030).
  */
 
-export const ACTIVE_STATUS = 1;
-export const INACTIVE_STATUS = 2;
-export const DELETED_STATUS = 3;
 export const MANAGER_ROLES = Object.freeze(["MAIN", "SUPPORT"]);
 
 const CAN = PERMISSIONS.work.works;

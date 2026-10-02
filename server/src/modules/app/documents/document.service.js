@@ -2,6 +2,7 @@ import { prisma } from "../../../common/configs/prismaClient.js";
 import { paginate } from "../../../common/utils/pagination.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
+import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 const DOC_SELECT = {
   doc_id: true,
@@ -29,7 +30,6 @@ const DOC_SORT_FIELDS = {
   doc_update_at: (order) => ({ doc_update_at: order }),
 };
 
-
 // tbl_documents.doc_create_by (autor) y doc_parent_id (árbol de carpetas) no
 // tienen FK declarada en la BD (confirmado: schema.prisma introspectado no
 // trae esas relaciones), así que Prisma no puede resolverlas con include/
@@ -49,7 +49,7 @@ async function enrichDocs(docs) {
     docIds.length
       ? prisma.tbl_documents.groupBy({
           by: ["doc_parent_id"],
-          where: { doc_parent_id: { in: docIds }, sta_id: { not: 3 } },
+          where: { doc_parent_id: { in: docIds }, sta_id: { not: DELETED_STATUS } },
           _count: { doc_id: true },
         })
       : [],
@@ -97,7 +97,7 @@ export const paginationModuleDocs = async ({
   const orderBy = (DOC_SORT_FIELDS[sortField] ?? DOC_SORT_FIELDS.doc_name)(order);
 
   const where = {
-    sta_id: { not: 3 },
+    sta_id: { not: DELETED_STATUS },
     ...(nombre ? { doc_name: { contains: nombre } } : {}),
     ...(docType ? { doc_type: docType } : {}),
     ...(docType
@@ -152,7 +152,7 @@ export const saveModuleDoc = async ({
   extension,
   mimeType,
   tamanio,
-  estado = 1,
+  estado = ACTIVE_STATUS,
   docCreateBy,
   docUpdateBy,
   parentId = null,
@@ -179,7 +179,7 @@ export const saveModuleDoc = async ({
         doc_update_by: Number(docUpdateBy),
         // Un documento que vuelve a un estado visible deja de estar
         // eliminado: se limpia la evidencia de eliminación de la fila.
-        ...(data.sta_id !== 3 ? { doc_delete_by: null, doc_delete_at: null } : {}),
+        ...(data.sta_id !== DELETED_STATUS ? { doc_delete_by: null, doc_delete_at: null } : {}),
       },
     });
 
@@ -233,7 +233,7 @@ export const deleteModuleDoc = async ({ id, usuAct }) => {
     // contenido: son una sola eliminación. Documentos = auditoría técnica
     // (ADR-0013, decisión 9): no se escribe en la bitácora.
     const deletedData = {
-      sta_id: 3,
+      sta_id: DELETED_STATUS,
       doc_update_by: Number(usuAct),
       doc_delete_by: Number(usuAct),
       doc_delete_at: new Date(),
@@ -242,7 +242,7 @@ export const deleteModuleDoc = async ({ id, usuAct }) => {
     if (esCarpeta) {
       const deleteChildren = async (parentId) => {
         const children = await tx.tbl_documents.findMany({
-          where: { doc_parent_id: parentId, sta_id: { not: 3 } },
+          where: { doc_parent_id: parentId, sta_id: { not: DELETED_STATUS } },
           select: { doc_id: true },
         });
         for (const child of children) {

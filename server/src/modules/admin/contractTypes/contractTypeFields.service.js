@@ -2,6 +2,7 @@ import { prisma } from "../../../common/configs/prismaClient.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, writeAudit } from "../../../common/services/audit.service.js";
 import { resolveFields } from "./contractFields.js";
+import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
  * Configuración de campos por tipo de contrato (ADR-0006, DEC-037).
@@ -17,8 +18,6 @@ import { resolveFields } from "./contractFields.js";
  *   anterior y nuevo (ADR-0006, decisiones 9 y 10). Los contratos existentes
  *   no se tocan (decisión 7).
  */
-
-const DELETED_STATUS = 3;
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 

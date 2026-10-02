@@ -10,13 +10,13 @@ import { CONCEPT_TYPES, CONTRACT_STATES, assertStateAllows, chronologyError, con
 import {
   CONCEPT_AUDITED,
   CONCEPT_SELECT,
-  DELETED_STATUS,
   auditableConcept,
   conceptValuesOf,
   derivedEndDate,
   findLockedContract,
   httpError,
 } from "./contracts.service.js";
+import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
  * Conceptos contractuales (ADR-0016, DEC-036): otrosí, otrosí de liquidación
@@ -145,7 +145,7 @@ export const createAmendment = async ({ ctrId, input, useBy, ctx = { useId: useB
           ctx,
           conceptChanges: diffFields({}, auditableConcept(data), CONCEPT_AUDITED),
           valueBefore: valueText(concepts),
-          valueAfter: valueText([...concepts, { ...data, sta_id: 1 }]),
+          valueAfter: valueText([...concepts, { ...data, sta_id: ACTIVE_STATUS }]),
           contractId: contract.ctr_id,
           contractChanges: endChange ? [endChange] : [],
         });
@@ -209,7 +209,7 @@ export const createLiquidation = async ({ ctrId, input, useBy, ctx = { useId: us
           ctx,
           conceptChanges: diffFields({}, auditableConcept(data), CONCEPT_AUDITED),
           valueBefore: valueText(concepts),
-          valueAfter: valueText([...concepts, { ...data, sta_id: 1 }]),
+          valueAfter: valueText([...concepts, { ...data, sta_id: ACTIVE_STATUS }]),
           contractId: contract.ctr_id,
           contractChanges: [{ field: "ctr_state", oldValue: contract.ctr_state, newValue: CONTRACT_STATES.IN_LIQUIDATION }],
         });

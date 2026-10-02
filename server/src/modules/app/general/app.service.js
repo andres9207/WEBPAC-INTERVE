@@ -1,6 +1,7 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 import { userFullName } from "../../../common/utils/user.utils.js";
+import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 const PAGE_SELECT = {
   pag_id: true,
@@ -86,7 +87,7 @@ export const getMenu = async ({ per, idu }) => {
 
 export const getProfiles = async () => {
   const profiles = await prisma.tbl_profiles.findMany({
-    where: { sta_id: 1 },
+    where: { sta_id: ACTIVE_STATUS },
     select: { pro_id: true, pro_name: true },
     orderBy: { pro_name: "asc" },
   });
@@ -156,13 +157,13 @@ export const getUserPermissions = async ({ useId }) => {
 export const getStatusesByScope = async ({ scope, excludesKeys = [] }) => {
   const statuses = await prisma.tbl_status.findMany({
     where: {
-      sta_id: { not: 3 },
+      sta_id: { not: DELETED_STATUS },
       sta_scope: scope,
       ...(excludesKeys && excludesKeys.length > 0 ? { sta_key: { notIn: excludesKeys } } : {}),
     },
-    select: { sta_id: true, sta_name: true, sta_color: true },
+    select: { sta_id: true, sta_key: true, sta_name: true, sta_color: true },
     orderBy: { sta_order: "asc" },
   });
 
-  return statuses.map((s) => ({ value: s.sta_id, label: s.sta_name, sta_color: s.sta_color }));
+  return statuses.map((s) => ({ value: s.sta_id, key: s.sta_key, label: s.sta_name, sta_color: s.sta_color }));
 };

@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { MONEY_SCALE, sumMoney } from "../../../common/utils/money.utils.js";
 import { addTerm, dateOnlyText } from "../../../common/utils/term.utils.js";
+import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
  * Reglas del contrato que no tocan la BD (DEC-035, DEC-036): estados y qué
@@ -135,7 +136,7 @@ export const contractEndDate = ({ startDate, term, unit, extensions = 0, suspend
 
 /** Σ prórrogas de los otrosí vigentes (los de otro tipo no tienen). */
 export const totalExtensions = (concepts) =>
-  concepts.filter((c) => c.ccp_type === CONCEPT_TYPES.AMENDMENT && c.sta_id !== 3).reduce((sum, c) => sum + (c.ccp_extension ?? 0), 0);
+  concepts.filter((c) => c.ccp_type === CONCEPT_TYPES.AMENDMENT && c.sta_id !== DELETED_STATUS).reduce((sum, c) => sum + (c.ccp_extension ?? 0), 0);
 
 // ─── Valor (ADR-0026, "Composición autoritativa", propuesta) ─────────────────
 
@@ -172,7 +173,7 @@ export const conceptAmounts = (concept) => {
 
 /** Totales del contrato: suma de sus conceptos vigentes (el valor no se guarda, ADR-0016, decisión 7). */
 export const contractTotals = (concepts) => {
-  const amounts = concepts.filter((c) => c.sta_id !== 3).map(conceptAmounts);
+  const amounts = concepts.filter((c) => c.sta_id !== DELETED_STATUS).map(conceptAmounts);
   return {
     base: sumMoney(amounts.map((a) => a.base)),
     vat: sumMoney(amounts.map((a) => a.vat)),

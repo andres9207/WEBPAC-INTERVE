@@ -21,10 +21,10 @@ import MasterDialog from 'ui-component/extended/MasterDialog';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import { useAuth } from 'contexts/AuthContext';
 import { showError, showSuccess } from 'services/ToastService';
-import { statusTabsWithCounts } from 'utils/constants';
+import { STATUS, statusTabsWithCounts } from 'utils/constants';
 import { gridSpacing } from 'store/constant';
 
-const STATUS_NAMES = { 1: 'Activo', 2: 'Inactivo' };
+const STATUS_NAMES = { [STATUS.ACTIVE]: 'Activo', [STATUS.INACTIVE]: 'Inactivo' };
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 25, 50];
 
 // La vista elegida (tarjetas o tabla) se recuerda por listado en el navegador.
@@ -198,7 +198,10 @@ export default function MasterPage({
   };
 
   const handleChangeStatus = (row) =>
-    run(() => api.changeStatus({ [idField]: row[idField], staId: row.staId === 1 ? 2 : 1 }), `Error al cambiar el estado`);
+    run(
+      () => api.changeStatus({ [idField]: row[idField], staId: row.staId === STATUS.ACTIVE ? STATUS.INACTIVE : STATUS.ACTIVE }),
+      `Error al cambiar el estado`
+    );
 
   const handleRemove = (row) => run(() => api.remove({ [idField]: row[idField] }), `Error al eliminar`);
 
@@ -232,7 +235,7 @@ export default function MasterPage({
     if (extraActions) items.push(...extraActions(row));
     if (can.changeStatus) {
       items.push(
-        row.staId === 1
+        row.staId === STATUS.ACTIVE
           ? {
               label: 'Desactivar',
               icon: <IconToggleLeft size={16} />,

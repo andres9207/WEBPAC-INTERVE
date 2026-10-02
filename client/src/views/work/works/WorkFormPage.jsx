@@ -30,7 +30,7 @@ import { getSupervisionTypesSelectAPI } from 'api/requests/supervisionTypesApi';
 import { getWorkManagersSelectAPI, worksApi } from 'api/requests/worksApi';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
-import { STATUS_OPTIONS, TERM_UNIT_OPTIONS } from 'utils/constants';
+import { STATUS, STATUS_OPTIONS, TERM_UNIT_OPTIONS } from 'utils/constants';
 
 /**
  * Alta y edición de una obra (DEC-030), en un modal sobre el listado con
@@ -116,7 +116,7 @@ const toPayload = (wrkId, form) => ({
   }))
 });
 
-const validateManagers = (rows) => rows.some((row) => row.staId === 1) || 'Agrega al menos un responsable activo.';
+const validateManagers = (rows) => rows.some((row) => row.staId === STATUS.ACTIVE) || 'Agrega al menos un responsable activo.';
 
 const validateStages = (rows) => {
   if (rows.some((row) => !text(row.name))) return 'Cada etapa necesita nombre.';
@@ -240,7 +240,7 @@ export default function WorkFormPage() {
 
   const addStage = () => {
     const list = getValues('stages');
-    setValue('stages', [...list, { key: rowKey('s'), name: '', order: list.length + 1, staId: 1 }], { shouldDirty: true });
+    setValue('stages', [...list, { key: rowKey('s'), name: '', order: list.length + 1, staId: STATUS.ACTIVE }], { shouldDirty: true });
   };
 
   // Cancelar o cerrar vuelve al listado, también al editar (DEC-034).
@@ -529,7 +529,7 @@ export default function WorkFormPage() {
                   { name: 'name', label: 'Nombre', type: 'text', maxLength: 100, grid: { xs: 12, sm: 'grow' } },
                   { name: 'staId', label: 'Estado', type: 'select', options: STATUS_OPTIONS, grid: { xs: 12, sm: 3 } }
                 ]}
-                newRow={() => ({ key: rowKey('s'), name: '', order: 0, staId: 1 })}
+                newRow={() => ({ key: rowKey('s'), name: '', order: 0, staId: STATUS.ACTIVE })}
                 orderField="order"
                 disabled={!canManageStages}
                 canAdd={false}

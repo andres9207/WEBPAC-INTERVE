@@ -11,6 +11,7 @@ import {
   newOperationId,
   writeAudit,
 } from "../../../common/services/audit.service.js";
+import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 const PROFILE_SORT_FIELDS = {
   name: (order) => ({ pro_name: order }),
@@ -19,7 +20,6 @@ const PROFILE_SORT_FIELDS = {
   updatedBy: (order) => ({ pro_update_by: order }),
   staId: (order) => ({ sta_id: order }),
 };
-
 
 export const paginationProfiles = async ({
   useId,
@@ -39,7 +39,7 @@ export const paginationProfiles = async ({
 
   // Sin el filtro de estado: es la base de los conteos de las pestañas.
   const baseWhere = {
-    sta_id: { not: 3 },
+    sta_id: { not: DELETED_STATUS },
     ...(name ? { pro_name: { contains: name } } : {}),
     ...searchWhere(["pro_name"], search),
     ...(Number(useId) !== 1 ? { NOT: { pro_id: 1 } } : {}),
@@ -101,8 +101,6 @@ export const getModules = async ({ proId }) => {
     unassociated: unassociatedPages.map(toShape),
   };
 };
-
-const DELETED_STATUS = 3;
 
 // Clave de idempotencia de la creación (ADR-0027, decisión 7), en la propia
 // fila del perfil.

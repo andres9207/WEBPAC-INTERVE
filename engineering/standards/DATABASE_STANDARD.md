@@ -16,6 +16,7 @@ MySQL, accedida solo por Prisma ([DEC-001](../decisiones/DEC-001-prisma-acceso-u
 10. **Relaciones N:M** con tabla puente, nunca con CSV en una columna.
 11. **Dinero** con tipo exacto (`DECIMAL`), nunca `FLOAT` o `DOUBLE`. La precisión **REQUIERE DECISIÓN** (backlog `DEC-06`).
 12. **Catálogos de semilla** (páginas, permisos, estados): migración SQL para una instalación nueva **y** `upsert` idempotente en `server/prisma/seed.js` para reparar una BD existente. Los `per_id` y `pag_id` no se renumeran ni se reutilizan.
+13. **Una sola colación: `utf8mb4` / `utf8mb4_0900_ai_ci`**, la de la base (migración `0059`). Una tabla nueva la declara explícitamente (`) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;`, como `0044`), y sus columnas no declaran otra. Comparar texto con colaciones distintas hace fallar el JOIN o le impide usar el índice. La consulta de verificación, que no debe devolver filas, está en el encabezado de `0059_unify_collation.sql`.
 
 ## Tablas exentas
 

@@ -1,5 +1,6 @@
 import { body, query } from "express-validator";
 import { paginationRules, optionalText, optionalId, requiredId, idempotencyKeyRule } from "./validation.utils.js";
+import { EDITABLE_STATUS_VALUES } from "../constants/status.constants.js";
 
 /**
  * Esquemas de express-validator de un maestro (MAE-BE-01), generados desde
@@ -41,7 +42,7 @@ export const createMasterSchemas = (config) => {
     ],
     changeStatus: [
       requiredId(idField),
-      body("staId").isIn([1, 2, "1", "2"]).withMessage("El estado debe ser activo o inactivo."),
+      body("staId").isIn(EDITABLE_STATUS_VALUES).withMessage("El estado debe ser activo o inactivo."),
     ],
     remove: [requiredId(idField)],
   };

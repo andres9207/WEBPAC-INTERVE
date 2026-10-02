@@ -14,7 +14,7 @@ import ActionButton from 'ui-component/extended/ActionButton';
 import StatusChip from 'ui-component/extended/StatusChip';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly } from 'utils/formatTime';
-import { fTerm } from 'utils/constants';
+import { STATUS, fTerm } from 'utils/constants';
 
 // Color de la barra según el nivel que manda el servidor (DEC-033). Una obra
 // inactiva va en gris: su avance es informativo.
@@ -35,11 +35,11 @@ const initialsOf = (name) =>
  * vienen calculados del servidor (FRONTEND_STANDARD, regla 9).
  */
 export default function WorkCard({ row, actions, onOpen }) {
-  const isActive = row.staId === 1;
+  const isActive = row.staId === STATUS.ACTIVE;
   const percent = row.progressPercent;
   const barColor = isActive ? (LEVEL_COLORS[row.progressLevel] ?? 'primary.800') : 'grey.500';
   const stages = row.stages ?? [];
-  const activeStages = stages.filter((stage) => stage.staId === 1).length;
+  const activeStages = stages.filter((stage) => stage.staId === STATUS.ACTIVE).length;
   const managers = row.activeManagers ?? 0;
 
   return (
@@ -117,8 +117,13 @@ export default function WorkCard({ row, actions, onOpen }) {
           {stages.length > 0 && (
             <Stack direction="row" spacing={0.5} aria-hidden>
               {stages.map((stage, index) => (
-                <Tooltip key={`${index}-${stage.name}`} title={`${index + 1}. ${stage.name}${stage.staId === 1 ? '' : ' (inactiva)'}`}>
-                  <Box sx={{ flex: 1, height: 10, borderRadius: 0.5, bgcolor: stage.staId === 1 ? 'secondary.main' : 'grey.200' }} />
+                <Tooltip
+                  key={`${index}-${stage.name}`}
+                  title={`${index + 1}. ${stage.name}${stage.staId === STATUS.ACTIVE ? '' : ' (inactiva)'}`}
+                >
+                  <Box
+                    sx={{ flex: 1, height: 10, borderRadius: 0.5, bgcolor: stage.staId === STATUS.ACTIVE ? 'secondary.main' : 'grey.200' }}
+                  />
                 </Tooltip>
               ))}
             </Stack>
