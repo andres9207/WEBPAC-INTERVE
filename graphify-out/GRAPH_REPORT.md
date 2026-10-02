@@ -1,7 +1,7 @@
-# Graph Report - WEBPAC-INTERVE  (2026-10-01)
+# Graph Report - WEBPAC-INTERVE  (2026-10-02)
 
 ## Corpus Check
-- 387 files · ~134,844 words
+- 387 files · ~134,867 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 9 file(s) not represented in the graph (top: (none) 6, .template 1, .css 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `64f1b642`
+- Built from commit: `460861ea`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -121,24 +121,24 @@
 2. `react` - 66 edges
 3. `useAuth()` - 49 edges
 4. `showError()` - 39 edges
-5. `writeAudit()` - 35 edges
-6. `showSuccess()` - 35 edges
+5. `showSuccess()` - 35 edges
+6. `writeAudit()` - 35 edges
 7. `@tabler/icons-react` - 35 edges
 8. `withLockedTransaction()` - 32 edges
 9. `auditContext()` - 30 edges
 10. `MasterPage()` - 29 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `insertNotification()` --calls--> `getIO()`  [EXTRACTED]
+  server/src/modules/app/notifications/notifications.service.js → server/src/common/configs/socket.manager.js
 - `deleteModuleDoc()` --calls--> `withLockedTransaction()`  [EXTRACTED]
   server/src/modules/app/documents/document.service.js → server/src/common/services/transaction.service.js
 - `selectWorkManagers()` --calls--> `userFullName()`  [EXTRACTED]
   server/src/modules/work/works/works.service.js → server/src/common/utils/user.utils.js
-- `insertNotification()` --calls--> `getIO()`  [EXTRACTED]
-  server/src/modules/app/notifications/notifications.service.js → server/src/common/configs/socket.manager.js
-- `ContactDialog()` --calls--> `BaseDialog()`  [EXTRACTED]
-  client/src/ui-component/extended/ContactsEditor.jsx → client/src/ui-component/extended/BaseDialog.jsx
-- `ContactDialog()` --calls--> `SelectSocket()`  [EXTRACTED]
-  client/src/ui-component/extended/ContactsEditor.jsx → client/src/ui-component/extended/SelectSocket.jsx
+- `NotificationSection()` --calls--> `NotificationList()`  [EXTRACTED]
+  client/src/layout/MainLayout/Header/NotificationSection/index.jsx → client/src/layout/MainLayout/Header/NotificationSection/NotificationList.jsx
+- `App()` --calls--> `ThemeCustomization()`  [EXTRACTED]
+  client/src/App.jsx → client/src/themes/index.jsx
 
 ## Import Cycles
 - None detected.
@@ -518,7 +518,7 @@ Cohesion: 0.40
 Nodes (4): buildRes(), mockFindFirst, runMiddleware(), validPayload
 
 ## Knowledge Gaps
-- **543 isolated node(s):** `ADR-0012`, `work`, `EMPTY`, `FIELDS`, `ADR-0009` (+538 more)
+- **543 isolated node(s):** `PAGES`, `PERMISSIONS`, `PERMISSIONS_NO_PAGE`, `VIEW_PERMISSIONS`, `STATUSES` (+538 more)
   These have ≤1 connection - possible missing edges. (Counts symbols only; 736 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **41 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -526,12 +526,12 @@ Nodes (4): buildRes(), mockFindFirst, runMiddleware(), validPayload
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `lodash` connect `DebouncedInput.jsx` to `master.service.js`, `server/package.json`?**
-  _High betweenness centrality (0.209) - this node is a cross-community bridge._
+  _High betweenness centrality (0.217) - this node is a cross-community bridge._
 - **Why does `@mui/material` connect `@mui/material` to `overrides/index.js`, `WorkProviderDialog.jsx`, `AuthForgotPassword.jsx`, `ProfilePage.jsx`, `WorkFormPage.jsx`, `showSuccess`, `client/package.json`, `constant.js`, `MainCard`, `MainLayout/index.jsx`, `DocumentManagement.jsx`, `showError`, `ContactsEditor.jsx`, `NotificationSection/index.jsx`, `constants.js`, `MenuList/index.jsx`, `useAuth`, `DebouncedInput.jsx`, `formatNumber.js`, `AuthenticationRoutes.jsx`, `react-router-dom`, `Default/index.jsx`, `EasyCrop.jsx`, `ImageList.jsx`?**
-  _High betweenness centrality (0.169) - this node is a cross-community bridge._
+  _High betweenness centrality (0.185) - this node is a cross-community bridge._
 - **Why does `react` connect `@mui/material` to `overrides/index.js`, `WorkProviderDialog.jsx`, `AuthForgotPassword.jsx`, `ProfilePage.jsx`, `WorkFormPage.jsx`, `showSuccess`, `client/package.json`, `ConfigContext.jsx`, `MainLayout/index.jsx`, `DocumentManagement.jsx`, `showError`, `ContactsEditor.jsx`, `NotificationSection/index.jsx`, `authContext.jsx`, `constants.js`, `MenuList/index.jsx`, `useAuth`, `DebouncedInput.jsx`, `MainRoutes.jsx`, `AuthenticationRoutes.jsx`, `react-router-dom`, `EasyCrop.jsx`?**
-  _High betweenness centrality (0.146) - this node is a cross-community bridge._
-- **What connects `ADR-0012`, `work`, `EMPTY` to the rest of the system?**
+  _High betweenness centrality (0.137) - this node is a cross-community bridge._
+- **What connects `PAGES`, `PERMISSIONS`, `PERMISSIONS_NO_PAGE` to the rest of the system?**
   _543 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `overrides/index.js` be split into smaller, more focused modules?**
   _Cohesion score 0.05063291139240506 - nodes in this community are weakly interconnected._
