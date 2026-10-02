@@ -21,6 +21,7 @@ const prismaMock = {
   tbl_work_managers: { findMany: jest.fn(), deleteMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
   tbl_work_stages: { findMany: jest.fn(), deleteMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
   tbl_users: { findMany: jest.fn() },
+  tbl_contracts: { findMany: jest.fn(), count: jest.fn() },
   tbl_construction_companies: { findUnique: jest.fn() },
   tbl_contract_types: { findUnique: jest.fn() },
   tbl_supervision_types: { findUnique: jest.fn() },
@@ -87,6 +88,8 @@ beforeEach(() => {
   prismaMock.tbl_works.create.mockResolvedValue({ wrk_id: 40 });
   prismaMock.tbl_work_managers.findMany.mockResolvedValue([]);
   prismaMock.tbl_work_stages.findMany.mockResolvedValue([]);
+  prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+  prismaMock.tbl_contracts.count.mockResolvedValue(0);
   prismaMock.tbl_users.findMany.mockImplementation(async ({ where }) =>
     where.use_id.in.map((id) => ({ use_id: id, sta_id: 1, use_name: "Usuario", use_last_name: String(id) }))
   );
@@ -265,6 +268,16 @@ describe("saveWork — editar", () => {
     ]);
   });
 
+  it("no quita una etapa con contratos (409); se puede desactivar", async () => {
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([{ wks_id: 12 }]);
+    await expect(service.saveWork({ wrkId: 40, input: editInput(), useBy: 9, granted: ALL, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'No se puede quitar la etapa "Estructura": tiene contratos. Desactívala en su lugar.',
+    });
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where).toEqual({ wrk_id: 40, wks_id: { in: [12] } });
+    expect(prismaMock.tbl_work_stages.deleteMany).not.toHaveBeenCalled();
+  });
+
   it("bloquea la obra primero, después los usuarios y los maestros", async () => {
     await service.saveWork({ wrkId: 40, input: editInput(), useBy: 9, granted: ALL, ctx });
 
@@ -395,6 +408,16 @@ describe("changeWorkStatus y deleteWork", () => {
     });
     expect(prismaMock.tbl_work_managers.deleteMany).not.toHaveBeenCalled();
     expect(prismaMock.tbl_work_stages.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("con contratos no se elimina (409)", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(2);
+    await expect(service.deleteWork({ wrkId: 40, useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: "No se puede eliminar la obra: tiene 2 contrato(s) asociado(s).",
+    });
+    expect(prismaMock.tbl_contracts.count).toHaveBeenCalledWith({ where: { wrk_id: 40, sta_id: { not: 3 } } });
+    expect(prismaMock.tbl_works.update).not.toHaveBeenCalled();
   });
 
   it("una obra ya eliminada responde 404", async () => {

@@ -35,6 +35,8 @@ const PAGES = [
   { pag_id: 14, pag_description: "Obras", pag_parent: 13, pag_url: "work/works", pag_icon: "building", pag_order: 1, pag_name: "Obras", pag_type: 2 },
   // database/migrations/0047_seed_providers_pages_permissions.sql
   { pag_id: 15, pag_description: "Proveedores", pag_parent: 13, pag_url: "work/providers", pag_icon: "truck", pag_order: 2, pag_name: "Proveedores", pag_type: 2 },
+  // database/migrations/0052_seed_contracts_pages_permissions.sql
+  { pag_id: 16, pag_description: "Contratos", pag_parent: 13, pag_url: "work/contracts", pag_icon: "file-description", pag_order: 3, pag_name: "Contratos", pag_type: 2 },
 ];
 
 const PERMISSIONS = [
@@ -97,6 +99,13 @@ const PERMISSIONS = [
   { per_id: 65, per_name: "Cambiar identificación de proveedor", pag_id: 15, per_order: 5 },
   { per_id: 66, per_name: "Asignar proveedor a obra", pag_id: 15, per_order: 6 },
   { per_id: 67, per_name: "Desasignar proveedor de obra", pag_id: 15, per_order: 7 },
+  // database/migrations/0052_seed_contracts_pages_permissions.sql
+  { per_id: 69, per_name: "Crear contrato", pag_id: 16, per_order: 1 },
+  { per_id: 70, per_name: "Modificar contrato", pag_id: 16, per_order: 2 },
+  { per_id: 71, per_name: "Eliminar contrato", pag_id: 16, per_order: 3 },
+  { per_id: 72, per_name: "Crear otrosí", pag_id: 16, per_order: 4 },
+  { per_id: 73, per_name: "Crear otrosí de liquidación", pag_id: 16, per_order: 5 },
+  { per_id: 74, per_name: "Modificar concepto contractual", pag_id: 16, per_order: 6 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -134,6 +143,7 @@ const VIEW_PERMISSIONS = [
   { per_id: 47, per_name: "Ver tipos de contrato", pag_id: 12, per_order: 5 },
   { per_id: 52, per_name: "Ver obras", pag_id: 14, per_order: 8 },
   { per_id: 60, per_name: "Ver proveedores", pag_id: 15, per_order: 8 },
+  { per_id: 68, per_name: "Ver contratos", pag_id: 16, per_order: 8 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay

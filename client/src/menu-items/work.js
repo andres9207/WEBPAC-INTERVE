@@ -1,5 +1,5 @@
 // assets
-import { IconBuilding, IconTruck } from '@tabler/icons-react';
+import { IconBuilding, IconFileDescription, IconTruck } from '@tabler/icons-react';
 
 // ==============================|| WORK MENU ITEMS ||============================== //
 // Solo alimenta las migas de pan: el sidebar sale de tbl_pages.
@@ -29,6 +29,14 @@ const work = {
           type: 'item',
           url: '/work/providers',
           icon: IconTruck,
+          breadcrumbs: true
+        },
+        {
+          id: 'contracts',
+          title: 'Contratos',
+          type: 'item',
+          url: '/work/contracts',
+          icon: IconFileDescription,
           breadcrumbs: true
         }
       ]

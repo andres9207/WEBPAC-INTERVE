@@ -51,7 +51,18 @@ export const TERM_UNIT_OPTIONS = [
   { value: 'ANIO', label: 'Años' }
 ];
 
-const TERM_UNIT_NAMES = { DIA: ['día', 'días'], MES: ['mes', 'meses'], ANIO: ['año', 'años'] };
+// Estados del ciclo de vida del contrato (ADR-0017). Los nombres los manda el
+// servidor (`stateName`); aquí solo el color del chip y las pestañas.
+export const CONTRACT_STATE_TABS = [
+  { id: 'IN_PROGRESS', name: 'En ejecución', color: 'success' },
+  { id: 'SUSPENDED', name: 'Suspendidos', color: 'warning' },
+  { id: 'IN_LIQUIDATION', name: 'En liquidación', color: 'info' },
+  { id: 'LIQUIDATED', name: 'Liquidados' }
+];
+
+export const CONTRACT_STATE_COLORS = { IN_PROGRESS: 'success', SUSPENDED: 'warning', IN_LIQUIDATION: 'info', LIQUIDATED: 'default' };
+
+const TERM_UNIT_NAMES ={ DIA: ['día', 'días'], MES: ['mes', 'meses'], ANIO: ['año', 'años'] };
 
 /** Plazo para mostrar: "14 meses", "1 año". */
 export const fTerm = (amount, unit) => {

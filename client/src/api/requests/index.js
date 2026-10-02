@@ -11,3 +11,4 @@ export * from "./supervisionTypesApi";
 export * from "./constructionCompaniesApi";
 export * from "./contractTypesApi";
 export * from "./worksApi";
+export * from "./contractsApi";

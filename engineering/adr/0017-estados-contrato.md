@@ -2,7 +2,7 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-10-02, [DEC-035](../decisiones/DEC-035-contratos-area-modelo.md)): máquina de estados declarada, historial y transiciones automáticas de creación y paso a liquidación. El estado va en `ctr_state` y no en `tbl_status` (se aparta de la decisión 13 por `WORKFLOW_STANDARD`, regla 2). Faltan suspensión, levantamiento, reapertura y la evaluación C1–C8.
 
 **Reemplaza a [ADR-0005](0005-estados-contrato.md)**, que se conserva como registro histórico.
 

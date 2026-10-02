@@ -50,10 +50,13 @@ export const emailRule = (field = "email", { optional = false } = {}) => {
  * Importe en el body (DEC-028): cadena o número no negativo, con punto
  * decimal y hasta 16 dígitos enteros (DECIMAL(18,2)). Los decimales de más
  * no se rechazan: el service los redondea con `toMoney`. Con `optional`,
- * vacío o null se acepta como "sin valor".
+ * vacío o null se acepta como "sin valor". Con `when(req)`, solo se valida
+ * cuando devuelve verdadero (p. ej. el valor inicial, solo al crear el
+ * contrato).
  */
-export const moneyRule = (field, label, { optional = false } = {}) => {
-  const chain = optional ? body(field).optional(nullable) : body(field).exists({ values: "falsy" }).withMessage(`El ${label} es requerido.`).bail();
+export const moneyRule = (field, label, { optional = false, when } = {}) => {
+  const base = when ? body(field).if((_value, { req }) => when(req)) : body(field);
+  const chain = optional ? base.optional(nullable) : base.exists({ values: "falsy" }).withMessage(`El ${label} es requerido.`).bail();
   return chain
     .customSanitizer((value) => (typeof value === "number" ? String(value) : value))
     .isString()
@@ -62,6 +65,29 @@ export const moneyRule = (field, label, { optional = false } = {}) => {
     .trim()
     .matches(/^\d{1,16}(\.\d+)?$/)
     .withMessage(`El ${label} debe ser un número no negativo, con punto decimal y hasta 16 dígitos enteros.`);
+};
+
+/**
+ * Porcentaje en el body (DEC-036): cadena o número entre 0 y 100, con punto
+ * decimal y hasta dos decimales (DECIMAL(5,2)). Obligatorio: 0 es un valor
+ * pactado, no "sin valor". `when(req)` igual que en `moneyRule`.
+ */
+export const percentRule = (field, label, { when } = {}) => {
+  const base = when ? body(field).if((_value, { req }) => when(req)) : body(field);
+  return base
+    .exists({ values: "null" })
+    .withMessage(`El ${label} es requerido.`)
+    .bail()
+    .customSanitizer((value) => (typeof value === "number" ? String(value) : value))
+    .isString()
+    .withMessage(`El ${label} no es válido.`)
+    .bail()
+    .trim()
+    .matches(/^\d{1,3}(\.\d{1,2})?$/)
+    .withMessage(`El ${label} debe ser un número con hasta dos decimales.`)
+    .bail()
+    .custom((value) => Number(value) <= 100)
+    .withMessage(`El ${label} debe estar entre 0 y 100.`);
 };
 
 /** Arreglo de ids enteros positivos en el body. */

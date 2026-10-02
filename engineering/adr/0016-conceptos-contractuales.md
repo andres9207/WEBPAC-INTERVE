@@ -2,9 +2,9 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-10-02, [DEC-036](../decisiones/DEC-036-conceptos-contractuales.md)): tabla única, cardinalidad en la BD, numeración bajo bloqueo, valor derivado y otrosí de liquidación implementados. Faltan la anulación de otrosí (B12) y la inmutabilidad tras la primera factura aprobada.
 
-Los conceptos contractuales **no existen** en el código ni en el esquema. Este ADR documenta la decisión arquitectónica recomendada.
+Era **Propuesto**: los conceptos no existían en el código ni en el esquema.
 
 ## Fecha
 

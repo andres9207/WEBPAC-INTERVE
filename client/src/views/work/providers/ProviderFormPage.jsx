@@ -1,23 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
-import Link from '@mui/material/Link';
-import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { IconChevronLeft } from '@tabler/icons-react';
 
 import SubCard from 'ui-component/cards/SubCard';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import ContactsEditor from 'ui-component/extended/ContactsEditor';
+import RouteDialog from 'ui-component/extended/RouteDialog';
 import SelectSocket from 'ui-component/extended/SelectSocket';
 import useIdentityCheck from './components/useIdentityCheck';
 import { useAuth } from 'contexts/AuthContext';
@@ -29,7 +26,9 @@ import { identificationFormatError } from 'utils/identification';
 import { newIdempotencyKey } from 'utils/idempotency';
 
 /**
- * Alta y edición de un proveedor a página completa (ADR-0012, DEC-031):
+ * Alta y edición de un proveedor (ADR-0012, DEC-031), en un modal sobre el
+ * listado con dirección propia `/work/providers/new` y
+ * `/work/providers/:prvId/edit` (DEC-034):
  * identidad, datos generales y contactos, enviados juntos en una sola
  * petición. El servidor guarda los contactos por diferencial.
  *
@@ -121,6 +120,7 @@ export default function ProviderFormPage() {
   const prvId = Number(prvIdParam) || 0;
   const isEdit = prvId > 0;
   const navigate = useNavigate();
+  const { refresh } = useOutletContext() ?? {};
 
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
@@ -179,7 +179,8 @@ export default function ProviderFormPage() {
 
   useEffect(() => setConflict(null), [iddId, identification]);
 
-  const leave = () => navigate(isEdit ? `/work/providers/${prvId}` : '/work/providers');
+  // Cancelar o cerrar vuelve al listado, también al editar (DEC-034).
+  const leave = () => navigate('/work/providers');
 
   const onSubmit = async (form) => {
     if (existing) return;
@@ -187,6 +188,7 @@ export default function ProviderFormPage() {
     try {
       const { data } = await providersApi.save(toPayload(prvId, form), isEdit ? undefined : idempotencyKey);
       showSuccess(data.message || 'Guardado correctamente.');
+      refresh?.();
       navigate(`/work/providers/${data.prvId ?? prvId}`);
     } catch (err) {
       const duplicate = err.response?.status === 409 && err.response?.data?.data?.existing;
@@ -197,33 +199,43 @@ export default function ProviderFormPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" sx={{ py: 8 }} role="status" aria-label="Cargando">
-        <CircularProgress />
-      </Box>
-    );
-  }
+  // Cerrar con la X, Escape o el fondo pide confirmar si hay cambios sin guardar.
+  const requestLeave = () => (isDirty ? setConfirmLeave(true) : leave());
+
+  if (loading) return <RouteDialog onClose={leave} loading />;
 
   const title = isEdit ? `Editar ${loaded?.name ?? 'proveedor'}` : 'Nuevo proveedor';
   const hasErrors = Object.keys(errors).length > 0;
 
   return (
-    <Box component="form" noValidate onSubmit={handleSubmit(onSubmit)}>
+    <RouteDialog
+      onClose={requestLeave}
+      closeLabel="Cerrar sin guardar"
+      labelledBy="provider-form-title"
+      onSubmit={handleSubmit(onSubmit)}
+      header={
+        <>
+          <Typography id="provider-form-title" variant="h3" component="h2">
+            {title}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Identidad, datos generales y contactos. Los campos con * son obligatorios.
+          </Typography>
+        </>
+      }
+      footer={
+        <>
+          <Box sx={{ flexGrow: 1 }} />
+          <Button onClick={requestLeave} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="contained" color="secondary" disabled={saving || Boolean(existing)}>
+            {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar'}
+          </Button>
+        </>
+      }
+    >
       <Stack spacing={2}>
-        <Link
-          component={RouterLink}
-          to={isEdit ? `/work/providers/${prvId}` : '/work/providers'}
-          underline="hover"
-          sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start' }}
-        >
-          <IconChevronLeft size={16} aria-hidden="true" />
-          {isEdit ? loaded?.name : 'Proveedores'}
-        </Link>
-        <Typography variant="h3" component="h1">
-          {title}
-        </Typography>
-
         {hasErrors && (
           <Alert severity="error" role="alert">
             Revisa los campos marcados antes de guardar.
@@ -402,31 +414,6 @@ export default function ProviderFormPage() {
             render={({ field, fieldState }) => <ContactsEditor value={field.value} onChange={field.onChange} error={fieldState.error} />}
           />
         </Section>
-
-        <Paper
-          elevation={0}
-          sx={{
-            position: 'sticky',
-            bottom: 0,
-            zIndex: 2,
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 2,
-            px: 2,
-            py: 1.5,
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 1,
-            boxShadow: '0 -4px 16px rgb(18 25 38 / 8%)'
-          }}
-        >
-          <Button onClick={() => (isDirty ? setConfirmLeave(true) : leave())} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button type="submit" variant="contained" color="secondary" disabled={saving || Boolean(existing)}>
-            {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar'}
-          </Button>
-        </Paper>
       </Stack>
 
       <ConfirmDialog
@@ -438,6 +425,6 @@ export default function ProviderFormPage() {
         confirmLabel="Descartar"
         confirmColor="warning"
       />
-    </Box>
+    </RouteDialog>
   );
 }

@@ -124,13 +124,13 @@ La corrección va en `themes/overrides/Chip.jsx` y en la paleta, no en cada pant
 
 ## Patrones de las pantallas que vienen
 
-### Página de detalle y formulario a página completa (aprobado, DEC-030)
+### Detalle y formulario en modal (aprobado, DEC-030 y DEC-034)
 
-Referencia: `views/work/works/WorkDetailPage.jsx` y `WorkFormPage.jsx`.
+Referencia: `ui-component/extended/RouteDialog.jsx`, `views/work/works/WorkDetailPage.jsx` y `WorkFormPage.jsx`, y sus pares de proveedores.
 
-- **Listado → detalle → edición.** El listado (`MasterPage` con `navigation`) ofrece *Ver detalle* y *Editar*; activar, desactivar y eliminar están en el detalle.
-- **Detalle**: enlace de vuelta, encabezado con código, nombre, estado y autoría; botones Eliminar · Desactivar · Editar (uno solo contenido); cifras clave calculadas por el servidor; pestañas por parte del agregado, con conteo. Una parte que todavía no existe tiene su pestaña con un estado vacío que explica cuándo llega.
-- **Formulario**: secciones con `SubCard`, alerta de errores arriba, barra fija abajo con Cancelar y Guardar. Cancelar con cambios sin guardar pide confirmación.
+- **Listado → detalle → edición**, sin salir del listado: cada uno es un modal grande (`maxWidth="lg"`, pantalla completa en móvil) con su propia ruta. El listado (`MasterPage` con `navigation`) ofrece *Ver detalle* y *Editar*; activar, desactivar y eliminar están en el detalle.
+- **Detalle**: encabezado con código, nombre, estado y autoría, y una X para cerrar; pestañas por parte del agregado, con conteo; en Resumen, primero las cifras clave calculadas por el servidor. Pie: Eliminar y Desactivar a la izquierda; Cerrar y Editar (el único botón contenido) a la derecha. Una parte que todavía no existe tiene su pestaña con un estado vacío que explica cuándo llega.
+- **Formulario**: título y una línea de ayuda arriba; secciones con `SubCard` y alerta de errores en el cuerpo; Cancelar y Guardar en el pie. Cerrar con la X, Escape, el fondo o Cancelar pide confirmación si hay cambios sin guardar.
 
 ### Listado con indicadores y tarjetas (aprobado, DEC-033)
 
@@ -146,7 +146,7 @@ El CORE necesita patrones que todavía no existen; se diseñan antes de programa
 
 | Patrón | Para | Estado |
 | --- | --- | --- |
-| **Página de expediente**: encabezado con identidad, estado y cifras clave; pestañas por parte del agregado | Contrato (PRO-FE-05) | La base está aprobada y aplicada en obras (arriba); el expediente de contrato agrega estados y condiciones |
+| **Página de expediente**: encabezado con identidad, estado y cifras clave; pestañas por parte del agregado | Contrato (PRO-FE-05) | La base está aprobada y aplicada en obras y proveedores (arriba, en modal con dirección propia); el expediente de contrato agrega estados y condiciones |
 | **Estado y transiciones**: chip de estado, acciones de transición con motivo, historial en línea de tiempo, lista de condiciones (C1–C8) | Contrato (PRO-FE-08), facturas | Incluido en el prototipo del expediente |
 | **Formulario con resumen financiero**: captura a la izquierda, saldos y vista previa calculada por el servidor a la derecha | Facturas (PRO-FE-12 a 14) | Pendiente; depende de DEC-02 y DEC-03 |
 | **Buscar o crear**: selector con búsqueda remota que ofrece crear si no encuentra | Proveedor en obra (PRO-FE-04), responsables con más de 100 usuarios | **Primera versión en proveedores de obra, pendiente de revisión** (2026-10-01): dos botones ("Agregar proveedor existente" con búsqueda remota, "Crear proveedor nuevo"); si el documento ya existe, el alta ofrece "Asignar este proveedor". `views/work/providers/components/WorkProvidersTab.jsx` |

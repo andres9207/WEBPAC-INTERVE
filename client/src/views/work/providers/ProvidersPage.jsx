@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 import Typography from '@mui/material/Typography';
 
 import MasterPage from 'ui-component/extended/MasterPage';
@@ -7,8 +7,8 @@ import { providersApi } from 'api/requests/providersApi';
 import { useAuth } from 'contexts/AuthContext';
 
 // Proveedores (ADR-0012, DEC-031). Reutiliza el listado de MasterPage
-// (búsqueda, pestañas por estado) y navega a páginas propias: detalle y
-// edición, como obras (DEC-030). Un proveedor es una sola fila por empresa,
+// (búsqueda, pestañas por estado). Detalle, alta y edición son rutas hijas
+// que se abren en un modal sobre el listado, como obras (DEC-034). Un proveedor es una sola fila por empresa,
 // reutilizada en todas sus obras.
 
 const COLUMNS = [
@@ -40,6 +40,8 @@ const rowLabel = (row) => `${row.name} (${row.identityCode ?? ''} ${row.identifi
 export default function ProvidersPage() {
   const { permissionsCatalog } = useAuth();
   const navigate = useNavigate();
+  const [reloadKey, setReloadKey] = useState(0);
+  const outletContext = useMemo(() => ({ refresh: () => setReloadKey((k) => k + 1) }), []);
 
   const navigation = useMemo(
     () => ({
@@ -51,17 +53,21 @@ export default function ProvidersPage() {
   );
 
   return (
-    <MasterPage
-      title="Proveedor"
-      pluralTitle="proveedores"
-      idField="prvId"
-      api={providersApi}
-      permissions={permissionsCatalog.work?.providers}
-      columns={COLUMNS}
-      searchPlaceholder="Buscar por razón social o documento"
-      defaultSort="name"
-      rowLabel={rowLabel}
-      navigation={navigation}
-    />
+    <>
+      <MasterPage
+        title="Proveedor"
+        pluralTitle="proveedores"
+        idField="prvId"
+        api={providersApi}
+        permissions={permissionsCatalog.work?.providers}
+        columns={COLUMNS}
+        searchPlaceholder="Buscar por razón social o documento"
+        defaultSort="name"
+        rowLabel={rowLabel}
+        navigation={navigation}
+        reloadKey={reloadKey}
+      />
+      <Outlet context={outletContext} />
+    </>
   );
 }

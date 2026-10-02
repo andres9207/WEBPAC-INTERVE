@@ -66,13 +66,21 @@ const saveView = (key, value) => {
  *   `open(row?)`, y como props `title`, `idField`, `api`, `onSaved` y `feminine`.
  * - Acciones con los tonos del tema de ActionButton, no colores fijos.
  * - Tabla vacía: con búsqueda, lo dice; sin registros, ofrece crear el primero.
- * - `navigation`: un agregado con páginas propias (p. ej. la obra, DEC-030).
- *   Crear, ver y editar navegan en vez de abrir un diálogo, y el listado solo
- *   ofrece ver y editar: activar, desactivar y eliminar viven en el detalle.
+ * - `navigation`: un agregado con detalle y formulario propios, en un modal
+ *   con dirección propia (p. ej. la obra, DEC-034). Crear, ver y editar
+ *   navegan en vez de abrir un diálogo, y el listado solo ofrece ver y editar:
+ *   activar, desactivar y eliminar viven en el detalle.
+ * - `reloadKey`: al cambiar, recarga la página actual (lo sube el modal
+ *   después de guardar, cambiar el estado o eliminar).
  * - `header`: contenido que va arriba del listado (p. ej. indicadores, DEC-033).
  * - `renderCard(row, actions)`: activa la vista de tarjetas y el selector
  *   Tarjetas | Tabla. Las tarjetas usan la misma búsqueda, pestañas y
  *   paginación; `actions` son las mismas acciones de la fila.
+ * - `stateTabs`: pestañas por el estado del ciclo de vida de un workflow (p.
+ *   ej. el contrato, DEC-035) en vez de activo/inactivo. `param` es el campo
+ *   del filtro y de la fila (`state`); los conteos llegan en `statusCounts`
+ *   por ese valor, y la columna de estado usa `stateName` de la fila.
+ * - `filters`: filtros fijos que viajan en cada petición (p. ej. la obra).
  */
 export default function MasterPage({
   title,
@@ -89,7 +97,10 @@ export default function MasterPage({
   dialog: Dialog,
   navigation,
   header,
-  renderCard
+  renderCard,
+  reloadKey,
+  stateTabs,
+  filters
 }) {
   const { hasPermission } = useAuth();
   // perId != null: con el catálogo cargando, hasPermission(undefined) es true (FRONTEND_STANDARD, regla 5).
@@ -132,7 +143,8 @@ export default function MasterPage({
     try {
       const { data } = await api.pagination({
         search,
-        staId: status === 'all' ? '' : status,
+        ...filters,
+        ...(stateTabs ? { [stateTabs.param]: status === 'all' ? '' : status } : { staId: status === 'all' ? '' : status }),
         rows: rowsPerPage,
         first: page * rowsPerPage,
         sortField,
@@ -146,11 +158,11 @@ export default function MasterPage({
     } finally {
       setLoading(false);
     }
-  }, [api, search, status, page, rowsPerPage, sortField, sortOrder, lowerTitle]);
+  }, [api, search, status, page, rowsPerPage, sortField, sortOrder, lowerTitle, stateTabs, filters]);
 
   useEffect(() => {
     fetchRows();
-  }, [fetchRows]);
+  }, [fetchRows, reloadKey]);
 
   const handleSearch = useCallback((text) => {
     setSearch(text);
@@ -188,7 +200,16 @@ export default function MasterPage({
 
   const tableColumns = [
     ...columns,
-    { id: 'status', label: 'Estado', render: (row) => <StatusChip staId={row.staId} label={row.statusName ?? STATUS_NAMES[row.staId]} /> },
+    {
+      id: 'status',
+      label: 'Estado',
+      render: (row) =>
+        stateTabs ? (
+          <StatusChip staId={row[stateTabs.param]} label={row.stateName} scope={null} colorMap={stateTabs.colors} />
+        ) : (
+          <StatusChip staId={row.staId} label={row.statusName ?? STATUS_NAMES[row.staId]} />
+        )
+    },
     { id: 'modified', label: 'Últ. modificación', render: (row) => <LastModifiedCell name={row.updatedByName} date={row.updatedAt} /> }
   ];
 
@@ -231,7 +252,9 @@ export default function MasterPage({
     return items;
   };
 
-  const statusTabs = statusTabsWithCounts(statusCounts);
+  const statusTabs = stateTabs
+    ? stateTabs.tabs.map((tab) => ({ ...tab, total: statusCounts[tab.id] ?? 0 }))
+    : statusTabsWithCounts(statusCounts);
   const openNew = () => (navigation ? navigation.create() : dialogRef.current?.open());
 
   const plural = (pluralTitle ?? `${lowerTitle}s`).toLowerCase();
@@ -415,10 +438,16 @@ MasterPage.propTypes = {
   pluralTitle: PropTypes.string,
   /** Diálogo propio en lugar de MasterDialog (forwardRef con `open(row?)`). */
   dialog: PropTypes.elementType,
-  /** Páginas propias en vez de diálogo: `{ create(), view(row), edit(row) }`. */
+  /** Detalle y formulario propios en vez de diálogo: `{ create(), view(row), edit(row) }`. */
   navigation: PropTypes.shape({ create: PropTypes.func.isRequired, view: PropTypes.func.isRequired, edit: PropTypes.func.isRequired }),
   /** Contenido arriba del listado: indicadores, avisos. */
   header: PropTypes.node,
   /** Tarjeta de una fila: `(row, actions) => node`. Activa la vista de tarjetas (DEC-033). */
-  renderCard: PropTypes.func
+  renderCard: PropTypes.func,
+  /** Cambia para recargar el listado (DEC-034). */
+  reloadKey: PropTypes.number,
+  /** Pestañas por estado del ciclo de vida: `{ param, tabs: [{ id, name, color }], colors: { [id]: color } }`. */
+  stateTabs: PropTypes.shape({ param: PropTypes.string.isRequired, tabs: PropTypes.array.isRequired, colors: PropTypes.object }),
+  /** Filtros fijos de la petición, p. ej. `{ wrkId }`. Debe ser estable (useMemo). */
+  filters: PropTypes.object
 };

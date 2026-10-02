@@ -1,26 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
 import FormHelperText from '@mui/material/FormHelperText';
 import Grid from '@mui/material/Grid';
-import Link from '@mui/material/Link';
-import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { IconChevronLeft, IconPlus } from '@tabler/icons-react';
+import { IconPlus } from '@tabler/icons-react';
 
 import SubCard from 'ui-component/cards/SubCard';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import DateField from 'ui-component/extended/DateField';
 import EditableList from 'ui-component/extended/EditableList';
 import MoneyField from 'ui-component/extended/MoneyField';
+import RouteDialog from 'ui-component/extended/RouteDialog';
 import SearchSelect from 'ui-component/extended/SearchSelect';
 import SelectSocket from 'ui-component/extended/SelectSocket';
 import ManagerDialog from './components/ManagerDialog';
@@ -35,8 +33,9 @@ import { newIdempotencyKey } from 'utils/idempotency';
 import { STATUS_OPTIONS, TERM_UNIT_OPTIONS } from 'utils/constants';
 
 /**
- * Alta y edición de una obra a página completa (DEC-030): cabecera,
- * responsables y etapas, editados en memoria y enviados juntos en una sola
+ * Alta y edición de una obra (DEC-030), en un modal sobre el listado con
+ * dirección propia `/work/works/new` y `/work/works/:wrkId/edit` (DEC-034):
+ * cabecera, responsables y etapas, editados en memoria y enviados juntos en una sola
  * petición. El servidor guarda las colecciones por diferencial.
  *
  * - Importes como texto con punto decimal (MoneyField, DEC-028). El cliente no
@@ -161,6 +160,7 @@ export default function WorkFormPage() {
   const wrkId = Number(wrkIdParam) || 0;
   const isEdit = wrkId > 0;
   const navigate = useNavigate();
+  const { refresh } = useOutletContext() ?? {};
 
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
@@ -243,13 +243,15 @@ export default function WorkFormPage() {
     setValue('stages', [...list, { key: rowKey('s'), name: '', order: list.length + 1, staId: 1 }], { shouldDirty: true });
   };
 
-  const leave = () => navigate(isEdit ? `/work/works/${wrkId}` : '/work/works');
+  // Cancelar o cerrar vuelve al listado, también al editar (DEC-034).
+  const leave = () => navigate('/work/works');
 
   const onSubmit = async (form) => {
     setSaving(true);
     try {
       const { data } = await worksApi.save(toPayload(wrkId, form), isEdit ? undefined : idempotencyKey);
       showSuccess(data.message || 'Guardado correctamente.');
+      refresh?.();
       navigate(`/work/works/${data.wrkId ?? wrkId}`);
     } catch (err) {
       showError(err.response?.data?.message || 'Error al guardar la obra');
@@ -258,33 +260,43 @@ export default function WorkFormPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" sx={{ py: 8 }} role="status" aria-label="Cargando">
-        <CircularProgress />
-      </Box>
-    );
-  }
+  // Cerrar con la X, Escape o el fondo pide confirmar si hay cambios sin guardar.
+  const requestLeave = () => (isDirty ? setConfirmLeave(true) : leave());
+
+  if (loading) return <RouteDialog onClose={leave} loading />;
 
   const title = isEdit ? `Editar ${loaded?.code ?? 'obra'}` : 'Nueva obra';
   const hasErrors = Object.keys(errors).length > 0;
 
   return (
-    <Box component="form" noValidate onSubmit={handleSubmit(onSubmit)}>
+    <RouteDialog
+      onClose={requestLeave}
+      closeLabel="Cerrar sin guardar"
+      labelledBy="work-form-title"
+      onSubmit={handleSubmit(onSubmit)}
+      header={
+        <>
+          <Typography id="work-form-title" variant="h3" component="h2">
+            {title}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {isEdit ? loaded?.name : 'Datos generales, valores y plazos, responsables y etapas. Los campos con * son obligatorios.'}
+          </Typography>
+        </>
+      }
+      footer={
+        <>
+          <Box sx={{ flexGrow: 1 }} />
+          <Button onClick={requestLeave} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="contained" color="secondary" disabled={saving}>
+            {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar'}
+          </Button>
+        </>
+      }
+    >
       <Stack spacing={2}>
-        <Link
-          component={RouterLink}
-          to={isEdit ? `/work/works/${wrkId}` : '/work/works'}
-          underline="hover"
-          sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start' }}
-        >
-          <IconChevronLeft size={16} aria-hidden="true" />
-          {isEdit ? loaded?.code : 'Obras'}
-        </Link>
-        <Typography variant="h3" component="h1">
-          {title}
-        </Typography>
-
         {hasErrors && (
           <Alert severity="error" role="alert">
             Revisa los campos marcados antes de guardar.
@@ -527,31 +539,6 @@ export default function WorkFormPage() {
             )}
           />
         </Section>
-
-        <Paper
-          elevation={0}
-          sx={{
-            position: 'sticky',
-            bottom: 0,
-            zIndex: 2,
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 2,
-            px: 2,
-            py: 1.5,
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 1,
-            boxShadow: '0 -4px 16px rgb(18 25 38 / 8%)'
-          }}
-        >
-          <Button onClick={() => (isDirty ? setConfirmLeave(true) : leave())} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button type="submit" variant="contained" color="secondary" disabled={saving}>
-            {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar'}
-          </Button>
-        </Paper>
       </Stack>
 
       <ManagerDialog
@@ -571,6 +558,6 @@ export default function WorkFormPage() {
         confirmLabel="Descartar"
         confirmColor="warning"
       />
-    </Box>
+    </RouteDialog>
   );
 }

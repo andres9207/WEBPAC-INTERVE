@@ -56,8 +56,8 @@ describe("buildLockPlan — orden del protocolo", () => {
 
   it("rechaza entidades fuera del protocolo o sin tabla registrada", () => {
     expect(() => buildLockPlan({ PROYECTO: [1] })).toThrow(/fuera de LOCK_ORDER/);
-    // CONTRATO tiene lugar en el orden, pero su tabla aún no existe.
-    expect(() => buildLockPlan({ CONTRATO: [1] })).toThrow(/sin tabla registrada/);
+    // FACTURA tiene lugar en el orden, pero su tabla aún no existe.
+    expect(() => buildLockPlan({ FACTURA: [1] })).toThrow(/sin tabla registrada/);
   });
 
   it("rechaza ids inválidos y un bloqueo vacío", () => {
@@ -109,7 +109,7 @@ describe("withLockedTransaction", () => {
   });
 
   it("un plan inválido falla antes de abrir la transacción", () => {
-    expect(() => withLockedTransaction({ CONTRATO: 1 }, jest.fn())).toThrow(/sin tabla registrada/);
+    expect(() => withLockedTransaction({ FACTURA: 1 }, jest.fn())).toThrow(/sin tabla registrada/);
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });

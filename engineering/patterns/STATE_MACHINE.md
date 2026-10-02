@@ -1,6 +1,15 @@
 # Patrón: máquina de estados
 
-> **OBJETIVO.** No hay ningún workflow implementado. Este esqueleto aplica [`WORKFLOW_STANDARD`](../standards/WORKFLOW_STANDARD.md) con las utilidades que sí existen (`withLockedTransaction`, `runIdempotent`, `writeAudit`). El primer workflow real lo confirma o lo corrige, y este archivo se actualiza con su código.
+> **Primera implementación: el contrato** ([DEC-035](../decisiones/DEC-035-contratos-area-modelo.md)), con solo transiciones automáticas por ahora. Referencia real: `server/src/modules/work/contracts/contractTerms.js` (`CONTRACT_TRANSITIONS`, `STATE_ALLOWS`, `assertStateAllows`, `historyRow`) y `contractConcepts.service.js` (`createLiquidation`). Lo que fijó:
+>
+> - El estado va en su propia columna (`ctr_state`, con `CHECK`), no en `sta_id`.
+> - Las reglas sin BD (transiciones, qué admite cada estado) viven en un módulo aparte del service, sin Prisma, y se prueban sin mocks.
+> - "El estado actual no admite la acción" responde **409** con el nombre del estado.
+> - `historyRow` lanza si la transición no está declarada desde ese estado: el historial no puede registrar algo que la tabla no permite.
+> - Una transición automática viaja con la clave de idempotencia del hecho que la dispara (la del contrato o la del concepto); la columna de clave del historial queda para las manuales.
+> - El detalle devuelve `allowedActions` (de `STATE_ALLOWS`) y el cliente lo cruza con los permisos para mostrar u ocultar acciones.
+>
+> El esqueleto de abajo sigue siendo la forma de una transición **manual** (con clave propia en el historial), que llega con las suspensiones.
 
 **Cuándo:** nivel 3. Ejemplos del dominio: contrato (ADR-0017), factura (ADR-0020).
 

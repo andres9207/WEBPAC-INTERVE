@@ -754,12 +754,17 @@ export const updateWorkProvider = ({ wrkId, prvId, input, useBy, ctx = { useId: 
 
 /**
  * Desasignar: borra la asignación y deja el proveedor intacto en el maestro
- * (regla 12). La bitácora conserva la asignación. Cuando existan contratos,
- * se bloquea aquí si el proveedor tiene contratos en esa obra.
+ * (regla 12). La bitácora conserva la asignación. Bloqueado con 409 si el
+ * proveedor tiene contratos en esa obra, también eliminados: la FK del
+ * contrato a la asignación lo impide (DEC-035); esto da el mensaje claro.
  */
 export const unassignProviderFromWork = ({ wrkId, prvId, useBy, ctx = { useId: useBy } }) =>
   withLockedTransaction({ OBRA: wrkId, PROVEEDOR: prvId }, async (tx) => {
     const before = await findLockedAssignment(tx, { wrkId, prvId });
+    const contracts = await tx.tbl_contracts.count({ where: { wrk_id: Number(wrkId), prv_id: Number(prvId) } });
+    if (contracts > 0) {
+      throw httpError(409, `No se puede desasignar el proveedor: tiene ${contracts} contrato(s) en esta obra. Inactiva la asignación en su lugar.`);
+    }
     await tx.tbl_work_providers.delete({ where: { wkp_id: before.wkp_id } });
     await auditAssignment(tx, { operation: AUDIT_OPERATIONS.REVOKE, before, ctx });
     return { message: "Proveedor desasignado de la obra" };

@@ -4,6 +4,8 @@
 
 Sale del rediseño de obras revisado sobre el prototipo con el usuario (2026-10-01).
 
+> **Actualizada por [DEC-034](DEC-034-modal-con-direccion-propia.md) (2026-10-02):** las rutas siguen, pero el detalle y el formulario se abren en un modal grande sobre el listado, no a página completa.
+
 ## Contexto
 
 La obra se editaba en un diálogo sobre el listado (`MasterPage` + `WorkDialog`). Es un agregado que va a crecer (contactos, contratos, documentos) y no cabía bien en un diálogo. Además el plazo era un entero sin unidad ni fecha de inicio, así que no se podía saber cuándo termina la obra.
@@ -30,7 +32,7 @@ La obra se editaba en un diálogo sobre el listado (`MasterPage` + `WorkDialog`)
 ## Qué implica
 
 - Migración `0042`: las obras existentes reciben como fecha de inicio la de su creación y la unidad `MES`. Hay que revisarlas.
-- El patrón detalle + formulario a página completa es el que reutiliza el expediente de contrato.
+- El patrón detalle + formulario con rutas propias es el que reutiliza el expediente de contrato (presentado en modal desde DEC-034).
 - `@mui/x-date-pickers` y `@mui/system` son dependencias nuevas del cliente, con `LocalizationProvider` en `App.jsx`.
 
 ## Dónde

@@ -16,8 +16,11 @@ export const contractTypesConfig = defineMaster({
   fields: [{ name: "name", column: "ctt_name", label: "nombre", maxLength: 100, unique: true, filter: true, sortable: true }],
   defaultSort: "name",
   selectOrder: "name",
-  // ADR-0006, regla 13. Con contratos se agrega la tabla de contratos.
-  dependents: [{ model: "tbl_works", column: "ctt_id", label: "obra(s)" }],
+  // ADR-0006, regla 13.
+  dependents: [
+    { model: "tbl_works", column: "ctt_id", label: "obra(s)" },
+    { model: "tbl_contracts", column: "ctt_id", label: "contrato(s)" },
+  ],
   socketEvent: "refresh-contract-types",
 });
 

@@ -28,6 +28,9 @@ const WorkFormPage = Loadable(lazy(() => import('views/work/works/WorkFormPage')
 const ProvidersPage = Loadable(lazy(() => import('views/work/providers/ProvidersPage')));
 const ProviderDetailPage = Loadable(lazy(() => import('views/work/providers/ProviderDetailPage')));
 const ProviderFormPage = Loadable(lazy(() => import('views/work/providers/ProviderFormPage')));
+const ContractsPage = Loadable(lazy(() => import('views/work/contracts/ContractsPage')));
+const ContractDetailPage = Loadable(lazy(() => import('views/work/contracts/ContractDetailPage')));
+const ContractFormPage = Loadable(lazy(() => import('views/work/contracts/ContractFormPage')));
 
 // ==============================|| MAIN ROUTING ||============================== //
 
@@ -65,17 +68,38 @@ const MainRoutes = {
         },
         {
           path: 'work',
-          // Obras y proveedores con páginas propias (DEC-030, DEC-031):
-          // listado, alta, detalle y edición.
+          // Obras y proveedores (DEC-030, DEC-031): alta, detalle y edición
+          // son rutas hijas del listado y se abren en un modal sobre él, con
+          // dirección propia (DEC-034).
           children: [
-            { path: 'works', element: <WorksPage /> },
-            { path: 'works/new', element: <WorkFormPage /> },
-            { path: 'works/:wrkId', element: <WorkDetailPage /> },
-            { path: 'works/:wrkId/edit', element: <WorkFormPage /> },
-            { path: 'providers', element: <ProvidersPage /> },
-            { path: 'providers/new', element: <ProviderFormPage /> },
-            { path: 'providers/:prvId', element: <ProviderDetailPage /> },
-            { path: 'providers/:prvId/edit', element: <ProviderFormPage /> }
+            {
+              path: 'works',
+              element: <WorksPage />,
+              children: [
+                { path: 'new', element: <WorkFormPage /> },
+                { path: ':wrkId', element: <WorkDetailPage /> },
+                { path: ':wrkId/edit', element: <WorkFormPage /> }
+              ]
+            },
+            {
+              path: 'providers',
+              element: <ProvidersPage />,
+              children: [
+                { path: 'new', element: <ProviderFormPage /> },
+                { path: ':prvId', element: <ProviderDetailPage /> },
+                { path: ':prvId/edit', element: <ProviderFormPage /> }
+              ]
+            },
+            {
+              // Contratos (DEC-035), con el mismo patrón.
+              path: 'contracts',
+              element: <ContractsPage />,
+              children: [
+                { path: 'new', element: <ContractFormPage /> },
+                { path: ':ctrId', element: <ContractDetailPage /> },
+                { path: ':ctrId/edit', element: <ContractFormPage /> }
+              ]
+            }
           ]
         }
       ]

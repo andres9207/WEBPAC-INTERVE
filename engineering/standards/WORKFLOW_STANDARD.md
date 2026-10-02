@@ -2,7 +2,7 @@
 
 Aplica a toda entidad de nivel 3 ([`MODULE_STANDARD`](MODULE_STANDARD.md)): contratos, facturas, pólizas versionadas.
 
-> **Estado: OBJETIVO.** Todavía no hay ningún workflow implementado. Estas reglas salen de ADR-0017 (estados de contrato), ADR-0020 (estados de factura) y ADR-0027 (integridad transaccional, **aceptado**). El primer workflow que se construya fija el patrón concreto y actualiza [`patterns/STATE_MACHINE.md`](../patterns/STATE_MACHINE.md).
+> **Estado: en aplicación.** El contrato es el primer workflow ([DEC-035](../decisiones/DEC-035-contratos-area-modelo.md)), con transiciones automáticas; las manuales llegan con las suspensiones. Estas reglas salen de ADR-0017 (estados de contrato), ADR-0020 (estados de factura) y ADR-0027 (integridad transaccional, **aceptado**). El primer workflow que se construya fija el patrón concreto y actualiza [`patterns/STATE_MACHINE.md`](../patterns/STATE_MACHINE.md).
 
 ## Reglas
 

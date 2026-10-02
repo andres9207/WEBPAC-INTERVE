@@ -1,6 +1,6 @@
 # Invariantes de dominio
 
-> **Todas PROPUESTAS.** Salen de los ADR del dominio y ninguna está implementada: no existen las tablas. Al implementar un módulo, sus invariantes pasan a APLICADA con el mecanismo real. Las que dependen de una decisión de negocio pendiente lo indican.
+> **PROPUESTAS salvo las marcadas como aplicadas** al final de cada sección. Salen de los ADR del dominio. Al implementar un módulo, sus invariantes pasan a APLICADA con el mecanismo real. Las que dependen de una decisión de negocio pendiente lo indican.
 
 ## Saldos del contrato (ADR-0027, catálogo I1–I5)
 
@@ -24,10 +24,18 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | I9 | Como máximo una suspensión abierta por contrato | `UNIQUE` sobre columna generada | ADR-0017 |
 | I10 | Una versión vigente por póliza | `UNIQUE` sobre columna generada | ADR-0018 |
 | I11 | Número de factura único por proveedor — *ámbito pendiente: backlog DEC-17* | `UNIQUE` | ADR-0020 |
-| I12 | Número de contrato único por obra — *ámbito pendiente: backlog DEC-17* | `UNIQUE` | ADR-0015 |
+| I12 | Número de contrato único por obra, entre no eliminados ([DEC-035](../decisiones/DEC-035-contratos-area-modelo.md)) | `UNIQUE` sobre columna generada | ADR-0015 |
 | I13 | Solo la factura `SIMPLE` puede no tener contrato | `CHECK` | ADR-0020 |
 | I14 | Estado `APROBADA` ⇔ tiene fecha de aprobación | `CHECK` | ADR-0020 |
 | I15 | Fecha fin del contrato ≥ fecha de inicio | `CHECK` | ADR-0015 |
+
+**Aplicadas (2026-10-02), con contratos ([DEC-035](../decisiones/DEC-035-contratos-area-modelo.md), [DEC-036](../decisiones/DEC-036-conceptos-contractuales.md)):**
+
+- **I6:** `UNIQUE uq_contract_concepts_initial` sobre `ccp_initial_key`, y `createContract` crea el contrato y su valor inicial en la misma transacción.
+- **I7:** `UNIQUE uq_contract_concepts_liquidation` sobre `ccp_liquidation_key`; el service responde 409 antes.
+- **I8:** `UNIQUE uq_contract_concepts_number (ctr_id, ccp_number)` y numeración máximo + 1 bajo `withLockedTransaction({ CONTRATO })`. Probado en vivo: dos otrosí simultáneos reciben números distintos.
+- **I12:** `UNIQUE uq_contracts_work_number_active (wrk_id, ctr_number_active)`; el service responde 409 antes.
+- **I15:** `CHECK ck_contracts_end_date`; la fecha fin la calcula solo `contractEndDate`.
 
 ## Ciclo de vida
 
@@ -41,6 +49,8 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | DOM-06 | `ANULADA` es terminal, y una factura nunca se elimina | ADR-0020, reglas 12 y 15 |
 | DOM-07 | Tras la primera factura aprobada del contrato, los valores económicos de sus conceptos son inmutables | ADR-0016, regla 14 |
 | DOM-08 | Toda transición de estado queda en el historial, en la misma transacción | ADR-0017, regla 12 |
+
+**Aplicadas en parte (2026-10-02), con contratos:** DOM-01 (`ctr_state` con `CHECK`; solo lo cambian las transiciones de `CONTRACT_TRANSITIONS`, y `historyRow` rechaza una no declarada) y DOM-08 (creación y paso a liquidación escriben `tbl_contract_status_history` en su transacción). DOM-03 queda declarado en `STATE_ALLOWS` (un contrato suspendido no admite nada) y se aplicará con las suspensiones. DOM-07 llega con facturación.
 
 ## Cálculo
 
@@ -79,3 +89,10 @@ Tests en `server/test/modules/admin/identityDocuments/` y `security/users/users.
 - **DOM-21:** desactivar un proveedor no toca sus asignaciones; el selector de asignación solo ofrece activos.
 
 Tests en `server/test/modules/work/providers/`.
+
+**Aplicada (2026-10-02), con contratos ([DEC-035](../decisiones/DEC-035-contratos-area-modelo.md)):**
+
+- **DOM-25:** FK compuestas `tbl_contracts_work_stage (wks_id, wrk_id) → tbl_work_stages` y `tbl_contracts_work_provider (wrk_id, prv_id) → tbl_work_providers`, más validación en el service con mensaje claro. Probado en vivo: la BD rechaza una etapa ajena aunque se salte el service.
+- **DOM-11 (conceptos):** `CHECK ck_contract_concepts_percentages` y `percentRule` en la ruta.
+
+Tests en `server/test/modules/work/contracts/`.

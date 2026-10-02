@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import PropTypes from 'prop-types';
 
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -15,9 +16,10 @@ import { gridSpacing } from 'store/constant';
 /**
  * Indicadores del listado de obras (DEC-033). Todo lo calcula el servidor
  * (FRONTEND_STANDARD, regla 9): conteos, valor vigente total y avance. Son de
- * todas las obras: no cambian con la búsqueda ni con la pestaña.
+ * todas las obras: no cambian con la búsqueda ni con la pestaña. Se recargan
+ * cuando cambia `reloadKey` (al guardar una obra en su modal, DEC-034).
  */
-export default function WorksSummary() {
+export default function WorksSummary({ reloadKey }) {
   const [summary, setSummary] = useState(null);
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export default function WorksSummary() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   // Primera carga o error: la estructura se ve igual, con "—" en las cifras.
   const s = summary ?? {};
@@ -91,3 +93,5 @@ export default function WorksSummary() {
     </Box>
   );
 }
+
+WorksSummary.propTypes = { reloadKey: PropTypes.number };

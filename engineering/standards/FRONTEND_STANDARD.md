@@ -50,9 +50,9 @@ Referencia: `views/security/profiles/components/ProfileDialog.jsx`.
 - Al guardar: `showSuccess(data.message)`, avisar a la página con `addItem` o `updateItem`, cerrar.
 - Colecciones de un agregado (responsables, etapas, contactos) que se guardan con el padre: tabla + modal, o `ui-component/extended/EditableList` para filas cortas. Referencia: `views/work/works/WorkFormPage.jsx`.
 
-## Agregado con páginas propias
+## Agregado con rutas propias
 
-Un agregado que crece (obra; después contrato) no usa diálogo: listado, detalle y formulario a página completa, con rutas `<área>/<módulo>`, `/new`, `/:id` y `/:id/edit` ([DEC-030](../decisiones/DEC-030-obra-paginas-propias-plazo.md)). El listado es `MasterPage` con `navigation`. Cómo se ve: [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md), "Página de detalle".
+Un agregado que crece (obra, proveedor; después contrato) no usa el diálogo chico del maestro: tiene listado, detalle y formulario con rutas `<área>/<módulo>`, `/new`, `/:id` y `/:id/edit` ([DEC-030](../decisiones/DEC-030-obra-paginas-propias-plazo.md)). Las tres últimas son **rutas hijas del listado** y se abren en un modal grande sobre él (`ui-component/extended/RouteDialog`), así que recargar o compartir el enlace abre el mismo modal ([DEC-034](../decisiones/DEC-034-modal-con-direccion-propia.md)). El listado es `MasterPage` con `navigation` y `reloadKey`, y monta un `<Outlet context={{ refresh }} />`; el modal llama a `refresh` después de cada cambio. Cómo se ve: [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md), "Detalle y formulario en modal".
 
 ## Rutas y menú
 

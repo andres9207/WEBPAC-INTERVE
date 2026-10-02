@@ -48,9 +48,8 @@ const CAN = PERMISSIONS.work.works;
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
 // Registros que impiden eliminar una obra (ADR-0011, decisión 12). Responde
-// 409 (DEC-026). Con contratos se agrega aquí su tabla:
-//   { model: "tbl_contracts", column: "wrk_id", label: "contrato(s)" }
-const WORK_DEPENDENTS = [];
+// 409 (DEC-026). Cuentan los no eliminados.
+const WORK_DEPENDENTS = [{ model: "tbl_contracts", column: "wrk_id", label: "contrato(s)" }];
 
 // ─── Listado ─────────────────────────────────────────────────────────────────
 
@@ -250,7 +249,7 @@ export const getWork = async ({ wrkId }) => {
       },
       // Proveedores asignados: solo el conteo, para la pestaña. La lista la
       // sirve pagination_work_providers (DEC-031).
-      _count: { select: { tbl_work_providers: true } },
+      _count: { select: { tbl_work_providers: true, tbl_contracts: { where: { sta_id: { not: DELETED_STATUS } } } } },
     },
   });
   if (!row) throw httpError(404, "No se encontró la obra.");
@@ -292,6 +291,7 @@ export const getWork = async ({ wrkId }) => {
     })),
     stages: row.tbl_work_stages.map((s) => ({ wksId: s.wks_id, name: s.wks_name, order: s.wks_order, staId: s.sta_id })),
     providersCount: row._count?.tbl_work_providers ?? 0,
+    contractsCount: row._count?.tbl_contracts ?? 0,
   };
 };
 
@@ -467,6 +467,22 @@ const diffStages = (current, desired) => {
   };
 };
 
+// Una etapa con contratos no se quita (la FK del contrato lo impide; esto da
+// el mensaje claro). Cuentan también los contratos eliminados: siguen
+// apuntando a la etapa. Se puede desactivar.
+const assertStagesRemovable = async (tx, wrkId, toDelete) => {
+  if (toDelete.length === 0) return;
+  const used = await tx.tbl_contracts.findMany({
+    where: { wrk_id: wrkId, wks_id: { in: toDelete.map((s) => s.wks_id) } },
+    select: { wks_id: true },
+    distinct: ["wks_id"],
+  });
+  if (used.length > 0) {
+    const names = toDelete.filter((s) => used.some((u) => u.wks_id === s.wks_id)).map((s) => `"${s.wks_name}"`);
+    throw httpError(409, `No se puede quitar la etapa ${names.join(", ")}: tiene contratos. Desactívala en su lugar.`);
+  }
+};
+
 const hasChanges = (diff) => diff.toInsert.length > 0 || diff.toDelete.length > 0 || diff.toUpdate.length > 0;
 
 /** Qué permiso exige cada cambio de las colecciones (ADR-0011, "Autorización"). */
@@ -598,6 +614,7 @@ const updateWork = ({ wrkId, values, managers, stages, useBy, granted, ctx }) =>
       const managerDiff = diffManagers(currentManagers, managers);
       const stageDiff = diffStages(currentStages, stages);
       assertCollectionPermissions(granted, managerDiff, stageDiff);
+      await assertStagesRemovable(tx, id, stageDiff.toDelete);
 
       await assertMasters(tx, values, before);
       await assertManagerUsers(tx, managers, new Set(currentManagers.map((m) => m.use_id)));

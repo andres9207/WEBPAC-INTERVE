@@ -2,9 +2,9 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-10-02, fase A, [DEC-035](../decisiones/DEC-035-contratos-area-modelo.md)): contrato, fecha fin derivada, número único por obra y coherencia obra-etapa-proveedor implementados. Faltan suspensiones, conciliación, bloqueo por facturas y fecha de vencimiento. Las secciones de "Estado actual" describen el sistema antes de implementarlo.
 
-La entidad contrato **no existe** en el código ni en el esquema. Este ADR documenta la decisión arquitectónica recomendada para el núcleo del sistema.
+Era **Propuesto**: la entidad contrato no existía en el código ni en el esquema.
 
 ## Fecha
 

@@ -19,6 +19,7 @@ import constructionCompaniesRoutes from "./admin/constructionCompanies/construct
 import contractTypesRoutes from "./admin/contractTypes/contractTypes.routes.js";
 import worksRoutes from "./work/works/works.routes.js";
 import providersRoutes from "./work/providers/providers.routes.js";
+import contractsRoutes from "./work/contracts/contracts.routes.js";
 
 const mainRoutes = express.Router();
 
@@ -44,5 +45,6 @@ mainRoutes.use("/admin/constructionCompanies", constructionCompaniesRoutes);
 mainRoutes.use("/admin/contractTypes", contractTypesRoutes);
 mainRoutes.use("/work/works", worksRoutes);
 mainRoutes.use("/work/providers", providersRoutes);
+mainRoutes.use("/work/contracts", contractsRoutes);
 
 export default mainRoutes;

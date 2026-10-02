@@ -105,5 +105,17 @@ export const PERMISSIONS = {
       assignWork: 66,
       unassignWork: 67,
     },
+    // Contratos (DEC-035). El valor inicial se crea con el contrato. Crear
+    // otrosí, crear el de liquidación (cambia el estado) y modificar un
+    // concepto (cambia el valor) van aparte de editar (ADR-0016, "Autorización").
+    contracts: {
+      view: 68, // pagination_contracts, get_contract, select_contract_works, get_contract_form_options
+      create: 69,
+      edit: 70,
+      delete: 71,
+      createAmendment: 72,
+      createLiquidation: 73,
+      editConcept: 74,
+    },
   },
 };
