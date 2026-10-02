@@ -1,9 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 
+import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import LinearProgress from '@mui/material/LinearProgress';
 import Stack from '@mui/material/Stack';
-import { IconEdit, IconEye, IconTrash, IconPlus, IconToggleLeft, IconToggleRight } from '@tabler/icons-react';
+import TablePagination from '@mui/material/TablePagination';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Typography from '@mui/material/Typography';
+import { IconEdit, IconEye, IconTrash, IconPlus, IconToggleLeft, IconToggleRight, IconLayoutGrid, IconList } from '@tabler/icons-react';
 
 import MainCard from 'ui-component/cards/MainCard';
 import SearchInput from 'ui-component/extended/SearchInput';
@@ -12,11 +18,31 @@ import StatusChip from 'ui-component/extended/StatusChip';
 import StatusTabs from 'ui-component/extended/StatusTabs';
 import LastModifiedCell from 'ui-component/extended/LastModifiedCell';
 import MasterDialog from 'ui-component/extended/MasterDialog';
+import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import { useAuth } from 'contexts/AuthContext';
 import { showError, showSuccess } from 'services/ToastService';
 import { statusTabsWithCounts } from 'utils/constants';
+import { gridSpacing } from 'store/constant';
 
 const STATUS_NAMES = { 1: 'Activo', 2: 'Inactivo' };
+const ROWS_PER_PAGE_OPTIONS = [5, 10, 25, 50];
+
+// La vista elegida (tarjetas o tabla) se recuerda por listado en el navegador.
+// Es una preferencia: si el almacenamiento falla, se usan las tarjetas.
+const readView = (key) => {
+  try {
+    return window.localStorage.getItem(key) === 'table' ? 'table' : 'cards';
+  } catch {
+    return 'cards';
+  }
+};
+const saveView = (key, value) => {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* sin almacenamiento: la elección dura lo que la página */
+  }
+};
 
 /**
  * Vista reutilizable de un maestro (MAE-FE-01, DEC-020). Compone los
@@ -43,6 +69,10 @@ const STATUS_NAMES = { 1: 'Activo', 2: 'Inactivo' };
  * - `navigation`: un agregado con páginas propias (p. ej. la obra, DEC-030).
  *   Crear, ver y editar navegan en vez de abrir un diálogo, y el listado solo
  *   ofrece ver y editar: activar, desactivar y eliminar viven en el detalle.
+ * - `header`: contenido que va arriba del listado (p. ej. indicadores, DEC-033).
+ * - `renderCard(row, actions)`: activa la vista de tarjetas y el selector
+ *   Tarjetas | Tabla. Las tarjetas usan la misma búsqueda, pestañas y
+ *   paginación; `actions` son las mismas acciones de la fila.
  */
 export default function MasterPage({
   title,
@@ -57,7 +87,9 @@ export default function MasterPage({
   feminine = false,
   pluralTitle,
   dialog: Dialog,
-  navigation
+  navigation,
+  header,
+  renderCard
 }) {
   const { hasPermission } = useAuth();
   // perId != null: con el catálogo cargando, hasPermission(undefined) es true (FRONTEND_STANDARD, regla 5).
@@ -80,6 +112,17 @@ export default function MasterPage({
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortField, setSortField] = useState(defaultSort);
   const [sortOrder, setSortOrder] = useState(1);
+
+  const viewKey = `master-view:${idField}`;
+  const [view, setView] = useState(() => (renderCard ? readView(viewKey) : 'table'));
+  const showCards = Boolean(renderCard) && view === 'cards';
+  // En las tarjetas, una acción con `confirm` pasa por ConfirmDialog, igual que en DataTable.
+  const [confirmItem, setConfirmItem] = useState(null);
+  const handleView = (_, value) => {
+    if (!value) return;
+    setView(value);
+    saveView(viewKey, value);
+  };
 
   const dialogRef = useRef(null);
   const lowerTitle = title.charAt(0).toLowerCase() + title.slice(1);
@@ -204,7 +247,43 @@ export default function MasterPage({
       </Button>
     ) : null;
 
-  return (
+  const handlePageChange = (_, p) => setPage(p);
+  const handleRowsPerPage = (e) => {
+    setRowsPerPage(+e.target.value);
+    setPage(0);
+  };
+
+  const cards =
+    rows.length === 0 ? (
+      <Stack alignItems="center" spacing={1.5} sx={{ py: 5 }}>
+        <Typography color="text.secondary">{loading ? 'Cargando…' : emptyMessage}</Typography>
+        {!loading && emptyAction}
+      </Stack>
+    ) : (
+      <Box sx={{ position: 'relative' }}>
+        {/* Recarga: las tarjetas siguen visibles, atenuadas, con la barra arriba. */}
+        {loading && <LinearProgress sx={{ position: 'absolute', top: -12, left: 0, right: 0 }} aria-label="Cargando…" />}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))',
+            gap: 2,
+            opacity: loading ? 0.6 : 1
+          }}
+        >
+          {rows.map((row) => (
+            <Box key={row[idField]} sx={{ minWidth: 0 }}>
+              {renderCard(
+                row,
+                actionItems(row).map((item) => (item.confirm ? { ...item, command: () => setConfirmItem(item) } : item))
+              )}
+            </Box>
+          ))}
+        </Box>
+      </Box>
+    );
+
+  const list = (
     <MainCard
       title={
         // flexWrap: en ancho de teléfono los botones bajan de línea en vez de desbordar.
@@ -212,6 +291,18 @@ export default function MasterPage({
           <SearchInput onSearch={handleSearch} placeholder={searchPlaceholder} />
           <Stack direction="row" alignItems="center" sx={{ flexWrap: 'wrap', gap: 1.5, ml: 'auto' }}>
             <StatusTabs statusTabs={statusTabs} selectedStatus={status} onChange={handleStatus} />
+            {renderCard && (
+              <ToggleButtonGroup value={view} exclusive onChange={handleView} size="small" aria-label="Forma de ver el listado">
+                <ToggleButton value="cards" sx={{ gap: 0.75, px: 1.5 }}>
+                  <IconLayoutGrid size={16} aria-hidden />
+                  Tarjetas
+                </ToggleButton>
+                <ToggleButton value="table" sx={{ gap: 0.75, px: 1.5 }}>
+                  <IconList size={16} aria-hidden />
+                  Tabla
+                </ToggleButton>
+              </ToggleButtonGroup>
+            )}
             {can.create && (
               <Button variant="contained" size="small" startIcon={<IconPlus size={16} />} onClick={openNew}>
                 Nuevo
@@ -221,27 +312,53 @@ export default function MasterPage({
         </Stack>
       }
     >
-      <DataTable
-        columns={tableColumns}
-        rows={rows}
-        total={total}
-        loading={loading}
-        page={page}
-        rowsPerPage={rowsPerPage}
-        onPageChange={(_, p) => setPage(p)}
-        onRowsPerPageChange={(e) => {
-          setRowsPerPage(+e.target.value);
-          setPage(0);
-        }}
-        sortField={sortField}
-        sortOrder={sortOrder}
-        onSort={handleSort}
-        keyExtractor={(row) => row[idField]}
-        cardTitleRender={rowLabel}
-        actions={actionItems}
-        emptyMessage={emptyMessage}
-        emptyAction={emptyAction}
-      />
+      {showCards ? (
+        <>
+          {cards}
+          {rows.length > 0 && (
+            <TablePagination
+              component="div"
+              count={total}
+              page={page}
+              rowsPerPage={rowsPerPage}
+              onPageChange={handlePageChange}
+              onRowsPerPageChange={handleRowsPerPage}
+              rowsPerPageOptions={ROWS_PER_PAGE_OPTIONS}
+              labelRowsPerPage="Filas:"
+              labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+            />
+          )}
+          <ConfirmDialog
+            open={!!confirmItem}
+            onClose={() => setConfirmItem(null)}
+            onConfirm={() => confirmItem?.command?.()}
+            title={confirmItem?.confirmTitle || 'Confirmar'}
+            message={confirmItem?.confirm}
+            confirmLabel={confirmItem?.confirmLabel || 'Eliminar'}
+            confirmColor={confirmItem?.confirmColor || 'error'}
+          />
+        </>
+      ) : (
+        <DataTable
+          columns={tableColumns}
+          rows={rows}
+          total={total}
+          loading={loading}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          onPageChange={handlePageChange}
+          onRowsPerPageChange={handleRowsPerPage}
+          rowsPerPageOptions={ROWS_PER_PAGE_OPTIONS}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={handleSort}
+          keyExtractor={(row) => row[idField]}
+          cardTitleRender={rowLabel}
+          actions={actionItems}
+          emptyMessage={emptyMessage}
+          emptyAction={emptyAction}
+        />
+      )}
 
       {navigation ? null : Dialog ? (
         <Dialog ref={dialogRef} title={title} idField={idField} api={api} onSaved={fetchRows} feminine={feminine} />
@@ -257,6 +374,14 @@ export default function MasterPage({
         />
       )}
     </MainCard>
+  );
+
+  if (!header) return list;
+  return (
+    <Stack spacing={gridSpacing}>
+      {header}
+      {list}
+    </Stack>
   );
 }
 
@@ -291,5 +416,9 @@ MasterPage.propTypes = {
   /** Diálogo propio en lugar de MasterDialog (forwardRef con `open(row?)`). */
   dialog: PropTypes.elementType,
   /** Páginas propias en vez de diálogo: `{ create(), view(row), edit(row) }`. */
-  navigation: PropTypes.shape({ create: PropTypes.func.isRequired, view: PropTypes.func.isRequired, edit: PropTypes.func.isRequired })
+  navigation: PropTypes.shape({ create: PropTypes.func.isRequired, view: PropTypes.func.isRequired, edit: PropTypes.func.isRequired }),
+  /** Contenido arriba del listado: indicadores, avisos. */
+  header: PropTypes.node,
+  /** Tarjeta de una fila: `(row, actions) => node`. Activa la vista de tarjetas (DEC-033). */
+  renderCard: PropTypes.func
 };

@@ -2,8 +2,16 @@ import { prisma } from "../../../common/configs/prismaClient.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import { paginate, MAX_ROWS, countByStatus } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
-import { toMoney, moneyText } from "../../../common/utils/money.utils.js";
-import { addTerm, dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
+import { toMoney, moneyText, sumMoney } from "../../../common/utils/money.utils.js";
+import {
+  addTerm,
+  dateOnlyText,
+  PROGRESS_WARNING,
+  progressLevel,
+  termProgress,
+  toDateOnly,
+  todayDateOnly,
+} from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
@@ -85,9 +93,16 @@ const LIST_SELECT = {
     orderBy: { wkm_id: "asc" },
     take: 1,
   },
+  // Para la vista de tarjetas (DEC-033): etapas en orden y responsables activos.
+  tbl_work_stages: { select: { wks_name: true, sta_id: true }, orderBy: { wks_order: "asc" } },
+  _count: { select: { tbl_work_managers: { where: { sta_id: ACTIVE_STATUS } } } },
 };
 
-const toListDto = (row) => ({
+// Avance del plazo de una obra a la fecha `today` (DEC-033).
+const progressOf = (row, today) =>
+  termProgress(row.wrk_start_date, addTerm(row.wrk_start_date, row.wrk_initial_term, row.wrk_term_unit), today);
+
+const toListDto = (row, today = todayDateOnly()) => withProgress(row, today, {
   wrkId: row.wrk_id,
   code: row.wrk_code,
   name: row.wrk_name,
@@ -95,6 +110,7 @@ const toListDto = (row) => ({
   contractType: row.tbl_contract_types?.ctt_name ?? null,
   supervisionType: row.tbl_supervision_types?.spt_name ?? null,
   initialValue: moneyText(row.wrk_initial_value),
+  extendedValue: moneyText(row.wrk_extended_value),
   // Valor vigente: el ampliado cuando existe (ADR-0011, regla 7).
   currentValue: moneyText(row.wrk_extended_value ?? row.wrk_initial_value),
   startDate: dateOnlyText(row.wrk_start_date),
@@ -102,11 +118,19 @@ const toListDto = (row) => ({
   termUnit: row.wrk_term_unit,
   endDate: addTerm(row.wrk_start_date, row.wrk_initial_term, row.wrk_term_unit),
   mainManagerName: userFullName(row.tbl_work_managers?.[0]?.tbl_users),
+  activeManagers: row._count?.tbl_work_managers ?? 0,
+  stages: (row.tbl_work_stages ?? []).map((s) => ({ name: s.wks_name, staId: s.sta_id })),
   staId: row.sta_id,
   statusName: row.tbl_status?.sta_name ?? null,
   updatedAt: row.wrk_update_at,
   updatedByName: userFullName(row.updated_by_user),
 });
+
+// Agrega el avance del plazo y su nivel, calculados una sola vez.
+const withProgress = (row, today, dto) => {
+  const percent = progressOf(row, today);
+  return { ...dto, progressPercent: percent, progressLevel: progressLevel(percent) };
+};
 
 // Búsqueda general (DEC-024): código, nombre o constructora, parametrizada.
 const searchWhereOf = (search) => {
@@ -132,7 +156,45 @@ export const paginationWorks = async ({ search, staId, rows, first, sortField, s
     paginate(prisma.tbl_works, { where, select: LIST_SELECT, orderBy }, { first, rows }),
     countByStatus(prisma.tbl_works, baseWhere),
   ]);
-  return { ...page, results: page.results.map(toListDto), statusCounts };
+  const today = todayDateOnly();
+  return { ...page, results: page.results.map((row) => toListDto(row, today)), statusCounts };
+};
+
+// ─── Resumen ─────────────────────────────────────────────────────────────────
+
+/**
+ * Indicadores del listado (DEC-033), de todas las obras no eliminadas: no
+ * dependen de la búsqueda ni de la pestaña. El valor vigente total se suma en
+ * Decimal (DEC-028); el avance promedio y las obras cerca de terminar cuentan
+ * solo las activas con fechas.
+ */
+export const summaryWorks = async () => {
+  const rows = await prisma.tbl_works.findMany({
+    where: { sta_id: { not: DELETED_STATUS } },
+    select: {
+      sta_id: true,
+      wrk_initial_value: true,
+      wrk_extended_value: true,
+      wrk_start_date: true,
+      wrk_initial_term: true,
+      wrk_term_unit: true,
+    },
+  });
+
+  const today = todayDateOnly();
+  const active = rows.filter((row) => row.sta_id === ACTIVE_STATUS);
+  const progress = active.map((row) => progressOf(row, today)).filter((percent) => percent !== null);
+
+  return {
+    total: rows.length,
+    active: active.length,
+    inactive: rows.length - active.length,
+    currentValueTotal: moneyText(sumMoney(rows.map((row) => row.wrk_extended_value ?? row.wrk_initial_value))),
+    averageProgress: progress.length ? Math.round(progress.reduce((sum, percent) => sum + percent, 0) / progress.length) : null,
+    closingCount: progress.filter((percent) => percent >= PROGRESS_WARNING).length,
+    // El umbral viaja con el dato: la pantalla lo nombra sin repetirlo.
+    closingThreshold: PROGRESS_WARNING,
+  };
 };
 
 // ─── Detalle ─────────────────────────────────────────────────────────────────

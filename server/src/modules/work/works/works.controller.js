@@ -42,6 +42,8 @@ export const paginationWorksController = handle((req) => {
   return worksService.paginationWorks({ search, staId, rows, first, sortField, sortOrder });
 });
 
+export const summaryWorksController = handle(() => worksService.summaryWorks());
+
 export const getWorkController = handle((req) => worksService.getWork({ wrkId: req.query.wrkId }));
 
 export const selectWorkManagersController = handle((req) => worksService.selectWorkManagers({ search: req.query.search }));

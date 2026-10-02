@@ -45,3 +45,33 @@ export const addTerm = (startDate, amount, unit) => {
   const day = Math.min(start.getUTCDate(), daysInMonth(year, monthIndex));
   return dateOnlyText(new Date(Date.UTC(year, monthIndex, day)));
 };
+
+/** Fecha de hoy en la zona del servidor, a medianoche UTC (como una columna DATE). */
+export const todayDateOnly = (now = new Date()) => new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+
+/**
+ * Avance del plazo (DEC-033): porcentaje entero de 0 a 100 de los días
+ * transcurridos entre la fecha de inicio y la final. Antes del inicio es 0 y
+ * después del final, 100. null si falta alguna de las dos fechas.
+ */
+export const termProgress = (startDate, endDate, today = todayDateOnly()) => {
+  const start = startDate instanceof Date ? startDate : toDateOnly(startDate);
+  const end = endDate instanceof Date ? endDate : toDateOnly(endDate);
+  if (!start || !end) return null;
+  const span = end.getTime() - start.getTime();
+  if (span <= 0) return today.getTime() >= end.getTime() ? 100 : 0;
+  const percent = Math.round(((today.getTime() - start.getTime()) / span) * 100);
+  return Math.min(100, Math.max(0, percent));
+};
+
+/** Umbrales del avance del plazo: desde aquí la obra se marca en alerta o crítica. */
+export const PROGRESS_WARNING = 70;
+export const PROGRESS_CRITICAL = 90;
+
+/** NORMAL, WARNING o CRITICAL según el avance; null sin avance. */
+export const progressLevel = (percent) => {
+  if (percent === null || percent === undefined) return null;
+  if (percent >= PROGRESS_CRITICAL) return "CRITICAL";
+  if (percent >= PROGRESS_WARNING) return "WARNING";
+  return "NORMAL";
+};

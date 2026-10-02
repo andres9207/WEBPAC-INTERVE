@@ -132,6 +132,14 @@ Referencia: `views/work/works/WorkDetailPage.jsx` y `WorkFormPage.jsx`.
 - **Detalle**: enlace de vuelta, encabezado con código, nombre, estado y autoría; botones Eliminar · Desactivar · Editar (uno solo contenido); cifras clave calculadas por el servidor; pestañas por parte del agregado, con conteo. Una parte que todavía no existe tiene su pestaña con un estado vacío que explica cuándo llega.
 - **Formulario**: secciones con `SubCard`, alerta de errores arriba, barra fija abajo con Cancelar y Guardar. Cancelar con cambios sin guardar pide confirmación.
 
+### Listado con indicadores y tarjetas (aprobado, DEC-033)
+
+Referencia: `views/work/works/WorksPage.jsx`, `components/WorksSummary.jsx` y `WorkCard.jsx`.
+
+- **Indicadores** arriba del listado (`MasterPage`, prop `header`): hasta 4, cada uno con ícono en un tono de `ACTION_TONES`, etiqueta, cifra y una línea que explica qué cuenta. Todas las cifras las calcula el servidor; mientras cargan, "—".
+- **Tarjetas** (`renderCard`): selector Tarjetas | Tabla junto a las pestañas, recordado por listado. Mismas búsqueda, pestañas, paginación y acciones que la tabla. La tarjeta de obra lleva una franja de estado arriba, el nombre como enlace al detalle, el importe principal en `h3` con `tabular-nums`, la barra de avance (color por el nivel que manda el servidor: `primary.800`, `orange.dark`, `error.dark`; gris si está inactiva) y las acciones abajo.
+- Un importe en un indicador va completo (`fMoneyText`), nunca abreviado.
+
 ## Patrones que vienen
 
 El CORE necesita patrones que todavía no existen; se diseñan antes de programarlos y se registran aquí al aprobarse.

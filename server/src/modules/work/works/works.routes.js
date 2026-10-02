@@ -13,6 +13,7 @@ import {
 } from "./works.validation.js";
 import {
   paginationWorksController,
+  summaryWorksController,
   getWorkController,
   selectWorkManagersController,
   saveWorkController,
@@ -26,6 +27,8 @@ const can = PERMISSIONS.work.works;
 const worksRoutes = express.Router();
 
 worksRoutes.post("/pagination_works", verifyToken, requirePermission(can.view), paginationWorksSchema, validate, paginationWorksController);
+// Indicadores del listado (DEC-033). Sin parámetros: no hay esquema que validar.
+worksRoutes.get("/summary_works", verifyToken, requirePermission(can.view), summaryWorksController);
 worksRoutes.get("/get_work", verifyToken, requirePermission(can.view), getWorkSchema, validate, getWorkController);
 // Candidatos a responsable: nombres de usuarios activos, para el formulario de
 // obra. Con el permiso de ver obras, que ya muestran a sus responsables.

@@ -456,6 +456,11 @@ describe("paginationWorks y selectWorkManagers", () => {
         tbl_status: { sta_name: "Activo" },
         updated_by_user: { use_name: "Ana", use_last_name: "Paz" },
         tbl_work_managers: [{ tbl_users: { use_name: "Luis", use_last_name: "Mora" } }],
+        tbl_work_stages: [
+          { wks_name: "Cimentación", sta_id: 1 },
+          { wks_name: "Estructura", sta_id: 2 },
+        ],
+        _count: { tbl_work_managers: 2 },
       },
     ]);
     prismaMock.tbl_works.count.mockResolvedValue(1);
@@ -476,8 +481,19 @@ describe("paginationWorks y selectWorkManagers", () => {
       startDate: "2026-01-31",
       // 31 ene + 1 mes: último día de febrero.
       endDate: "2026-02-28",
+      extendedValue: "300000.00",
+      // El plazo ya venció: avance 100 % (DEC-033).
+      progressPercent: 100,
+      progressLevel: "CRITICAL",
+      activeManagers: 2,
+      stages: [
+        { name: "Cimentación", staId: 1 },
+        { name: "Estructura", staId: 2 },
+      ],
     });
     expect(args.select.tbl_work_managers.where).toEqual({ wkm_role: "MAIN", sta_id: 1 });
+    expect(args.select.tbl_work_stages.orderBy).toEqual({ wks_order: "asc" });
+    expect(args.select._count.select.tbl_work_managers.where).toEqual({ sta_id: 1 });
     expect(page.statusCounts).toEqual({ 1: 1 });
   });
 
@@ -491,10 +507,76 @@ describe("paginationWorks y selectWorkManagers", () => {
     expect(prismaMock.tbl_works.findMany.mock.calls[0][0].orderBy).toEqual({ wrk_update_at: "desc" });
   });
 
+  it("una obra sin fechas no tiene avance", async () => {
+    prismaMock.tbl_works.findMany.mockResolvedValue([
+      { wrk_id: 41, wrk_start_date: null, wrk_initial_term: 3, wrk_term_unit: "MES", sta_id: 1, tbl_work_stages: [], _count: { tbl_work_managers: 0 } },
+    ]);
+    prismaMock.tbl_works.count.mockResolvedValue(1);
+    prismaMock.tbl_works.groupBy.mockResolvedValue([]);
+
+    const page = await service.paginationWorks({});
+
+    expect(page.results[0]).toMatchObject({ progressPercent: null, progressLevel: null, stages: [], activeManagers: 0 });
+  });
+
   it("los candidatos a responsable son usuarios activos", async () => {
     prismaMock.tbl_users.findMany.mockResolvedValue([{ use_id: 5, use_name: "Ana", use_last_name: "Paz", sta_id: 1 }]);
 
     await expect(service.selectWorkManagers({})).resolves.toEqual([{ value: 5, label: "Ana Paz", staId: 1 }]);
     expect(prismaMock.tbl_users.findMany.mock.calls[0][0]).toMatchObject({ where: { sta_id: 1 }, take: 100 });
+  });
+});
+
+// DEC-033: indicadores del listado, de todas las obras no eliminadas.
+describe("summaryWorks", () => {
+  const work = (overrides) => ({
+    sta_id: 1,
+    wrk_initial_value: "1000.10",
+    wrk_extended_value: null,
+    wrk_start_date: new Date("2020-01-01T00:00:00Z"),
+    wrk_initial_term: 1,
+    wrk_term_unit: "MES",
+    ...overrides,
+  });
+
+  it("cuenta por estado, suma el valor vigente en Decimal y promedia el avance de las activas", async () => {
+    prismaMock.tbl_works.findMany.mockResolvedValue([
+      // Activa, plazo vencido: 100 %.
+      work({ wrk_extended_value: "2000.20" }),
+      // Activa, todavía no empieza: 0 %.
+      work({ wrk_start_date: new Date("2099-01-01T00:00:00Z") }),
+      // Activa sin fecha: no entra en el promedio.
+      work({ wrk_start_date: null }),
+      // Inactiva: suma al valor, no al avance.
+      work({ sta_id: 2 }),
+    ]);
+
+    const summary = await service.summaryWorks();
+
+    expect(prismaMock.tbl_works.findMany.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 } });
+    expect(summary).toEqual({
+      total: 4,
+      active: 3,
+      inactive: 1,
+      // 2000.20 (ampliado) + 1000.10 × 3.
+      currentValueTotal: "5000.50",
+      averageProgress: 50,
+      closingCount: 1,
+      closingThreshold: 70,
+    });
+  });
+
+  it("sin obras no hay promedio", async () => {
+    prismaMock.tbl_works.findMany.mockResolvedValue([]);
+
+    await expect(service.summaryWorks()).resolves.toEqual({
+      total: 0,
+      active: 0,
+      inactive: 0,
+      currentValueTotal: "0.00",
+      averageProgress: null,
+      closingCount: 0,
+      closingThreshold: 70,
+    });
   });
 });

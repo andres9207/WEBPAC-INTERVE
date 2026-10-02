@@ -1,4 +1,14 @@
-const { toMoney, moneyText } = await import("../../../src/common/utils/money.utils.js");
+const { toMoney, moneyText, sumMoney } = await import("../../../src/common/utils/money.utils.js");
+
+describe("sumMoney", () => {
+  it("suma en Decimal sin perder centavos y cuenta los null como 0", () => {
+    expect(sumMoney(["0.10", "0.20", null, "4850000000.01"]).toFixed(2)).toBe("4850000000.31");
+  });
+
+  it("una lista vacía suma 0", () => {
+    expect(sumMoney([]).toFixed(2)).toBe("0.00");
+  });
+});
 
 // DEC-028: dos decimales, medio hacia arriba, solo si sobran.
 describe("toMoney", () => {

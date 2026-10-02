@@ -20,5 +20,8 @@ export const toMoney = (value) => {
   return new Prisma.Decimal(String(value).trim()).toDecimalPlaces(MONEY_SCALE, Prisma.Decimal.ROUND_HALF_UP);
 };
 
+/** Suma de importes de la BD (Decimal, cadena o null) en Decimal; los null cuentan 0. */
+export const sumMoney = (values) => values.reduce((total, value) => (value === null || value === undefined ? total : total.plus(value)), new Prisma.Decimal(0));
+
 /** Decimal de la BD → cadena con dos decimales para la API, o null. */
 export const moneyText = (value) => (value === null || value === undefined ? null : new Prisma.Decimal(value).toFixed(MONEY_SCALE));

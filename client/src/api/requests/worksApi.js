@@ -9,6 +9,9 @@ import { createMasterApi } from 'api/services/masterApi';
  */
 export const worksApi = createMasterApi('work/works', { entity: 'work', plural: 'works' });
 
+/** Indicadores del listado de obras (DEC-033): conteos, valor vigente total y avance. */
+export const getWorksSummaryAPI = () => httpCliente.get('work/works/summary_works');
+
 /**
  * Candidatos a responsable de obra: usuarios activos (DEC-029).
  * @param {string} [search]  texto para filtrar por nombre

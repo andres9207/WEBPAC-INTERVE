@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Typography from '@mui/material/Typography';
 
@@ -7,11 +7,14 @@ import { worksApi } from 'api/requests/worksApi';
 import { useAuth } from 'contexts/AuthContext';
 import { fMoneyText } from 'utils/formatNumber';
 import { fTerm } from 'utils/constants';
+import WorkCard from './components/WorkCard';
+import WorksSummary from './components/WorksSummary';
 
 // Obras (ADR-0011, DEC-026, DEC-030). Reutiliza el listado de MasterPage
 // (búsqueda, pestañas por estado) y navega a páginas propias: detalle y
 // edición. Una obra no desaparece del listado si su constructora o su tipo
 // están inactivos: el servidor no filtra por el estado de los maestros.
+// Indicadores arriba y vista de tarjetas por defecto (DEC-033).
 
 const COLUMNS = [
   { id: 'code', label: 'Código', sortable: true },
@@ -53,6 +56,11 @@ export default function WorksPage() {
     [navigate]
   );
 
+  const renderCard = useCallback(
+    (row, actions) => <WorkCard row={row} actions={actions} onOpen={() => navigation.view(row)} />,
+    [navigation]
+  );
+
   return (
     <MasterPage
       title="Obra"
@@ -65,6 +73,8 @@ export default function WorksPage() {
       defaultSort="code"
       rowLabel={rowLabel}
       navigation={navigation}
+      header={<WorksSummary />}
+      renderCard={renderCard}
     />
   );
 }
