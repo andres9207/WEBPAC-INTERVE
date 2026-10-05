@@ -102,9 +102,9 @@
     "semantic_hash": ""
   },
   "client/src/api/services/httpCliente.js": {
-    "mtime": 1790885534.0828893,
-    "seen": 1790886317.6589572,
-    "ast_hash": "9d5ce56c309518b5520118e1330a2864",
+    "mtime": 1791211313.773385,
+    "seen": 1791220409.1426446,
+    "ast_hash": "fbe9a8bb60ef4ceeda700d212b675996",
     "semantic_hash": ""
   },
   "client/src/config.js": {
@@ -696,9 +696,9 @@
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/GenericFormSection.jsx": {
-    "mtime": 1790970260.7370143,
-    "seen": 1790975759.7717106,
-    "ast_hash": "e1ccd1af9ce97e99dc3531141077a02a",
+    "mtime": 1791211313.774422,
+    "seen": 1791220409.1427975,
+    "ast_hash": "6eb46825d1a14c4c0be1cae73f55de48",
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/ImageList.jsx": {
@@ -876,15 +876,15 @@
     "semantic_hash": ""
   },
   "client/src/views/security/users/components/ChangePassword.jsx": {
-    "mtime": 1790168080.4494295,
-    "seen": 1790694517.664612,
-    "ast_hash": "996ac9bbfc18bbd8868831727b4644ee",
+    "mtime": 1791211313.775394,
+    "seen": 1791220409.1428518,
+    "ast_hash": "c01c55f93edefb4ac742ef3c3c1dd2db",
     "semantic_hash": ""
   },
   "client/src/views/security/users/components/UserDialog.jsx": {
-    "mtime": 1790976521.0605004,
-    "seen": 1790976704.6148214,
-    "ast_hash": "be494f1d9f6750c346a4a9af54df318c",
+    "mtime": 1791217044.2811027,
+    "seen": 1791220409.1428525,
+    "ast_hash": "4085c884db2d5814932296e4a767e655",
     "semantic_hash": ""
   },
   "client/src/views/utilities/Color.jsx": {
@@ -1338,9 +1338,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/security/users/users.service.js": {
-    "mtime": 1791205653.8674173,
-    "seen": 1791206604.4123027,
-    "ast_hash": "1153bd2f84dc7cb661cc1296da2241d0",
+    "mtime": 1791217018.5384047,
+    "seen": 1791220409.1430519,
+    "ast_hash": "a6633ae3d35d95a62ab3c277de349c5b",
     "semantic_hash": ""
   },
   "server/src/modules/security/users/users.validation.js": {
@@ -1506,9 +1506,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/security/users/users.service.test.js": {
-    "mtime": 1791205689.4111938,
-    "seen": 1791206604.4123802,
-    "ast_hash": "83af0194574f84ebb87777031e9f03dc",
+    "mtime": 1791217022.3330016,
+    "seen": 1791220409.1431162,
+    "ast_hash": "de424fdd6cbe419c5ecab7e9683843b8",
     "semantic_hash": ""
   },
   "client/.yarnrc.yml": {
@@ -2649,6 +2649,12 @@
     "mtime": 1791206888.1240885,
     "seen": 1791208020.6634498,
     "ast_hash": "9e791af7151c26fa5cc2d8f354b59475",
+    "semantic_hash": ""
+  },
+  "client/src/ui-component/extended/ChipMultiSelect.jsx": {
+    "mtime": 1791214857.6664593,
+    "seen": 1791220409.1427827,
+    "ast_hash": "8ad3a54238245acbf92e5de2d6099521",
     "semantic_hash": ""
   }
 }
