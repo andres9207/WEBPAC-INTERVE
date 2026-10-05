@@ -35,8 +35,8 @@ export default function Chip(theme) {
                   ...((ownerState.color === 'warning' || ownerState.color === 'success') && {
                     color: paletteColor.dark
                   }),
-                  // Amarillo: fondo amarillo y texto oscuro (el amarillo como texto no se lee).
-                  ...(ownerState.color === 'yellow' && {
+                  // Lila: fondo lila claro y texto morado oscuro.
+                  ...(ownerState.color === 'lilac' && {
                     color: paletteColor.contrastText,
                     backgroundColor: paletteColor.main
                   }),

@@ -39,10 +39,12 @@ const defaultColor = {
   warningMain: '#ffe57f',
   warningDark: '#ffc107',
 
-  // yellow (contrato suspendido)
-  yellowLight: '#fffde7',
-  yellowMain: '#ffeb3b',
-  yellowDark: '#fdd835',
+  // lilac (contrato suspendido)
+  lilacLight: '#ede7f6',
+  lilacMain: '#ede7f6',
+  lilacDark: '#d1c4e9',
+  lilacText: '#4527a0',
+  lilacBorder: '#b39ddb',
 
   // grey
   grey50: '#f8fafc',

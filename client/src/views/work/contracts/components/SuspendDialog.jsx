@@ -90,7 +90,7 @@ export default function SuspendDialog({ open, contract, onClose, onSaved }) {
           <Button onClick={onClose} disabled={saving}>
             Cancelar
           </Button>
-          <Button variant="contained" color="yellow" onClick={handleSubmit(save)} disabled={saving || !reasons || noReasons}>
+          <Button variant="contained" color="lilac" sx={{ border: 1, borderColor: 'lilac.200' }} onClick={handleSubmit(save)} disabled={saving || !reasons || noReasons}>
             {saving ? 'Suspendiendo…' : 'Suspender'}
           </Button>
         </>
@@ -98,7 +98,7 @@ export default function SuspendDialog({ open, contract, onClose, onSaved }) {
     >
       <Grid container spacing={2} sx={{ pt: 1 }}>
         <Grid size={12}>
-          <Alert severity="warning" color="yellow">
+          <Alert severity="warning" color="lilac">
             Mientras esté suspendido, el contrato no admite cambios. Se reanuda registrando un otrosí, y los días suspendidos alargan la
             fecha fin.
           </Alert>

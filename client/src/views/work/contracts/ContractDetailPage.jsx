@@ -195,7 +195,7 @@ export default function ContractDetailPage() {
             Cerrar
           </Button>
           {canDo(perms?.suspend) && contract.allowedActions.includes('suspend') && (
-            <Button variant="contained" color="yellow" onClick={() => setSuspending(true)}>
+            <Button variant="contained" color="lilac" sx={{ border: 1, borderColor: 'lilac.200' }} onClick={() => setSuspending(true)}>
               Suspender
             </Button>
           )}
@@ -210,7 +210,7 @@ export default function ContractDetailPage() {
       {tab === 'summary' && (
         <Stack spacing={2}>
           {open && (
-            <Alert severity="warning" color="yellow">
+            <Alert severity="warning" color="lilac">
               <strong>Suspendido desde el {fDateOnly(open.suspensionDate)}</strong> · {open.reasonName}. Condición para reanudar:{' '}
               {open.liftCondition}. Se reanuda registrando un otrosí en la pestaña Valor.
             </Alert>

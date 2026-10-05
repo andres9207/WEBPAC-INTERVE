@@ -19,7 +19,7 @@ Todos salen del tema (`client/src/themes/`, `client/src/config.js`). **Nunca un 
 | Éxito | `success.light` / `.dark` | `#b9f6ca` / `#00c853` | Estado activo, aprobado, cumplido |
 | Advertencia | `warning.light` / `.dark` | `#fff8e1` / `#ffc107` | Fondos de aviso. **No como color de texto** (ver "Problemas conocidos") |
 | Error | `error.main` / `.dark` | `#f44336` / `#c62828` | Errores, eliminar, anular. Texto de error: `error.dark` |
-| Amarillo | `yellow.light` / `.main` / `.contrastText` | `#fffde7` / `#ffeb3b` / `grey.900` | Contrato suspendido: chip, pestaña, botón Suspender y aviso (`<Alert severity="warning" color="yellow">`). Siempre de fondo, con texto oscuro; **nunca como color de texto** |
+| Lila | `lilac.main` / `.contrastText` / `.200` / `.dark` | `#ede7f6` / `#4527a0` / `#b39ddb` / `#d1c4e9` | Contrato suspendido: chip, pestaña, botón Suspender (`color="lilac"` con borde `lilac.200`) y aviso (`<Alert severity="warning" color="lilac">`). Fondo lila claro con texto morado oscuro (8,5:1); `.dark` es el fondo al pasar el cursor |
 | Naranja | `orange.light` | `#fbe9e7` | Fondo suave de acciones destructivas |
 | Grises | `grey.50` … `grey.900` | `#f8fafc` … `#121926` | Fondos de sección (`grey.50`), bordes (`divider` = `grey.200`), texto secundario (`grey.500`) |
 | Texto | `text.primary` / `text.secondary` | `#364152` / `#697586` | Contraste sobre blanco: 10,4:1 y 4,7:1 |

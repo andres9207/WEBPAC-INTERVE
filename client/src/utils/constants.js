@@ -60,12 +60,12 @@ export const TERM_UNIT_OPTIONS = [
 // servidor (`stateName`); aquí solo el color del chip y las pestañas.
 export const CONTRACT_STATE_TABS = [
   { id: 'IN_PROGRESS', name: 'En ejecución', color: 'success' },
-  { id: 'SUSPENDED', name: 'Suspendidos', color: 'yellow' },
+  { id: 'SUSPENDED', name: 'Suspendidos', color: 'lilac' },
   { id: 'IN_LIQUIDATION', name: 'En liquidación', color: 'info' },
   { id: 'LIQUIDATED', name: 'Liquidados' }
 ];
 
-export const CONTRACT_STATE_COLORS = { IN_PROGRESS: 'success', SUSPENDED: 'yellow', IN_LIQUIDATION: 'info', LIQUIDATED: 'default' };
+export const CONTRACT_STATE_COLORS = { IN_PROGRESS: 'success', SUSPENDED: 'lilac', IN_LIQUIDATION: 'info', LIQUIDATED: 'default' };
 
 // Actos a los que aplica un motivo (rea_scope, DEC-039): los mismos de
 // REASON_SCOPES en server/src/modules/admin/reasons/reasons.service.js.

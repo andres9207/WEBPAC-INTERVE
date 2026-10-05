@@ -65,14 +65,14 @@ export default function Alert(theme) {
             { props: { variant: 'standard' }, style: standardVariant },
             { props: { variant: 'outlined' }, style: outlinedVariant },
             { props: { variant: 'filled' }, style: filledVariant },
-            // color="yellow": fondo amarillo suave y texto e ícono oscuros (el amarillo
-            // no se lee como texto); el ícono sale de `severity`.
+            // color="lilac": fondo lila claro, texto e ícono morado oscuro; el ícono
+            // sale de `severity`.
             {
-              props: { color: 'yellow', variant: 'standard' },
+              props: { color: 'lilac', variant: 'standard' },
               style: {
-                color: vars.palette.text.dark,
-                backgroundColor: withAlpha(vars.palette.yellow.main, 0.35),
-                '& .MuiAlert-icon': { color: vars.palette.text.dark }
+                color: vars.palette.lilac.contrastText,
+                backgroundColor: vars.palette.lilac.light,
+                '& .MuiAlert-icon': { color: vars.palette.lilac.contrastText }
               }
             }
           ]

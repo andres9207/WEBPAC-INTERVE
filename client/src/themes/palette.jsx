@@ -45,12 +45,13 @@ export function buildPalette(presetColor) {
       dark: colors.warningDark,
       contrastText: colors.grey700
     },
-    // Amarillo puro, con texto oscuro: el amarillo no se usa como color de texto.
-    yellow: {
-      light: colors.yellowLight,
-      main: colors.yellowMain,
-      dark: colors.yellowDark,
-      contrastText: colors.grey900
+    // Lila pastel (contrato suspendido): fondo claro y texto morado oscuro.
+    lilac: {
+      light: colors.lilacLight,
+      main: colors.lilacMain,
+      dark: colors.lilacDark,
+      200: colors.lilacBorder,
+      contrastText: colors.lilacText
     },
     success: {
       light: colors.successLight,

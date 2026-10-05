@@ -15,15 +15,18 @@ const chipBg = (theme, color) => {
   const map = {
     success: theme.palette.success.main,
     warning: theme.palette.warning.main,
-    yellow: theme.palette.yellow.main,
+    lilac: theme.palette.lilac.main,
     error: theme.palette.error.main,
     info: theme.palette.info.main,
   };
   return map[color] ?? undefined;
 };
 
-const chipText = (theme, color) =>
-  chipBg(theme, color) ? theme.palette.getContrastText(chipBg(theme, color)) : undefined;
+// Lila: texto morado oscuro del tema; el resto, el contraste automático.
+const chipText = (theme, color) => {
+  if (color === 'lilac') return theme.palette.lilac.contrastText;
+  return chipBg(theme, color) ? theme.palette.getContrastText(chipBg(theme, color)) : undefined;
+};
 
 export default function StatusTabs({ statusTabs, selectedStatus, onChange, hideAll }) {
   const theme = useTheme();
