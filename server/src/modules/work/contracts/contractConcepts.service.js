@@ -6,7 +6,7 @@ import { withLockedTransaction } from "../../../common/services/transaction.serv
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { resolveContractFields } from "../../admin/contractTypes/contractTypeFields.service.js";
 import { FIELD_GROUPS, enforceFields } from "../../admin/contractTypes/contractFields.js";
-import { CONCEPT_TYPES, CONTRACT_STATES, assertStateAllows, chronologyError, contractTotals, historyRow, sortConcepts } from "./contractTerms.js";
+import { CONCEPT_TYPES, assertStateAllows, assertTransition, chronologyError, contractTotals, historyRow, sortConcepts } from "./contractTerms.js";
 import {
   CONCEPT_AUDITED,
   CONCEPT_SELECT,
@@ -173,6 +173,8 @@ export const createLiquidation = async ({ ctrId, input, useBy, ctx = { useId: us
       withLockedTransaction({ CONTRATO: ctrId }, async (tx) => {
         const contract = await findLockedContract(tx, ctrId);
         assertStateAllows(contract.ctr_state, "createLiquidation");
+        // Antes de escribir nada: el destino sale de la transición declarada.
+        const { to: nextState } = assertTransition("startLiquidation", contract.ctr_state);
         const values = await configuredConcept(tx, contract, input);
 
         const concepts = await listConcepts(tx, contract.ctr_id);
@@ -190,7 +192,7 @@ export const createLiquidation = async ({ ctrId, input, useBy, ctx = { useId: us
         // Transición automática, con su historial (ADR-0017, decisiones 6 y 10).
         await tx.tbl_contracts.update({
           where: { ctr_id: contract.ctr_id },
-          data: { ctr_state: CONTRACT_STATES.IN_LIQUIDATION, ctr_update_by: Number(useBy) },
+          data: { ctr_state: nextState, ctr_update_by: Number(useBy) },
         });
         await tx.tbl_contract_status_history.create({
           data: historyRow({
@@ -211,7 +213,7 @@ export const createLiquidation = async ({ ctrId, input, useBy, ctx = { useId: us
           valueBefore: valueText(concepts),
           valueAfter: valueText([...concepts, { ...data, sta_id: ACTIVE_STATUS }]),
           contractId: contract.ctr_id,
-          contractChanges: [{ field: "ctr_state", oldValue: contract.ctr_state, newValue: CONTRACT_STATES.IN_LIQUIDATION }],
+          contractChanges: [{ field: "ctr_state", oldValue: contract.ctr_state, newValue: nextState }],
         });
 
         return liquidationResult(created);

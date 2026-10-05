@@ -1,11 +1,11 @@
 # Patrón: máquina de estados
 
-> **Primera implementación: el contrato** ([DEC-035](../decisiones/DEC-035-contratos-area-modelo.md)), con solo transiciones automáticas por ahora. Referencia real: `server/src/modules/work/contracts/contractTerms.js` (`CONTRACT_TRANSITIONS`, `STATE_ALLOWS`, `assertStateAllows`, `historyRow`) y `contractConcepts.service.js` (`createLiquidation`). Lo que fijó:
+> **Primera implementación: el contrato** ([DEC-035](../decisiones/DEC-035-contratos-area-modelo.md)), con solo transiciones automáticas por ahora. Referencia real: `server/src/modules/work/contracts/contractTerms.js` (`CONTRACT_TRANSITIONS`, `assertTransition`, `STATE_ALLOWS`, `assertStateAllows`, `historyRow`) y `contractConcepts.service.js` (`createLiquidation`). Lo que fijó:
 >
 > - El estado va en su propia columna (`ctr_state`, con `CHECK`), no en `sta_id`.
 > - Las reglas sin BD (transiciones, qué admite cada estado) viven en un módulo aparte del service, sin Prisma, y se prueban sin mocks.
 > - "El estado actual no admite la acción" responde **409** con el nombre del estado.
-> - `historyRow` lanza si la transición no está declarada desde ese estado: el historial no puede registrar algo que la tabla no permite.
+> - El service pide la transición con `assertTransition(nombre, estadoActual)` **antes de escribir** y toma de ahí el estado destino; nunca escribe la constante del estado a mano. Una transición no declarada, o declarada desde otro estado, responde **409** con la transición y el estado actual. `historyRow` usa la misma verificación: el historial no puede registrar algo que la tabla no permite.
 > - Una transición automática viaja con la clave de idempotencia del hecho que la dispara (la del contrato o la del concepto); la columna de clave del historial queda para las manuales.
 > - El detalle devuelve `allowedActions` (de `STATE_ALLOWS`) y el cliente lo cruza con los permisos para mostrar u ocultar acciones.
 >

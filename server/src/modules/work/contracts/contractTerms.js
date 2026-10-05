@@ -37,9 +37,27 @@ const { IN_PROGRESS, IN_LIQUIDATION } = CONTRACT_STATES;
  * llegan en la fase B, con su permiso y su motivo.
  */
 export const CONTRACT_TRANSITIONS = Object.freeze({
-  create: { from: [null], to: IN_PROGRESS, origin: TRANSITION_ORIGINS.AUTOMATIC },
-  startLiquidation: { from: [IN_PROGRESS], to: IN_LIQUIDATION, origin: TRANSITION_ORIGINS.AUTOMATIC },
+  create: { label: "Registrar el contrato", from: [null], to: IN_PROGRESS, origin: TRANSITION_ORIGINS.AUTOMATIC },
+  startLiquidation: { label: "Pasar a liquidación", from: [IN_PROGRESS], to: IN_LIQUIDATION, origin: TRANSITION_ORIGINS.AUTOMATIC },
 });
+
+/**
+ * Regla de una transición declarada que sale de `fromState`, o 409 si no lo
+ * está. Se llama antes de escribir: el service toma de aquí el estado
+ * destino, nunca lo escribe a mano.
+ */
+export const assertTransition = (name, fromState = null) => {
+  const rule = CONTRACT_TRANSITIONS[name];
+  if (rule?.from.includes(fromState)) return rule;
+  const current = fromState === null ? "sin estado" : (STATE_NAMES[fromState] ?? fromState);
+  const error = new Error(
+    rule
+      ? `El contrato en estado "${current}" no admite la transición "${rule.label}".`
+      : `La transición "${name}" no está declarada para el contrato (estado actual: "${current}").`
+  );
+  error.statusCode = 409;
+  throw error;
+};
 
 /**
  * Qué escrituras admite cada estado (ADR-0017, "Efectos de cada estado";
@@ -73,10 +91,7 @@ export const assertStateAllows = (state, action) => {
 
 /** Fila del historial de estado para una transición declarada (con el tx del evento). */
 export const historyRow = ({ ctrId, transition, fromState = null, useBy, observation = null }) => {
-  const rule = CONTRACT_TRANSITIONS[transition];
-  if (!rule || !rule.from.includes(fromState)) {
-    throw new Error(`[contract] transición no declarada: ${transition} desde ${fromState}`);
-  }
+  const rule = assertTransition(transition, fromState);
   return {
     ctr_id: ctrId,
     csh_from_state: fromState,

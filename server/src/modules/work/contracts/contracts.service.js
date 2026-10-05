@@ -13,10 +13,10 @@ import { FIELD_GROUPS, enforceFields } from "../../admin/contractTypes/contractF
 import {
   CONCEPT_TYPES,
   CONCEPT_TYPE_NAMES,
-  CONTRACT_STATES,
   STATE_ALLOWS,
   STATE_NAMES,
   assertStateAllows,
+  assertTransition,
   conceptAmounts,
   contractEndDate,
   contractTotals,
@@ -577,6 +577,8 @@ const createContract = ({ wrkId, input, useBy, ctx, idempotencyData }) =>
     await assertProviderAssigned(tx, { wrkId, prvId: values.prv_id });
     await assertUniqueNumber(tx, { wrkId, number: values.ctr_number });
 
+    const { to: initialState } = assertTransition("create");
+
     // Sin otrosí ni suspensiones todavía: inicio + plazo.
     const endDate = toDateOnly(contractEndDate({ startDate: values.ctr_start_date, term: values.ctr_term, unit: values.ctr_term_unit }));
     const created = await tx.tbl_contracts.create({
@@ -584,7 +586,7 @@ const createContract = ({ wrkId, input, useBy, ctx, idempotencyData }) =>
         wrk_id: wrkId,
         ...values,
         ctr_end_date: endDate,
-        ctr_state: CONTRACT_STATES.IN_PROGRESS,
+        ctr_state: initialState,
         sta_id: ACTIVE_STATUS,
         ctr_create_by: useBy,
         ctr_update_by: useBy,
@@ -616,7 +618,7 @@ const createContract = ({ wrkId, input, useBy, ctx, idempotencyData }) =>
       ctx,
       changes: [
         ...diffFields({}, auditableContract({ wrk_id: wrkId, ...values, ctr_end_date: endDate }), CONTRACT_AUDITED),
-        { field: "ctr_state", oldValue: null, newValue: CONTRACT_STATES.IN_PROGRESS },
+        { field: "ctr_state", oldValue: null, newValue: initialState },
       ],
     });
     await writeAudit(tx, {

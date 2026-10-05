@@ -1,6 +1,8 @@
 import {
   CONTRACT_STATES,
+  CONTRACT_TRANSITIONS,
   assertStateAllows,
+  assertTransition,
   chronologyError,
   conceptAmounts,
   contractEndDate,
@@ -124,7 +126,44 @@ describe("estados (ADR-0017)", () => {
       csh_to_state: "IN_LIQUIDATION",
       csh_origin: "AUTOMATIC",
     });
-    expect(() => historyRow({ ctrId: 5, transition: "startLiquidation", fromState: "SUSPENDED", useBy: 9 })).toThrow(/no declarada/);
-    expect(() => historyRow({ ctrId: 5, transition: "reopen", fromState: "LIQUIDATED", useBy: 9 })).toThrow(/no declarada/);
+    expect(() => historyRow({ ctrId: 5, transition: "startLiquidation", fromState: "SUSPENDED", useBy: 9 })).toThrow(
+      expect.objectContaining({ statusCode: 409 })
+    );
+    expect(() => historyRow({ ctrId: 5, transition: "reopen", fromState: "LIQUIDATED", useBy: 9 })).toThrow(
+      expect.objectContaining({ statusCode: 409 })
+    );
+  });
+
+  it("assertTransition devuelve la regla declarada, con su destino", () => {
+    expect(assertTransition("create")).toMatchObject({ to: CONTRACT_STATES.IN_PROGRESS, origin: "AUTOMATIC" });
+    expect(assertTransition("startLiquidation", CONTRACT_STATES.IN_PROGRESS)).toMatchObject({ to: CONTRACT_STATES.IN_LIQUIDATION });
+  });
+
+  it("una transición declarada desde otro estado responde 409 con el estado y la transición", () => {
+    expect(() => assertTransition("startLiquidation", CONTRACT_STATES.LIQUIDATED)).toThrow(
+      expect.objectContaining({
+        statusCode: 409,
+        message: 'El contrato en estado "Liquidado" no admite la transición "Pasar a liquidación".',
+      })
+    );
+    expect(() => assertTransition("create", CONTRACT_STATES.IN_PROGRESS)).toThrow(expect.objectContaining({ statusCode: 409 }));
+  });
+
+  it("una transición no declarada responde 409, no un error genérico", () => {
+    expect(() => assertTransition("reopen", CONTRACT_STATES.LIQUIDATED)).toThrow(
+      expect.objectContaining({
+        statusCode: 409,
+        message: 'La transición "reopen" no está declarada para el contrato (estado actual: "Liquidado").',
+      })
+    );
+  });
+
+  it("cada transición declarada sale de estados conocidos y llega a uno conocido", () => {
+    const states = [null, ...Object.values(CONTRACT_STATES)];
+    for (const rule of Object.values(CONTRACT_TRANSITIONS)) {
+      expect(rule.from.every((s) => states.includes(s))).toBe(true);
+      expect(Object.values(CONTRACT_STATES)).toContain(rule.to);
+      expect(rule.label).toEqual(expect.any(String));
+    }
   });
 });
