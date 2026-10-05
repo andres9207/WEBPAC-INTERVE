@@ -214,7 +214,8 @@ export default function ContractFormPage() {
   const endDate = termChanged ? '' : loaded.endDate;
   const blocked = isEdit && loaded && !loaded.allowedActions.includes('editContract');
 
-  const leave = () => navigate(isEdit ? `/work/contracts/${ctrId}` : '/work/contracts');
+  // Cancelar o cerrar vuelve al listado, también al editar (DEC-034).
+  const leave = () => navigate('/work/contracts');
   const requestLeave = () => (isDirty ? setConfirmLeave(true) : leave());
 
   const onSubmit = async (form) => {

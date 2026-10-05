@@ -14,6 +14,8 @@ import Paper from '@mui/material/Paper';
 import Popper from '@mui/material/Popper';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
+import Avatar from '@mui/material/Avatar';
+import Stack from '@mui/material/Stack';
 
 // project imports
 import MainCard from 'ui-component/cards/MainCard';
@@ -43,6 +45,14 @@ export default function ProfileSection() {
   const [accountVisible, setAccountVisible] = useState(false);
 
   const anchorRef = useRef(null);
+
+  // Iniciales de quien inició sesión: primera letra de las dos primeras palabras del nombre.
+  const initials = (user?.fullName ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0].toUpperCase())
+    .join('');
 
   const handleToggle = () => setOpen((prev) => !prev);
 
@@ -75,18 +85,19 @@ export default function ProfileSection() {
       <Chip
         slotProps={{ label: { sx: { lineHeight: 0 } } }}
         sx={{ ml: 2, height: '48px', alignItems: 'center', borderRadius: '27px' }}
-        // icon={
-        //   <Avatar
-        //     src={User1}
-        //     alt="user-images"
-        //     sx={{ typography: 'mediumAvatar', margin: '8px 0 8px 8px !important', cursor: 'pointer' }}
-        //     ref={anchorRef}
-        //     aria-controls={open ? 'menu-list-grow' : undefined}
-        //     aria-haspopup="true"
-        //     color="inherit"
-        //   />
-        // }
-        label={<IconSettings stroke={1.5} size="24px" />}
+        icon={
+          <Avatar sx={{ typography: 'mediumAvatar', margin: '8px 0 8px 8px !important', cursor: 'pointer' }} color="inherit">
+            {initials}
+          </Avatar>
+        }
+        label={
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
+            <Typography variant="subtitle1" sx={{ display: { xs: 'none', sm: 'block' }, color: 'grey.900' }}>
+              {user?.fullName}
+            </Typography>
+            <IconSettings stroke={1.5} size="24px" />
+          </Stack>
+        }
         ref={anchorRef}
         aria-controls={open ? 'menu-list-grow' : undefined}
         aria-haspopup="true"
