@@ -70,11 +70,10 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
-| `saveProfile` y `saveUser` validan `staId` con `requiredId`: aceptan `3` y eliminan por el guardado, sin las verificaciones de `deleteProfile`/`deleteUser` (usuarios activos del perfil, limpieza de permisos). Los maestros, obras y proveedores ya lo restringen con `EDITABLE_STATUS_VALUES` (DEC-038) | Media | DEC-038 |
+| `saveUser` valida `staId` con `requiredId`: acepta `3` y elimina por el guardado, sin las verificaciones ni la bitácora de eliminación de `deleteUser`. `saveProfile` ya lo restringe con `EDITABLE_STATUS_VALUES` (FND-BE-30), igual que maestros, obras y proveedores (DEC-038) | Media | DEC-038 |
 | `deleteProfile` responde **400** al eliminar un perfil ya eliminado; [DEC-006](../decisiones/DEC-006-columnas-autoria-eliminacion.md) exige **404**, y `deleteUser` ya lo cumple | Media | Descubrimiento de `engineering/` |
 | Duplicado por nombre: `saveProfile`/`saveUser` responden 400; el mismo duplicado detectado por la BD responde 409. Pendiente de decisión (PD-02 en [`PROJECT_STATE`](../PROJECT_STATE.md)) | Media | Descubrimiento de `engineering/` |
 | `GET /app/get_profiles` es un selector sin paginar, como permite [DEC-018](../decisiones/DEC-018-selector-maestros.md), pero sin el tope fijo `take: MAX_ROWS` | Baja | Descubrimiento de `engineering/` |
-| `saveProfile` y `saveUser` aceptan `staId = 3` (`requiredId`): se puede "eliminar" por la ruta de guardar y saltarse la verificación de uso de `deleteProfile` (usuarios asignados) y la bitácora de eliminación. El maestro de tipos de identificación ya lo impide (`isIn([1, 2])`) | Media | Implementación de ADR-0008 |
 | Duplicado de tipo de identificación: el service responde 400 y la carrera que llega a la BD (`P2002` en `uq_identity_documents_*_active`) responde 409. Misma deriva que PD-02 | Baja | Implementación de ADR-0008 |
 | Nombres de los archivos de API del cliente mezclados: `authAPI.js`, `documentsAPI.js` frente a `usersApi.js`, `profilesApi.js`, `appApi.js`, `permissionsApi.js`, `notificationsApi.js`. `client/CLAUDE.md` dice `<dominio>API.js` | Baja | Descubrimiento de `engineering/` |
 | `ProfileDialog.jsx` y otros diálogos hacen `console.error` en la carga de datos auxiliares sin avisar al usuario (`getModules`) | Baja | Descubrimiento de `engineering/` |

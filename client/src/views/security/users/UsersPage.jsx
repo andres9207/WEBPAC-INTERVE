@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 
 import { IconEdit, IconTrash, IconPlus, IconKey } from '@tabler/icons-react';
 
@@ -122,7 +123,19 @@ export default function UsersPage() {
       render: (row) => (row.identification ? `${row.identityDocumentCode ?? ''} ${row.identification}`.trim() : '')
     },
     { id: 'email', label: 'Correo' },
-    { id: 'profile', label: 'Perfil', render: (row) => row.profileName },
+    {
+      id: 'profile',
+      label: 'Perfil',
+      // Un perfil inactivo ya no oculta al usuario: se avisa aquí.
+      render: (row) =>
+        row.profileActive ? (
+          row.profileName
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            {row.profileName} (inactivo)
+          </Typography>
+        )
+    },
     {
       id: 'status',
       label: 'Estado',

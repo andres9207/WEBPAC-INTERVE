@@ -66,9 +66,11 @@ export const paginationUsers = async ({
     // Búsqueda general (DEC-024): nombre, apellido, correo, número de documento o usuario.
     ...searchWhere(["use_name", "use_last_name", "use_email", "use_identification", "use_user"], search),
     sta_id: { not: DELETED_STATUS },
-    // JOIN tbl_profiles p ON u.pro_id = p.pro_id AND p.sta_id = 1 del SQL
-    // original: solo usuarios cuyo perfil sigue activo.
-    tbl_profiles: { sta_id: ACTIVE_STATUS },
+    // Antes filtraba por perfil activo: inactivar un perfil hacía desaparecer
+    // a sus usuarios del listado sin que nadie los eliminara (ADR-0004, B4).
+    // Solo se descarta el perfil eliminado, que deleteProfile no permite
+    // mientras tenga usuarios.
+    tbl_profiles: { sta_id: { not: DELETED_STATUS } },
   };
   const where = { ...baseWhere, ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}) };
 
@@ -92,7 +94,7 @@ export const paginationUsers = async ({
           use_update_by: true,
           sta_id: true,
           pro_id: true,
-          tbl_profiles: { select: { pro_name: true } },
+          tbl_profiles: { select: { pro_name: true, sta_id: true } },
           tbl_status: { select: { sta_name: true } },
           tbl_user_pages: { select: { pag_id: true } },
           updated_by_user: USER_NAME_SELECT,
@@ -114,6 +116,7 @@ export const paginationUsers = async ({
     username: u.use_user,
     email: u.use_email,
     profileName: u.tbl_profiles?.pro_name ?? null,
+    profileActive: u.tbl_profiles?.sta_id === ACTIVE_STATUS,
     statusName: u.tbl_status?.sta_name ?? null,
     access: u.use_access,
     changePassword: u.use_change_password,

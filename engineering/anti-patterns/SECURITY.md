@@ -238,6 +238,12 @@ Migraciones `0011_fk_audit_columns.sql`, `0012_add_delete_columns.sql`, `0013_cr
 - `0014_fix_prisma_timezone_data.sql` limpia los datos escritos con el desfase. Vacía sesiones, códigos de recuperación e intentos de login, así que todos deben volver a iniciar sesión. Corrige también las fechas de lectura de notificaciones y **se ejecuta una sola vez**.
 - `ecosystem.config.cjs` fija `TZ=America/Bogota` para el proceso Node en producción. No afecta a la BD.
 
+## Usuarios ocultos por el estado del perfil (FND-BE-30, ADR-0004 B4)
+
+- **Inactivar un perfil hacía desaparecer a sus usuarios del listado**: `paginationUsers` conservaba en el `where` de Prisma el `JOIN tbl_profiles ... AND p.sta_id = 1` del SQL original. Nadie eliminaba a esos usuarios, pero dejaban de verse. Ahora solo se descarta el perfil eliminado (`sta_id: { not: DELETED_STATUS }`), y la respuesta trae `profileActive` para que `UsersPage` marque el perfil inactivo.
+- **Editar un perfil podía eliminarlo sin la verificación de usuarios**: `saveProfileSchema` validaba `staId` como un id cualquiera, así que mandar el estado eliminado a `save_profile` se saltaba el conteo de `deleteProfile`. Ahora `staId` solo admite activo o inactivo (`EDITABLE_STATUS_VALUES`, la misma regla de los maestros), y eliminar va solo por `deleteProfile`.
+- Tests: visibilidad y orden en `users.service.test.js`, filtros de documentos en `document.service.test.js` y el estado editable en `profiles.validation.test.js`.
+
 ## Pendientes
 
 Los hallazgos señalados y todavía no corregidos están en [`debt/TECHNICAL_DEBT.md`](../debt/TECHNICAL_DEBT.md), sección "Seguridad". Este archivo registra solo lo que ya se corrigió.

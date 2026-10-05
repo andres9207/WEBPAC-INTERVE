@@ -2,7 +2,15 @@ import { jest } from "@jest/globals";
 import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
 
 const prismaMock = {
-  tbl_users: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
+  tbl_users: {
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    create: jest.fn(),
+    findMany: jest.fn(),
+    count: jest.fn(),
+    groupBy: jest.fn(),
+  },
   tbl_user_pages: { findMany: jest.fn(), deleteMany: jest.fn(), createMany: jest.fn() },
   tbl_profiles: { findUnique: jest.fn() },
   tbl_identity_documents: { findUnique: jest.fn() },
@@ -305,5 +313,51 @@ describe("saveUser — idempotencia de la creación (ADR-0027, decisión 7)", ()
 
     await expect(usersService.saveUser({ ...createPayload, name: "Otra" })).rejects.toMatchObject({ statusCode: 422 });
     expect(prismaMock.tbl_users.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("paginationUsers — filtros parametrizados y visibilidad (FND-BE-30)", () => {
+  beforeEach(() => {
+    prismaMock.tbl_users.findMany.mockResolvedValue([]);
+    prismaMock.tbl_users.count.mockResolvedValue(0);
+    prismaMock.tbl_users.groupBy.mockResolvedValue([]);
+  });
+
+  const listArgs = () => prismaMock.tbl_users.findMany.mock.calls[0][0];
+
+  it("no oculta usuarios por el estado del perfil: solo descarta el perfil eliminado", async () => {
+    await usersService.paginationUsers({ rows: 10, first: 0 });
+
+    expect(listArgs().where.tbl_profiles).toEqual({ sta_id: { not: 3 } });
+    // Los conteos de las pestañas usan la misma base.
+    expect(prismaMock.tbl_users.groupBy.mock.calls[0][0].where.tbl_profiles).toEqual({ sta_id: { not: 3 } });
+  });
+
+  it("informa si el perfil del usuario está activo", async () => {
+    prismaMock.tbl_users.findMany.mockResolvedValue([
+      { use_id: 1, pro_id: 2, tbl_profiles: { pro_name: "Vigente", sta_id: 1 }, tbl_user_pages: [] },
+      { use_id: 2, pro_id: 4, tbl_profiles: { pro_name: "Retirado", sta_id: 2 }, tbl_user_pages: [] },
+    ]);
+    prismaMock.tbl_users.count.mockResolvedValue(2);
+
+    const { results } = await usersService.paginationUsers({ rows: 10, first: 0 });
+
+    expect(results.map((u) => [u.profileName, u.profileActive])).toEqual([
+      ["Vigente", true],
+      ["Retirado", false],
+    ]);
+  });
+
+  it("un campo de orden fuera de la lista cae al orden por nombre", async () => {
+    await usersService.paginationUsers({ rows: 10, first: 0, sortField: "1); DROP TABLE tbl_users; --", sortOrder: 1 });
+
+    expect(listArgs().orderBy).toEqual({ use_name: "asc" });
+  });
+
+  it("el texto de búsqueda llega como valor del filtro, nunca como SQL", async () => {
+    const injection = "x' OR '1'='1";
+    await usersService.paginationUsers({ rows: 10, first: 0, name: injection });
+
+    expect(listArgs().where.use_name).toEqual({ contains: injection });
   });
 });
