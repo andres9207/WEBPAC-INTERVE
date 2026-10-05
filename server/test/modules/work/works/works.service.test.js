@@ -22,6 +22,7 @@ const prismaMock = {
   tbl_work_stages: { findMany: jest.fn(), deleteMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
   tbl_users: { findMany: jest.fn() },
   tbl_contracts: { findMany: jest.fn(), count: jest.fn() },
+  tbl_invoices: { findMany: jest.fn(), count: jest.fn() },
   tbl_construction_companies: { findUnique: jest.fn() },
   tbl_contract_types: { findUnique: jest.fn() },
   tbl_supervision_types: { findUnique: jest.fn() },
@@ -90,6 +91,8 @@ beforeEach(() => {
   prismaMock.tbl_work_stages.findMany.mockResolvedValue([]);
   prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
   prismaMock.tbl_contracts.count.mockResolvedValue(0);
+  prismaMock.tbl_invoices.findMany.mockResolvedValue([]);
+  prismaMock.tbl_invoices.count.mockResolvedValue(0);
   prismaMock.tbl_users.findMany.mockImplementation(async ({ where }) =>
     where.use_id.in.map((id) => ({ use_id: id, sta_id: 1, use_name: "Usuario", use_last_name: String(id) }))
   );
@@ -278,6 +281,16 @@ describe("saveWork — editar", () => {
     expect(prismaMock.tbl_work_stages.deleteMany).not.toHaveBeenCalled();
   });
 
+  it("no quita una etapa con facturas (409, DEC-042)", async () => {
+    prismaMock.tbl_invoices.findMany.mockResolvedValue([{ wks_id: 12 }]);
+    await expect(service.saveWork({ wrkId: 40, input: editInput(), useBy: 9, granted: ALL, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'No se puede quitar la etapa "Estructura": tiene facturas. Desactívala en su lugar.',
+    });
+    expect(prismaMock.tbl_invoices.findMany.mock.calls[0][0].where).toEqual({ wrk_id: 40, wks_id: { in: [12] } });
+    expect(prismaMock.tbl_work_stages.deleteMany).not.toHaveBeenCalled();
+  });
+
   it("bloquea la obra primero, después los usuarios y los maestros", async () => {
     await service.saveWork({ wrkId: 40, input: editInput(), useBy: 9, granted: ALL, ctx });
 
@@ -417,6 +430,15 @@ describe("changeWorkStatus y deleteWork", () => {
       message: "No se puede eliminar la obra: tiene 2 contrato(s) asociado(s).",
     });
     expect(prismaMock.tbl_contracts.count).toHaveBeenCalledWith({ where: { wrk_id: 40, sta_id: { not: 3 } } });
+    expect(prismaMock.tbl_works.update).not.toHaveBeenCalled();
+  });
+
+  it("con facturas no se elimina (409, DEC-042)", async () => {
+    prismaMock.tbl_invoices.count.mockResolvedValue(3);
+    await expect(service.deleteWork({ wrkId: 40, useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: "No se puede eliminar la obra: tiene 3 factura(s) asociado(s).",
+    });
     expect(prismaMock.tbl_works.update).not.toHaveBeenCalled();
   });
 

@@ -77,13 +77,26 @@ export const assertTransition = (name, fromState = null, { previousState } = {})
  * Qué escrituras admite cada estado (ADR-0017, "Efectos de cada estado";
  * WORKFLOW_STANDARD, regla 9). La consulta nunca se bloquea. Eliminar no
  * depende del estado: lo bloquean las facturas (ADR-0015, decisión 11).
+ *
+ * Las facturas de contrato (DEC-042) se registran y se aprueban solo en el
+ * estado que admite su tipo: el anticipo en ejecución; la liquidación y la
+ * devolución de retenido, en liquidación (la factura de liquidación se
+ * asocia al otrosí de liquidación, ADR-0021). Las consulta billing/invoices
+ * con INVOICE_ACTIONS.
  */
 export const STATE_ALLOWS = Object.freeze({
-  IN_PROGRESS: Object.freeze(["editContract", "createAmendment", "createLiquidation", "editConcept", "suspend"]),
-  // Suspendido: solo el otrosí que lo reanuda (DEC-039).
+  IN_PROGRESS: Object.freeze(["editContract", "createAmendment", "createLiquidation", "editConcept", "suspend", "invoiceAdvance"]),
+  // Suspendido: solo el otrosí que lo reanuda (DEC-039). Ninguna factura.
   SUSPENDED: Object.freeze(["createAmendment"]),
-  IN_LIQUIDATION: Object.freeze(["editLiquidationConcept"]),
+  IN_LIQUIDATION: Object.freeze(["editLiquidationConcept", "invoiceLiquidation", "invoiceRetentionRefund"]),
   LIQUIDATED: Object.freeze([]),
+});
+
+/** Acción de STATE_ALLOWS que habilita cada tipo de factura de contrato (DEC-042). */
+export const INVOICE_ACTIONS = Object.freeze({
+  ADVANCE: "invoiceAdvance",
+  LIQUIDATION: "invoiceLiquidation",
+  RETENTION_REFUND: "invoiceRetentionRefund",
 });
 
 const DENIED = {
@@ -93,6 +106,9 @@ const DENIED = {
   editConcept: "Los conceptos solo se modifican mientras el contrato está en ejecución.",
   editLiquidationConcept: "El otrosí de liquidación solo se modifica mientras el contrato está en liquidación.",
   suspend: "Solo se suspende un contrato en ejecución.",
+  invoiceAdvance: "Las facturas de anticipo solo se registran o aprueban con el contrato en ejecución.",
+  invoiceLiquidation: "Las facturas de liquidación solo se registran o aprueban con el contrato en liquidación.",
+  invoiceRetentionRefund: "Las facturas de devolución de retenido solo se registran o aprueban con el contrato en liquidación.",
 };
 
 export const stateAllows = (state, action) => (STATE_ALLOWS[state] ?? []).includes(action);

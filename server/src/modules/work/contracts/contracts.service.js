@@ -85,6 +85,9 @@ export const conceptValuesOf = (input) => ({
   ...Object.fromEntries(Object.entries(PERCENT_FIELDS).map(([field, column]) => [column, toPercent(input[field])])),
 });
 
+/** Columnas económicas de un concepto: las que congela la primera factura aprobada (ADR-0016, "Inmutabilidad"). */
+export const ECONOMIC_COLUMNS = Object.freeze(["ccp_direct_cost", ...Object.values(PERCENT_FIELDS)]);
+
 export const CONCEPT_AUDITED = [
   "ccp_type",
   "ccp_number",
@@ -429,6 +432,8 @@ export const getContract = async ({ ctrId }) => {
     // Qué admite el estado actual (ADR-0017): el cliente lo cruza con los permisos.
     allowedActions: STATE_ALLOWS[row.ctr_state] ?? [],
     hasLiquidation: concepts.some((c) => c.ccp_type === CONCEPT_TYPES.LIQUIDATION),
+    // Con una factura aprobada, costo y porcentajes de los conceptos no cambian (DOM-07).
+    economicsLocked: await hasApprovedInvoices(prisma, row.ctr_id),
     configVersion: row.ctr_config_version,
     observation: row.ctr_observation,
     staId: row.sta_id,
@@ -593,6 +598,18 @@ const assertUniqueNumber = async (tx, { wrkId, number, excludeId = null }) => {
   if (duplicate) throw httpError(409, `Ya existe un contrato con el número ${number} en esta obra.`);
 };
 
+/** Facturas del contrato, de cualquier estado: una anulada también es historial (DEC-042). */
+const countInvoices = (tx, ctrId) => tx.tbl_invoices.count({ where: { ctr_id: ctrId } });
+
+/**
+ * Si el contrato tuvo alguna factura aprobada (DOM-07, ADR-0016 regla 14):
+ * desde entonces los valores económicos de sus conceptos no cambian. Cuenta
+ * también las anuladas después de aprobarse (conservan la fecha de
+ * aprobación): el congelamiento es un hecho, no se deshace.
+ */
+export const hasApprovedInvoices = async (db, ctrId) =>
+  (await db.tbl_invoices.count({ where: { ctr_id: Number(ctrId), inv_approval_date: { not: null } } })) > 0;
+
 const assertHeader = (values) => {
   if (!values.ctr_start_date) throw httpError(400, "La fecha de inicio no es una fecha válida.");
 };
@@ -722,6 +739,11 @@ const updateContract = async ({ ctrId, input, useBy, ctx }) => {
       await assertStage(tx, { wrkId, wksId: values.wks_id, currentWksId: before.wks_id });
       await assertProviderAssigned(tx, { wrkId, prvId: values.prv_id, currentPrvId: before.prv_id });
       await assertUniqueNumber(tx, { wrkId, number: values.ctr_number, excludeId: before.ctr_id });
+      // Las facturas son del proveedor del contrato: con facturas, no cambia
+      // (lo garantiza también la FK compuesta de tbl_invoices, DEC-042).
+      if (values.prv_id !== before.prv_id && (await countInvoices(tx, before.ctr_id)) > 0) {
+        throw httpError(409, "El contrato tiene facturas registradas: no se puede cambiar su proveedor.");
+      }
 
       // La fecha fin se recalcula en la misma transacción (ADR-0015, decisión 5).
       const endDate = await derivedEndDate(tx, { ...before, ...values });
@@ -777,14 +799,16 @@ export const saveContract = async ({ ctrId, input, useBy, ctx = { useId: useBy }
 // ─── Eliminación ─────────────────────────────────────────────────────────────
 
 /**
- * Eliminación lógica (ADR-0015, decisión 11). Con facturación se bloqueará
- * aquí si el contrato tiene facturas, sea cual sea su estado. Conceptos e
- * historial se conservan: un contrato eliminado es historial, y su número
- * queda libre en la obra.
+ * Eliminación lógica (ADR-0015, decisión 11). Un contrato con facturas, sea
+ * cual sea su estado, no se elimina (409, DEC-042). Conceptos e historial se
+ * conservan: un contrato eliminado es historial, y su número queda libre en
+ * la obra.
  */
 export const deleteContract = ({ ctrId, useBy, ctx = { useId: useBy } }) =>
   withLockedTransaction({ CONTRATO: ctrId }, async (tx) => {
     const before = await findLockedContract(tx, ctrId);
+    const invoices = await countInvoices(tx, before.ctr_id);
+    if (invoices > 0) throw httpError(409, `No se puede eliminar el contrato: tiene ${invoices} factura(s) registrada(s).`);
     await tx.tbl_contracts.update({
       where: { ctr_id: before.ctr_id },
       data: { sta_id: DELETED_STATUS, ctr_update_by: Number(useBy), ctr_delete_by: Number(useBy), ctr_delete_at: new Date() },

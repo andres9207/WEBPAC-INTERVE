@@ -6,7 +6,7 @@ import { CONTRACT_FIELDS_CATALOG, typeFieldRows } from "../../../helpers/contrac
 // bloqueo, prórroga y fecha fin, otrosí de liquidación con su transición, y
 // modificación según el estado.
 
-const state = { contract: null, concepts: [], typeFields: [] };
+const state = { contract: null, concepts: [], typeFields: [], approvedInvoices: 0 };
 
 const prismaMock = {
   tbl_contracts: { findUnique: jest.fn(async () => state.contract), update: jest.fn() },
@@ -17,6 +17,7 @@ const prismaMock = {
     update: jest.fn(),
   },
   tbl_contract_status_history: { create: jest.fn() },
+  tbl_invoices: { count: jest.fn(async () => state.approvedInvoices) },
   tbl_contract_fields: { findMany: jest.fn(async () => CONTRACT_FIELDS_CATALOG) },
   tbl_contract_type_fields: { findMany: jest.fn(async () => state.typeFields) },
   tbl_audit_log: { createMany: jest.fn() },
@@ -162,6 +163,26 @@ describe("createLiquidation", () => {
 });
 
 describe("updateConcept", () => {
+  beforeEach(() => {
+    state.approvedInvoices = 0;
+  });
+
+  it("con una factura aprobada no cambian costo ni porcentajes (409, DOM-07); fecha y prórroga sí", async () => {
+    state.approvedInvoices = 1;
+    await expect(service.updateConcept({ ccpId: 300, input: act({ directCost: "2000" }), useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringMatching(/facturas aprobadas/),
+    });
+    expect(prismaMock.tbl_invoices.count).toHaveBeenCalledWith({ where: { ctr_id: 30, inv_approval_date: { not: null } } });
+    expect(prismaMock.tbl_contract_concepts.update).not.toHaveBeenCalled();
+
+    // Mismos valores económicos que el concepto guardado: solo cambian fecha y prórroga.
+    const same = { directCost: "1000", advancePct: "15", retentionPct: "0" };
+    await expect(service.updateConcept({ ccpId: 301, input: act({ startDate: "2026-02-15", extension: 1, ...same }), useBy: 9, ctx })).resolves.toMatchObject({
+      ccpId: 301,
+    });
+  });
+
   it("bloquea contrato y concepto; la fecha del valor inicial no cambia", async () => {
     await expect(service.updateConcept({ ccpId: 300, input: act({ startDate: "2025-01-01", directCost: "2000" }), useBy: 9, ctx })).resolves.toEqual({
       message: "Concepto modificado correctamente",

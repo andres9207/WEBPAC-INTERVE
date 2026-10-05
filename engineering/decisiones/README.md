@@ -55,6 +55,7 @@ Qué decidimos al construir, y qué quedó como regla para lo que se construya d
 | [DEC-039](DEC-039-suspension-contratos.md) | 2026-10-05 | Suspensión solo desde ejecución; la levanta el otrosí que reanuda el contrato (con permiso de levantar); días calendario sin el de reanudación, sumados a la fecha fin; catálogo único de motivos `tbl_reasons` por ámbito | Vigente | [0017](../adr/0017-estados-contrato.md) |
 | [DEC-040](DEC-040-rate-limit-general.md) | 2026-10-05 | Rate limit general de `/api`: 1000 peticiones cada 5 minutos por IP (antes 50); el de `/api/auth/*` no cambia | Vigente | [0001](../adr/0001-seguridad.md) |
 | [DEC-041](DEC-041-varios-tipos-proveedor.md) | 2026-10-05 | Un proveedor tiene uno o varios tipos (`tbl_provider_classifications`), al menos uno; se guardan con él por diferencial y se auditan como lista. Reemplaza a DEC-023 solo en la cantidad | Vigente | [0010](../adr/0010-tipos-proveedor.md), [0012](../adr/0012-proveedores.md) |
+| [DEC-042](DEC-042-facturas-area-ciclo-vida.md) | 2026-10-05 | Facturas en el área `billing/` (`tbl_invoices`, `inv_`): cuatro tipos en un encabezado común, estados registrada → aprobada → anulada con historial, número único por proveedor, el estado del contrato decide el tipo admitido, permisos 83 a 88. Fase A, sin importes | Obligatoria | [0020](../adr/0020-facturacion.md), [0017](../adr/0017-estados-contrato.md) |
 
 **Tipo:**
 - **Obligatoria**: regla para todo código nuevo. El checklist de `ENDPOINT_STANDARD.md` la exige y, donde se puede, un test la hace cumplir.

@@ -1,0 +1,34 @@
+import httpCliente from 'api/services/httpCliente';
+import { createMasterApi } from 'api/services/masterApi';
+import { idempotencyConfig } from 'utils/idempotency';
+
+/**
+ * Facturas (DEC-042). Listado, detalle y guardado tienen la forma de un
+ * maestro: se reutiliza createMasterApi. No hay eliminar ni cambiar estado:
+ * una factura se aprueba o se anula con su propia llamada.
+ */
+export const invoicesApi = createMasterApi('billing/invoices', { entity: 'invoice', plural: 'invoices' });
+
+/** Obras activas para la factura simple. @param {string} [search] */
+export const getInvoiceWorksSelectAPI = (search) => httpCliente.get('billing/invoices/select_invoice_works', search ? { search } : {});
+
+/**
+ * Etapas y proveedores asignados de una obra, para la factura simple.
+ * @param {{ wrkId: number, includeWksId?: number, includePrvId?: number }} params  los actuales se incluyen aunque estén inactivos
+ */
+export const getInvoiceFormOptionsAPI = (params) => httpCliente.get('billing/invoices/get_invoice_form_options', params);
+
+/**
+ * Contratos cuyo estado admite el tipo de factura (ADR-0017): el anticipo,
+ * en ejecución; liquidación y devolución de retenido, en liquidación.
+ * @param {{ type: string, search?: string }} params
+ */
+export const getInvoiceContractsSelectAPI = (params) => httpCliente.get('billing/invoices/select_invoice_contracts', params);
+
+/** Transiciones: cada una con su endpoint y su permiso (WORKFLOW_STANDARD, regla 3). */
+export const invoiceTransitionsApi = {
+  /** @param {{ invId, approvalDate, observation }} params */
+  approve: (params, idempotencyKey) => httpCliente.post('billing/invoices/approve_invoice', params, idempotencyConfig(idempotencyKey)),
+  /** Anular una aprobada exige además el permiso reforzado. @param {{ invId, reaId, observation }} params */
+  cancel: (params, idempotencyKey) => httpCliente.post('billing/invoices/cancel_invoice', params, idempotencyConfig(idempotencyKey))
+};

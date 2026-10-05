@@ -138,7 +138,8 @@ export default function ConceptsTab({ contract, onChanged }) {
           number: contract.number,
           termUnit: contract.termUnit,
           lastConceptDate,
-          openSuspension: contract.openSuspension
+          openSuspension: contract.openSuspension,
+          economicsLocked: contract.economicsLocked
         }}
         concept={dialog?.concept}
         onClose={() => setDialog(null)}

@@ -22,6 +22,9 @@ import worksRoutes from "./work/works/works.routes.js";
 import providersRoutes from "./work/providers/providers.routes.js";
 import contractsRoutes from "./work/contracts/contracts.routes.js";
 
+// billing
+import invoicesRoutes from "./billing/invoices/invoices.routes.js";
+
 const mainRoutes = express.Router();
 
 mainRoutes.use("/app/documents", moduleDocsRoutes);
@@ -48,5 +51,8 @@ mainRoutes.use("/admin/reasons", reasonsRoutes);
 mainRoutes.use("/work/works", worksRoutes);
 mainRoutes.use("/work/providers", providersRoutes);
 mainRoutes.use("/work/contracts", contractsRoutes);
+
+// Billing (DEC-042)
+mainRoutes.use("/billing/invoices", invoicesRoutes);
 
 export default mainRoutes;

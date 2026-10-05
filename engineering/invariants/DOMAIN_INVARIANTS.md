@@ -23,7 +23,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | I8 | Número de otrosí único y secuencial por contrato, asignado por el backend | `UNIQUE (contrato, número)` + bloqueo | ADR-0016 |
 | I9 | Como máximo una suspensión abierta por contrato | `UNIQUE` sobre columna generada | ADR-0017 |
 | I10 | Una versión vigente por póliza | `UNIQUE` sobre columna generada | ADR-0018 |
-| I11 | Número de factura único por proveedor — *ámbito pendiente: backlog DEC-17* | `UNIQUE` | ADR-0020 |
+| I11 | Número de factura único por proveedor, también contra las anuladas ([DEC-042](../decisiones/DEC-042-facturas-area-ciclo-vida.md)) | `UNIQUE` | ADR-0020 |
 | I12 | Número de contrato único por obra, entre no eliminados ([DEC-035](../decisiones/DEC-035-contratos-area-modelo.md)) | `UNIQUE` sobre columna generada | ADR-0015 |
 | I13 | Solo la factura `SIMPLE` puede no tener contrato | `CHECK` | ADR-0020 |
 | I14 | Estado `APROBADA` ⇔ tiene fecha de aprobación | `CHECK` | ADR-0020 |
@@ -38,6 +38,12 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 - **I15:** `CHECK ck_contracts_end_date`; la fecha fin la calcula solo `contractEndDate`.
 - **I9** (2026-10-05, [DEC-039](../decisiones/DEC-039-suspension-contratos.md)): `UNIQUE uq_contract_suspensions_open` sobre la columna generada `csp_open_contract`; el service responde 409 antes, bajo el bloqueo del contrato. Probado contra la BD de desarrollo.
 
+**Aplicadas (2026-10-05), con facturas ([DEC-042](../decisiones/DEC-042-facturas-area-ciclo-vida.md)), probadas contra la BD de desarrollo:**
+
+- **I11:** `UNIQUE uq_invoices_provider_number (prv_id, inv_number)`; el service responde 409 antes.
+- **I13:** `CHECK ck_invoices_type_links`. La simple va sin contrato y con etapa; las demás, con contrato y sin etapa.
+- **I14:** `CHECK ck_invoices_approval`. Una registrada no tiene fecha de aprobación y una aprobada sí; una anulada conserva la que tenía. `ck_invoices_dates` impide que la aprobación sea anterior a la factura.
+
 ## Ciclo de vida
 
 | ID | Invariante | Fuente |
@@ -51,7 +57,15 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | DOM-07 | Tras la primera factura aprobada del contrato, los valores económicos de sus conceptos son inmutables | ADR-0016, regla 14 |
 | DOM-08 | Toda transición de estado queda en el historial, en la misma transacción | ADR-0017, regla 12 |
 
-**Aplicadas en parte (2026-10-02), con contratos:** DOM-01 (`ctr_state` con `CHECK`; solo lo cambian las transiciones de `CONTRACT_TRANSITIONS`, y `historyRow` rechaza una no declarada) y DOM-08 (creación y paso a liquidación escriben `tbl_contract_status_history` en su transacción). DOM-03 se aplica desde el 2026-10-05 ([DEC-039](../decisiones/DEC-039-suspension-contratos.md)): `STATE_ALLOWS.SUSPENDED` solo admite el otrosí que reanuda el contrato, y suspender y reanudar escriben historial (DOM-08). DOM-07 llega con facturación.
+**Aplicadas en parte (2026-10-02), con contratos:** DOM-01 (`ctr_state` con `CHECK`; solo lo cambian las transiciones de `CONTRACT_TRANSITIONS`, y `historyRow` rechaza una no declarada) y DOM-08 (creación y paso a liquidación escriben `tbl_contract_status_history` en su transacción). DOM-03 se aplica desde el 2026-10-05 ([DEC-039](../decisiones/DEC-039-suspension-contratos.md)): `STATE_ALLOWS.SUSPENDED` solo admite el otrosí que reanuda el contrato, y suspender y reanudar escriben historial (DOM-08). DOM-07 se aplica desde el 2026-10-05: `updateConcept` responde 409 si cambia el costo directo o un porcentaje (`ECONOMIC_COLUMNS`) y el contrato tiene alguna factura con fecha de aprobación (`hasApprovedInvoices`). Cuentan también las anuladas después de aprobarse: el congelamiento no se deshace. La verificación ocurre bajo el bloqueo del contrato, el mismo que toma aprobar una factura. Fecha, prórroga y descripción siguen editables, y la corrección se hace con un otrosí. El detalle devuelve `economicsLocked` y el diálogo muestra esos campos en solo lectura. Probado contra la BD de desarrollo.
+
+**Aplicadas (2026-10-05), con facturas ([DEC-042](../decisiones/DEC-042-facturas-area-ciclo-vida.md)):**
+
+- **DOM-05:** `STATE_ALLOWS.APPROVED` solo admite extracto y descripción; lo demás responde 409.
+- **DOM-06:** `CANCELLED` no tiene transiciones de salida, y no hay endpoint de eliminar.
+- **DOM-03:** para las facturas. `STATE_ALLOWS` del contrato solo admite anticipo en ejecución, y liquidación y devolución en liquidación; se verifica al registrar y al aprobar.
+- **DOM-08:** para las facturas, con `tbl_invoice_status_history`.
+- **DOM-04:** se aplica cuando haya algo que contar, en la fase B.
 
 ## Cálculo
 
@@ -76,6 +90,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | DOM-26 | Un número de documento siempre tiene tipo de identificación, y un tipo sin número no se guarda | ADR-0008, decisión 8 |
 | DOM-27 | Un campo configurable obligatorio es visible, y uno visible aplica; un campo sin configuración no aplica | ADR-0006, decisión 4 |
 | DOM-28 | Un contrato no recibe valor en un campo que no aplica para su tipo, salvo el que ya tenía (heredado), que se conserva sin cambios | ADR-0006, decisiones 6 a 8 |
+| DOM-29 | Proveedor y obra de una factura de contrato son los del contrato; el proveedor de una factura simple está asignado a su obra, y su etapa es de esa obra | ADR-0020, regla 4; ADR-0023, decisión 3 |
 
 **Aplicadas (2026-09-29), para el tipo de identificación:**
 
@@ -111,3 +126,7 @@ Tests en `server/test/modules/work/contracts/`.
 - **DOM-28:** `enforceFields`, con la configuración resuelta dentro de la transacción. Se aplica al crear y editar el contrato, al crear un otrosí o el de liquidación, y al modificar un concepto. La BD no puede expresarlo.
 
 Tests en `server/test/modules/admin/contractTypes/` y `server/test/modules/work/contracts/`.
+
+**Aplicada (2026-10-05), con facturas ([DEC-042](../decisiones/DEC-042-facturas-area-ciclo-vida.md)):**
+
+- **DOM-29:** son tres FK compuestas: `tbl_invoices_contract (ctr_id, wrk_id, prv_id) → tbl_contracts`, `tbl_invoices_work_provider (wrk_id, prv_id) → tbl_work_providers` y `tbl_invoices_work_stage (wks_id, wrk_id) → tbl_work_stages`. Una factura de contrato toma obra y proveedor del contrato bloqueado. Probado en vivo: la BD rechaza una factura con un proveedor que no es el del contrato. Tests en `server/test/modules/billing/invoices/`.

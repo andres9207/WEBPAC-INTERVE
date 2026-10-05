@@ -134,4 +134,17 @@ export const PERMISSIONS = {
       liftSuspension: 77,
     },
   },
+  // Facturación (DEC-042). Aprobar va separado de crear (segregación de
+  // funciones) y anular una aprobada, de anular una registrada: revierte
+  // efectos sobre saldos (ADR-0020, "Autorización").
+  billing: {
+    invoices: {
+      view: 83, // pagination_invoices, get_invoice, get_invoice_form_options, select_invoice_contracts
+      create: 84,
+      edit: 85,
+      approve: 86,
+      cancel: 87,
+      cancelApproved: 88,
+    },
+  },
 };

@@ -41,6 +41,7 @@ export const UNIQUE_CONSTRAINT_MESSAGES = Object.freeze({
   uq_contract_concepts_initial: "El contrato ya tiene su valor inicial.",
   uq_contract_concepts_liquidation: "El contrato ya tiene un otrosí de liquidación.",
   uq_contract_suspensions_open: "El contrato ya tiene una suspensión abierta.",
+  uq_invoices_provider_number: "Ya existe una factura con ese número para el proveedor.",
 });
 
 /**
@@ -88,6 +89,9 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   "uq_work_stages_id_work",
   // Un otrosí levanta a lo sumo una suspensión; lo garantiza el service
   "uq_contract_suspensions_concept",
+  "uq_contracts_id_work_provider",
+  "uq_invoices_idempotency_key",
+  "uq_invoice_status_history_idempotency_key",
 ]);
 
 /** Duplicado de un índice interno o desconocido. No remite a sistemas: suele ser una carrera. */

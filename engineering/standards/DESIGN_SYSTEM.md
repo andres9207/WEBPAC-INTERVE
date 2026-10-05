@@ -16,7 +16,7 @@ Todos salen del tema (`client/src/themes/`, `client/src/config.js`). **Nunca un 
 | --- | --- | --- | --- |
 | Primario | `primary.main` / `.light` / `.800` | `#2196f3` / `#e3f2fd` / `#1565c0` | Enlaces, foco, pestaña activa, fondos suaves de información |
 | Secundario | `secondary.main` / `.light` / `.dark` | `#673ab7` / `#ede7f6` / `#5e35b1` | **Botón de guardar** de los diálogos, acción de editar |
-| Éxito | `success.light` / `.dark` | `#b9f6ca` / `#00c853` | Estado activo, aprobado, cumplido |
+| Éxito | `success.light` / `.dark` | `#b9f6ca` / `#00c853` | Estado activo, aprobado, cumplido. Factura aprobada y botón Aprobar; una factura registrada (pendiente de aprobar) usa `warning` y una anulada, `default` |
 | Advertencia | `warning.light` / `.dark` | `#fff8e1` / `#ffc107` | Fondos de aviso. **No como color de texto** (ver "Problemas conocidos") |
 | Error | `error.main` / `.dark` | `#f44336` / `#c62828` | Errores, eliminar, anular. Texto de error: `error.dark` |
 | Lila | `lilac.main` / `.contrastText` / `.200` / `.dark` | `#ede7f6` / `#4527a0` / `#b39ddb` / `#d1c4e9` | Contrato suspendido: chip, pestaña, botón Suspender (`color="lilac"` con borde `lilac.200`) y aviso (`<Alert severity="warning" color="lilac">`). Fondo lila claro con texto morado oscuro (8,5:1); `.dark` es el fondo al pasar el cursor |

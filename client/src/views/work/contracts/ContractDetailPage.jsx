@@ -18,6 +18,7 @@ import RouteDialog from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import ConceptsTab from './components/ConceptsTab';
 import SuspendDialog from './components/SuspendDialog';
+import ContractInvoicesTab from 'views/billing/invoices/components/ContractInvoicesTab';
 import { contractsApi } from 'api/requests/contractsApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useSocket } from 'socket/SocketProvider';
@@ -33,10 +34,11 @@ import { CONTRACT_STATE_COLORS, fTerm } from 'utils/constants';
  * agregado. Todo lo calculado (valor vigente, fecha fin, anticipo y retenido
  * pactados) viene del servidor.
  *
- * Pólizas, facturas y documentos ya tienen su pestaña, aunque todavía no
- * existen. El estado no se edita: lo cambian los actos. Suspender tiene su
+ * Pólizas y documentos ya tienen su pestaña, aunque todavía no existen. La
+ * de facturas lista las del contrato y registra las que su estado admite
+ * (DEC-042). El estado no se edita: lo cambian los actos. Suspender tiene su
  * botón; la suspensión se levanta registrando un otrosí en la pestaña Valor
- * (DEC-039). Reabrir llega con la facturación.
+ * (DEC-039). Reabrir llega con la liquidación.
  */
 
 const TABS = [
@@ -142,7 +144,6 @@ export default function ContractDetailPage() {
     history: contract.history.length,
     suspensions: contract.suspensions.length,
     policies: 0,
-    invoices: 0,
     documents: 0
   };
   const open = contract.openSuspension;
@@ -331,12 +332,7 @@ export default function ContractDetailPage() {
           text="Aquí se verán las pólizas que amparan cada concepto, con su vigencia y los conceptos sin amparo. Llega con el módulo de pólizas."
         />
       )}
-      {tab === 'invoices' && (
-        <Pending
-          title="Todavía no hay facturas en este contrato."
-          text="Aquí se verán las facturas de anticipo, liquidación y devolución de retenido. Un contrato con facturas no se podrá eliminar. Llega con facturación."
-        />
-      )}
+      {tab === 'invoices' && <ContractInvoicesTab contract={contract} />}
       {tab === 'documents' && (
         <Pending
           title="Todavía no hay documentos en este contrato."

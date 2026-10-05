@@ -69,7 +69,27 @@ export const CONTRACT_STATE_COLORS = { IN_PROGRESS: 'success', SUSPENDED: 'lilac
 
 // Actos a los que aplica un motivo (rea_scope, DEC-039): los mismos de
 // REASON_SCOPES en server/src/modules/admin/reasons/reasons.service.js.
-export const REASON_SCOPE_OPTIONS = [{ value: 'SUSPENSION', label: 'Suspensión de contrato' }];
+export const REASON_SCOPE_OPTIONS = [
+  { value: 'SUSPENSION', label: 'Suspensión de contrato' },
+  { value: 'INVOICE_CANCEL', label: 'Anulación de factura' }
+];
+
+// Facturas (DEC-042): estado del ciclo de vida y tipo. Los nombres los manda
+// el servidor (stateName, typeName); aquí solo pestañas, colores y opciones.
+export const INVOICE_STATE_TABS = [
+  { id: 'REGISTERED', name: 'Registradas', color: 'warning' },
+  { id: 'APPROVED', name: 'Aprobadas', color: 'success' },
+  { id: 'CANCELLED', name: 'Anuladas' }
+];
+
+export const INVOICE_STATE_COLORS = { REGISTERED: 'warning', APPROVED: 'success', CANCELLED: 'default' };
+
+export const INVOICE_TYPE_OPTIONS = [
+  { value: 'SIMPLE', label: 'Simple', hint: 'Sin contrato: se imputa a una etapa de la obra' },
+  { value: 'ADVANCE', label: 'Anticipo', hint: 'De un contrato en ejecución' },
+  { value: 'LIQUIDATION', label: 'Liquidación', hint: 'De un contrato en liquidación' },
+  { value: 'RETENTION_REFUND', label: 'Devolución de retenido', hint: 'De un contrato en liquidación' }
+];
 export const reasonScopeName = (scope) => REASON_SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? scope;
 
 const TERM_UNIT_NAMES ={ DIA: ['día', 'días'], MES: ['mes', 'meses'], ANIO: ['año', 'años'] };

@@ -12,6 +12,8 @@
 > - **Primera transición manual: suspender** ([DEC-039](../decisiones/DEC-039-suspension-contratos.md), `contractSuspensions.service.js`): endpoint y permiso propios, bloqueo contrato → maestro, clave de idempotencia en el historial (`csh_idempotency_key`). Un estado superpuesto declara su vuelta con `to: PREVIOUS_STATE`: `assertTransition` la resuelve con el estado previo guardado (`csp_previous_state`), que debe ser uno desde el que se pudo entrar.
 > - **Una transición puede dispararse dentro de otro acto** (reanudar con el otrosí): el acto exige además el permiso de la transición, y la verifica el service con el estado bajo bloqueo (`granted`, como en proveedores).
 >
+> - **Segundo workflow: la factura** ([DEC-042](../decisiones/DEC-042-facturas-area-ciclo-vida.md), `server/src/modules/billing/invoices/invoiceTerms.js` e `invoices.service.js`). Cada transición declara su `permission` en la tabla. Dos transiciones pueden compartir endpoint (`cancel` y `cancelApproved`): la ruta exige el permiso base, y el service elige la transición con el estado bajo bloqueo (`cancelTransitionFor`) y exige el permiso de esa regla. El id del padre (contrato, u obra y proveedor) se lee antes del bloqueo porque no cambia después de crear la factura: así se resolvió `contractIdOf`. Un módulo que depende del estado de otro lo consulta en la tabla de ese otro (`INVOICE_ACTIONS` en `STATE_ALLOWS` del contrato), no la copia.
+>
 > El esqueleto de abajo es la forma de una transición manual.
 
 **Cuándo:** nivel 3. Ejemplos del dominio: contrato (ADR-0017), factura (ADR-0020).

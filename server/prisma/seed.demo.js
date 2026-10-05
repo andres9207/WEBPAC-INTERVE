@@ -43,6 +43,8 @@ const ACTOR_USER_ID = 1; // Superadmin (ver SUPERADMIN_PROFILE_ID en seed.js)
 // ─── Datos ───────────────────────────────────────────────────────────────────
 
 const REASONS = ["[DEMO] Temporada de lluvias", "[DEMO] Falta de licencia", "[DEMO] Orden de la interventoría", "[DEMO] Falta de suministro de materiales"];
+// Motivos de anulación de factura (DEC-042).
+const CANCEL_REASONS = ["[DEMO] Error en el registro", "[DEMO] Factura duplicada", "[DEMO] Rechazada por el área contable"];
 
 // Campos del catálogo (seed.js, CONTRACT_FIELDS): 1 etapa, 2 observaciones,
 // 3 descripción del otrosí, 4–9 porcentajes (A, I, U, IVA, anticipo, retenido).
@@ -366,6 +368,18 @@ async function main() {
         (await prisma.tbl_reasons.findFirst({ where: { rea_name: name, rea_scope: REASON_SCOPES.SUSPENSION, ...notDeleted }, select: { rea_id: true } }))?.rea_id,
       create: async () =>
         (await reasonsService.save({ input: { scope: REASON_SCOPES.SUSPENSION, name }, useBy, ctx, idempotencyKey: demoKey(`reason:${name}`) })).reaId,
+    });
+  }
+
+  console.log("Motivos de anulación de factura");
+  for (const name of CANCEL_REASONS) {
+    await ensure({
+      entity: "motivo",
+      label: name,
+      find: async () =>
+        (await prisma.tbl_reasons.findFirst({ where: { rea_name: name, rea_scope: REASON_SCOPES.INVOICE_CANCEL, ...notDeleted }, select: { rea_id: true } }))?.rea_id,
+      create: async () =>
+        (await reasonsService.save({ input: { scope: REASON_SCOPES.INVOICE_CANCEL, name }, useBy, ctx, idempotencyKey: demoKey(`cancel-reason:${name}`) })).reaId,
     });
   }
 

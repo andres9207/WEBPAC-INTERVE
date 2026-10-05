@@ -7,16 +7,16 @@ import { prisma } from "../src/common/configs/prismaClient.js";
 // ya asignados y la navegación de cualquier ambiente que ya tenga datos.
 //
 // pag_type: 1 = página padre (grupo en el sidebar), 2 = página hija (item).
-// pag_order de los grupos: el de la migración 0043 (Dashboard, Obras,
-// Administración, Seguridad). El upsert lo reescribe en cada `yarn db:seed`.
+// pag_order de los grupos: el de la migración 0069 (Dashboard, Obras,
+// Facturación, Administración, Seguridad). El upsert lo reescribe en cada `yarn db:seed`.
 
 const PAGES = [
   { pag_id: 1, pag_description: "Dashboard", pag_parent: 0, pag_url: "home/default", pag_icon: "dashboard", pag_order: 1, pag_name: "Dashboard", pag_type: 1 },
-  { pag_id: 2, pag_description: "Seguridad", pag_parent: 0, pag_url: null, pag_icon: "shield", pag_order: 4, pag_name: "Seguridad", pag_type: 1 },
+  { pag_id: 2, pag_description: "Seguridad", pag_parent: 0, pag_url: null, pag_icon: "shield", pag_order: 5, pag_name: "Seguridad", pag_type: 1 },
   { pag_id: 3, pag_description: "Perfiles", pag_parent: 2, pag_url: "security/profiles", pag_icon: "id", pag_order: 1, pag_name: "Perfiles", pag_type: 2 },
   { pag_id: 4, pag_description: "Usuarios", pag_parent: 2, pag_url: "security/users", pag_icon: "users", pag_order: 2, pag_name: "Usuarios", pag_type: 2 },
   // database/migrations/0020_seed_admin_identity_documents_pages_permissions.sql
-  { pag_id: 5, pag_description: "Administración", pag_parent: 0, pag_url: null, pag_icon: "settings", pag_order: 3, pag_name: "Administración", pag_type: 1 },
+  { pag_id: 5, pag_description: "Administración", pag_parent: 0, pag_url: null, pag_icon: "settings", pag_order: 4, pag_name: "Administración", pag_type: 1 },
   { pag_id: 6, pag_description: "Tipos de identificación", pag_parent: 5, pag_url: "admin/identityDocuments", pag_icon: "id-card", pag_order: 1, pag_name: "Tipos de identificación", pag_type: 2 },
   // database/migrations/0024_seed_provider_types_pages_permissions.sql
   { pag_id: 7, pag_description: "Tipos de proveedor", pag_parent: 5, pag_url: "admin/providerTypes", pag_icon: "truck", pag_order: 2, pag_name: "Tipos de proveedor", pag_type: 2 },
@@ -39,6 +39,9 @@ const PAGES = [
   { pag_id: 16, pag_description: "Contratos", pag_parent: 13, pag_url: "work/contracts", pag_icon: "file-description", pag_order: 3, pag_name: "Contratos", pag_type: 2 },
   // database/migrations/0062_seed_reasons_suspensions_permissions.sql
   { pag_id: 17, pag_description: "Motivos", pag_parent: 5, pag_url: "admin/reasons", pag_icon: "message-report", pag_order: 8, pag_name: "Motivos", pag_type: 2 },
+  // database/migrations/0069_seed_invoices_pages_permissions.sql
+  { pag_id: 18, pag_description: "Facturación", pag_parent: 0, pag_url: null, pag_icon: "receipt", pag_order: 3, pag_name: "Facturación", pag_type: 1 },
+  { pag_id: 19, pag_description: "Facturas", pag_parent: 18, pag_url: "billing/invoices", pag_icon: "invoice", pag_order: 1, pag_name: "Facturas", pag_type: 2 },
 ];
 
 const PERMISSIONS = [
@@ -117,6 +120,11 @@ const PERMISSIONS = [
   { per_id: 80, per_name: "Modificar motivo", pag_id: 17, per_order: 2 },
   { per_id: 81, per_name: "Eliminar motivo", pag_id: 17, per_order: 3 },
   { per_id: 82, per_name: "Cambiar estado motivo", pag_id: 17, per_order: 4 },
+  { per_id: 84, per_name: "Crear factura", pag_id: 19, per_order: 1 },
+  { per_id: 85, per_name: "Modificar factura", pag_id: 19, per_order: 2 },
+  { per_id: 86, per_name: "Aprobar factura", pag_id: 19, per_order: 3 },
+  { per_id: 87, per_name: "Anular factura", pag_id: 19, per_order: 4 },
+  { per_id: 88, per_name: "Anular factura aprobada", pag_id: 19, per_order: 5 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -156,6 +164,7 @@ const VIEW_PERMISSIONS = [
   { per_id: 60, per_name: "Ver proveedores", pag_id: 15, per_order: 8 },
   { per_id: 68, per_name: "Ver contratos", pag_id: 16, per_order: 8 },
   { per_id: 78, per_name: "Ver motivos", pag_id: 17, per_order: 5 },
+  { per_id: 83, per_name: "Ver facturas", pag_id: 19, per_order: 7 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay

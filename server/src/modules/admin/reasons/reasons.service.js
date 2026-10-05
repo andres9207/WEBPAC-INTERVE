@@ -3,10 +3,10 @@ import { defineMaster, createMasterService } from "../../../common/services/mast
 
 /**
  * Actos a los que puede aplicar un motivo (`rea_scope`, dominio cerrado con
- * CHECK en la migración 0060). Reabrir un contrato o anular un otrosí
- * agregarán aquí su ámbito, junto con el CHECK.
+ * CHECK en la migración 0060, ampliado en 0068). Reabrir un contrato o anular
+ * un otrosí agregarán aquí su ámbito, junto con el CHECK.
  */
-export const REASON_SCOPES = Object.freeze({ SUSPENSION: "SUSPENSION" });
+export const REASON_SCOPES = Object.freeze({ SUSPENSION: "SUSPENSION", INVOICE_CANCEL: "INVOICE_CANCEL" });
 
 // Maestro de motivos (ADR-0017, DEC-039). Un solo catálogo para las
 // transiciones manuales, dividido por ámbito: el nombre es único dentro de su
@@ -29,8 +29,12 @@ export const reasonsConfig = defineMaster({
   defaultSort: "name",
   selectOrder: "name",
   selectLabel: (row) => row.rea_name,
-  // Las suspensiones son historial: cuentan aunque el contrato se elimine.
-  dependents: [{ model: "tbl_contract_suspensions", column: "rea_id", label: "suspensión(es) de contrato", countDeleted: true }],
+  // Las suspensiones y las anulaciones son historial: cuentan aunque el
+  // contrato se elimine.
+  dependents: [
+    { model: "tbl_contract_suspensions", column: "rea_id", label: "suspensión(es) de contrato", countDeleted: true },
+    { model: "tbl_invoice_status_history", column: "rea_id", label: "anulación(es) de factura", countDeleted: true },
+  ],
   socketEvent: "refresh-reasons",
 });
 

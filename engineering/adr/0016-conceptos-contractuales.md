@@ -2,7 +2,7 @@
 
 ## Estado
 
-**Aceptado parcial** (2026-10-02, [DEC-036](../decisiones/DEC-036-conceptos-contractuales.md)): tabla única, cardinalidad en la BD, numeración bajo bloqueo, valor derivado y otrosí de liquidación implementados. Faltan la anulación de otrosí (B12) y la inmutabilidad tras la primera factura aprobada.
+**Aceptado parcial** (2026-10-02, [DEC-036](../decisiones/DEC-036-conceptos-contractuales.md)): tabla única, cardinalidad en la BD, numeración bajo bloqueo, valor derivado y otrosí de liquidación implementados. La inmutabilidad tras la primera factura aprobada se implementó el 2026-10-05 para el costo y los porcentajes (DOM-07). Falta la anulación de otrosí (B12).
 
 Era **Propuesto**: los conceptos no existían en el código ni en el esquema.
 

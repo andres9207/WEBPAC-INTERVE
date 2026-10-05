@@ -95,6 +95,7 @@ const LOCKABLE = Object.freeze({
   OBRA: { table: "tbl_works", id: "wrk_id" },
   PROVEEDOR: { table: "tbl_providers", id: "prv_id" },
   CONTRATO: { table: "tbl_contracts", id: "ctr_id" },
+  FACTURA: { table: "tbl_invoices", id: "inv_id" },
   CONCEPTO: { table: "tbl_contract_concepts", id: "ccp_id" },
 });
 

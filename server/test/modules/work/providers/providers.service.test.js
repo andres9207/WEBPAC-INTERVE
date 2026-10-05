@@ -23,6 +23,7 @@ const prismaMock = {
   tbl_provider_contacts: { findMany: jest.fn(), deleteMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
   tbl_provider_classifications: { findMany: jest.fn(), deleteMany: jest.fn(), createMany: jest.fn() },
   tbl_contracts: { count: jest.fn() },
+  tbl_invoices: { count: jest.fn() },
   tbl_work_providers: {
     findMany: jest.fn(),
     count: jest.fn(),
@@ -113,6 +114,7 @@ beforeEach(() => {
   prismaMock.tbl_provider_classifications.findMany.mockResolvedValue([]);
   prismaMock.tbl_work_providers.count.mockResolvedValue(0);
   prismaMock.tbl_contracts.count.mockResolvedValue(0);
+  prismaMock.tbl_invoices.count.mockResolvedValue(0);
   prismaMock.tbl_works.findUnique.mockResolvedValue({ sta_id: 1 });
   prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ idd_code: "CC", idd_name: "Cédula de ciudadanía", sta_id: 1 });
   prismaMock.tbl_provider_types.findUnique.mockResolvedValue({ pvt_name: "Simple", sta_id: 1 });
@@ -486,6 +488,18 @@ describe("asignación proveedor-obra", () => {
 
     await expect(service.unassignProviderFromWork({ wrkId: 8, prvId: 77, useBy: 9, ctx })).rejects.toMatchObject({ statusCode: 409 });
     expect(prismaMock.tbl_contracts.count).toHaveBeenCalledWith({ where: { wrk_id: 8, prv_id: 77 } });
+    expect(prismaMock.tbl_work_providers.delete).not.toHaveBeenCalled();
+  });
+
+  it("no desasigna un proveedor con facturas en la obra (409, DEC-042)", async () => {
+    state.assignment = { wkp_id: 300, wrk_id: 8, prv_id: 77, wkp_assignment_date: new Date("2026-10-01T00:00:00Z"), wkp_observation: null, sta_id: 1 };
+    prismaMock.tbl_invoices.count.mockResolvedValue(2);
+
+    await expect(service.unassignProviderFromWork({ wrkId: 8, prvId: 77, useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: "No se puede desasignar el proveedor: tiene 2 factura(s) en esta obra. Inactiva la asignación en su lugar.",
+    });
+    expect(prismaMock.tbl_invoices.count).toHaveBeenCalledWith({ where: { wrk_id: 8, prv_id: 77 } });
     expect(prismaMock.tbl_work_providers.delete).not.toHaveBeenCalled();
   });
 

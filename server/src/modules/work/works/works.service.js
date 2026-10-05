@@ -46,8 +46,12 @@ const CAN = PERMISSIONS.work.works;
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
 // Registros que impiden eliminar una obra (ADR-0011, decisión 12). Responde
-// 409 (DEC-026). Cuentan los no eliminados.
-const WORK_DEPENDENTS = [{ model: "tbl_contracts", column: "wrk_id", label: "contrato(s)" }];
+// 409 (DEC-026). Cuentan los no eliminados (las facturas no se eliminan:
+// cuentan todas, DEC-042).
+const WORK_DEPENDENTS = [
+  { model: "tbl_contracts", column: "wrk_id", label: "contrato(s)" },
+  { model: "tbl_invoices", column: "wrk_id", label: "factura(s)" },
+];
 
 // ─── Listado ─────────────────────────────────────────────────────────────────
 
@@ -473,20 +477,20 @@ const diffStages = (current, desired) => {
   };
 };
 
-// Una etapa con contratos no se quita (la FK del contrato lo impide; esto da
+// Una etapa con contratos o facturas no se quita (sus FK lo impiden; esto da
 // el mensaje claro). Cuentan también los contratos eliminados: siguen
 // apuntando a la etapa. Se puede desactivar.
 const assertStagesRemovable = async (tx, wrkId, toDelete) => {
   if (toDelete.length === 0) return;
-  const used = await tx.tbl_contracts.findMany({
-    where: { wrk_id: wrkId, wks_id: { in: toDelete.map((s) => s.wks_id) } },
-    select: { wks_id: true },
-    distinct: ["wks_id"],
-  });
-  if (used.length > 0) {
+  const where = { wrk_id: wrkId, wks_id: { in: toDelete.map((s) => s.wks_id) } };
+  const usedBy = async (model, label) => {
+    const used = await tx[model].findMany({ where, select: { wks_id: true }, distinct: ["wks_id"] });
+    if (used.length === 0) return;
     const names = toDelete.filter((s) => used.some((u) => u.wks_id === s.wks_id)).map((s) => `"${s.wks_name}"`);
-    throw httpError(409, `No se puede quitar la etapa ${names.join(", ")}: tiene contratos. Desactívala en su lugar.`);
-  }
+    throw httpError(409, `No se puede quitar la etapa ${names.join(", ")}: tiene ${label}. Desactívala en su lugar.`);
+  };
+  await usedBy("tbl_contracts", "contratos");
+  await usedBy("tbl_invoices", "facturas");
 };
 
 const hasChanges = (diff) => diff.toInsert.length > 0 || diff.toDelete.length > 0 || diff.toUpdate.length > 0;

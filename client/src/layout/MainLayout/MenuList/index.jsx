@@ -58,6 +58,12 @@ const getIconByName = (iconName) => {
   if (name.includes('message')) {
     return TablerIcons.IconMessageReport;
   }
+  if (name.includes('receipt')) {
+    return TablerIcons.IconReceipt;
+  }
+  if (name.includes('invoice')) {
+    return TablerIcons.IconFileInvoice;
+  }
   return TablerIcons.IconCircleDot || null;
 };
 

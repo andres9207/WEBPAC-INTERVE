@@ -42,6 +42,10 @@ import { TERM_UNIT_OPTIONS } from 'utils/constants';
  * (DEC-037): se piden al abrir y se dibujan con GenericFormSection. Al
  * modificar un concepto, un valor en un campo que dejó de aplicar se muestra
  * en solo lectura, marcado como heredado.
+ *
+ * Si el contrato ya tiene facturas aprobadas (`economicsLocked`), al
+ * modificar un concepto el costo y los porcentajes van en solo lectura
+ * (DOM-07): se corrigen con un otrosí. Lo exige también el servidor.
  */
 
 const TITLES = { amendment: 'Registrar otrosí', liquidation: 'Registrar otrosí de liquidación', edit: 'Modificar concepto' };
@@ -101,6 +105,7 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
   const fields = shownFields(descriptors, 'CONCEPT', stored, { skip });
   const descriptionFields = toFormFields(fields.filter((field) => field.key === 'CONCEPT_DESCRIPTION'));
   const inherited = fields.filter((field) => field.inherited);
+  const economicsLocked = isEdit && Boolean(contract?.economicsLocked);
 
   const save = async (form) => {
     setSaving(true);
@@ -169,6 +174,12 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
               El contrato está <strong>suspendido</strong> desde el {fDateOnly(suspension.suspensionDate)} ({suspension.reasonName}). Al
               registrar este otrosí se <strong>reanuda</strong>: los días entre la suspensión y la fecha de reanudación alargan la fecha
               fin, además de la prórroga que indiques.
+            </Alert>
+          )}
+          {economicsLocked && (
+            <Alert severity="info">
+              El contrato ya tiene facturas aprobadas: el costo directo y los porcentajes no cambian. Para corregir el valor, registra un
+              otrosí. La fecha, la prórroga y la descripción sí se pueden modificar.
             </Alert>
           )}
           {inherited.length > 0 && (
@@ -257,7 +268,7 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
           </Grid>
 
           {descriptors ? (
-            <ConceptFields control={control} fields={fields} />
+            <ConceptFields control={control} fields={fields} disabled={economicsLocked} />
           ) : (
             <Typography variant="body2" color="text.secondary">
               Cargando los campos del tipo de contrato…
@@ -290,7 +301,7 @@ ConceptDialog.propTypes = {
   open: PropTypes.bool.isRequired,
   /** amendment | liquidation | edit */
   mode: PropTypes.oneOf(['amendment', 'liquidation', 'edit']),
-  /** Contrato del detalle: `{ ctrId, cttId, number, termUnit, lastConceptDate, openSuspension }`. */
+  /** Contrato del detalle: `{ ctrId, cttId, number, termUnit, lastConceptDate, openSuspension, economicsLocked }`. */
   contract: PropTypes.object,
   /** Concepto a modificar (fila de `concepts` del detalle). */
   concept: PropTypes.object,

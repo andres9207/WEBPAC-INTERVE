@@ -20,6 +20,7 @@ const prismaMock = {
   },
   tbl_contract_concepts: { create: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
   tbl_contract_status_history: { create: jest.fn() },
+  tbl_invoices: { count: jest.fn() },
   tbl_works: { findUnique: jest.fn() },
   tbl_work_stages: { findUnique: jest.fn() },
   tbl_work_providers: { findUnique: jest.fn() },
@@ -92,6 +93,7 @@ beforeEach(() => {
   prismaMock.tbl_contracts.create.mockResolvedValue({ ctr_id: 30 });
   prismaMock.tbl_contract_concepts.create.mockResolvedValue({ ccp_id: 300 });
   prismaMock.tbl_contract_concepts.findMany.mockResolvedValue([]);
+  prismaMock.tbl_invoices.count.mockResolvedValue(0);
   prismaMock.tbl_works.findUnique.mockResolvedValue({ sta_id: 1, wrk_code: "OB-1" });
   prismaMock.tbl_work_stages.findUnique.mockResolvedValue({ wrk_id: 8, sta_id: 1, wks_name: "Estructura" });
   prismaMock.tbl_work_providers.findUnique.mockResolvedValue({ sta_id: 1, tbl_providers: { prv_name: "Aceros SA", sta_id: 1 } });
@@ -261,6 +263,18 @@ describe("saveContract — editar", () => {
     state.contract = { ...storedContract, sta_id: 3 };
     await expect(service.saveContract({ ctrId: 30, input: input(), useBy: 9, ctx })).rejects.toMatchObject({ statusCode: 404 });
   });
+
+  it("con facturas no cambia el proveedor (409, DEC-042); sin cambiarlo, sí se edita", async () => {
+    prismaMock.tbl_invoices.count.mockResolvedValue(1);
+    await expect(service.saveContract({ ctrId: 30, input: input({ prvId: 78 }), useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: "El contrato tiene facturas registradas: no se puede cambiar su proveedor.",
+    });
+    expect(prismaMock.tbl_invoices.count).toHaveBeenCalledWith({ where: { ctr_id: 30 } });
+    expect(prismaMock.tbl_contracts.update).not.toHaveBeenCalled();
+
+    await expect(service.saveContract({ ctrId: 30, input: input({ term: 8 }), useBy: 9, ctx })).resolves.toMatchObject({ ctrId: 30 });
+  });
 });
 
 describe("deleteContract", () => {
@@ -273,6 +287,17 @@ describe("deleteContract", () => {
     });
     expect(lockedTables()).toEqual([expect.stringMatching(/tbl_contracts/)]);
     expect(auditRows()[0]).toMatchObject({ aud_entity: "CONTRATO", aud_operation: "ELIMINAR" });
+  });
+
+  it("con facturas, de cualquier estado, no se elimina (409, DEC-042)", async () => {
+    state.contract = { ...storedContract };
+    prismaMock.tbl_invoices.count.mockResolvedValue(2);
+    await expect(service.deleteContract({ ctrId: 30, useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: "No se puede eliminar el contrato: tiene 2 factura(s) registrada(s).",
+    });
+    expect(prismaMock.tbl_invoices.count).toHaveBeenCalledWith({ where: { ctr_id: 30 } });
+    expect(prismaMock.tbl_contracts.update).not.toHaveBeenCalled();
   });
 });
 

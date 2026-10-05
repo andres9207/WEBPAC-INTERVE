@@ -32,6 +32,9 @@ const ProviderFormPage = Loadable(lazy(() => import('views/work/providers/Provid
 const ContractsPage = Loadable(lazy(() => import('views/work/contracts/ContractsPage')));
 const ContractDetailPage = Loadable(lazy(() => import('views/work/contracts/ContractDetailPage')));
 const ContractFormPage = Loadable(lazy(() => import('views/work/contracts/ContractFormPage')));
+const InvoicesPage = Loadable(lazy(() => import('views/billing/invoices/InvoicesPage')));
+const InvoiceDetailPage = Loadable(lazy(() => import('views/billing/invoices/InvoiceDetailPage')));
+const InvoiceFormPage = Loadable(lazy(() => import('views/billing/invoices/InvoiceFormPage')));
 
 // ==============================|| MAIN ROUTING ||============================== //
 
@@ -100,6 +103,22 @@ const MainRoutes = {
                 { path: 'new', element: <ContractFormPage /> },
                 { path: ':ctrId', element: <ContractDetailPage /> },
                 { path: ':ctrId/edit', element: <ContractFormPage /> }
+              ]
+            }
+          ]
+        },
+        {
+          path: 'billing',
+          // Facturación (DEC-042), con el mismo patrón: alta, detalle y
+          // edición en un modal con dirección propia sobre el listado.
+          children: [
+            {
+              path: 'invoices',
+              element: <InvoicesPage />,
+              children: [
+                { path: 'new', element: <InvoiceFormPage /> },
+                { path: ':invId', element: <InvoiceDetailPage /> },
+                { path: ':invId/edit', element: <InvoiceFormPage /> }
               ]
             }
           ]

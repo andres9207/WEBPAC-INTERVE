@@ -10,10 +10,12 @@ import { CONCEPT_TYPES, assertStateAllows, assertTransition, chronologyError, co
 import {
   CONCEPT_AUDITED,
   CONCEPT_SELECT,
+  ECONOMIC_COLUMNS,
   auditableConcept,
   conceptValuesOf,
   derivedEndDate,
   findLockedContract,
+  hasApprovedInvoices,
   httpError,
 } from "./contracts.service.js";
 import { liftWithAmendment } from "./contractSuspensions.service.js";
@@ -245,6 +247,11 @@ export const createLiquidation = async ({ ctrId, input, useBy, ctx = { useId: us
  * el número no cambian; la fecha del valor inicial es la del contrato. Un
  * concepto del contrato en ejecución, o el de liquidación mientras el
  * contrato está en liquidación. Fija un estado final: reintentable.
+ *
+ * Tras la primera factura aprobada del contrato, costo directo y porcentajes
+ * no cambian (DOM-07, ADR-0016 regla 14): 409, y se corrige con un otrosí.
+ * Fecha, prórroga y descripción siguen editables. Aprobar una factura
+ * bloquea el mismo contrato, así que la verificación no tiene carrera.
  */
 export const updateConcept = async ({ ccpId, input, useBy, ctx = { useId: useBy } }) => {
   // El contrato de un concepto no cambia nunca: leerlo antes del bloqueo solo
@@ -270,6 +277,13 @@ export const updateConcept = async ({ ccpId, input, useBy, ctx = { useId: useBy 
         ccp_extension: before.ccp_type === CONCEPT_TYPES.AMENDMENT ? optionalInt(input.extension) : null,
       };
       assertStartDate(values);
+      const economicChanges = diffFields(auditableConcept(before), auditableConcept(values), ECONOMIC_COLUMNS);
+      if (economicChanges.length > 0 && (await hasApprovedInvoices(tx, contract.ctr_id))) {
+        throw httpError(
+          409,
+          "El contrato ya tiene facturas aprobadas: el costo directo y los porcentajes de sus conceptos no cambian. Corrige con un otrosí."
+        );
+      }
       const sequence = activeSequence(concepts);
       assertChronology(sequence, sequence.indexOf(before), values.ccp_start_date);
 

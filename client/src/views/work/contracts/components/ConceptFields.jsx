@@ -20,6 +20,8 @@ import { toFormFields } from './configurableFields';
  * dibujan con GenericFormSection, que necesita un FormProvider arriba.
  *
  * `prefix` anida los campos en el formulario (p. ej. "initialConcept.").
+ * `disabled` los muestra en solo lectura: tras la primera factura aprobada
+ * del contrato, costo y porcentajes no cambian (DOM-07).
  */
 
 const MONEY = /^\d{1,16}(\.\d{0,2})?$/;
@@ -41,7 +43,7 @@ export const conceptToForm = (concept) =>
 
 const PERCENT_GRID = { PERCENT: { xs: 6, sm: 4, md: 2 } };
 
-export default function ConceptFields({ control, prefix = '', fields }) {
+export default function ConceptFields({ control, prefix = '', fields, disabled = false }) {
   const percents = fields.filter((field) => field.dataType === 'PERCENT');
 
   return (
@@ -58,6 +60,7 @@ export default function ConceptFields({ control, prefix = '', fields }) {
               onBlur={field.onBlur}
               label="Costo directo"
               required
+              disabled={disabled}
               error={fieldState.error?.message}
             />
           )}
@@ -70,7 +73,7 @@ export default function ConceptFields({ control, prefix = '', fields }) {
       </Grid>
       <Grid size={12} sx={{ mt: -2 }}>
         {percents.length > 0 ? (
-          <GenericFormSection fields={toFormFields(percents, { prefix, grid: PERCENT_GRID })} />
+          <GenericFormSection fields={toFormFields(percents, { prefix, grid: PERCENT_GRID, disabled })} />
         ) : (
           <Typography variant="caption" color="text.secondary">
             El tipo de contrato no pide porcentajes: el valor es el costo directo.
@@ -91,5 +94,7 @@ ConceptFields.propTypes = {
   control: PropTypes.object.isRequired,
   prefix: PropTypes.string,
   /** Campos configurables del grupo de conceptos a mostrar (`shownFields`); aquí se usan los porcentajes. */
-  fields: PropTypes.array.isRequired
+  fields: PropTypes.array.isRequired,
+  /** Solo lectura (contrato con facturas aprobadas). */
+  disabled: PropTypes.bool
 };
