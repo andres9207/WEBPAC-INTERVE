@@ -864,9 +864,9 @@
     "semantic_hash": ""
   },
   "client/src/views/security/users/UsersPage.jsx": {
-    "mtime": 1790863393.8420713,
-    "seen": 1790877373.1051302,
-    "ast_hash": "bf67d21af84dc2f0833d4be05e5b57b8",
+    "mtime": 1791205663.598493,
+    "seen": 1791206604.4121056,
+    "ast_hash": "ba2ae764d7ee331c5f200a82f6dda4c0",
     "semantic_hash": ""
   },
   "client/src/views/security/users/components/AccountSettings.jsx": {
@@ -1320,9 +1320,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/security/profiles/profiles.validation.js": {
-    "mtime": 1790714089.9204779,
-    "seen": 1790714844.6664875,
-    "ast_hash": "cbbe224108cb8cf8b977d17f0cadcc0c",
+    "mtime": 1791205656.5614426,
+    "seen": 1791206604.4122996,
+    "ast_hash": "0ae565cb98a5b363836ad0c23280b38e",
     "semantic_hash": ""
   },
   "server/src/modules/security/users/users.controller.js": {
@@ -1338,9 +1338,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/security/users/users.service.js": {
-    "mtime": 1790976388.8836746,
-    "seen": 1790976704.6150086,
-    "ast_hash": "64be03762dba59ea0f9a3a17c43b4df7",
+    "mtime": 1791205653.8674173,
+    "seen": 1791206604.4123027,
+    "ast_hash": "1153bd2f84dc7cb661cc1296da2241d0",
     "semantic_hash": ""
   },
   "server/src/modules/security/users/users.validation.js": {
@@ -1506,9 +1506,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/security/users/users.service.test.js": {
-    "mtime": 1790703790.2377021,
-    "seen": 1790703994.802753,
-    "ast_hash": "e3a9c11b04463e6092a478febde2d193",
+    "mtime": 1791205689.4111938,
+    "seen": 1791206604.4123802,
+    "ast_hash": "83af0194574f84ebb87777031e9f03dc",
     "semantic_hash": ""
   },
   "client/.yarnrc.yml": {
@@ -2625,6 +2625,18 @@
     "mtime": 1790976445.021386,
     "seen": 1790976704.6150343,
     "ast_hash": "db724db0c115dc0675a9e10a8db71287",
+    "semantic_hash": ""
+  },
+  "server/test/modules/app/documents/document.service.test.js": {
+    "mtime": 1791205689.8005917,
+    "seen": 1791206604.4123707,
+    "ast_hash": "e9b616c24d8619879ece0567de0c4f5a",
+    "semantic_hash": ""
+  },
+  "server/test/modules/security/profiles/profiles.validation.test.js": {
+    "mtime": 1791205690.8314326,
+    "seen": 1791206604.412378,
+    "ast_hash": "f23e8bf3686d95a9e1ca410246f460cd",
     "semantic_hash": ""
   }
 }
