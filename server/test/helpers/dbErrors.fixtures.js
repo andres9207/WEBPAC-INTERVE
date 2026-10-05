@@ -36,3 +36,25 @@ export const realLockWaitTimeout = () =>
       },
     },
   });
+
+// Duplicado capturado contra MySQL real: update de tbl_profiles con el
+// nombre de otro perfil. El índice viene en `constraint.index`; el valor,
+// solo en el texto de MySQL.
+export const realUniqueViolation = (index = "uq_profiles_pro_name", value = "Superadmin", table = "tbl_profiles") =>
+  Object.assign(new Error(`\nInvalid \`prisma.${table}.update()\` invocation:\n\n\nUnique constraint failed on the constraint: \`${index}\``), {
+    code: "P2002",
+    name: "PrismaClientKnownRequestError",
+    meta: {
+      driverAdapterError: {
+        name: "DriverAdapterError",
+        cause: {
+          originalCode: "1062",
+          originalMessage: `Duplicate entry '${value}' for key '${table}.${index}'`,
+          kind: "UniqueConstraintViolation",
+          constraint: { index },
+          table,
+        },
+      },
+      modelName: table,
+    },
+  });

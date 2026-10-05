@@ -1,5 +1,9 @@
 import { jest } from "@jest/globals";
-import { realDeadlock, realLockWaitTimeout } from "../../helpers/dbErrors.fixtures.js";
+import { realDeadlock, realLockWaitTimeout, realUniqueViolation } from "../../helpers/dbErrors.fixtures.js";
+
+const { UNIQUE_CONSTRAINT_MESSAGES, INTERNAL_UNIQUE_CONSTRAINTS, DUPLICATE_FALLBACK_MESSAGE } = await import(
+  "../../../src/common/constants/uniqueConstraints.constants.js"
+);
 
 const { default: errorMiddleware } = await import(
   "../../../src/common/middlewares/error.middleware.js"
@@ -161,5 +165,50 @@ describe("errorMiddleware — concurrencia (ADR-0027)", () => {
 
     expect(res.status).toHaveBeenCalledWith(status);
     expect(res.json.mock.calls[0][0].message).not.toMatch(/Raw query|Lock wait|Deadlock/);
+  });
+});
+
+describe("errorMiddleware — duplicados (P2002 / ER_DUP_ENTRY)", () => {
+  const SECRET_VALUE = "valor-duplicado-123";
+  const respond = (err) => {
+    const res = buildRes();
+    errorMiddleware(err, {}, res, jest.fn());
+    return { status: res.status.mock.calls[0][0], body: res.json.mock.calls[0][0] };
+  };
+
+  it.each(Object.entries(UNIQUE_CONSTRAINT_MESSAGES))("%s responde 409 nombrando el dato", (index, message) => {
+    const { status, body } = respond(realUniqueViolation(index, SECRET_VALUE, "tbl_x"));
+
+    expect(status).toBe(409);
+    expect(body).toEqual({ success: false, message });
+    const exposed = JSON.stringify(body);
+    expect(exposed).not.toContain(index);
+    expect(exposed).not.toContain(SECRET_VALUE);
+    expect(exposed).not.toContain("tbl_x");
+  });
+
+  it("un índice interno o desconocido responde 409 con el mensaje genérico", () => {
+    for (const index of [INTERNAL_UNIQUE_CONSTRAINTS[0], "uq_no_existe"]) {
+      const { status, body } = respond(realUniqueViolation(index, SECRET_VALUE));
+      expect(status).toBe(409);
+      expect(body).toEqual({ success: false, message: DUPLICATE_FALLBACK_MESSAGE });
+    }
+  });
+
+  it("un P2002 sin datos del índice también responde el genérico", () => {
+    const { status, body } = respond(Object.assign(new Error("Unique constraint failed"), { code: "P2002" }));
+    expect(status).toBe(409);
+    expect(body.message).toBe(DUPLICATE_FALLBACK_MESSAGE);
+  });
+
+  it("ER_DUP_ENTRY directo del driver usa el mismo mapa, sin remitir a sistemas", () => {
+    const err = Object.assign(new Error("(conn:1, no: 1062, SQLState: 23000) Duplicate entry 'ana@a.com' for key 'tbl_users.use_email'"), {
+      code: "ER_DUP_ENTRY",
+      sqlMessage: "Duplicate entry 'ana@a.com' for key 'tbl_users.use_email'",
+    });
+    const { status, body } = respond(err);
+
+    expect(status).toBe(409);
+    expect(body).toEqual({ success: false, message: UNIQUE_CONSTRAINT_MESSAGES.use_email });
   });
 });
