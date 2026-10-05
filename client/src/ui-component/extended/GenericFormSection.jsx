@@ -1201,6 +1201,12 @@ const GenericFormSection = memo(
                       error={hasError}
                       helperText={hasError ? error.message : null}
                       disabled={field.disabled || globalDisabled}
+                      // "new-password" por defecto: el navegador no rellena la
+                      // contraseña guardada de quien está conectado. Sin esto,
+                      // editar un usuario le asignaba en silencio la contraseña
+                      // del administrador. La contraseña actual usa
+                      // field.autoComplete = "current-password".
+                      slotProps={{ htmlInput: { autoComplete: field.autoComplete ?? "new-password" } }}
                     />
                   )}
                 />

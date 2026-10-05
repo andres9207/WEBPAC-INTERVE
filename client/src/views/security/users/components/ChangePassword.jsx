@@ -19,6 +19,7 @@ export const ChangePassword = () => {
     {
       key: 'currentPassword', name: 'currentPassword', type: 'password',
       label: 'Contraseña actual',
+      autoComplete: 'current-password',
       validation: { required: 'La contraseña actual es requerida' },
       grid: { xs: 12 }
     },

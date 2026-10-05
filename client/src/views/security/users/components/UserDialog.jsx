@@ -7,17 +7,23 @@ import { getIdentityDocumentsSelectAPI } from 'api/requests/identityDocumentsApi
 import { identificationFormatError } from 'utils/identification';
 import { newIdempotencyKey } from 'utils/idempotency';
 import httpCliente from 'api/services/httpCliente';
+import { useAuth } from 'contexts/AuthContext';
 
 import BaseDialog from 'ui-component/extended/BaseDialog';
 import Button from '@mui/material/Button';
 
 import GenericFormSection from 'ui-component/extended/GenericFormSection';
+import ChipMultiSelect from 'ui-component/extended/ChipMultiSelect';
 import { STATUS, STATUS_OPTIONS } from 'utils/constants';
 // import DocumentManagement from 'ui-component/DocumentManagement';
 
 const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
   const [visible, setVisible] = useState(false);
   const [useId, setUseId] = useState(0);
+  const { user } = useAuth();
+  // La contraseña propia se cambia con "Cambiar contraseña", que pide la
+  // actual (ADR-0001, regla 11): editándose a sí mismo, el campo no se ofrece.
+  const editingSelf = useId > 0 && useId === user?.useId;
   // Una clave por formulario de creación (utils/idempotency.js).
   const [idempotencyKey, setIdempotencyKey] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -105,13 +111,26 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
       list.push(
         { key: 'changePassword', name: 'changePassword', type: 'inputSwitch', label: 'Pedir cambio de contraseña', grid: { xs: 6 } },
         { key: 'username', name: 'username', type: 'text', label: 'Usuario', grid: { xs: 12, sm: 6 } },
-        { key: 'password', name: 'password', type: 'password', label: 'Contraseña', grid: { xs: 12, sm: 6 } },
-        { key: 'usePages', name: 'usePages', type: 'multiselect', label: 'Páginas autorizadas', options: allPages.map(p => ({ value: p.id, label: p.description })), grid: { xs: 12 } },
+        ...(editingSelf ? [] : [{ key: 'password', name: 'password', type: 'password', label: 'Contraseña', grid: { xs: 12, sm: 6 } }]),
+        {
+          key: 'usePages',
+          name: 'usePages',
+          type: 'custom',
+          component: ChipMultiSelect,
+          hideLabel: true,
+          grid: { xs: 12 },
+          props: {
+            label: 'Páginas autorizadas',
+            options: allPages.map((p) => ({ value: p.id, label: p.description })),
+            searchPlaceholder: 'Buscar página',
+            emptyText: 'Ninguna página coincide'
+          }
+        },
       );
     }
 
     return list;
-  }, [access, allPages, fetchIdentityDocuments, keepIdentityDocuments, identityDocuments]);
+  }, [access, allPages, fetchIdentityDocuments, keepIdentityDocuments, identityDocuments, editingSelf]);
 
   const fetchLists = async () => {
     setLoading(true);
@@ -215,7 +234,7 @@ const UserDialog = forwardRef(({ addItem, updateItem }, ref) => {
       iddId: identification ? formData.iddId : null,
       username: formData.access ? (formData.username || formData.email.split('@')[0]) : null,
       email: formData.email,
-      password: formData.password || null,
+      password: editingSelf ? null : formData.password || null,
       access: formData.access ? 1 : 0,
       changePassword: formData.access ? (formData.changePassword ? 1 : 0) : 0,
       staId: formData.staId,

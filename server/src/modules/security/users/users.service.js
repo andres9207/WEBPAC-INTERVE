@@ -250,6 +250,16 @@ const USER_CREATE_FIELDS = [
 ];
 
 export const saveUser = async (args) => {
+  // La contraseña propia se cambia solo con la actual (ADR-0001, regla 11),
+  // por "Cambiar contraseña". Si la edición administrativa la aceptara,
+  // quien encuentre abierta la sesión de un administrador se quedaría con la
+  // cuenta. Un administrador sí cambia la de otro usuario desde aquí.
+  if (args.useId > 0 && Number(args.useId) === Number(args.useBy) && args.password) {
+    const error = new Error("Para cambiar tu propia contraseña usa la opción \"Cambiar contraseña\": pide la contraseña actual.");
+    error.statusCode = 400;
+    throw error;
+  }
+
   if (args.useId > 0) return persistUser(args);
 
   // Crear: la clave se busca ANTES que el control de duplicados de

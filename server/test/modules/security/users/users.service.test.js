@@ -142,6 +142,33 @@ describe("saveUser — bitácora", () => {
   });
 });
 
+describe("saveUser — contraseña propia (ADR-0001, regla 11)", () => {
+  it("rechaza que el autor cambie su propia contraseña desde la edición, sin tocar la BD", async () => {
+    await expect(usersService.saveUser({ ...editPayload, useId: 9, useBy: 9, password: "otra12345" })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining("Cambiar contraseña"),
+    });
+    expect(prismaMock.tbl_users.update).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_audit_log.createMany).not.toHaveBeenCalled();
+  });
+
+  it("editarse a sí mismo sin contraseña sigue permitido", async () => {
+    prismaMock.tbl_users.findUnique.mockResolvedValue({ ...baseUser, use_id: 9 });
+
+    await usersService.saveUser({ ...editPayload, useId: 9, useBy: 9, name: "Ana María", password: null });
+
+    expect(prismaMock.tbl_users.update).toHaveBeenCalled();
+  });
+
+  it("un administrador sí cambia la contraseña de otro usuario", async () => {
+    prismaMock.tbl_users.findUnique.mockResolvedValue(baseUser);
+
+    await usersService.saveUser({ ...editPayload, password: "nueva12345" });
+
+    expect(auditRows().map((r) => r.aud_field)).toContain("use_password");
+  });
+});
+
 describe("saveUser — protocolo de bloqueo (ADR-0027)", () => {
   const lockedTables = () =>
     prismaMock.$queryRaw.mock.calls.map(([strings, ...values]) => {

@@ -246,6 +246,12 @@ Migraciones `0011_fk_audit_columns.sql`, `0012_add_delete_columns.sql`, `0013_cr
 - **Editar un perfil podía eliminarlo sin la verificación de usuarios**: `saveProfileSchema` validaba `staId` como un id cualquiera, así que mandar el estado eliminado a `save_profile` se saltaba el conteo de `deleteProfile`. Ahora `staId` solo admite activo o inactivo (`EDITABLE_STATUS_VALUES`, la misma regla de los maestros), y eliminar va solo por `deleteProfile`.
 - Tests: visibilidad y orden en `users.service.test.js`, filtros de documentos en `document.service.test.js` y el estado editable en `profiles.validation.test.js`.
 
+## Contraseñas cambiadas sin querer al editar un usuario (ADR-0001, regla 11)
+
+- **El navegador rellenaba el campo "Contraseña" del formulario de usuario** con la contraseña guardada de quien estaba conectado: el campo no declaraba `autoComplete` y estaba junto al de usuario. Cada edición, aunque solo tocara la identificación, le asignaba al usuario editado la contraseña del administrador y cerraba su sesión. Confirmado en la bitácora de desarrollo (2026-10-05: usuario 10, y el propio administrador dos veces). Ahora los campos de contraseña de `GenericFormSection` usan `autoComplete="new-password"`, y solo "Contraseña actual" de `ChangePassword` permite `current-password`.
+- **Un administrador podía cambiar su propia contraseña desde la edición de usuarios sin dar la actual**, saltándose la regla 11: quien encontrara abierta su sesión se quedaba con la cuenta. Ahora `saveUser` responde 400 si el autor edita su propio usuario con contraseña, y `UserDialog` no ofrece el campo en ese caso. La propia se cambia solo con "Cambiar contraseña"; la de otro usuario se sigue cambiando desde la edición, con cierre de su sesión. Tests en `users.service.test.js`.
+- **La redirección al login armaba `/interve360pages/login`**: Vite entrega `BASE_URL` sin la barra final. `httpCliente.js` la agrega si falta.
+
 ## Pendientes
 
 Los hallazgos señalados y todavía no corregidos están en [`debt/TECHNICAL_DEBT.md`](../debt/TECHNICAL_DEBT.md), sección "Seguridad". Este archivo registra solo lo que ya se corrigió.
