@@ -1032,9 +1032,9 @@
     "semantic_hash": ""
   },
   "server/src/common/middlewares/error.middleware.js": {
-    "mtime": 1790890807.382043,
-    "seen": 1790892250.9195468,
-    "ast_hash": "d294836873cda43f0137eec378952d27",
+    "mtime": 1791206848.7290366,
+    "seen": 1791208020.6633558,
+    "ast_hash": "02786b3334d0639c2c50ab508a34f81d",
     "semantic_hash": ""
   },
   "server/src/common/middlewares/helmet.middleware.js": {
@@ -1134,9 +1134,9 @@
     "semantic_hash": ""
   },
   "server/src/common/utils/dbErrors.utils.js": {
-    "mtime": 1790363884.5312405,
-    "seen": 1790694517.664659,
-    "ast_hash": "87624406d230f740071951c30d0b27ee",
+    "mtime": 1791206843.5228107,
+    "seen": 1791208020.663375,
+    "ast_hash": "6f26059c7a50df5530e4aa175cbd3a1a",
     "semantic_hash": ""
   },
   "server/src/common/utils/funciones.js": {
@@ -1362,9 +1362,9 @@
     "semantic_hash": ""
   },
   "server/test/common/middlewares/error.middleware.test.js": {
-    "mtime": 1790891204.08772,
-    "seen": 1790892250.9196286,
-    "ast_hash": "4e0dadf889bbef75c5b95dbbbcd26683",
+    "mtime": 1791206889.6015427,
+    "seen": 1791208020.663452,
+    "ast_hash": "6b61cee1d0861bca501561d0987b3f32",
     "semantic_hash": ""
   },
   "server/test/common/middlewares/requirePermission.middleware.test.js": {
@@ -1410,9 +1410,9 @@
     "semantic_hash": ""
   },
   "server/test/common/utils/dbErrors.utils.test.js": {
-    "mtime": 1790363926.1601858,
-    "seen": 1790694517.6647043,
-    "ast_hash": "2cfcbb71177c16b0b7028a0ae699325d",
+    "mtime": 1791206867.3620825,
+    "seen": 1791208020.6634617,
+    "ast_hash": "44f0265aa841d3884b699be44cbff3ba",
     "semantic_hash": ""
   },
   "server/test/common/utils/pagination.utils.test.js": {
@@ -1440,9 +1440,9 @@
     "semantic_hash": ""
   },
   "server/test/helpers/dbErrors.fixtures.js": {
-    "mtime": 1790363932.3796625,
-    "seen": 1790694517.664709,
-    "ast_hash": "ae70c7f955b45830fb89822fe5959a2e",
+    "mtime": 1791206867.31869,
+    "seen": 1791208020.6634707,
+    "ast_hash": "36d9824c289fa1bf145850a6d2025412",
     "semantic_hash": ""
   },
   "server/test/helpers/request.mock.js": {
@@ -2637,6 +2637,18 @@
     "mtime": 1791205690.8314326,
     "seen": 1791206604.412378,
     "ast_hash": "f23e8bf3686d95a9e1ca410246f460cd",
+    "semantic_hash": ""
+  },
+  "server/src/common/constants/uniqueConstraints.constants.js": {
+    "mtime": 1791206820.0450182,
+    "seen": 1791208020.6633508,
+    "ast_hash": "5e4d3989d851d2bc0cc10f12caf9fff8",
+    "semantic_hash": ""
+  },
+  "server/test/common/constants/uniqueConstraints.constants.test.js": {
+    "mtime": 1791206888.1240885,
+    "seen": 1791208020.6634498,
+    "ast_hash": "9e791af7151c26fa5cc2d8f354b59475",
     "semantic_hash": ""
   }
 }
