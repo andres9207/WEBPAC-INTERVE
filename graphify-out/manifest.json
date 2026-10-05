@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "client/src/themes/overrides/Alert.jsx": {
-    "mtime": 1791228710.9272037,
-    "seen": 1791229585.9000797,
-    "ast_hash": "fe63019e6faa93bf09fa28f39c5b7d54",
+    "mtime": 1791231056.4330468,
+    "seen": 1791231493.0249305,
+    "ast_hash": "6824e4e0cb21db6c30e8ffbc8e06f0e0",
     "semantic_hash": ""
   },
   "client/src/themes/overrides/Avatar.jsx": {
@@ -414,9 +414,9 @@
     "semantic_hash": ""
   },
   "client/src/themes/overrides/Chip.jsx": {
-    "mtime": 1791228699.0217488,
-    "seen": 1791229585.9000866,
-    "ast_hash": "4b76ff3ad4d6fdb25213c7254ae17418",
+    "mtime": 1791231044.7659292,
+    "seen": 1791231493.0249379,
+    "ast_hash": "110329e53b584ba5b5cf947110e30501",
     "semantic_hash": ""
   },
   "client/src/themes/overrides/DataGrid.jsx": {
@@ -528,15 +528,15 @@
     "semantic_hash": ""
   },
   "client/src/themes/palette.jsx": {
-    "mtime": 1791228697.8838773,
-    "seen": 1791229585.9001057,
-    "ast_hash": "92599dc5977e34b3311708bd46f7bd5b",
+    "mtime": 1791231055.3269873,
+    "seen": 1791231493.0249577,
+    "ast_hash": "fad040d7ec76cf9f08714c27ba65c4f5",
     "semantic_hash": ""
   },
   "client/src/themes/theme/default.js": {
-    "mtime": 1791228696.795421,
-    "seen": 1791229585.9001064,
-    "ast_hash": "930e4816a01ac0ad8ae4656e3ac66acf",
+    "mtime": 1791231044.7659292,
+    "seen": 1791231493.0249586,
+    "ast_hash": "32d2a7b399ce2354fa63499cda490112",
     "semantic_hash": ""
   },
   "client/src/themes/typography.jsx": {
@@ -726,9 +726,9 @@
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/StatusTabs.jsx": {
-    "mtime": 1791228718.8953323,
-    "seen": 1791229585.9001534,
-    "ast_hash": "982408cea51876c6e12b0703b3224177",
+    "mtime": 1791231066.9660575,
+    "seen": 1791231493.025006,
+    "ast_hash": "ed4b872d4fc0a6d2be3353842d9782d7",
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/TableActions.jsx": {
@@ -762,9 +762,9 @@
     "semantic_hash": ""
   },
   "client/src/utils/constants.js": {
-    "mtime": 1791228718.7836666,
-    "seen": 1791229585.900159,
-    "ast_hash": "94e7fc8e7e60041ad721974a9a8b1d77",
+    "mtime": 1791231044.7659292,
+    "seen": 1791231493.0250118,
+    "ast_hash": "87a4113f8136922f2495c07443073f69",
     "semantic_hash": ""
   },
   "client/src/utils/formatNumber.js": {
@@ -2376,9 +2376,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractDetailPage.jsx": {
-    "mtime": 1791228718.8573844,
-    "seen": 1791229585.900195,
-    "ast_hash": "6cd9b88b2212a878e351e36a2a9090c1",
+    "mtime": 1791231044.7659292,
+    "seen": 1791231493.0250473,
+    "ast_hash": "174dd2f13f70f72d2532ffd17a4294f6",
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractFormPage.jsx": {
@@ -2670,9 +2670,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/components/SuspendDialog.jsx": {
-    "mtime": 1791228718.816286,
-    "seen": 1791229585.9002013,
-    "ast_hash": "0e2ac2df21adb19874f156d9dd8b4bd8",
+    "mtime": 1791231044.7659292,
+    "seen": 1791231493.0250535,
+    "ast_hash": "c83676f16a160f1e478817241deae0e8",
     "semantic_hash": ""
   },
   "database/migrations/0060_create_reasons.sql": {
