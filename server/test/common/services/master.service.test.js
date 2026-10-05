@@ -331,3 +331,44 @@ describe("bitácora funcional opcional (ADR-0013)", () => {
     ]);
   });
 });
+
+describe("ámbito (scopeField, DEC-039)", () => {
+  const scoped = createMasterService(
+    defineMaster({
+      ...baseConfig,
+      fields: [
+        { name: "scope", column: "thg_scope", label: "acto", options: ["A", "B"], editable: false, filter: true },
+        { name: "name", column: "thg_name", label: "nombre", unique: true, filter: true, sortable: true },
+      ],
+      scopeField: "scope",
+    })
+  );
+
+  it("defineMaster exige que el ámbito sea un campo con options y no editable", () => {
+    const fields = [{ name: "scope", column: "thg_scope", label: "acto", options: ["A"] }];
+    expect(() => defineMaster({ ...baseConfig, fields, scopeField: "scope" })).toThrow(/scopeField/);
+    expect(() => defineMaster({ ...baseConfig, scopeField: "name" })).toThrow(/scopeField/);
+  });
+
+  it("la unicidad se busca dentro del ámbito, al crear y al editar", async () => {
+    await scoped.save({ id: 0, input: { scope: "A", name: "Clima" }, useBy: 9, idempotencyKey: KEY });
+    expect(things.findFirst.mock.calls[0][0].where).toMatchObject({ thg_scope: "A", OR: [{ thg_name: "Clima" }] });
+
+    jest.clearAllMocks();
+    things.findUnique.mockResolvedValue({ thg_scope: "B", thg_name: "Viejo", sta_id: 1 });
+    await scoped.save({ id: 5, input: { scope: "A", name: "Clima" }, useBy: 9 });
+    // El ámbito no se edita: se toma del registro.
+    expect(things.findFirst.mock.calls[0][0].where).toMatchObject({ thg_scope: "B" });
+    expect(things.update.mock.calls[0][0].data).not.toHaveProperty("thg_scope");
+  });
+
+  it("el selector filtra por el ámbito pedido, también el registro incluido", async () => {
+    await scoped.select({ scope: "A", includeId: 7 });
+    expect(things.findMany.mock.calls[0][0].where).toMatchObject({ thg_scope: "A", OR: [{ sta_id: 1 }, { thg_id: 7, sta_id: { not: 3 } }] });
+  });
+
+  it("un campo con options se filtra por igualdad en el listado", async () => {
+    await scoped.pagination({ filters: { scope: "A", name: "cli" }, rows: 10, first: 0 });
+    expect(things.findMany.mock.calls[0][0].where).toMatchObject({ thg_scope: "A", thg_name: { contains: "cli" } });
+  });
+});

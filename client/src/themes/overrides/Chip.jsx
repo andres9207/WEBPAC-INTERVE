@@ -35,6 +35,11 @@ export default function Chip(theme) {
                   ...((ownerState.color === 'warning' || ownerState.color === 'success') && {
                     color: paletteColor.dark
                   }),
+                  // Amarillo: fondo amarillo y texto oscuro (el amarillo como texto no se lee).
+                  ...(ownerState.color === 'yellow' && {
+                    color: paletteColor.contrastText,
+                    backgroundColor: paletteColor.main
+                  }),
 
                   '&.MuiChip-clickable': {
                     '&:hover': {

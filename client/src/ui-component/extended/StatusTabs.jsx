@@ -15,6 +15,7 @@ const chipBg = (theme, color) => {
   const map = {
     success: theme.palette.success.main,
     warning: theme.palette.warning.main,
+    yellow: theme.palette.yellow.main,
     error: theme.palette.error.main,
     info: theme.palette.info.main,
   };

@@ -38,3 +38,12 @@ export const contractConceptsApi = {
   /** @param {{ ccpId, startDate, description, directCost, ...porcentajes, extension }} params */
   update: (params) => httpCliente.put('work/contracts/update_concept', params)
 };
+
+/**
+ * Suspender un contrato en ejecución (ADR-0017, DEC-039). No hay llamada de
+ * levantar: lo hace el otrosí que reanuda el contrato (`createAmendment` con
+ * `liftDate`), con el permiso de levantar.
+ * @param {{ ctrId, reaId, suspensionDate, liftCondition, observation, requiresReport }} params
+ */
+export const suspendContractAPI = (params, idempotencyKey) =>
+  httpCliente.post('work/contracts/suspend_contract', params, idempotencyConfig(idempotencyKey));

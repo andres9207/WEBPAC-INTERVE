@@ -13,7 +13,17 @@ yarn pm2:start      # pm2 start ecosystem.config.cjs (producción, ver ecosystem
 yarn test           # jest (unitarios, con mocks — sin BD real)
 yarn test:watch     # jest --watch
 yarn db:seed        # prisma db seed (siembra/repara tbl_pages, tbl_permissions y los permisos del superadmin)
+yarn db:seed:demo   # datos de demostración para desarrollo (ver "Datos de demostración")
 ```
+
+### Datos de demostración
+
+`prisma/seed.demo.js` (`yarn db:seed:demo`) siembra datos de negocio para probar la aplicación: motivos de suspensión, dos tipos de contrato con su configuración de campos, tres obras con etapas y responsables, seis proveedores con contactos asignados a obras y nueve contratos (en ejecución, con otrosí, uno suspendido y uno en liquidación). Correr antes `yarn db:seed`.
+
+- **No es el seed de catálogos.** `seed.js` repara catálogos en cualquier ambiente; este crea datos de negocio y se niega a correr con `NODE_ENV=production`.
+- **Pasa por los services reales** como el usuario 1 (Superadmin), no por `prisma.create`: autoría, bitácora, bloqueos, fecha fin derivada, numeración de otrosí y transiciones de estado quedan como si se capturaran en la aplicación. No pasa por express-validator, así que los datos se escriben ya en la forma que deja la validación (fechas `AAAA-MM-DD`, importes y porcentajes como texto).
+- **Idempotente:** cada registro y cada acto se busca por su clave natural (códigos y números `DEMO-`, nombres `[DEMO] …`, NIT) y solo se crea si falta. Cambiar los datos de algo ya sembrado en el script no lo actualiza en la BD: se corrige desde la aplicación.
+- Para quitarlos, eliminarlos desde la aplicación (eliminación lógica) o restaurar la BD; no hay script de limpieza.
 
 ### Seed de páginas y permisos (RBAC)
 

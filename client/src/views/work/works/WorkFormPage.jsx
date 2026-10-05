@@ -556,7 +556,6 @@ export default function WorkFormPage() {
         title="Descartar cambios"
         message="Hay cambios sin guardar en la obra. ¿Salir sin guardarlos?"
         confirmLabel="Descartar"
-        confirmColor="warning"
       />
     </RouteDialog>
   );

@@ -47,7 +47,11 @@ const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
  * @param {boolean} [config.feminine]  "creada" en vez de "creado".
  * @param {{ entity: string, plural: string }} config.routes  Nombres snake_case de las acciones.
  * @param {object} config.permissions  `{ view, create, edit, delete, changeStatus }` (per_id).
- * @param {Array<object>} config.fields Columnas del dominio (ver FIELD_DEFAULTS).
+ * @param {Array<object>} config.fields Columnas del dominio (ver FIELD_DEFAULTS). Un campo con
+ *   `options` (lista cerrada de valores) se valida contra ella y se filtra por igualdad.
+ * @param {string} [config.scopeField] Campo con `options` que divide el catálogo en ámbitos
+ *   (el acto al que aplica un motivo, DEC-039): la unicidad se verifica dentro del ámbito y el
+ *   selector filtra por él. Debe ser no editable.
  * @param {string} [config.defaultSort] Campo de orden por defecto (el primero ordenable).
  * @param {(row) => string} [config.selectLabel] Texto de la opción del selector.
  * @param {(row) => object} [config.selectExtra] Campos extra de la opción.
@@ -77,6 +81,12 @@ export const defineMaster = (config) => {
     ...field,
   }));
   const sortable = fields.filter((f) => f.sortable);
+  if (config.scopeField) {
+    const scope = fields.find((f) => f.name === config.scopeField);
+    if (!scope?.options || scope.editable) {
+      throw new Error(`[master] ${config.model}: scopeField "${config.scopeField}" debe ser un campo con options y no editable`);
+    }
+  }
 
   return Object.freeze({
     feminine: false,
@@ -102,6 +112,8 @@ export const createMasterService = (config) => {
 
   const byName = Object.fromEntries(fields.map((f) => [f.name, f]));
   const uniqueFields = fields.filter((f) => f.unique);
+  const scope = config.scopeField ? byName[config.scopeField] : null;
+  const scopeWhere = (value) => (scope && value ? { [scope.column]: String(value) } : {});
 
   // Lista blanca de orden: campos declarados `sortable`, más estado y fecha.
   const SORT_FIELDS = {
@@ -157,7 +169,7 @@ export const createMasterService = (config) => {
       ...Object.fromEntries(
         fields
           .filter((f) => f.filter && filters[f.name])
-          .map((f) => [f.column, { contains: String(filters[f.name]) }])
+          .map((f) => [f.column, f.options ? String(filters[f.name]) : { contains: String(filters[f.name]) }])
       ),
       ...searchWhere(searchColumns, search),
     };
@@ -190,10 +202,14 @@ export const createMasterService = (config) => {
     };
   };
 
-  /** Opciones del selector (DEC-018): activos, más `includeId` si no está eliminado. */
-  const select = async ({ includeId } = {}) => {
+  /**
+   * Opciones del selector (DEC-018): activos, más `includeId` si no está
+   * eliminado. Con `scopeField`, solo las del ámbito pedido.
+   */
+  const select = async ({ includeId, scope: scopeValue } = {}) => {
     const rows = await prisma[model].findMany({
       where: {
+        ...scopeWhere(scopeValue),
         OR: [
           { sta_id: ACTIVE_STATUS },
           ...(Number(includeId) > 0 ? [{ [ID]: Number(includeId), sta_id: { not: DELETED_STATUS } }] : []),
@@ -211,14 +227,16 @@ export const createMasterService = (config) => {
     }));
   };
 
-  // Duplicado entre no eliminados. La colación de la columna decide la
-  // igualdad; el mensaje nombra el primer campo que coincide.
-  const assertUnique = async (tx, values, excludeId) => {
+  // Duplicado entre no eliminados (y dentro del ámbito, si lo hay). La
+  // colación de la columna decide la igualdad; el mensaje nombra el primer
+  // campo que coincide.
+  const assertUnique = async (tx, values, excludeId, scopeValue) => {
     const checks = uniqueFields.filter((f) => values[f.column] != null);
     if (checks.length === 0) return;
     const duplicate = await tx[model].findFirst({
       where: {
         sta_id: { not: DELETED_STATUS },
+        ...scopeWhere(scopeValue),
         OR: checks.map((f) => ({ [f.column]: values[f.column] })),
         ...(excludeId ? { [ID]: { not: Number(excludeId) } } : {}),
       },
@@ -251,7 +269,7 @@ export const createMasterService = (config) => {
 
   const create = ({ values, useBy, ctx, idempotencyData = {} }) =>
     withTransaction(async (tx) => {
-      await assertUnique(tx, values);
+      await assertUnique(tx, values, null, scope && values[scope.column]);
       const data = {
         ...values,
         sta_id: ACTIVE_STATUS,
@@ -269,7 +287,8 @@ export const createMasterService = (config) => {
       { [lockEntity]: id },
       async (tx) => {
         const before = await findLocked(tx, id);
-        await assertUnique(tx, values, id);
+        // El ámbito no es editable: se toma del registro.
+        await assertUnique(tx, values, id, scope && before[scope.column]);
         await tx[model].update({ where: { [ID]: Number(id) }, data: { ...values, [col("update_by")]: Number(useBy) } });
         await audit(tx, { operation: AUDIT_OPERATIONS.UPDATE, recordId: Number(id), ctx, before, after: values });
         return { message: `${Label} modificad${a} correctamente` };

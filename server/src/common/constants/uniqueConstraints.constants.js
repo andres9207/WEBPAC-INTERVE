@@ -23,6 +23,7 @@ export const UNIQUE_CONSTRAINT_MESSAGES = Object.freeze({
   uq_supervision_types_name_active: "Ya existe un tipo de interventoría con ese nombre.",
   uq_construction_companies_description_active: "Ya existe una constructora con esa descripción.",
   uq_contract_types_name_active: "Ya existe un tipo de contrato con ese nombre.",
+  uq_reasons_name_active: "Ya existe un motivo con ese nombre para ese acto.",
 
   // Obras
   uq_works_code: "Ya existe una obra con ese código.",
@@ -39,6 +40,7 @@ export const UNIQUE_CONSTRAINT_MESSAGES = Object.freeze({
   uq_contract_concepts_number: "Ya existe un otrosí con ese número en este contrato.",
   uq_contract_concepts_initial: "El contrato ya tiene su valor inicial.",
   uq_contract_concepts_liquidation: "El contrato ya tiene un otrosí de liquidación.",
+  uq_contract_suspensions_open: "El contrato ya tiene una suspensión abierta.",
 });
 
 /**
@@ -64,6 +66,7 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   "uq_contracts_idempotency_key",
   "uq_contract_concepts_idempotency_key",
   "uq_contract_status_history_idempotency_key",
+  "uq_reasons_idempotency_key",
   // Tablas puente de permisos y páginas
   "uq_page_permissions_pro_pag",
   "uq_profile_permissions_per_pro",
@@ -81,6 +84,8 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   "uq_contract_type_field_versions",
   // Apoyo de la FK compuesta contrato → etapa de la obra
   "uq_work_stages_id_work",
+  // Un otrosí levanta a lo sumo una suspensión; lo garantiza el service
+  "uq_contract_suspensions_concept",
 ]);
 
 /** Duplicado de un índice interno o desconocido. No remite a sistemas: suele ser una carrera. */

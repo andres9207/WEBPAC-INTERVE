@@ -304,6 +304,21 @@ export const paginationContracts = async ({ search, state, wrkId, rows, first, s
 
 // ─── Detalle ─────────────────────────────────────────────────────────────────
 
+const suspensionDto = (row) => ({
+  cspId: row.csp_id,
+  reasonName: row.tbl_reasons?.rea_name ?? null,
+  suspensionDate: dateOnlyText(row.csp_suspension_date),
+  liftCondition: row.csp_lift_condition,
+  observation: row.csp_observation,
+  requiresReport: row.csp_requires_report,
+  liftDate: dateOnlyText(row.csp_lift_date),
+  days: row.csp_days,
+  amendmentNumber: row.tbl_contract_concepts?.ccp_number ?? null,
+  open: row.csp_lift_date === null,
+  createdAt: row.csp_create_at,
+  createdByName: userFullName(row.created_by_user),
+});
+
 export const getContract = async ({ ctrId }) => {
   const row = await prisma.tbl_contracts.findFirst({
     where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS } },
@@ -345,9 +360,26 @@ export const getContract = async ({ ctrId }) => {
         },
         orderBy: [{ csh_create_at: "desc" }, { csh_id: "desc" }],
       },
+      tbl_contract_suspensions: {
+        select: {
+          csp_id: true,
+          csp_suspension_date: true,
+          csp_lift_condition: true,
+          csp_observation: true,
+          csp_requires_report: true,
+          csp_lift_date: true,
+          csp_days: true,
+          csp_create_at: true,
+          tbl_reasons: { select: { rea_name: true } },
+          tbl_contract_concepts: { select: { ccp_number: true } },
+          created_by_user: USER_NAME_SELECT,
+        },
+        orderBy: [{ csp_suspension_date: "desc" }, { csp_id: "desc" }],
+      },
     },
   });
   if (!row) throw httpError(404, "No se encontró el contrato.");
+  const suspensions = row.tbl_contract_suspensions.map(suspensionDto);
 
   const concepts = row.tbl_contract_concepts;
   const extensions = totalExtensions(concepts);
@@ -385,6 +417,9 @@ export const getContract = async ({ ctrId }) => {
     updatedByName: userFullName(row.updated_by_user),
     ...totalsDto(concepts),
     concepts: conceptsDto(concepts),
+    // Suspensiones (DEC-039): la abierta, si la hay, y el historial completo.
+    openSuspension: suspensions.find((s) => s.open) ?? null,
+    suspensions,
     history: row.tbl_contract_status_history.map((h) => ({
       cshId: h.csh_id,
       fromState: h.csh_from_state,

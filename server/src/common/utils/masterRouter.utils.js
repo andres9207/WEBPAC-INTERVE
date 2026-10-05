@@ -32,7 +32,9 @@ export const createMasterControllers = (config, service) => {
       return service.pagination({ filters, search, staId, rows, first, sortField, sortOrder });
     }),
     getById: handle((req) => service.getById({ id: req.query[idField] })),
-    select: handle((req) => service.select({ includeId: req.query.includeId })),
+    select: handle((req) =>
+      service.select({ includeId: req.query.includeId, scope: config.scopeField ? req.query[config.scopeField] : undefined })
+    ),
     save: handle(async (req) => {
       const input = Object.fromEntries(fields.map((f) => [f.name, req.body[f.name]]));
       const result = await service.save({

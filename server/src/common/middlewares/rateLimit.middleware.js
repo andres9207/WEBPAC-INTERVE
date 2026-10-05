@@ -3,7 +3,7 @@ import rateLimit from "express-rate-limit";
 // Middleware de limitación de solicitudes avanzado
 export const defaultRateLimit = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutos
-  max: 50, // 100 solicitudes por IP en el intervalo de tiempo
+  max: 1000, // solicitudes por IP en el intervalo de tiempo (DEC-040)
   message: {
     status: 429,
     error: "Demasiadas solicitudes. Inténtalo de nuevo más tarde.",

@@ -64,7 +64,17 @@ export default function Alert(theme) {
           variants: [
             { props: { variant: 'standard' }, style: standardVariant },
             { props: { variant: 'outlined' }, style: outlinedVariant },
-            { props: { variant: 'filled' }, style: filledVariant }
+            { props: { variant: 'filled' }, style: filledVariant },
+            // color="yellow": fondo amarillo suave y texto e ícono oscuros (el amarillo
+            // no se lee como texto); el ícono sale de `severity`.
+            {
+              props: { color: 'yellow', variant: 'standard' },
+              style: {
+                color: vars.palette.text.dark,
+                backgroundColor: withAlpha(vars.palette.yellow.main, 0.35),
+                '& .MuiAlert-icon': { color: vars.palette.text.dark }
+              }
+            }
           ]
         },
         outlined: { border: '1px dashed' }

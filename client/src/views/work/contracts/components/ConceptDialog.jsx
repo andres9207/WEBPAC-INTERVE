@@ -34,6 +34,10 @@ import { TERM_UNIT_OPTIONS } from 'utils/constants';
  *     cambia; la fecha del valor inicial es la del contrato.
  * Crear lleva clave de idempotencia, una por diálogo abierto.
  *
+ * Sobre un contrato suspendido, el otrosí lo reanuda (DEC-039): se pide la
+ * fecha de reanudación, y el servidor cierra la suspensión, suma los días
+ * suspendidos y recalcula la fecha fin.
+ *
  * Descripción y porcentajes son campos configurables del tipo de contrato
  * (DEC-037): se piden al abrir y se dibujan con GenericFormSection. Al
  * modificar un concepto, un valor en un campo que dejó de aplicar se muestra
@@ -51,6 +55,8 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
   const type = isEdit ? concept?.type : mode === 'liquidation' ? 'LIQUIDATION' : 'AMENDMENT';
   const isInitial = type === 'INITIAL';
   const hasExtension = type === 'AMENDMENT';
+  // Suspensión abierta que este otrosí levanta.
+  const suspension = mode === 'amendment' ? contract?.openSuspension : null;
 
   const [saving, setSaving] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState(null);
@@ -85,7 +91,7 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
             extension: concept.extension === null || concept.extension === undefined ? '' : String(concept.extension),
             confirmed: true
           }
-        : { ...EMPTY_CONCEPT, startDate: today(), description: '', extension: '', confirmed: false }
+        : { ...EMPTY_CONCEPT, startDate: today(), description: '', extension: '', liftDate: today(), confirmed: false }
     );
   }, [open, isEdit, concept, reset]);
 
@@ -104,7 +110,8 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
       startDate: form.startDate,
       directCost: form.directCost,
       ...configured,
-      ...(hasExtension ? { extension: text(form.extension) } : {})
+      ...(hasExtension ? { extension: text(form.extension) } : {}),
+      ...(suspension ? { liftDate: form.liftDate } : {})
     };
     try {
       const { data } = isEdit
@@ -142,7 +149,9 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
                 ? 'Guardar cambios'
                 : mode === 'liquidation'
                   ? 'Registrar y pasar a liquidación'
-                  : 'Registrar otrosí'}
+                  : suspension
+                    ? 'Registrar y reanudar'
+                    : 'Registrar otrosí'}
           </Button>
         </>
       }
@@ -153,6 +162,13 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
             <Alert severity="warning">
               Al registrar el otrosí de liquidación, el contrato <strong>{contract?.number}</strong> pasa a <strong>en liquidación</strong>:
               ya no admite otrosí ni cambios en sus datos contractuales. Solo puede haber uno por contrato.
+            </Alert>
+          )}
+          {suspension && (
+            <Alert severity="info">
+              El contrato está <strong>suspendido</strong> desde el {fDateOnly(suspension.suspensionDate)} ({suspension.reasonName}). Al
+              registrar este otrosí se <strong>reanuda</strong>: los días entre la suspensión y la fecha de reanudación alargan la fecha
+              fin, además de la prórroga que indiques.
             </Alert>
           )}
           {inherited.length > 0 && (
@@ -180,6 +196,32 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
                       required
                       error={fieldState.error?.message}
                       helperText={!isEdit && contract?.lastConceptDate ? `No antes del ${fDateOnly(contract.lastConceptDate)}` : ''}
+                    />
+                  )}
+                />
+              </Grid>
+            )}
+            {suspension && (
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Controller
+                  name="liftDate"
+                  control={control}
+                  rules={{
+                    required: 'La fecha de reanudación es requerida.',
+                    validate: (value) => {
+                      if (value > today()) return 'No puede ser futura.';
+                      if (value < suspension.suspensionDate) return `No antes de la suspensión (${fDateOnly(suspension.suspensionDate)}).`;
+                      return true;
+                    }
+                  }}
+                  render={({ field, fieldState }) => (
+                    <DateField
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      label="Fecha de reanudación"
+                      required
+                      error={fieldState.error?.message}
+                      helperText="Ese día el contrato ya corre"
                     />
                   )}
                 />
@@ -248,7 +290,7 @@ ConceptDialog.propTypes = {
   open: PropTypes.bool.isRequired,
   /** amendment | liquidation | edit */
   mode: PropTypes.oneOf(['amendment', 'liquidation', 'edit']),
-  /** Contrato del detalle: `{ ctrId, cttId, number, termUnit, lastConceptDate }`. */
+  /** Contrato del detalle: `{ ctrId, cttId, number, termUnit, lastConceptDate, openSuspension }`. */
   contract: PropTypes.object,
   /** Concepto a modificar (fila de `concepts` del detalle). */
   concept: PropTypes.object,

@@ -98,6 +98,19 @@ export const createAmendmentSchema = [
   optionalLongText("description", "La descripción", 500),
   ...conceptRules(),
   extensionRule,
+  // Solo si el contrato está suspendido: el otrosí lo reanuda (DEC-039). Si
+  // es obligatoria lo decide el service, con el estado bajo bloqueo.
+  body("liftDate").optional({ values: "falsy" }).matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("La fecha de reanudación no es válida (AAAA-MM-DD)."),
+];
+
+export const suspendContractSchema = [
+  idempotencyKeyRule(),
+  requiredId("ctrId"),
+  requiredId("reaId").withMessage("Selecciona el motivo de la suspensión."),
+  dateRule("suspensionDate", "fecha de suspensión"),
+  requiredText("liftCondition", "condición de levantamiento", 500),
+  optionalLongText("observation", "La observación", 1000),
+  body("requiresReport").optional({ values: "null" }).isBoolean().withMessage("Indica si la suspensión genera informe de interventoría."),
 ];
 
 export const createLiquidationSchema = [

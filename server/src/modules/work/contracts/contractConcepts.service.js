@@ -16,6 +16,7 @@ import {
   findLockedContract,
   httpError,
 } from "./contracts.service.js";
+import { liftWithAmendment } from "./contractSuspensions.service.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
@@ -108,18 +109,24 @@ const liquidationResult = (row) => ({
  * Otrosí ordinario. El número lo asigna el servidor: el mayor del contrato
  * más uno, bajo el bloqueo del contrato, sin reutilizar (ADR-0016, decisión 4).
  * Su prórroga extiende la fecha fin en la misma transacción.
+ *
+ * Sobre un contrato suspendido, el otrosí lo reanuda (DEC-039): cierra la
+ * suspensión con `input.liftDate`, suma los días suspendidos y vuelve al
+ * estado previo, todo en esta transacción. Exige además el permiso de
+ * levantar; `granted` es el Set de per_id efectivos del autor.
  */
-export const createAmendment = async ({ ctrId, input, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
+export const createAmendment = async ({ ctrId, input, useBy, granted, ctx = { useId: useBy }, idempotencyKey }) => {
   // Lo que pidió el cliente: huella de idempotencia. La configuración del
   // tipo se aplica dentro de la transacción.
   const requested = { ...conceptValuesOf(input), ccp_extension: optionalInt(input.extension) };
+  const liftDate = input.liftDate || null;
   assertStartDate(requested);
 
   return runIdempotent({
     target: conceptTarget(amendmentResult),
     key: idempotencyKey,
     ownerId: useBy,
-    payload: { ctrId: Number(ctrId), type: CONCEPT_TYPES.AMENDMENT, ...auditableConcept(requested) },
+    payload: { ctrId: Number(ctrId), type: CONCEPT_TYPES.AMENDMENT, ...auditableConcept(requested), liftDate },
     execute: (idempotencyData) =>
       withLockedTransaction({ CONTRATO: ctrId }, async (tx) => {
         const contract = await findLockedContract(tx, ctrId);
@@ -137,9 +144,20 @@ export const createAmendment = async ({ ctrId, input, useBy, ctx = { useId: useB
           data: { ...data, ccp_create_by: Number(useBy), ccp_update_by: Number(useBy), ...idempotencyData },
         });
 
-        const endChange = await refreshEndDate(tx, contract, Number(useBy));
+        const operationId = newOperationId();
+        const lifted = await liftWithAmendment(tx, {
+          contract,
+          liftDate,
+          ccpId: created.ccp_id,
+          useBy: Number(useBy),
+          granted,
+          ctx,
+          operationId,
+        });
+        // Con los días suspendidos ya sumados, si los hubo.
+        const endChange = await refreshEndDate(tx, lifted.contract, Number(useBy));
         await auditAct(tx, {
-          operationId: newOperationId(),
+          operationId,
           ccpId: created.ccp_id,
           operation: AUDIT_OPERATIONS.CREATE,
           ctx,
@@ -147,10 +165,11 @@ export const createAmendment = async ({ ctrId, input, useBy, ctx = { useId: useB
           valueBefore: valueText(concepts),
           valueAfter: valueText([...concepts, { ...data, sta_id: ACTIVE_STATUS }]),
           contractId: contract.ctr_id,
-          contractChanges: endChange ? [endChange] : [],
+          contractChanges: [...lifted.changes, ...(endChange ? [endChange] : [])],
         });
 
-        return amendmentResult(created);
+        const result = amendmentResult(created);
+        return lifted.changes.length > 0 ? { ...result, message: `${result.message}. El contrato se reanudó.` } : result;
       }),
   });
 };

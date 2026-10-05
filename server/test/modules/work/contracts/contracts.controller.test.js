@@ -15,14 +15,18 @@ const contractsServiceMock = {
   deleteContract: jest.fn(),
 };
 const conceptsServiceMock = { createAmendment: jest.fn(), createLiquidation: jest.fn(), updateConcept: jest.fn() };
+const suspensionsServiceMock = { suspendContract: jest.fn() };
+const getEffectivePermissionIds = jest.fn().mockResolvedValue([72, 77]);
 const emit = jest.fn();
 
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contracts.service.js", () => contractsServiceMock);
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractConcepts.service.js", () => conceptsServiceMock);
+jest.unstable_mockModule("../../../../src/modules/work/contracts/contractSuspensions.service.js", () => suspensionsServiceMock);
+jest.unstable_mockModule("../../../../src/common/services/effectivePermissions.service.js", () => ({ getEffectivePermissionIds }));
 jest.unstable_mockModule("../../../../src/common/configs/socket.manager.js", () => ({ getIO: () => ({ emit }) }));
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: {} }));
 
-const { saveContractController, createAmendmentController } = await import("../../../../src/modules/work/contracts/contracts.controller.js");
+const { saveContractController, createAmendmentController, suspendContractController } = await import("../../../../src/modules/work/contracts/contracts.controller.js");
 
 const buildRes = () => {
   const res = {};
@@ -80,6 +84,48 @@ describe("contracts.controller", () => {
     expect(args.input).not.toHaveProperty("number");
     expect(args.input).not.toHaveProperty("type");
     expect(args.input).toMatchObject({ extension: 2, directCost: "10" });
+  });
+
+  it("createAmendment pasa la fecha de reanudación y los permisos efectivos de la sesión", async () => {
+    conceptsServiceMock.createAmendment.mockResolvedValue({ ccpId: 1 });
+    const req = mockReq({ user: { useId: 7, proId: 2 }, body: { ctrId: 30, liftDate: "2026-05-11", granted: [1, 2, 3] } }, { "Idempotency-Key": KEY });
+
+    await createAmendmentController(req, buildRes(), jest.fn());
+
+    expect(getEffectivePermissionIds).toHaveBeenCalledWith({ useId: 7, proId: 2 });
+    const args = conceptsServiceMock.createAmendment.mock.calls[0][0];
+    expect(args.input.liftDate).toBe("2026-05-11");
+    expect(args.input).not.toHaveProperty("granted");
+    expect([...args.granted]).toEqual([72, 77]);
+  });
+
+  it("suspendContract toma el autor y la clave de la sesión, y no pasa estado ni días del cliente", async () => {
+    suspensionsServiceMock.suspendContract.mockResolvedValue({ ctrId: 30 });
+    const body = {
+      ctrId: 30,
+      reaId: 4,
+      suspensionDate: "2026-05-01",
+      liftCondition: "Llegada del material",
+      observation: "x",
+      requiresReport: true,
+      state: "IN_PROGRESS",
+      days: 99,
+      useBy: 999,
+    };
+    const req = mockReq({ user: { useId: 7 }, body }, { "Idempotency-Key": KEY });
+
+    await suspendContractController(req, buildRes(), jest.fn());
+
+    const args = suspensionsServiceMock.suspendContract.mock.calls[0][0];
+    expect(args).toMatchObject({ ctrId: 30, useBy: 7, idempotencyKey: KEY });
+    expect(args.input).toEqual({
+      reaId: 4,
+      suspensionDate: "2026-05-01",
+      liftCondition: "Llegada del material",
+      observation: "x",
+      requiresReport: true,
+    });
+    expect(emit).toHaveBeenCalledWith("refresh-contracts", {});
   });
 
   it("delega los errores con next", async () => {

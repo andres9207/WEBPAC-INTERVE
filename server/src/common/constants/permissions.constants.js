@@ -81,6 +81,14 @@ export const PERMISSIONS = {
       // contratos futuros del tipo (ADR-0006, "Autorización"; DEC-037).
       configureFields: 75,
     },
+    // Motivos de las transiciones manuales (DEC-039). Hoy solo de suspensión.
+    reasons: {
+      view: 78, // pagination_reasons
+      create: 79,
+      edit: 80,
+      delete: 81,
+      changeStatus: 82,
+    },
   },
   // Obras (DEC-026). Asignar y retirar responsables son permisos aparte de
   // editar: deciden quién responde por la obra (ADR-0011, "Autorización").
@@ -119,6 +127,11 @@ export const PERMISSIONS = {
       createAmendment: 72,
       createLiquidation: 73,
       editConcept: 74,
+      // Suspender y levantar son transiciones manuales con permiso propio
+      // (ADR-0017). Levantar no tiene endpoint: lo hace el otrosí que reanuda
+      // el contrato, que exige este permiso además de createAmendment (DEC-039).
+      suspend: 76,
+      liftSuspension: 77,
     },
   },
 };

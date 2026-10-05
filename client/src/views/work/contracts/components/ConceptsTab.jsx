@@ -21,6 +21,8 @@ import { fTerm } from 'utils/constants';
  * Registrar otrosí, registrar el de liquidación y modificar un concepto se
  * ofrecen si el permiso y el estado del contrato lo admiten (`allowedActions`,
  * que manda el servidor). Ocultar es experiencia de uso: el servidor decide.
+ * Sobre un contrato suspendido, el otrosí lo reanuda y pide además el permiso
+ * de levantar (DEC-039).
  */
 
 const pct = (value) => (value === null || value === undefined ? '—' : `${String(Number(value)).replace('.', ',')} %`);
@@ -34,7 +36,8 @@ export default function ConceptsTab({ contract, onChanged }) {
 
   const [dialog, setDialog] = useState(null);
 
-  const canAmend = canDo(perms?.createAmendment) && allows('createAmendment');
+  const suspended = Boolean(contract.openSuspension);
+  const canAmend = canDo(perms?.createAmendment) && allows('createAmendment') && (!suspended || canDo(perms?.liftSuspension));
   const canLiquidate = canDo(perms?.createLiquidation) && allows('createLiquidation') && !contract.hasLiquidation;
   const canEditConcept = (row) =>
     canDo(perms?.editConcept) && (row.type === 'LIQUIDATION' ? allows('editLiquidationConcept') : allows('editConcept'));
@@ -111,7 +114,7 @@ export default function ConceptsTab({ contract, onChanged }) {
         )}
         {canAmend && (
           <Button variant="contained" color="secondary" startIcon={<IconPlus size={16} />} onClick={() => setDialog({ mode: 'amendment' })}>
-            Registrar otrosí
+            {suspended ? 'Reanudar con otrosí' : 'Registrar otrosí'}
           </Button>
         )}
       </Stack>
@@ -128,7 +131,14 @@ export default function ConceptsTab({ contract, onChanged }) {
       <ConceptDialog
         open={Boolean(dialog)}
         mode={dialog?.mode}
-        contract={{ ctrId: contract.ctrId, cttId: contract.cttId, number: contract.number, termUnit: contract.termUnit, lastConceptDate }}
+        contract={{
+          ctrId: contract.ctrId,
+          cttId: contract.cttId,
+          number: contract.number,
+          termUnit: contract.termUnit,
+          lastConceptDate,
+          openSuspension: contract.openSuspension
+        }}
         concept={dialog?.concept}
         onClose={() => setDialog(null)}
         onSaved={saved}

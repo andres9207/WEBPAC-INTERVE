@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -16,6 +17,7 @@ import { DataList, Figure, Pending } from 'ui-component/extended/DetailBlocks';
 import RouteDialog from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import ConceptsTab from './components/ConceptsTab';
+import SuspendDialog from './components/SuspendDialog';
 import { contractsApi } from 'api/requests/contractsApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useSocket } from 'socket/SocketProvider';
@@ -32,14 +34,16 @@ import { CONTRACT_STATE_COLORS, fTerm } from 'utils/constants';
  * pactados) viene del servidor.
  *
  * Pólizas, facturas y documentos ya tienen su pestaña, aunque todavía no
- * existen. El estado no se edita: lo cambian los actos (el otrosí de
- * liquidación) y, en la fase B, suspender, levantar y reabrir.
+ * existen. El estado no se edita: lo cambian los actos. Suspender tiene su
+ * botón; la suspensión se levanta registrando un otrosí en la pestaña Valor
+ * (DEC-039). Reabrir llega con la facturación.
  */
 
 const TABS = [
   { key: 'summary', label: 'Resumen' },
   { key: 'value', label: 'Valor' },
   { key: 'history', label: 'Historial de estado' },
+  { key: 'suspensions', label: 'Suspensiones' },
   { key: 'policies', label: 'Pólizas' },
   { key: 'invoices', label: 'Facturas' },
   { key: 'documents', label: 'Documentos' }
@@ -58,6 +62,7 @@ export default function ContractDetailPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('summary');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [suspending, setSuspending] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,6 +100,11 @@ export default function ContractDetailPage() {
     refresh?.();
   };
 
+  const suspended = () => {
+    setSuspending(false);
+    changed();
+  };
+
   const remove = async () => {
     try {
       const { data } = await contractsApi.remove({ ctrId: contract.ctrId });
@@ -127,7 +137,15 @@ export default function ContractDetailPage() {
     }
   ];
 
-  const tabBadge = { value: contract.concepts.length, history: contract.history.length, policies: 0, invoices: 0, documents: 0 };
+  const tabBadge = {
+    value: contract.concepts.length,
+    history: contract.history.length,
+    suspensions: contract.suspensions.length,
+    policies: 0,
+    invoices: 0,
+    documents: 0
+  };
+  const open = contract.openSuspension;
 
   return (
     <RouteDialog
@@ -176,6 +194,11 @@ export default function ContractDetailPage() {
           <Button variant="outlined" color="inherit" onClick={close}>
             Cerrar
           </Button>
+          {canDo(perms?.suspend) && contract.allowedActions.includes('suspend') && (
+            <Button variant="contained" color="yellow" onClick={() => setSuspending(true)}>
+              Suspender
+            </Button>
+          )}
           {canDo(perms?.edit) && editable && (
             <Button variant="contained" color="secondary" onClick={() => navigate(`/work/contracts/${contract.ctrId}/edit`)}>
               Editar contrato
@@ -186,6 +209,12 @@ export default function ContractDetailPage() {
     >
       {tab === 'summary' && (
         <Stack spacing={2}>
+          {open && (
+            <Alert severity="warning" color="yellow">
+              <strong>Suspendido desde el {fDateOnly(open.suspensionDate)}</strong> · {open.reasonName}. Condición para reanudar:{' '}
+              {open.liftCondition}. Se reanuda registrando un otrosí en la pestaña Valor.
+            </Alert>
+          )}
           <Grid container spacing={1.5}>
             {figures.map((figure) => (
               <Grid key={figure.label} size={{ xs: 12, sm: 6, md: 4 }}>
@@ -263,6 +292,39 @@ export default function ContractDetailPage() {
         </Box>
       )}
 
+      {tab === 'suspensions' &&
+        (contract.suspensions.length === 0 ? (
+          <Pending
+            title="El contrato no ha tenido suspensiones."
+            text="Aquí se verá cada suspensión con su motivo, sus fechas y los días que sumó al plazo."
+          />
+        ) : (
+          <Stack spacing={1.5}>
+            {contract.suspensions.map((s) => (
+              <SubCard
+                key={s.cspId}
+                title={
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <span>{s.reasonName}</span>
+                    <Chip size="small" color={s.open ? 'warning' : 'default'} label={s.open ? 'Abierta' : `${s.days} día(s)`} />
+                  </Stack>
+                }
+              >
+                <DataList
+                  items={[
+                    ['Suspendido el', fDateOnly(s.suspensionDate)],
+                    ['Reanudado el', s.liftDate ? `${fDateOnly(s.liftDate)} con el otrosí N.º ${s.amendmentNumber}` : 'Sigue suspendido'],
+                    ['Condición de levantamiento', s.liftCondition],
+                    ['Genera informe de interventoría', s.requiresReport ? 'Sí' : 'No'],
+                    ['Observación', s.observation],
+                    ['Registrada', `${fDateTime(s.createdAt)} por ${s.createdByName ?? '—'}`]
+                  ]}
+                />
+              </SubCard>
+            ))}
+          </Stack>
+        ))}
+
       {tab === 'policies' && (
         <Pending
           title="Todavía no hay pólizas en este contrato."
@@ -281,6 +343,13 @@ export default function ContractDetailPage() {
           text="Aquí se adjuntarán los soportes del contrato. Llega con los adjuntos por entidad (PRO-FE-18)."
         />
       )}
+
+      <SuspendDialog
+        open={suspending}
+        contract={{ ctrId: contract.ctrId, number: contract.number, startDate: contract.startDate }}
+        onClose={() => setSuspending(false)}
+        onSaved={suspended}
+      />
 
       <ConfirmDialog
         open={confirmDelete}

@@ -32,6 +32,7 @@ Ningún ADR fijaba en qué carpeta y bajo qué URL viven los maestros, ni el idi
   | Tipos de dirección | `addressTypes` | `tbl_address_types` | `adt_` | `TIPO_DIRECCION` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0009 |
   | Tipos de proveedor | `providerTypes` | `tbl_provider_types` | `pvt_` | `TIPO_PROVEEDOR` ([DEC-019](DEC-019-maestros-orden-bloqueo.md)) | 0010 |
   | Tipos de póliza | `policyTypes` | `tbl_policy_types` | `plt_` | PD-04 | 0019 |
+  | Motivos (agregado el 2026-10-05, [DEC-039](DEC-039-suspension-contratos.md)) | `reasons` | `tbl_reasons` | `rea_` | `MOTIVO` | 0017 |
 
   `tbl_identity_documents` e `idd_` no se eligieron: los impone la FK que la BD real ya declara desde `tbl_providers`.
 

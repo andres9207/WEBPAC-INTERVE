@@ -70,6 +70,7 @@ export const LOCK_ORDER = Object.freeze([
   "TIPO_INTERVENTORIA",
   "CONSTRUCTORA",
   "TIPO_CONTRATO",
+  "MOTIVO",
 ]);
 
 /**
@@ -90,6 +91,7 @@ const LOCKABLE = Object.freeze({
   TIPO_INTERVENTORIA: { table: "tbl_supervision_types", id: "spt_id" },
   CONSTRUCTORA: { table: "tbl_construction_companies", id: "cnc_id" },
   TIPO_CONTRATO: { table: "tbl_contract_types", id: "ctt_id" },
+  MOTIVO: { table: "tbl_reasons", id: "rea_id" },
   OBRA: { table: "tbl_works", id: "wrk_id" },
   PROVEEDOR: { table: "tbl_providers", id: "prv_id" },
   CONTRATO: { table: "tbl_contracts", id: "ctr_id" },

@@ -14,6 +14,7 @@ import {
   createAmendmentSchema,
   createLiquidationSchema,
   updateConceptSchema,
+  suspendContractSchema,
 } from "./contracts.validation.js";
 import {
   paginationContractsController,
@@ -26,6 +27,7 @@ import {
   createAmendmentController,
   createLiquidationController,
   updateConceptController,
+  suspendContractController,
 } from "./contracts.controller.js";
 
 // Contratos (DEC-035), montados en /api/work/contracts. Pipeline de
@@ -70,5 +72,8 @@ contractsRoutes.post(
   createLiquidationController
 );
 contractsRoutes.put("/update_concept", verifyToken, requirePermission(can.editConcept), updateConceptSchema, validate, updateConceptController);
+// Suspender (ADR-0017, DEC-039). No hay ruta de levantar: lo hace
+// create_amendment sobre un contrato suspendido, con el permiso liftSuspension.
+contractsRoutes.post("/suspend_contract", verifyToken, requirePermission(can.suspend), suspendContractSchema, validate, suspendContractController);
 
 export default contractsRoutes;

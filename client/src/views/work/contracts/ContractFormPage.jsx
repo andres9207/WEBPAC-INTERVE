@@ -543,7 +543,6 @@ export default function ContractFormPage() {
         title="Descartar cambios"
         message="Hay cambios sin guardar en el contrato. ¿Salir sin guardarlos?"
         confirmLabel="Descartar"
-        confirmColor="warning"
       />
     </RouteDialog>
   );

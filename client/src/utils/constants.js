@@ -60,12 +60,17 @@ export const TERM_UNIT_OPTIONS = [
 // servidor (`stateName`); aquí solo el color del chip y las pestañas.
 export const CONTRACT_STATE_TABS = [
   { id: 'IN_PROGRESS', name: 'En ejecución', color: 'success' },
-  { id: 'SUSPENDED', name: 'Suspendidos', color: 'warning' },
+  { id: 'SUSPENDED', name: 'Suspendidos', color: 'yellow' },
   { id: 'IN_LIQUIDATION', name: 'En liquidación', color: 'info' },
   { id: 'LIQUIDATED', name: 'Liquidados' }
 ];
 
-export const CONTRACT_STATE_COLORS = { IN_PROGRESS: 'success', SUSPENDED: 'warning', IN_LIQUIDATION: 'info', LIQUIDATED: 'default' };
+export const CONTRACT_STATE_COLORS = { IN_PROGRESS: 'success', SUSPENDED: 'yellow', IN_LIQUIDATION: 'info', LIQUIDATED: 'default' };
+
+// Actos a los que aplica un motivo (rea_scope, DEC-039): los mismos de
+// REASON_SCOPES en server/src/modules/admin/reasons/reasons.service.js.
+export const REASON_SCOPE_OPTIONS = [{ value: 'SUSPENSION', label: 'Suspensión de contrato' }];
+export const reasonScopeName = (scope) => REASON_SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? scope;
 
 const TERM_UNIT_NAMES ={ DIA: ['día', 'días'], MES: ['mes', 'meses'], ANIO: ['año', 'años'] };
 

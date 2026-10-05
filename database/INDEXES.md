@@ -1,6 +1,6 @@
 # Inventario de índices
 
-**Fecha:** 2026-10-05 · **Backlog:** FND-BD-15 · **Fuente:** BD de desarrollo (MySQL 8.0.45), después de la migración `0059`.
+**Fecha:** 2026-10-05 · **Backlog:** FND-BD-15 · **Fuente:** BD de desarrollo (MySQL 8.0.45), después de la migración `0062`.
 
 Qué índices tiene cada tabla, para qué existe cada uno y qué consulta del código lo usa. El criterio para agregar o quitar índices está en [`DATABASE_STANDARD`](../engineering/standards/DATABASE_STANDARD.md), "Criterio de indexación". Esta es una foto del esquema: cuando una migración agrega o quita índices, se actualiza la tabla afectada.
 
@@ -8,10 +8,10 @@ Qué índices tiene cada tabla, para qué existe cada uno y qué consulta del c�
 
 | Dato | Valor |
 | --- | --- |
-| Tablas | 34 (la tarea del backlog hablaba de 14: se escribió antes de los maestros y el CORE) |
-| Índices | 185: 34 claves primarias, 50 `UNIQUE`, 101 no únicos |
-| Claves foráneas | 111. **Todas tienen índice**: InnoDB lo exige |
-| Índices de FK creados por MySQL (no declarados en una migración) | 82: 55 de autoría (`*_create_by`, `*_update_by`, `*_delete_by`), 9 de estado (`sta_id`) y 18 de relaciones de negocio |
+| Tablas | 36 (la tarea del backlog hablaba de 14: se escribió antes de los maestros y el CORE) |
+| Índices | 199: 36 claves primarias, 54 `UNIQUE`, 109 no únicos |
+| Claves foráneas | 120. **Todas tienen índice**: InnoDB lo exige |
+| Índices de FK creados por MySQL (no declarados en una migración) | 87: 60 de autoría (`*_create_by`, `*_update_by`, `*_delete_by`), 9 de estado (`sta_id`) y 18 de relaciones de negocio |
 | Índices redundantes (prefijo de otro) | 0 |
 
 ## Hallazgos
@@ -37,7 +37,7 @@ Las tres son propuestas: ninguna migración se aplicó.
 
 ### Índices de FK creados por MySQL
 
-Las migraciones declaran la FK y dejan que MySQL cree el índice con el nombre de la FK. Solo `tbl_users_identity_documents` lo declara. El resultado es el mismo en cualquier instalación, y `schema.prisma` los muestra (`@@index(…, map: "tbl_…")`), pero contradice la regla 9 de `DATABASE_STANDARD` tal como estaba ("se declara con nombre explícito"). El criterio nuevo acepta el índice implícito para las columnas que ninguna consulta usa (autoría, y estado cuando no hay un compuesto que lo sirva) y exige declararlo solo cuando una consulta lo necesita, con las columnas que esa consulta pide. Los 82 existentes no se migran: declararlos no cambia nada en la BD.
+Las migraciones declaran la FK y dejan que MySQL cree el índice con el nombre de la FK. Solo `tbl_users_identity_documents` lo declara. El resultado es el mismo en cualquier instalación, y `schema.prisma` los muestra (`@@index(…, map: "tbl_…")`), pero contradice la regla 9 de `DATABASE_STANDARD` tal como estaba ("se declara con nombre explícito"). El criterio nuevo acepta el índice implícito para las columnas que ninguna consulta usa (autoría, y estado cuando no hay un compuesto que lo sirva) y exige declararlo solo cuando una consulta lo necesita, con las columnas que esa consulta pide. Los existentes no se migran: declararlos no cambia nada en la BD.
 
 ## Planes de ejecución
 
@@ -139,6 +139,16 @@ Se omite la clave primaria, que tiene toda tabla. Los índices de las FK de auto
 | `idx_contract_status_history_contract` | ctr_id, csh_create_at | Índice | Historial de estado del contrato, ya ordenado por fecha. Sostiene la FK |
 | `uq_contract_status_history_idempotency_key` | csh_idempotency_key | UNIQUE | Idempotencia (DEC-016) |
 | (autoría) | create | FK implícito × 1 | Sostienen las FK de autoría a `tbl_users`. Ninguna consulta los usa |
+
+### `tbl_contract_suspensions` (0 filas)
+
+| Índice | Columnas | Tipo | Para qué |
+| --- | --- | --- | --- |
+| `idx_contract_suspensions_contract` | ctr_id, csp_suspension_date | Índice | Suspensiones del contrato en el expediente, por fecha. Sostiene la FK |
+| `idx_contract_suspensions_reason` | rea_id | Índice | Bloqueo de eliminación del motivo (`dependents`). Sostiene la FK |
+| `uq_contract_suspensions_concept` | ccp_id | UNIQUE | Un otrosí levanta a lo sumo una suspensión (interno). Sostiene la FK |
+| `uq_contract_suspensions_open` | csp_open_contract | UNIQUE | Una sola suspensión abierta por contrato (I9, DEC-039) |
+| (autoría) | create, update | FK implícito × 2 | Sostienen las FK de autoría a `tbl_users`. Ninguna consulta los usa |
 
 ### `tbl_contract_type_field_versions` (9 filas)
 
@@ -276,6 +286,15 @@ Se omite la clave primaria, que tiene toda tabla. Los índices de las FK de auto
 | `tbl_providers_provider_type` | pvt_id | FK implícito | Bloqueo de eliminación del tipo de proveedor |
 | `uq_providers_idempotency_key` | prv_idempotency_key | UNIQUE | Idempotencia (DEC-016) |
 | `uq_providers_identity_active` | idd_id, prv_identification_active | UNIQUE | Unicidad del dominio (mensaje en `uniqueConstraints.constants.js`) |
+| (autoría) | create, delete, update | FK implícito × 3 | Sostienen las FK de autoría a `tbl_users`. Ninguna consulta los usa |
+
+### `tbl_reasons` (0 filas)
+
+| Índice | Columnas | Tipo | Para qué |
+| --- | --- | --- | --- |
+| `idx_reasons_status_scope_name` | sta_id, rea_scope, rea_name | Índice | Selector de motivos activos de un acto, ya ordenado por nombre (DEC-025, DEC-039). Sostiene la FK de estado |
+| `uq_reasons_idempotency_key` | rea_idempotency_key | UNIQUE | Idempotencia (DEC-016) |
+| `uq_reasons_name_active` | rea_scope, rea_name_active | UNIQUE | Nombre único dentro del acto, entre no eliminados |
 | (autoría) | create, delete, update | FK implícito × 3 | Sostienen las FK de autoría a `tbl_users`. Ninguna consulta los usa |
 
 ### `tbl_sessions` (1 fila)

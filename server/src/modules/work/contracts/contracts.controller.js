@@ -1,8 +1,10 @@
 import { getIO } from "../../../common/configs/socket.manager.js";
 import { auditContext } from "../../../common/services/audit.service.js";
+import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
 import * as contractsService from "./contracts.service.js";
 import * as conceptsService from "./contractConcepts.service.js";
+import * as suspensionsService from "./contractSuspensions.service.js";
 
 // Solo leen la petición y delegan. El autor sale de req.user (DEC-005); la
 // clave de idempotencia, del encabezado (DEC-016). Nada más del body llega al
@@ -61,10 +63,15 @@ export const deleteContractController = handle(async (req) => {
 });
 
 export const createAmendmentController = handle(async (req) => {
+  const { useId, proId } = req.user;
+  // Sobre un contrato suspendido el otrosí lo reanuda y exige además el
+  // permiso de levantar (DEC-039): el service decide con el estado bloqueado.
+  const granted = new Set(await getEffectivePermissionIds({ useId, proId }));
   const result = await conceptsService.createAmendment({
     ctrId: req.body.ctrId,
-    input: pick(req.body, [...ACT_FIELDS, "extension"]),
-    useBy: req.user.useId,
+    input: pick(req.body, [...ACT_FIELDS, "extension", "liftDate"]),
+    useBy: useId,
+    granted,
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
@@ -76,6 +83,18 @@ export const createLiquidationController = handle(async (req) => {
   const result = await conceptsService.createLiquidation({
     ctrId: req.body.ctrId,
     input: pick(req.body, ACT_FIELDS),
+    useBy: req.user.useId,
+    ctx: auditContext(req),
+    idempotencyKey: req.get(IDEMPOTENCY_HEADER),
+  });
+  notify();
+  return result;
+});
+
+export const suspendContractController = handle(async (req) => {
+  const result = await suspensionsService.suspendContract({
+    ctrId: req.body.ctrId,
+    input: pick(req.body, ["reaId", "suspensionDate", "liftCondition", "observation", "requiresReport"]),
     useBy: req.user.useId,
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),

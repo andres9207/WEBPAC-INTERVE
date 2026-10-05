@@ -193,6 +193,7 @@ model tbl_status {
   tbl_profiles               tbl_profiles[]
   tbl_provider_types         tbl_provider_types[]
   tbl_providers              tbl_providers[]
+  tbl_reasons                tbl_reasons[]
   tbl_supervision_types      tbl_supervision_types[]
   tbl_users                  tbl_users[]
   tbl_work_managers          tbl_work_managers[]
@@ -292,6 +293,11 @@ model tbl_users {
   supervision_types_created      tbl_supervision_types[]            @relation("SupervisionTypeCreatedBy")
   supervision_types_deleted      tbl_supervision_types[]            @relation("SupervisionTypeDeletedBy")
   supervision_types_updated      tbl_supervision_types[]            @relation("SupervisionTypeUpdatedBy")
+  reasons_created                tbl_reasons[]                      @relation("ReasonCreatedBy")
+  reasons_deleted                tbl_reasons[]                      @relation("ReasonDeletedBy")
+  reasons_updated                tbl_reasons[]                      @relation("ReasonUpdatedBy")
+  contract_suspensions_created   tbl_contract_suspensions[]         @relation("ContractSuspensionCreatedBy")
+  contract_suspensions_updated   tbl_contract_suspensions[]         @relation("ContractSuspensionUpdatedBy")
   tbl_user_pages                 tbl_user_pages[]
   tbl_user_permissions           tbl_user_permissions[]
   created_by_user                tbl_users?                         @relation("UserCreatedBy", fields: [use_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_create_by")
@@ -792,6 +798,7 @@ model tbl_contracts {
   ctr_number_active           String?                       @db.VarChar(50)
   tbl_contract_concepts       tbl_contract_concepts[]
   tbl_contract_status_history tbl_contract_status_history[]
+  tbl_contract_suspensions    tbl_contract_suspensions[]
   tbl_contract_types          tbl_contract_types            @relation(fields: [ctt_id], references: [ctt_id], onUpdate: NoAction, map: "tbl_contracts_contract_type")
   created_by_user             tbl_users?                    @relation("ContractCreatedBy", fields: [ctr_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contracts_create_by")
   deleted_by_user             tbl_users?                    @relation("ContractDeletedBy", fields: [ctr_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contracts_delete_by")
@@ -846,6 +853,7 @@ model tbl_contract_concepts {
   created_by_user      tbl_users?    @relation("ContractConceptCreatedBy", fields: [ccp_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_concepts_create_by")
   tbl_status           tbl_status    @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_contract_concepts_status")
   updated_by_user      tbl_users?    @relation("ContractConceptUpdatedBy", fields: [ccp_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_concepts_update_by")
+  tbl_contract_suspensions tbl_contract_suspensions?
 
   @@unique([ctr_id, ccp_number], map: "uq_contract_concepts_number")
   @@index([ccp_create_by], map: "tbl_contract_concepts_create_by")
@@ -929,4 +937,66 @@ model tbl_contract_type_field_versions {
   @@unique([ctt_id, cfv_version, cfd_id], map: "uq_contract_type_field_versions")
   @@index([cfd_id], map: "idx_contract_type_field_versions_field")
   @@index([cfv_create_by], map: "tbl_contract_type_field_versions_create_by")
+}
+
+/// Maestro de motivos (database/migrations/0060_create_reasons.sql). rea_scope: acto al que aplica el
+/// motivo (hoy solo SUSPENSION). rea_name_active es una columna GENERADA por MySQL (respalda la
+/// unicidad del nombre dentro del ámbito entre no eliminados): nunca se escribe desde el código.
+model tbl_reasons {
+  rea_id                   Int                        @id @default(autoincrement())
+  rea_scope                String                     @db.VarChar(20)
+  rea_name                 String                     @db.VarChar(100)
+  sta_id                   Int                        @default(1)
+  rea_create_by            Int?
+  rea_create_at            DateTime?                  @default(now()) @db.Timestamp(0)
+  rea_update_by            Int?
+  rea_update_at            DateTime?                  @default(now()) @db.Timestamp(0)
+  rea_delete_by            Int?
+  rea_delete_at            DateTime?                  @db.Timestamp(0)
+  rea_idempotency_key      String?                    @unique(map: "uq_reasons_idempotency_key") @db.Char(36)
+  rea_idempotency_hash     String?                    @db.Char(64)
+  rea_name_active          String?                    @db.VarChar(100)
+  tbl_contract_suspensions tbl_contract_suspensions[]
+  created_by_user          tbl_users?                 @relation("ReasonCreatedBy", fields: [rea_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_reasons_create_by")
+  deleted_by_user          tbl_users?                 @relation("ReasonDeletedBy", fields: [rea_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_reasons_delete_by")
+  tbl_status               tbl_status                 @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_reasons_status")
+  updated_by_user          tbl_users?                 @relation("ReasonUpdatedBy", fields: [rea_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_reasons_update_by")
+
+  @@unique([rea_scope, rea_name_active], map: "uq_reasons_name_active")
+  @@index([sta_id, rea_scope, rea_name], map: "idx_reasons_status_scope_name")
+  @@index([rea_create_by], map: "tbl_reasons_create_by")
+  @@index([rea_delete_by], map: "tbl_reasons_delete_by")
+  @@index([rea_update_by], map: "tbl_reasons_update_by")
+}
+
+/// Suspensiones de contrato (database/migrations/0061_create_contract_suspensions.sql). Se crea al
+/// suspender y se cierra una sola vez con el otrosí que reanuda el contrato (DEC-039). csp_open_contract
+/// es una columna GENERADA por MySQL (una sola suspensión abierta por contrato): nunca se escribe.
+model tbl_contract_suspensions {
+  csp_id                Int                    @id @default(autoincrement())
+  ctr_id                Int
+  csp_previous_state    String                 @db.VarChar(20)
+  rea_id                Int
+  csp_suspension_date   DateTime               @db.Date
+  csp_lift_condition    String                 @db.VarChar(500)
+  csp_observation       String?                @db.VarChar(1000)
+  csp_requires_report   Boolean                @default(false)
+  csp_lift_date         DateTime?              @db.Date
+  csp_days              Int?
+  ccp_id                Int?                   @unique(map: "uq_contract_suspensions_concept")
+  csp_create_by         Int?
+  csp_create_at         DateTime?              @default(now()) @db.Timestamp(0)
+  csp_update_by         Int?
+  csp_update_at         DateTime?              @default(now()) @db.Timestamp(0)
+  csp_open_contract     Int?                   @unique(map: "uq_contract_suspensions_open")
+  tbl_contract_concepts tbl_contract_concepts? @relation(fields: [ccp_id], references: [ccp_id], onDelete: Restrict, onUpdate: NoAction, map: "tbl_contract_suspensions_concept")
+  tbl_contracts         tbl_contracts          @relation(fields: [ctr_id], references: [ctr_id], onUpdate: NoAction, map: "tbl_contract_suspensions_contract")
+  created_by_user       tbl_users?             @relation("ContractSuspensionCreatedBy", fields: [csp_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_suspensions_create_by")
+  tbl_reasons           tbl_reasons            @relation(fields: [rea_id], references: [rea_id], onUpdate: NoAction, map: "tbl_contract_suspensions_reason")
+  updated_by_user       tbl_users?             @relation("ContractSuspensionUpdatedBy", fields: [csp_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_suspensions_update_by")
+
+  @@index([ctr_id, csp_suspension_date], map: "idx_contract_suspensions_contract")
+  @@index([rea_id], map: "idx_contract_suspensions_reason")
+  @@index([csp_create_by], map: "tbl_contract_suspensions_create_by")
+  @@index([csp_update_by], map: "tbl_contract_suspensions_update_by")
 }

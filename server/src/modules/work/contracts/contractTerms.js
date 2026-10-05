@@ -28,27 +28,41 @@ export const STATE_NAMES = Object.freeze({
 
 export const TRANSITION_ORIGINS = Object.freeze({ AUTOMATIC: "AUTOMATIC", MANUAL: "MANUAL" });
 
-const { IN_PROGRESS, IN_LIQUIDATION } = CONTRACT_STATES;
+const { IN_PROGRESS, SUSPENDED, IN_LIQUIDATION } = CONTRACT_STATES;
+
+/** Destino de una transición que devuelve el contrato al estado que tenía (suspensión superpuesta). */
+export const PREVIOUS_STATE = "PREVIOUS_STATE";
 
 /**
  * Transiciones declaradas (WORKFLOW_STANDARD, regla 1). Una que no está aquí
- * no existe. En esta fase solo hay las dos automáticas: crear el contrato y
- * crear el otrosí de liquidación. Suspender, levantar, liquidar y reabrir
- * llegan en la fase B, con su permiso y su motivo.
+ * no existe. Liquidar y reabrir llegan con la facturación.
+ *
+ * - `suspend`: manual, con permiso propio. Solo desde ejecución (DEC-039).
+ * - `resume`: la dispara el otrosí que reanuda el contrato, con el permiso
+ *   de levantar (DEC-039). Vuelve al estado que el contrato tenía al
+ *   suspenderse (ADR-0017, decisión 3), guardado en la suspensión.
  */
 export const CONTRACT_TRANSITIONS = Object.freeze({
   create: { label: "Registrar el contrato", from: [null], to: IN_PROGRESS, origin: TRANSITION_ORIGINS.AUTOMATIC },
   startLiquidation: { label: "Pasar a liquidación", from: [IN_PROGRESS], to: IN_LIQUIDATION, origin: TRANSITION_ORIGINS.AUTOMATIC },
+  suspend: { label: "Suspender", from: [IN_PROGRESS], to: SUSPENDED, origin: TRANSITION_ORIGINS.MANUAL },
+  resume: { label: "Reanudar con otrosí", from: [SUSPENDED], to: PREVIOUS_STATE, origin: TRANSITION_ORIGINS.MANUAL },
 });
 
 /**
  * Regla de una transición declarada que sale de `fromState`, o 409 si no lo
  * está. Se llama antes de escribir: el service toma de aquí el estado
- * destino, nunca lo escribe a mano.
+ * destino, nunca lo escribe a mano. Una transición que vuelve al estado
+ * previo lo recibe en `previousState`, que debe ser uno desde el que se pudo
+ * suspender.
  */
-export const assertTransition = (name, fromState = null) => {
+export const assertTransition = (name, fromState = null, { previousState } = {}) => {
   const rule = CONTRACT_TRANSITIONS[name];
-  if (rule?.from.includes(fromState)) return rule;
+  if (rule?.from.includes(fromState)) {
+    if (rule.to !== PREVIOUS_STATE) return rule;
+    if (CONTRACT_TRANSITIONS.suspend.from.includes(previousState)) return { ...rule, to: previousState };
+    throw new Error(`[contract] ${name}: estado previo inválido (${previousState})`);
+  }
   const current = fromState === null ? "sin estado" : (STATE_NAMES[fromState] ?? fromState);
   const error = new Error(
     rule
@@ -65,18 +79,20 @@ export const assertTransition = (name, fromState = null) => {
  * depende del estado: lo bloquean las facturas (ADR-0015, decisión 11).
  */
 export const STATE_ALLOWS = Object.freeze({
-  IN_PROGRESS: Object.freeze(["editContract", "createAmendment", "createLiquidation", "editConcept"]),
-  SUSPENDED: Object.freeze([]),
+  IN_PROGRESS: Object.freeze(["editContract", "createAmendment", "createLiquidation", "editConcept", "suspend"]),
+  // Suspendido: solo el otrosí que lo reanuda (DEC-039).
+  SUSPENDED: Object.freeze(["createAmendment"]),
   IN_LIQUIDATION: Object.freeze(["editLiquidationConcept"]),
   LIQUIDATED: Object.freeze([]),
 });
 
 const DENIED = {
   editContract: "Los datos del contrato solo se modifican mientras está en ejecución.",
-  createAmendment: "Solo se registran otrosí en un contrato en ejecución.",
+  createAmendment: "Solo se registran otrosí en un contrato en ejecución o suspendido.",
   createLiquidation: "Solo se registra el otrosí de liquidación en un contrato en ejecución.",
   editConcept: "Los conceptos solo se modifican mientras el contrato está en ejecución.",
   editLiquidationConcept: "El otrosí de liquidación solo se modifica mientras el contrato está en liquidación.",
+  suspend: "Solo se suspende un contrato en ejecución.",
 };
 
 export const stateAllows = (state, action) => (STATE_ALLOWS[state] ?? []).includes(action);
@@ -90,8 +106,8 @@ export const assertStateAllows = (state, action) => {
 };
 
 /** Fila del historial de estado para una transición declarada (con el tx del evento). */
-export const historyRow = ({ ctrId, transition, fromState = null, useBy, observation = null }) => {
-  const rule = assertTransition(transition, fromState);
+export const historyRow = ({ ctrId, transition, fromState = null, previousState, useBy, observation = null }) => {
+  const rule = assertTransition(transition, fromState, { previousState });
   return {
     ctr_id: ctrId,
     csh_from_state: fromState,
@@ -101,6 +117,18 @@ export const historyRow = ({ ctrId, transition, fromState = null, useBy, observa
     csh_create_by: useBy,
   };
 };
+
+// ─── Suspensión (ADR-0017, decisión 9; DEC-039) ─────────────────────────────
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Días calendario suspendidos: del día de suspensión al día anterior a la
+ * reanudación (del 1 al 11 son 10 días; el 11 el contrato ya corre). Se
+ * suman a la fecha fin con contractEndDate.
+ */
+export const suspendedDaysBetween = (suspensionDate, liftDate) =>
+  Math.round((new Date(dateOnlyText(liftDate)).getTime() - new Date(dateOnlyText(suspensionDate)).getTime()) / DAY_MS);
 
 // ─── Conceptos ───────────────────────────────────────────────────────────────
 

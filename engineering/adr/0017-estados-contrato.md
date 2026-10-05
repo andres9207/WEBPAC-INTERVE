@@ -2,7 +2,7 @@
 
 ## Estado
 
-**Aceptado parcial** (2026-10-02, [DEC-035](../decisiones/DEC-035-contratos-area-modelo.md)): máquina de estados declarada, historial y transiciones automáticas de creación y paso a liquidación. El estado va en `ctr_state` y no en `tbl_status` (se aparta de la decisión 13 por `WORKFLOW_STANDARD`, regla 2). La decisión 14 se aplica a los estados de visibilidad: `sta_key` y constantes únicas, verificadas al arrancar ([DEC-038](../decisiones/DEC-038-clave-simbolica-estados.md)). Faltan suspensión, levantamiento, reapertura y la evaluación C1–C8.
+**Aceptado parcial** (2026-10-02, [DEC-035](../decisiones/DEC-035-contratos-area-modelo.md)): máquina de estados declarada, historial y transiciones automáticas de creación y paso a liquidación. Suspensión (2026-10-05, [DEC-039](../decisiones/DEC-039-suspension-contratos.md)): solo desde ejecución, con los seis atributos y el catálogo `tbl_reasons`; se levanta con el otrosí que reanuda el contrato, no con una acción propia (se aparta de las decisiones 3 y 8 en eso). El estado va en `ctr_state` y no en `tbl_status` (se aparta de la decisión 13 por `WORKFLOW_STANDARD`, regla 2). La decisión 14 se aplica a los estados de visibilidad: `sta_key` y constantes únicas, verificadas al arrancar ([DEC-038](../decisiones/DEC-038-clave-simbolica-estados.md)). Faltan suspensión, levantamiento, reapertura y la evaluación C1–C8.
 
 **Reemplaza a [ADR-0005](0005-estados-contrato.md)**, que se conserva como registro histórico.
 

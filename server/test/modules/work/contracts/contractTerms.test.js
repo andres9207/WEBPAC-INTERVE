@@ -1,6 +1,7 @@
 import {
   CONTRACT_STATES,
   CONTRACT_TRANSITIONS,
+  PREVIOUS_STATE,
   assertStateAllows,
   assertTransition,
   chronologyError,
@@ -9,6 +10,7 @@ import {
   contractTotals,
   historyRow,
   sortConcepts,
+  suspendedDaysBetween,
   totalExtensions,
 } from "../../../../src/modules/work/contracts/contractTerms.js";
 
@@ -162,8 +164,50 @@ describe("estados (ADR-0017)", () => {
     const states = [null, ...Object.values(CONTRACT_STATES)];
     for (const rule of Object.values(CONTRACT_TRANSITIONS)) {
       expect(rule.from.every((s) => states.includes(s))).toBe(true);
-      expect(Object.values(CONTRACT_STATES)).toContain(rule.to);
+      expect([...Object.values(CONTRACT_STATES), PREVIOUS_STATE]).toContain(rule.to);
       expect(rule.label).toEqual(expect.any(String));
     }
+  });
+});
+
+describe("suspensión (ADR-0017, DEC-039)", () => {
+  it("solo se suspende desde ejecución", () => {
+    expect(assertTransition("suspend", CONTRACT_STATES.IN_PROGRESS)).toMatchObject({ to: CONTRACT_STATES.SUSPENDED, origin: "MANUAL" });
+    for (const state of [CONTRACT_STATES.SUSPENDED, CONTRACT_STATES.IN_LIQUIDATION, CONTRACT_STATES.LIQUIDATED]) {
+      expect(() => assertTransition("suspend", state)).toThrow(expect.objectContaining({ statusCode: 409 }));
+    }
+    expect(() => assertStateAllows(CONTRACT_STATES.IN_LIQUIDATION, "suspend")).toThrow(
+      expect.objectContaining({ statusCode: 409, message: expect.stringContaining("Solo se suspende un contrato en ejecución") })
+    );
+  });
+
+  it("reanudar vuelve al estado previo guardado en la suspensión, no a uno fijo", () => {
+    expect(assertTransition("resume", CONTRACT_STATES.SUSPENDED, { previousState: CONTRACT_STATES.IN_PROGRESS }).to).toBe(CONTRACT_STATES.IN_PROGRESS);
+    expect(historyRow({ ctrId: 5, transition: "resume", fromState: "SUSPENDED", previousState: "IN_PROGRESS", useBy: 9 })).toMatchObject({
+      csh_from_state: "SUSPENDED",
+      csh_to_state: "IN_PROGRESS",
+    });
+    expect(() => assertTransition("resume", CONTRACT_STATES.IN_PROGRESS, { previousState: "IN_PROGRESS" })).toThrow(
+      expect.objectContaining({ statusCode: 409 })
+    );
+    expect(() => assertTransition("resume", CONTRACT_STATES.SUSPENDED, { previousState: "LIQUIDATED" })).toThrow(/estado previo inválido/);
+  });
+
+  it("suspendido solo admite el otrosí que lo reanuda", () => {
+    expect(() => assertStateAllows(CONTRACT_STATES.SUSPENDED, "createAmendment")).not.toThrow();
+    for (const action of ["editContract", "createLiquidation", "editConcept", "suspend"]) {
+      expect(() => assertStateAllows(CONTRACT_STATES.SUSPENDED, action)).toThrow(expect.objectContaining({ statusCode: 409 }));
+    }
+  });
+
+  it("los días suspendidos son calendario, sin contar el día de reanudación", () => {
+    expect(suspendedDaysBetween("2026-05-01", "2026-05-11")).toBe(10);
+    expect(suspendedDaysBetween(new Date("2026-02-25"), new Date("2026-03-02"))).toBe(5);
+    expect(suspendedDaysBetween("2026-05-01", "2026-05-01")).toBe(0);
+    expect(suspendedDaysBetween("2025-12-31", "2026-01-01")).toBe(1);
+  });
+
+  it("los días suspendidos alargan la fecha fin, sumados a las prórrogas", () => {
+    expect(contractEndDate({ startDate: "2026-01-01", term: 1, unit: "MES", extensions: 1, suspendedDays: 10 })).toBe("2026-03-11");
   });
 });

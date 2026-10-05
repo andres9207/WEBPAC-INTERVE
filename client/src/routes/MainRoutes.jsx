@@ -22,6 +22,7 @@ const InsurerPage = Loadable(lazy(() => import('views/admin/insurers/InsurerPage
 const SupervisionTypePage = Loadable(lazy(() => import('views/admin/supervisionTypes/SupervisionTypePage')));
 const ConstructionCompanyPage = Loadable(lazy(() => import('views/admin/constructionCompanies/ConstructionCompanyPage')));
 const ContractTypePage = Loadable(lazy(() => import('views/admin/contractTypes/ContractTypePage')));
+const ReasonPage = Loadable(lazy(() => import('views/admin/reasons/ReasonPage')));
 const WorksPage = Loadable(lazy(() => import('views/work/works/WorksPage')));
 const WorkDetailPage = Loadable(lazy(() => import('views/work/works/WorkDetailPage')));
 const WorkFormPage = Loadable(lazy(() => import('views/work/works/WorkFormPage')));
@@ -63,7 +64,8 @@ const MainRoutes = {
             { path: 'insurers', element: <InsurerPage /> },
             { path: 'supervisionTypes', element: <SupervisionTypePage /> },
             { path: 'constructionCompanies', element: <ConstructionCompanyPage /> },
-            { path: 'contractTypes', element: <ContractTypePage /> }
+            { path: 'contractTypes', element: <ContractTypePage /> },
+            { path: 'reasons', element: <ReasonPage /> }
           ]
         },
         {

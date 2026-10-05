@@ -9,7 +9,10 @@
 > - Una transición automática viaja con la clave de idempotencia del hecho que la dispara (la del contrato o la del concepto); la columna de clave del historial queda para las manuales.
 > - El detalle devuelve `allowedActions` (de `STATE_ALLOWS`) y el cliente lo cruza con los permisos para mostrar u ocultar acciones.
 >
-> El esqueleto de abajo sigue siendo la forma de una transición **manual** (con clave propia en el historial), que llega con las suspensiones.
+> - **Primera transición manual: suspender** ([DEC-039](../decisiones/DEC-039-suspension-contratos.md), `contractSuspensions.service.js`): endpoint y permiso propios, bloqueo contrato → maestro, clave de idempotencia en el historial (`csh_idempotency_key`). Un estado superpuesto declara su vuelta con `to: PREVIOUS_STATE`: `assertTransition` la resuelve con el estado previo guardado (`csp_previous_state`), que debe ser uno desde el que se pudo entrar.
+> - **Una transición puede dispararse dentro de otro acto** (reanudar con el otrosí): el acto exige además el permiso de la transición, y la verifica el service con el estado bajo bloqueo (`granted`, como en proveedores).
+>
+> El esqueleto de abajo es la forma de una transición manual.
 
 **Cuándo:** nivel 3. Ejemplos del dominio: contrato (ADR-0017), factura (ADR-0020).
 

@@ -158,4 +158,21 @@ describe("createMasterSchemas", () => {
   it("obtener por id exige un entero positivo", async () => {
     expect(await errorsFor(schemas.getById, { thgId: "x" })).toHaveLength(1);
   });
+  it("un campo con options solo admite sus valores, al guardar, al filtrar y en el selector con ámbito", async () => {
+    const scoped = createMasterSchemas(
+      defineMaster({
+        ...config,
+        fields: [
+          { name: "scope", column: "thg_scope", label: "acto", options: ["A", "B"], editable: false, filter: true },
+          { name: "name", column: "thg_name", label: "nombre" },
+        ],
+        scopeField: "scope",
+      })
+    );
+    expect(await errorsFor(scoped.save, { thgId: 0, scope: "Z", name: "Uno" }, { "idempotency-key": KEY })).toEqual(["El acto no es válido."]);
+    expect(await errorsFor(scoped.save, { thgId: 0, scope: "A", name: "Uno" }, { "idempotency-key": KEY })).toEqual([]);
+    expect(await errorsFor(scoped.pagination, { scope: "Z" })).toEqual(["El acto no es válido."]);
+    expect(await errorsFor(scoped.select, { scope: "Z" })).toEqual(["El acto no es válido."]);
+    expect(await errorsFor(scoped.select, { scope: "B" })).toEqual([]);
+  });
 });

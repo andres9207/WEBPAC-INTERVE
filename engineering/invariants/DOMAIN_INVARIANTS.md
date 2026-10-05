@@ -36,6 +36,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 - **I8:** `UNIQUE uq_contract_concepts_number (ctr_id, ccp_number)` y numeración máximo + 1 bajo `withLockedTransaction({ CONTRATO })`. Probado en vivo: dos otrosí simultáneos reciben números distintos.
 - **I12:** `UNIQUE uq_contracts_work_number_active (wrk_id, ctr_number_active)`; el service responde 409 antes.
 - **I15:** `CHECK ck_contracts_end_date`; la fecha fin la calcula solo `contractEndDate`.
+- **I9** (2026-10-05, [DEC-039](../decisiones/DEC-039-suspension-contratos.md)): `UNIQUE uq_contract_suspensions_open` sobre la columna generada `csp_open_contract`; el service responde 409 antes, bajo el bloqueo del contrato. Probado contra la BD de desarrollo.
 
 ## Ciclo de vida
 
@@ -43,14 +44,14 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | --- | --- | --- |
 | DOM-01 | Un contrato tiene exactamente un estado vigente, y solo cambia por una transición declarada | ADR-0017, reglas 2 y 11 |
 | DOM-02 | `LIQUIDADO` exige C1–C8 a la vez, y solo se sale por reapertura con permiso propio | ADR-0017, reglas 4 y 10 |
-| DOM-03 | Un contrato suspendido no admite otrosí, facturas ni edición contractual | ADR-0017, regla 13 |
+| DOM-03 | Un contrato suspendido no admite otrosí, facturas ni edición contractual, salvo el otrosí que lo reanuda ([DEC-039](../decisiones/DEC-039-suspension-contratos.md)) | ADR-0017, regla 13 |
 | DOM-04 | Solo las facturas `APROBADA` afectan saldos, condiciones de liquidación e indicadores | ADR-0020, regla 9 |
 | DOM-05 | Una factura aprobada es inmutable en lo financiero; se corrige anulando y registrando de nuevo | ADR-0020, reglas 10–12 |
 | DOM-06 | `ANULADA` es terminal, y una factura nunca se elimina | ADR-0020, reglas 12 y 15 |
 | DOM-07 | Tras la primera factura aprobada del contrato, los valores económicos de sus conceptos son inmutables | ADR-0016, regla 14 |
 | DOM-08 | Toda transición de estado queda en el historial, en la misma transacción | ADR-0017, regla 12 |
 
-**Aplicadas en parte (2026-10-02), con contratos:** DOM-01 (`ctr_state` con `CHECK`; solo lo cambian las transiciones de `CONTRACT_TRANSITIONS`, y `historyRow` rechaza una no declarada) y DOM-08 (creación y paso a liquidación escriben `tbl_contract_status_history` en su transacción). DOM-03 queda declarado en `STATE_ALLOWS` (un contrato suspendido no admite nada) y se aplicará con las suspensiones. DOM-07 llega con facturación.
+**Aplicadas en parte (2026-10-02), con contratos:** DOM-01 (`ctr_state` con `CHECK`; solo lo cambian las transiciones de `CONTRACT_TRANSITIONS`, y `historyRow` rechaza una no declarada) y DOM-08 (creación y paso a liquidación escriben `tbl_contract_status_history` en su transacción). DOM-03 se aplica desde el 2026-10-05 ([DEC-039](../decisiones/DEC-039-suspension-contratos.md)): `STATE_ALLOWS.SUSPENDED` solo admite el otrosí que reanuda el contrato, y suspender y reanudar escriben historial (DOM-08). DOM-07 llega con facturación.
 
 ## Cálculo
 

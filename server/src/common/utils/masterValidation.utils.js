@@ -21,19 +21,24 @@ export const createMasterSchemas = (config) => {
       .isLength({ max: field.maxLength })
       .withMessage(`El ${field.label} admite hasta ${field.maxLength} caracteres.`);
     if (field.pattern) chain = chain.matches(field.pattern.regex).withMessage(field.pattern.message);
+    if (field.options) chain = chain.isIn(field.options).withMessage(`El ${field.label} no es válido.`);
     return chain;
   };
+  const optionsRule = (field, location) =>
+    location(field.name).optional({ values: "falsy" }).isIn(field.options).withMessage(`El ${field.label} no es válido.`);
+  const scope = config.scopeField ? fields.find((f) => f.name === config.scopeField) : null;
 
   return {
     pagination: [
       ...paginationRules(),
-      ...fields.filter((f) => f.filter).map((f) => optionalText(f.name, f.maxLength)),
+      ...fields.filter((f) => f.filter).map((f) => (f.options ? optionsRule(f, body) : optionalText(f.name, f.maxLength))),
       optionalText("search", 100),
       optionalId("staId"),
     ],
     getById: [query(idField).isInt({ min: 1 }).withMessage(`${idField} es obligatorio y debe ser un entero positivo.`)],
     select: [
       query("includeId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includeId debe ser un entero positivo."),
+      ...(scope ? [optionsRule(scope, query)] : []),
     ],
     save: [
       idempotencyKeyRule(isCreate),

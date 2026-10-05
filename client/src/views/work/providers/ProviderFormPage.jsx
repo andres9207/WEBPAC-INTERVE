@@ -423,7 +423,6 @@ export default function ProviderFormPage() {
         title="Descartar cambios"
         message="Hay cambios sin guardar en el proveedor. ¿Salir sin guardarlos?"
         confirmLabel="Descartar"
-        confirmColor="warning"
       />
     </RouteDialog>
   );

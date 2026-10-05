@@ -37,6 +37,8 @@ const PAGES = [
   { pag_id: 15, pag_description: "Proveedores", pag_parent: 13, pag_url: "work/providers", pag_icon: "truck", pag_order: 2, pag_name: "Proveedores", pag_type: 2 },
   // database/migrations/0052_seed_contracts_pages_permissions.sql
   { pag_id: 16, pag_description: "Contratos", pag_parent: 13, pag_url: "work/contracts", pag_icon: "file-description", pag_order: 3, pag_name: "Contratos", pag_type: 2 },
+  // database/migrations/0062_seed_reasons_suspensions_permissions.sql
+  { pag_id: 17, pag_description: "Motivos", pag_parent: 5, pag_url: "admin/reasons", pag_icon: "message-report", pag_order: 8, pag_name: "Motivos", pag_type: 2 },
 ];
 
 const PERMISSIONS = [
@@ -108,6 +110,13 @@ const PERMISSIONS = [
   { per_id: 72, per_name: "Crear otrosí", pag_id: 16, per_order: 4 },
   { per_id: 73, per_name: "Crear otrosí de liquidación", pag_id: 16, per_order: 5 },
   { per_id: 74, per_name: "Modificar concepto contractual", pag_id: 16, per_order: 6 },
+  // database/migrations/0062_seed_reasons_suspensions_permissions.sql
+  { per_id: 76, per_name: "Suspender contrato", pag_id: 16, per_order: 7 },
+  { per_id: 77, per_name: "Levantar suspensión de contrato", pag_id: 16, per_order: 9 },
+  { per_id: 79, per_name: "Crear motivo", pag_id: 17, per_order: 1 },
+  { per_id: 80, per_name: "Modificar motivo", pag_id: 17, per_order: 2 },
+  { per_id: 81, per_name: "Eliminar motivo", pag_id: 17, per_order: 3 },
+  { per_id: 82, per_name: "Cambiar estado motivo", pag_id: 17, per_order: 4 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -146,6 +155,7 @@ const VIEW_PERMISSIONS = [
   { per_id: 52, per_name: "Ver obras", pag_id: 14, per_order: 8 },
   { per_id: 60, per_name: "Ver proveedores", pag_id: 15, per_order: 8 },
   { per_id: 68, per_name: "Ver contratos", pag_id: 16, per_order: 8 },
+  { per_id: 78, per_name: "Ver motivos", pag_id: 17, per_order: 5 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay
