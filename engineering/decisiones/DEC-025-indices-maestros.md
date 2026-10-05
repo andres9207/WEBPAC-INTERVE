@@ -55,6 +55,7 @@ Forzando el índice (`FORCE INDEX`) el plan es el mismo: el optimizador ya lo el
 
 - Todo maestro tiene `idx_<tabla>_status_<campo>` y no tiene índice simple de `sta_id`.
 - Si un maestro crece a miles de filas, se revisan los planes de esta ficha antes de agregar índices.
+- **Actualizado el 2026-10-05 (FND-BD-15):** las migraciones de obras, proveedores y contratos no declararon el índice de sus FK, y MySQL los creó con el nombre de la FK. El criterio de indexación de [`DATABASE_STANDARD`](../standards/DATABASE_STANDARD.md) acepta ese índice implícito en las columnas que ninguna consulta usa, y exige declararlo, con las columnas que pida la consulta, solo cuando una consulta filtra por la FK. Inventario en [`database/INDEXES.md`](../../database/INDEXES.md).
 
 ## Dónde
 

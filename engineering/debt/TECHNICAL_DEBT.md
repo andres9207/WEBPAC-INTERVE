@@ -70,6 +70,8 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
+| Índices que faltan según el inventario ([`database/INDEXES.md`](../../database/INDEXES.md), "Índices que faltan"): `tbl_notifications` `(use_id, not_created_at)` en lugar de `idx_noti_user`, y `tbl_documents` `(doc_parent_id, doc_type, doc_id_ref)`, hoy con recorrido completo. Requieren migración y aprobación | Media | FND-BD-15 |
+| Cuando exista la consulta de la bitácora (ADR-0013, B15): agregar `aud_create_at` al final de `ix_audit_log_entity_record`, y decidir si `ix_audit_log_operation_id` se usa o se retira | Baja | FND-BD-15 |
 | `saveUser` valida `staId` con `requiredId`: acepta `3` y elimina por el guardado, sin las verificaciones ni la bitácora de eliminación de `deleteUser`. `saveProfile` ya lo restringe con `EDITABLE_STATUS_VALUES` (FND-BE-30), igual que maestros, obras y proveedores (DEC-038) | Media | DEC-038 |
 | `deleteProfile` responde **400** al eliminar un perfil ya eliminado; [DEC-006](../decisiones/DEC-006-columnas-autoria-eliminacion.md) exige **404**, y `deleteUser` ya lo cumple | Media | Descubrimiento de `engineering/` |
 | Duplicado por nombre: `saveProfile`/`saveUser` responden 400; el mismo duplicado detectado por la BD responde 409. Pendiente de decisión (PD-02 en [`PROJECT_STATE`](../PROJECT_STATE.md)) | Media | Descubrimiento de `engineering/` |
