@@ -174,9 +174,9 @@
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/Header/ProfileSection/index.jsx": {
-    "mtime": 1789652993.6067686,
-    "seen": 1790694517.6644714,
-    "ast_hash": "84257f75bcc224a1e12d4960613ad905",
+    "mtime": 1791209333.4382958,
+    "seen": 1791209536.6164253,
+    "ast_hash": "d1e51d71b4c02b3186121a40eb9bb6dd",
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/Header/SearchSection/index.jsx": {
@@ -2382,9 +2382,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractFormPage.jsx": {
-    "mtime": 1790970209.8324263,
-    "seen": 1790975759.7717657,
-    "ast_hash": "36352006da5398ed9f43e47751d3752e",
+    "mtime": 1791209333.439782,
+    "seen": 1791209536.6165743,
+    "ast_hash": "e7b6af300565e0a44718f49d25e7bc36",
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractsPage.jsx": {
