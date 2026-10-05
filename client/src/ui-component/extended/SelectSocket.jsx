@@ -10,9 +10,10 @@ import { showError } from 'services/ToastService';
  * cuando llega `socketEvent` (otro usuario cambió el maestro). Se ve y se
  * comporta como el desplegable con buscador de todo el sistema (SearchSelect).
  *
- * `error` es el objeto de react-hook-form (`{ message }`).
+ * `error` es el objeto de react-hook-form (`{ message }`). Con `multiple`,
+ * `value` y `onChange` trabajan con la lista de valores (SearchSelect).
  */
-const SelectSocket = ({ value, onChange, error, disabled, label, required, fetchApi, mapOptions, socketEvent, onOptionChange }) => {
+const SelectSocket = ({ value, onChange, error, disabled, label, required, fetchApi, mapOptions, socketEvent, onOptionChange, multiple }) => {
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const socket = useSocket();
@@ -52,12 +53,13 @@ const SelectSocket = ({ value, onChange, error, disabled, label, required, fetch
       label={label}
       required={required}
       error={error?.message}
+      multiple={multiple}
     />
   );
 };
 
 SelectSocket.propTypes = {
-  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.string, PropTypes.number]))]),
   onChange: PropTypes.func.isRequired,
   error: PropTypes.object,
   disabled: PropTypes.bool,
@@ -66,7 +68,8 @@ SelectSocket.propTypes = {
   fetchApi: PropTypes.func.isRequired,
   mapOptions: PropTypes.func,
   socketEvent: PropTypes.string,
-  onOptionChange: PropTypes.func
+  onOptionChange: PropTypes.func,
+  multiple: PropTypes.bool
 };
 
 export default SelectSocket;

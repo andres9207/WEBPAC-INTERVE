@@ -386,23 +386,23 @@ model tbl_identity_documents {
 /// pvt_name_active es una columna GENERADA por MySQL (respalda la unicidad entre no eliminados):
 /// nunca se escribe desde el código.
 model tbl_provider_types {
-  pvt_id               Int             @id @default(autoincrement())
-  pvt_name             String          @db.VarChar(100)
-  sta_id               Int             @default(1)
-  pvt_create_by        Int?
-  pvt_create_at        DateTime?       @default(now()) @db.Timestamp(0)
-  pvt_update_by        Int?
-  pvt_update_at        DateTime?       @default(now()) @db.Timestamp(0)
-  pvt_delete_by        Int?
-  pvt_delete_at        DateTime?       @db.Timestamp(0)
-  pvt_idempotency_key  String?         @unique(map: "uq_provider_types_idempotency_key") @db.Char(36)
-  pvt_idempotency_hash String?         @db.Char(64)
-  pvt_name_active      String?         @unique(map: "uq_provider_types_name_active") @db.VarChar(100)
-  created_by_user      tbl_users?      @relation("ProviderTypeCreatedBy", fields: [pvt_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_provider_types_create_by")
-  deleted_by_user      tbl_users?      @relation("ProviderTypeDeletedBy", fields: [pvt_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_provider_types_delete_by")
-  tbl_status           tbl_status      @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_provider_types_status")
-  updated_by_user      tbl_users?      @relation("ProviderTypeUpdatedBy", fields: [pvt_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_provider_types_update_by")
-  tbl_providers        tbl_providers[]
+  pvt_id                       Int                            @id @default(autoincrement())
+  pvt_name                     String                         @db.VarChar(100)
+  sta_id                       Int                            @default(1)
+  pvt_create_by                Int?
+  pvt_create_at                DateTime?                      @default(now()) @db.Timestamp(0)
+  pvt_update_by                Int?
+  pvt_update_at                DateTime?                      @default(now()) @db.Timestamp(0)
+  pvt_delete_by                Int?
+  pvt_delete_at                DateTime?                      @db.Timestamp(0)
+  pvt_idempotency_key          String?                        @unique(map: "uq_provider_types_idempotency_key") @db.Char(36)
+  pvt_idempotency_hash         String?                        @db.Char(64)
+  pvt_name_active              String?                        @unique(map: "uq_provider_types_name_active") @db.VarChar(100)
+  created_by_user              tbl_users?                     @relation("ProviderTypeCreatedBy", fields: [pvt_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_provider_types_create_by")
+  deleted_by_user              tbl_users?                     @relation("ProviderTypeDeletedBy", fields: [pvt_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_provider_types_delete_by")
+  tbl_status                   tbl_status                     @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_provider_types_status")
+  updated_by_user              tbl_users?                     @relation("ProviderTypeUpdatedBy", fields: [pvt_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_provider_types_update_by")
+  tbl_provider_classifications tbl_provider_classifications[]
 
   @@index([pvt_create_by], map: "tbl_provider_types_create_by")
   @@index([pvt_delete_by], map: "tbl_provider_types_delete_by")
@@ -667,40 +667,51 @@ model tbl_work_stages {
 /// prv_identification_active es una columna GENERADA por MySQL (respalda la unicidad de la identidad
 /// entre no eliminados): nunca se escribe desde el código.
 model tbl_providers {
-  prv_id                    Int                     @id @default(autoincrement())
-  idd_id                    Int
-  prv_identification        String                  @db.VarChar(20)
-  prv_name                  String                  @db.VarChar(255)
-  pvt_id                    Int
-  prv_service_type          String?                 @db.VarChar(150)
-  prv_email                 String?                 @db.VarChar(255)
-  prv_observation           String?                 @db.VarChar(500)
-  sta_id                    Int                     @default(1)
-  prv_create_by             Int?
-  prv_create_at             DateTime?               @default(now()) @db.Timestamp(0)
-  prv_update_by             Int?
-  prv_update_at             DateTime?               @default(now()) @db.Timestamp(0)
-  prv_delete_by             Int?
-  prv_delete_at             DateTime?               @db.Timestamp(0)
-  prv_idempotency_key       String?                 @unique(map: "uq_providers_idempotency_key") @db.Char(36)
-  prv_idempotency_hash      String?                 @db.Char(64)
-  prv_identification_active String?                 @db.VarChar(20)
-  tbl_provider_contacts     tbl_provider_contacts[]
-  created_by_user           tbl_users?              @relation("ProviderCreatedBy", fields: [prv_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_providers_create_by")
-  deleted_by_user           tbl_users?              @relation("ProviderDeletedBy", fields: [prv_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_providers_delete_by")
-  tbl_identity_documents    tbl_identity_documents  @relation(fields: [idd_id], references: [idd_id], onUpdate: NoAction, map: "tbl_providers_identity_document")
-  tbl_provider_types        tbl_provider_types      @relation(fields: [pvt_id], references: [pvt_id], onUpdate: NoAction, map: "tbl_providers_provider_type")
-  tbl_status                tbl_status              @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_providers_status")
-  updated_by_user           tbl_users?              @relation("ProviderUpdatedBy", fields: [prv_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_providers_update_by")
-  tbl_work_providers        tbl_work_providers[]
-  tbl_contracts             tbl_contracts[]
+  prv_id                       Int                            @id @default(autoincrement())
+  idd_id                       Int
+  prv_identification           String                         @db.VarChar(20)
+  prv_name                     String                         @db.VarChar(255)
+  prv_service_type             String?                        @db.VarChar(150)
+  prv_email                    String?                        @db.VarChar(255)
+  prv_observation              String?                        @db.VarChar(500)
+  sta_id                       Int                            @default(1)
+  prv_create_by                Int?
+  prv_create_at                DateTime?                      @default(now()) @db.Timestamp(0)
+  prv_update_by                Int?
+  prv_update_at                DateTime?                      @default(now()) @db.Timestamp(0)
+  prv_delete_by                Int?
+  prv_delete_at                DateTime?                      @db.Timestamp(0)
+  prv_idempotency_key          String?                        @unique(map: "uq_providers_idempotency_key") @db.Char(36)
+  prv_idempotency_hash         String?                        @db.Char(64)
+  prv_identification_active    String?                        @db.VarChar(20)
+  tbl_provider_contacts        tbl_provider_contacts[]
+  created_by_user              tbl_users?                     @relation("ProviderCreatedBy", fields: [prv_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_providers_create_by")
+  deleted_by_user              tbl_users?                     @relation("ProviderDeletedBy", fields: [prv_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_providers_delete_by")
+  tbl_identity_documents       tbl_identity_documents         @relation(fields: [idd_id], references: [idd_id], onUpdate: NoAction, map: "tbl_providers_identity_document")
+  tbl_status                   tbl_status                     @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_providers_status")
+  updated_by_user              tbl_users?                     @relation("ProviderUpdatedBy", fields: [prv_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_providers_update_by")
+  tbl_work_providers           tbl_work_providers[]
+  tbl_contracts                tbl_contracts[]
+  tbl_provider_classifications tbl_provider_classifications[]
 
   @@unique([idd_id, prv_identification_active], map: "uq_providers_identity_active")
   @@index([sta_id, prv_name], map: "idx_providers_status_name")
   @@index([prv_create_by], map: "tbl_providers_create_by")
   @@index([prv_delete_by], map: "tbl_providers_delete_by")
-  @@index([pvt_id], map: "tbl_providers_provider_type")
   @@index([prv_update_by], map: "tbl_providers_update_by")
+}
+
+/// Tipos de un proveedor, uno o varios (database/migrations/0063, DEC-041). Tabla de
+/// unión sin autoría: se guarda con el proveedor y su cambio va a su bitácora.
+model tbl_provider_classifications {
+  pcl_id             Int                @id @default(autoincrement())
+  prv_id             Int
+  pvt_id             Int
+  tbl_providers      tbl_providers      @relation(fields: [prv_id], references: [prv_id], onDelete: Cascade, onUpdate: NoAction, map: "tbl_provider_classifications_provider")
+  tbl_provider_types tbl_provider_types @relation(fields: [pvt_id], references: [pvt_id], onUpdate: NoAction, map: "tbl_provider_classifications_provider_type")
+
+  @@unique([prv_id, pvt_id], map: "uq_provider_classifications_provider_type")
+  @@index([pvt_id], map: "tbl_provider_classifications_provider_type")
 }
 
 /// Contactos de proveedor (database/migrations/0045_create_provider_contacts.sql). Se guardan con el
@@ -826,33 +837,33 @@ model tbl_contracts {
 /// ccp_initial_key y ccp_liquidation_key son columnas GENERADAS por MySQL (uno de cada tipo por contrato):
 /// nunca se escriben desde el código.
 model tbl_contract_concepts {
-  ccp_id               Int           @id @default(autoincrement())
-  ctr_id               Int
-  ccp_type             String        @db.VarChar(12)
-  ccp_number           Int?
-  ccp_start_date       DateTime      @db.Date
-  ccp_description      String?       @db.VarChar(500)
-  ccp_direct_cost      Decimal       @db.Decimal(18, 2)
-  ccp_admin_pct        Decimal       @default(0.00) @db.Decimal(5, 2)
-  ccp_contingency_pct  Decimal       @default(0.00) @db.Decimal(5, 2)
-  ccp_profit_pct       Decimal       @default(0.00) @db.Decimal(5, 2)
-  ccp_vat_pct          Decimal       @default(0.00) @db.Decimal(5, 2)
-  ccp_advance_pct      Decimal       @default(0.00) @db.Decimal(5, 2)
-  ccp_retention_pct    Decimal       @default(0.00) @db.Decimal(5, 2)
-  ccp_extension        Int?
-  sta_id               Int           @default(1)
-  ccp_create_by        Int?
-  ccp_create_at        DateTime?     @default(now()) @db.Timestamp(0)
-  ccp_update_by        Int?
-  ccp_update_at        DateTime?     @default(now()) @db.Timestamp(0)
-  ccp_idempotency_key  String?       @unique(map: "uq_contract_concepts_idempotency_key") @db.Char(36)
-  ccp_idempotency_hash String?       @db.Char(64)
-  ccp_initial_key      Int?          @unique(map: "uq_contract_concepts_initial")
-  ccp_liquidation_key  Int?          @unique(map: "uq_contract_concepts_liquidation")
-  tbl_contracts        tbl_contracts @relation(fields: [ctr_id], references: [ctr_id], onUpdate: NoAction, map: "tbl_contract_concepts_contract")
-  created_by_user      tbl_users?    @relation("ContractConceptCreatedBy", fields: [ccp_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_concepts_create_by")
-  tbl_status           tbl_status    @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_contract_concepts_status")
-  updated_by_user      tbl_users?    @relation("ContractConceptUpdatedBy", fields: [ccp_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_concepts_update_by")
+  ccp_id                   Int                       @id @default(autoincrement())
+  ctr_id                   Int
+  ccp_type                 String                    @db.VarChar(12)
+  ccp_number               Int?
+  ccp_start_date           DateTime                  @db.Date
+  ccp_description          String?                   @db.VarChar(500)
+  ccp_direct_cost          Decimal                   @db.Decimal(18, 2)
+  ccp_admin_pct            Decimal                   @default(0.00) @db.Decimal(5, 2)
+  ccp_contingency_pct      Decimal                   @default(0.00) @db.Decimal(5, 2)
+  ccp_profit_pct           Decimal                   @default(0.00) @db.Decimal(5, 2)
+  ccp_vat_pct              Decimal                   @default(0.00) @db.Decimal(5, 2)
+  ccp_advance_pct          Decimal                   @default(0.00) @db.Decimal(5, 2)
+  ccp_retention_pct        Decimal                   @default(0.00) @db.Decimal(5, 2)
+  ccp_extension            Int?
+  sta_id                   Int                       @default(1)
+  ccp_create_by            Int?
+  ccp_create_at            DateTime?                 @default(now()) @db.Timestamp(0)
+  ccp_update_by            Int?
+  ccp_update_at            DateTime?                 @default(now()) @db.Timestamp(0)
+  ccp_idempotency_key      String?                   @unique(map: "uq_contract_concepts_idempotency_key") @db.Char(36)
+  ccp_idempotency_hash     String?                   @db.Char(64)
+  ccp_initial_key          Int?                      @unique(map: "uq_contract_concepts_initial")
+  ccp_liquidation_key      Int?                      @unique(map: "uq_contract_concepts_liquidation")
+  tbl_contracts            tbl_contracts             @relation(fields: [ctr_id], references: [ctr_id], onUpdate: NoAction, map: "tbl_contract_concepts_contract")
+  created_by_user          tbl_users?                @relation("ContractConceptCreatedBy", fields: [ccp_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_concepts_create_by")
+  tbl_status               tbl_status                @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_contract_concepts_status")
+  updated_by_user          tbl_users?                @relation("ContractConceptUpdatedBy", fields: [ccp_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_concepts_update_by")
   tbl_contract_suspensions tbl_contract_suspensions?
 
   @@unique([ctr_id, ccp_number], map: "uq_contract_concepts_number")

@@ -12,7 +12,7 @@ React 19 + Vite, MUI 7 sobre el template Berry. Cómo se ve (colores, tipografí
 6. **Todo `catch` avisa al usuario** con `showError(err.response?.data?.message || 'mensaje de respaldo')` de `services/ToastService.js`. Solo `console.error` deja al usuario sin respuesta.
 7. **Formularios de creación con `Idempotency-Key`:** clave nueva con `newIdempotencyKey()` al abrir el formulario, reutilizada en cada intento de ese formulario; `null` al editar.
 8. **Reutilizar `ui-component/`** antes de crear un componente nuevo.
-9. **Nada de cálculos de negocio** (montos, saldos, fechas derivadas) en el cliente. Los muestra, no los decide.
+9. **Nada de cálculos de negocio** (montos, saldos, fechas derivadas) en el cliente. Los muestra, no los decide. Si el valor tiene que verse mientras se edita, se le pide al servidor con un endpoint de vista previa de solo lectura que usa la misma función con que guarda. Ejemplo: la fecha final de obras y contratos (`hooks/useEndDatePreview.js`, `preview_work_end_date` y `preview_contract_end_date`), que se recalcula al salir del plazo, al cambiar la unidad o la fecha de inicio.
 
 ## Pantallas de maestros
 

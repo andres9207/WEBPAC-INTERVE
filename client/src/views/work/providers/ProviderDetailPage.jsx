@@ -87,6 +87,8 @@ export default function ProviderDetailPage() {
 
   const active = provider.staId === STATUS.ACTIVE;
   const documentText = `${provider.identityCode ?? ''} ${provider.identification}`;
+  // Uno o varios tipos (DEC-041).
+  const typesText = provider.providerTypes.join(', ');
   const mainContact = provider.contacts.find((c) => c.main);
   const activeWorks = provider.works.filter((w) => w.staId === STATUS.ACTIVE).length;
 
@@ -163,7 +165,7 @@ export default function ProviderDetailPage() {
 
   const figures = [
     { label: 'Documento', value: documentText, hint: provider.identityName },
-    { label: 'Tipo de proveedor', value: provider.providerType },
+    { label: provider.providerTypes.length === 1 ? 'Tipo de proveedor' : 'Tipos de proveedor', value: typesText },
     { label: 'Obras', value: String(provider.worksCount), hint: `${activeWorks} con asignación activa` },
     {
       label: 'Contactos',
@@ -187,7 +189,7 @@ export default function ProviderDetailPage() {
             <StatusChip staId={provider.staId} label={active ? 'Activo' : 'Inactivo'} />
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            {documentText} · {provider.providerType}
+            {documentText} · {typesText}
             {provider.serviceType ? ` · ${provider.serviceType}` : ''}
           </Typography>
           <Typography variant="caption" color="text.secondary">
@@ -258,7 +260,14 @@ export default function ProviderDetailPage() {
                     ['Nombre o razón social', provider.name],
                     ['Tipo de identificación', provider.identityName],
                     ['Número de documento', provider.identification],
-                    ['Tipo de proveedor', provider.providerType]
+                    [
+                      'Tipos de proveedor',
+                      <Stack key="types" direction="row" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                        {provider.providerTypes.map((name) => (
+                          <Chip key={name} label={name} size="small" />
+                        ))}
+                      </Stack>
+                    ]
                   ]}
                 />
               </SubCard>

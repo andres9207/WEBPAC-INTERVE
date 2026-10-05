@@ -1,5 +1,6 @@
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import { defineMaster, createMasterService } from "../../../common/services/master.service.js";
+import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 // Maestro de tipos de proveedor (ADR-0010, DEC-017). DEC-10 del backlog,
 // resuelta: el tipo es una clasificación de la empresa, sin reglas ni campos
@@ -16,8 +17,16 @@ export const providerTypesConfig = defineMaster({
   fields: [{ name: "name", column: "pvt_name", label: "nombre", maxLength: 100, unique: true, filter: true, sortable: true }],
   defaultSort: "name",
   selectOrder: "name",
-  // ADR-0010, decisión 8.
-  dependents: [{ model: "tbl_providers", column: "pvt_id", label: "proveedor(es)" }],
+  // ADR-0010, decisión 8. Los tipos de un proveedor viven en la tabla de unión
+  // (DEC-041); cuentan los proveedores no eliminados.
+  dependents: [
+    {
+      model: "tbl_provider_classifications",
+      column: "pvt_id",
+      label: "proveedor(es)",
+      where: { tbl_providers: { sta_id: { not: DELETED_STATUS } } },
+    },
+  ],
   socketEvent: "refresh-provider-types",
 });
 

@@ -8,9 +8,9 @@ Qué índices tiene cada tabla, para qué existe cada uno y qué consulta del c�
 
 | Dato | Valor |
 | --- | --- |
-| Tablas | 36 (la tarea del backlog hablaba de 14: se escribió antes de los maestros y el CORE) |
-| Índices | 199: 36 claves primarias, 54 `UNIQUE`, 109 no únicos |
-| Claves foráneas | 120. **Todas tienen índice**: InnoDB lo exige |
+| Tablas | 37 (la tarea del backlog hablaba de 14: se escribió antes de los maestros y el CORE). Incluye `tbl_provider_classifications` (0063) |
+| Índices | 201: 37 claves primarias, 55 `UNIQUE`, 109 no únicos (0063 agrega tres; 0064 retira `tbl_providers_provider_type`) |
+| Claves foráneas | 121. **Todas tienen índice**: InnoDB lo exige |
 | Índices de FK creados por MySQL (no declarados en una migración) | 87: 60 de autoría (`*_create_by`, `*_update_by`, `*_delete_by`), 9 de estado (`sta_id`) y 18 de relaciones de negocio |
 | Índices redundantes (prefijo de otro) | 0 |
 
@@ -260,6 +260,13 @@ Se omite la clave primaria, que tiene toda tabla. Los índices de las FK de auto
 | `uq_profiles_pro_name` | pro_name | UNIQUE | Unicidad del dominio (mensaje en `uniqueConstraints.constants.js`) |
 | (autoría) | create, delete, update | FK implícito × 3 | Sostienen las FK de autoría a `tbl_users`. Ninguna consulta los usa |
 
+### `tbl_provider_classifications` (migración 0063)
+
+| Índice | Columnas | Tipo | Para qué |
+| --- | --- | --- | --- |
+| `uq_provider_classifications_provider_type` | prv_id, pvt_id | UNIQUE | Un tipo no se repite en el proveedor (interno). Sostiene la FK al proveedor y lee los tipos de un proveedor |
+| `tbl_provider_classifications_provider_type` | pvt_id | FK implícito | Bloqueo de eliminación del tipo de proveedor (cuenta los proveedores que lo usan) |
+
 ### `tbl_provider_contacts` (0 filas)
 
 | Índice | Columnas | Tipo | Para qué |
@@ -283,7 +290,6 @@ Se omite la clave primaria, que tiene toda tabla. Los índices de las FK de auto
 | Índice | Columnas | Tipo | Para qué |
 | --- | --- | --- | --- |
 | `idx_providers_status_name` | sta_id, prv_name | Índice | Selector y listado por estado y nombre (DEC-025). Sostiene la FK de estado |
-| `tbl_providers_provider_type` | pvt_id | FK implícito | Bloqueo de eliminación del tipo de proveedor |
 | `uq_providers_idempotency_key` | prv_idempotency_key | UNIQUE | Idempotencia (DEC-016) |
 | `uq_providers_identity_active` | idd_id, prv_identification_active | UNIQUE | Unicidad del dominio (mensaje en `uniqueConstraints.constants.js`) |
 | (autoría) | create, delete, update | FK implícito × 3 | Sostienen las FK de autoría a `tbl_users`. Ninguna consulta los usa |

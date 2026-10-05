@@ -46,6 +46,11 @@ export const summaryWorksController = handle(() => worksService.summaryWorks());
 
 export const getWorkController = handle((req) => worksService.getWork({ wrkId: req.query.wrkId }));
 
+export const previewWorkEndDateController = handle((req) => {
+  const { startDate, initialTerm, termUnit } = req.query;
+  return worksService.previewWorkEndDate({ startDate, initialTerm, termUnit });
+});
+
 export const selectWorkManagersController = handle((req) => worksService.selectWorkManagers({ search: req.query.search }));
 
 export const saveWorkController = handle(async (req) => {

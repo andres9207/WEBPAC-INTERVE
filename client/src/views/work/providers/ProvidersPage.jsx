@@ -31,7 +31,7 @@ const COLUMNS = [
     cardRender: (row) => row.name
   },
   { id: 'identification', label: 'Documento', sortable: true, render: (row) => `${row.identityCode ?? ''} ${row.identification}` },
-  { id: 'providerType', label: 'Tipo', sortable: true },
+  { id: 'providerTypes', label: 'Tipos', render: (row) => row.providerTypes.join(', ') },
   { id: 'worksCount', label: 'Obras', align: 'right' }
 ];
 

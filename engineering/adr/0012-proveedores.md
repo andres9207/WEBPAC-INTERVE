@@ -317,7 +317,7 @@ El punto clave del flujo: **la verificación previa es una cortesía; la restric
 17. Los contactos pertenecen al proveedor y son compartidos por todas sus obras.
 18. Un proveedor puede tener cero o más contactos.
 
-**Pendiente de validación:** si los datos de contacto pueden diferir por obra —lo que exigiría contactos también en la relación—; qué es exactamente el "tipo de servicio" y si debe ser un maestro; si un proveedor puede tener varios tipos de proveedor.
+**Pendiente de validación:** si los datos de contacto pueden diferir por obra —lo que exigiría contactos también en la relación—; qué es exactamente el "tipo de servicio" y si debe ser un maestro. ~~Si un proveedor puede tener varios tipos de proveedor~~: **resuelto en [DEC-041](../decisiones/DEC-041-varios-tipos-proveedor.md)**, sí, uno o varios.
 
 ## Seguridad
 

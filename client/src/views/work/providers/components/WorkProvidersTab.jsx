@@ -105,7 +105,7 @@ export default function WorkProvidersTab({ wrkId, workCode, onChanged }) {
       ),
       cardRender: (row) => `${row.providerName} · ${row.identityCode} ${row.identification}`
     },
-    { id: 'providerType', label: 'Tipo' },
+    { id: 'providerTypes', label: 'Tipos', render: (row) => row.providerTypes.join(', ') },
     { id: 'assignmentDate', label: 'Asignado el', render: (row) => fDateOnly(row.assignmentDate) },
     { id: 'observation', label: 'Observaciones', render: (row) => row.observation || '—' },
     {

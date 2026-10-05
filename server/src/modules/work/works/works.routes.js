@@ -6,6 +6,7 @@ import { PERMISSIONS } from "../../../common/constants/permissions.constants.js"
 import {
   paginationWorksSchema,
   getWorkSchema,
+  previewWorkEndDateSchema,
   selectWorkManagersSchema,
   saveWorkSchema,
   changeWorkStatusSchema,
@@ -15,6 +16,7 @@ import {
   paginationWorksController,
   summaryWorksController,
   getWorkController,
+  previewWorkEndDateController,
   selectWorkManagersController,
   saveWorkController,
   changeWorkStatusController,
@@ -30,6 +32,15 @@ worksRoutes.post("/pagination_works", verifyToken, requirePermission(can.view), 
 // Indicadores del listado (DEC-033). Sin parámetros: no hay esquema que validar.
 worksRoutes.get("/summary_works", verifyToken, requirePermission(can.view), summaryWorksController);
 worksRoutes.get("/get_work", verifyToken, requirePermission(can.view), getWorkSchema, validate, getWorkController);
+// Fecha final mientras se edita el formulario: la calcula el servidor (FRONTEND_STANDARD, regla 9).
+worksRoutes.get(
+  "/preview_work_end_date",
+  verifyToken,
+  requirePermission(can.view),
+  previewWorkEndDateSchema,
+  validate,
+  previewWorkEndDateController
+);
 // Candidatos a responsable: nombres de usuarios activos, para el formulario de
 // obra. Con el permiso de ver obras, que ya muestran a sus responsables.
 worksRoutes.get(

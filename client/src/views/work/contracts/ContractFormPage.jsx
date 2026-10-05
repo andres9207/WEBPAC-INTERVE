@@ -20,7 +20,14 @@ import SearchSelect from 'ui-component/extended/SearchSelect';
 import SelectSocket from 'ui-component/extended/SelectSocket';
 import ConceptFields, { EMPTY_CONCEPT } from './components/ConceptFields';
 import { shownFields, toFormFields, visiblePayload } from './components/configurableFields';
-import { contractsApi, getContractFieldsAPI, getContractFormOptionsAPI, getContractWorksSelectAPI } from 'api/requests/contractsApi';
+import {
+  contractsApi,
+  getContractFieldsAPI,
+  getContractFormOptionsAPI,
+  getContractWorksSelectAPI,
+  previewContractEndDateAPI
+} from 'api/requests/contractsApi';
+import useEndDatePreview from 'hooks/useEndDatePreview';
 import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
@@ -36,8 +43,9 @@ import { TERM_UNIT_OPTIONS } from 'utils/constants';
  * - Etapa y proveedor se filtran por la obra elegida (y el servidor lo exige).
  *   La obra no cambia después de crear el contrato.
  * - La fecha fin es solo lectura: la calcula el servidor (inicio + plazo +
- *   prórrogas + días suspendidos). Si cambian la fecha o el plazo, dice "Se
- *   calcula al guardar" (FRONTEND_STANDARD, regla 9).
+ *   prórrogas + días suspendidos; FRONTEND_STANDARD, regla 9). Se le pide al
+ *   salir del plazo, al cambiar la unidad o la fecha de inicio
+ *   (useEndDatePreview); se guarda con el contrato.
  * - Editar solo cambia la cabecera; el valor inicial y los otrosí se
  *   modifican en la pestaña "Valor" del detalle, con su permiso.
  * - Campos configurables (ADR-0006, DEC-037): etapa, observaciones y los
@@ -72,6 +80,9 @@ const toForm = (contract) => ({
 });
 
 const NO_DESCRIPTION = { skip: ['CONCEPT_DESCRIPTION'] };
+
+// Parámetros de la vista previa de la fecha fin (preview_contract_end_date).
+const contractEndParams = ({ ctrId, startDate, term, termUnit }) => ({ ...(ctrId ? { ctrId } : {}), startDate, term, termUnit });
 
 const toPayload = (ctrId, form, descriptors) => {
   const configured = visiblePayload(descriptors, 'CONTRACT', form);
@@ -141,8 +152,17 @@ export default function ContractFormPage() {
   const [loadingFields, setLoadingFields] = useState(false);
 
   const methods = useForm({ defaultValues: EMPTY_FORM });
-  const { control, handleSubmit, reset, setValue, formState } = methods;
+  const { control, handleSubmit, reset, setValue, getValues, formState } = methods;
   const { errors, isDirty } = formState;
+  const endPreview = useEndDatePreview(previewContractEndDateAPI, contractEndParams);
+  const resetEndDate = endPreview.reset;
+
+  // Fecha fin: al salir del plazo, al cambiar la unidad o la fecha de inicio.
+  // Al editar, el servidor suma además las prórrogas y los días suspendidos.
+  const recalcEndDate = (changed = {}) => {
+    const [startDate, term, termUnit] = getValues(['startDate', 'term', 'termUnit']);
+    endPreview.recalc({ ctrId, startDate, term, termUnit, ...changed });
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -155,6 +175,7 @@ export default function ContractFormPage() {
         setLoaded(contract);
         setWorkOptions(works);
         reset(contract ? toForm(contract) : EMPTY_FORM);
+        resetEndDate(contract?.endDate);
       } catch (err) {
         showError(err.response?.data?.message || 'Error al cargar el contrato');
         navigate('/work/contracts', { replace: true });
@@ -163,9 +184,9 @@ export default function ContractFormPage() {
       }
     };
     load();
-  }, [isEdit, ctrId, reset, navigate]);
+  }, [isEdit, ctrId, reset, resetEndDate, navigate]);
 
-  const [wrkId, startDate, term, termUnit, cttId] = useWatch({ control, name: ['wrkId', 'startDate', 'term', 'termUnit', 'cttId'] });
+  const [wrkId, cttId] = useWatch({ control, name: ['wrkId', 'cttId'] });
 
   // Configuración del tipo elegido, la vigente (ADR-0006, decisión 5).
   useEffect(() => {
@@ -209,9 +230,6 @@ export default function ContractFormPage() {
     setValue('prvId', '', { shouldDirty: true });
   };
 
-  // Fecha fin: la del servidor mientras no cambien sus insumos.
-  const termChanged = !loaded || startDate !== loaded.startDate || String(term) !== String(loaded.term) || termUnit !== loaded.termUnit;
-  const endDate = termChanged ? '' : loaded.endDate;
   const blocked = isEdit && loaded && !loaded.allowedActions.includes('editContract');
 
   // Cancelar o cerrar vuelve al listado, también al editar (DEC-034).
@@ -441,7 +459,10 @@ export default function ContractFormPage() {
                   render={({ field, fieldState }) => (
                     <DateField
                       value={field.value}
-                      onChange={field.onChange}
+                      onChange={(value) => {
+                        field.onChange(value);
+                        recalcEndDate({ startDate: value });
+                      }}
                       label="Fecha de inicio"
                       required
                       error={fieldState.error?.message}
@@ -463,6 +484,10 @@ export default function ContractFormPage() {
                       <TextField
                         {...field}
                         onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        onBlur={() => {
+                          field.onBlur();
+                          recalcEndDate();
+                        }}
                         label="Plazo"
                         required
                         size="small"
@@ -489,7 +514,10 @@ export default function ContractFormPage() {
                       render={({ field }) => (
                         <SearchSelect
                           value={field.value}
-                          onChange={(value) => field.onChange(value || 'MES')}
+                          onChange={(value) => {
+                            field.onChange(value || 'MES');
+                            recalcEndDate({ termUnit: value || 'MES' });
+                          }}
                           options={TERM_UNIT_OPTIONS}
                           label="Unidad del plazo"
                           hideLabel
@@ -502,14 +530,10 @@ export default function ContractFormPage() {
               </Grid>
               <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <DateField
-                  value={endDate}
+                  value={endPreview.endDate}
                   label="Fecha fin"
                   readOnly
-                  helperText={
-                    termChanged
-                      ? 'Se calcula al guardar: inicio + plazo + prórrogas + días suspendidos'
-                      : 'Calculada por el sistema: inicio + plazo + prórrogas + días suspendidos'
-                  }
+                  helperText={endPreview.loading ? 'Calculando…' : 'Calculada por el sistema: inicio + plazo + prórrogas + días suspendidos'}
                 />
               </Grid>
               {otherContractFields.length > 0 && (

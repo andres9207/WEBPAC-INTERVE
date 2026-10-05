@@ -35,7 +35,7 @@ import { STATUS } from 'utils/constants';
 
 const today = () => format(new Date(), 'yyyy-MM-dd');
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const EMPTY = { iddId: '', identification: '', name: '', pvtId: '', email: '', assignmentDate: '', observation: '' };
+const EMPTY = { iddId: '', identification: '', name: '', pvtIds: [], email: '', assignmentDate: '', observation: '' };
 
 export default function NewProviderDialog({ open, wrkId, onClose, onSaved, onUseExisting }) {
   const [form, setForm] = useState(EMPTY);
@@ -86,7 +86,7 @@ export default function NewProviderDialog({ open, wrkId, onClose, onSaved, onUse
       if (reason) result.identification = reason;
     }
     if (!form.name.trim()) result.name = 'El nombre o razón social es requerido.';
-    if (!form.pvtId) result.pvtId = 'Selecciona el tipo de proveedor.';
+    if (form.pvtIds.length === 0) result.pvtIds = 'Selecciona al menos un tipo de proveedor.';
     if (form.email.trim() && !EMAIL.test(form.email.trim())) result.email = 'Correo inválido.';
     if (!form.assignmentDate) result.assignmentDate = 'La fecha de asignación es requerida.';
     return result;
@@ -104,7 +104,7 @@ export default function NewProviderDialog({ open, wrkId, onClose, onSaved, onUse
         iddId: form.iddId,
         identification: form.identification.trim(),
         name: form.name.trim(),
-        pvtId: form.pvtId,
+        pvtIds: form.pvtIds,
         email: form.email.trim(),
         contacts: [],
         assignment: { wrkId, assignmentDate: form.assignmentDate, observation: form.observation.trim() }
@@ -202,11 +202,12 @@ export default function NewProviderDialog({ open, wrkId, onClose, onSaved, onUse
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <SelectSocket
-            value={form.pvtId}
-            onChange={set('pvtId')}
-            label="Tipo de proveedor"
+            multiple
+            value={form.pvtIds}
+            onChange={set('pvtIds')}
+            label="Tipos de proveedor"
             required
-            error={errors.pvtId ? { message: errors.pvtId } : undefined}
+            error={errors.pvtIds ? { message: errors.pvtIds } : undefined}
             fetchApi={fetchProviderTypes}
             socketEvent="refresh-provider-types"
           />

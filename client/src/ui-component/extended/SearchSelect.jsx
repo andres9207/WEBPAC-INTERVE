@@ -14,6 +14,9 @@ import { IconSearch } from '@tabler/icons-react';
  * - Sin coincidencias: "Sin resultados para «x»".
  * - Controlado por valor: `value` es el `value` de la opción y `onChange`
  *   recibe el valor elegido ('' si se limpia).
+ * - `multiple`: `value` es una lista de valores, las elegidas se ven como
+ *   chips y `onChange` recibe la lista ([] si se limpia). El menú queda
+ *   abierto al elegir, para marcar varias seguidas.
  */
 const filterOptions = createFilterOptions({ ignoreAccents: true, ignoreCase: true, stringify: (option) => option.label ?? '' });
 
@@ -30,15 +33,25 @@ export default function SearchSelect({
   placeholder,
   disableClearable = false,
   hideLabel = false,
-  onOptionChange
+  onOptionChange,
+  multiple = false
 }) {
-  const selected = options.find((option) => option.value === value) ?? null;
+  const selected = multiple
+    ? options.filter((option) => (value ?? []).includes(option.value))
+    : (options.find((option) => option.value === value) ?? null);
   const [inputValue, setInputValue] = useState('');
+  const searching = inputValue && (multiple || inputValue !== selected?.label);
 
   return (
     <Autocomplete
+      multiple={multiple}
+      disableCloseOnSelect={multiple}
       value={selected}
       onChange={(_, option) => {
+        if (multiple) {
+          onChange(option.map((o) => o.value));
+          return;
+        }
         onChange(option?.value ?? '');
         if (option) onOptionChange?.(option);
       }}
@@ -48,7 +61,7 @@ export default function SearchSelect({
       isOptionEqualToValue={(option, current) => option.value === current.value}
       inputValue={inputValue}
       onInputChange={(_, text) => setInputValue(text)}
-      noOptionsText={inputValue && inputValue !== selected?.label ? `Sin resultados para «${inputValue}»` : 'Sin opciones'}
+      noOptionsText={searching ? `Sin resultados para «${inputValue}»` : 'Sin opciones'}
       loadingText="Cargando…"
       loading={loading}
       disabled={disabled}
@@ -85,7 +98,8 @@ export default function SearchSelect({
 }
 
 SearchSelect.propTypes = {
-  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  /** Un valor; con `multiple`, la lista de valores elegidos. */
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.string, PropTypes.number]))]),
   onChange: PropTypes.func.isRequired,
   /** `[{ value, label }]` */
   options: PropTypes.arrayOf(PropTypes.shape({ value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]), label: PropTypes.string }))
@@ -101,5 +115,7 @@ SearchSelect.propTypes = {
   disableClearable: PropTypes.bool,
   /** La etiqueta no se ve, pero sigue siendo el nombre accesible (p. ej. dentro de una fila). */
   hideLabel: PropTypes.bool,
-  onOptionChange: PropTypes.func
+  onOptionChange: PropTypes.func,
+  /** Varias opciones a la vez, como chips. */
+  multiple: PropTypes.bool
 };

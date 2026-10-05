@@ -68,6 +68,13 @@ export const getContractFormOptionsSchema = [
   query("includePrvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePrvId debe ser un entero positivo."),
 ];
 
+export const previewContractEndDateSchema = [
+  query("ctrId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("ctrId debe ser un entero positivo."),
+  query("startDate").matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("La fecha de inicio es requerida (AAAA-MM-DD)."),
+  query("term").isInt({ min: 1, max: 100000 }).withMessage("El plazo debe ser un entero positivo."),
+  query("termUnit").isIn(TERM_UNITS).withMessage("La unidad del plazo debe ser días, meses o años."),
+];
+
 export const getContractFieldsSchema = [
   query("cttId").isInt({ min: 1 }).withMessage("cttId es obligatorio y debe ser un entero positivo."),
   query("version").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("version debe ser un entero positivo."),

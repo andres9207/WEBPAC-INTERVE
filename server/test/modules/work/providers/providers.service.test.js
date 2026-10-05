@@ -1,8 +1,8 @@
 import { jest } from "@jest/globals";
 import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
 
-// Proveedores (ADR-0012, DEC-031, DEC-032): identidad única con 409 que
-// devuelve el proveedor existente, contactos por diferencial, permiso propio
+// Proveedores (ADR-0012, DEC-031, DEC-032, DEC-041): identidad única con 409
+// que devuelve el proveedor existente, tipos y contactos por diferencial, permiso propio
 // para cambiar la identificación, y asignación proveedor-obra con bloqueo y
 // bitácora.
 
@@ -21,6 +21,7 @@ const prismaMock = {
     update: jest.fn(),
   },
   tbl_provider_contacts: { findMany: jest.fn(), deleteMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
+  tbl_provider_classifications: { findMany: jest.fn(), deleteMany: jest.fn(), createMany: jest.fn() },
   tbl_contracts: { count: jest.fn() },
   tbl_work_providers: {
     findMany: jest.fn(),
@@ -61,7 +62,7 @@ const input = (overrides = {}) => ({
   iddId: 1,
   identification: " 1020304050 ",
   name: " Ferretería Andina ",
-  pvtId: 2,
+  pvtIds: [2],
   serviceType: "Suministro de acero",
   email: "compras@andina.co",
   observation: "",
@@ -81,7 +82,6 @@ const storedProvider = {
   idd_id: 1,
   prv_identification: "1020304050",
   prv_name: "Ferretería Andina",
-  pvt_id: 2,
   prv_service_type: "Suministro de acero",
   prv_email: "compras@andina.co",
   prv_observation: null,
@@ -110,6 +110,7 @@ beforeEach(() => {
   prismaMock.tbl_providers.findFirst.mockResolvedValue(null);
   prismaMock.tbl_providers.create.mockResolvedValue({ prv_id: 50 });
   prismaMock.tbl_provider_contacts.findMany.mockResolvedValue([]);
+  prismaMock.tbl_provider_classifications.findMany.mockResolvedValue([]);
   prismaMock.tbl_work_providers.count.mockResolvedValue(0);
   prismaMock.tbl_contracts.count.mockResolvedValue(0);
   prismaMock.tbl_works.findUnique.mockResolvedValue({ sta_id: 1 });
@@ -130,7 +131,6 @@ describe("saveProvider — crear", () => {
       idd_id: 1,
       prv_identification: "1020304050",
       prv_name: "Ferretería Andina",
-      pvt_id: 2,
       prv_observation: null,
       sta_id: 1,
       prv_create_by: 9,
@@ -139,10 +139,32 @@ describe("saveProvider — crear", () => {
     expect(prismaMock.tbl_provider_contacts.createMany.mock.calls[0][0].data).toEqual([
       expect.objectContaining({ prv_id: 50, adt_id: 4, prc_phone: "6011234567", prc_main: true, prc_create_by: 9 }),
     ]);
+    expect(prismaMock.tbl_provider_classifications.createMany.mock.calls[0][0].data).toEqual([{ prv_id: 50, pvt_id: 2 }]);
     expect(auditRows()).toEqual(
-      expect.arrayContaining([expect.objectContaining({ aud_entity: "PROVEEDOR", aud_operation: "CREAR", aud_field: "prv_identification" })])
+      expect.arrayContaining([
+        expect.objectContaining({ aud_entity: "PROVEEDOR", aud_operation: "CREAR", aud_field: "prv_identification" }),
+        expect.objectContaining({ aud_entity: "PROVEEDOR", aud_operation: "CREAR", aud_field: "pvt_ids", aud_new_value: "2" }),
+      ])
     );
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("con varios tipos guarda cada uno una sola vez y los bloquea (DEC-041)", async () => {
+    await service.saveProvider({ prvId: 0, input: input({ pvtIds: [3, "2", 3] }), useBy: 9, granted: ALL, ctx, idempotencyKey: KEY });
+
+    expect(prismaMock.tbl_provider_classifications.createMany.mock.calls[0][0].data).toEqual([
+      { prv_id: 50, pvt_id: 2 },
+      { prv_id: 50, pvt_id: 3 },
+    ]);
+    expect(prismaMock.tbl_provider_types.findUnique).toHaveBeenCalledTimes(2);
+    expect(lockedTables()).toContain("tbl_provider_types");
+  });
+
+  it("sin ningún tipo responde 400 y no abre la transacción", async () => {
+    await expect(
+      service.saveProvider({ prvId: 0, input: input({ pvtIds: [] }), useBy: 9, granted: ALL, ctx, idempotencyKey: KEY })
+    ).rejects.toMatchObject({ statusCode: 400, message: "Selecciona al menos un tipo de proveedor." });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
   it("la identidad repetida responde 409 con el proveedor existente y no crea nada (ADR-0012, decisión 7)", async () => {
@@ -253,6 +275,37 @@ describe("saveProvider — editar", () => {
   beforeEach(() => {
     state.provider = { ...storedProvider };
     prismaMock.tbl_provider_contacts.findMany.mockResolvedValue([{ ...storedContact }]);
+    prismaMock.tbl_provider_classifications.findMany.mockResolvedValue([{ pvt_id: 2 }]);
+  });
+
+  it("guarda los tipos por diferencial y audita la lista (DEC-041)", async () => {
+    await service.saveProvider({ prvId: 77, input: input({ pvtIds: [4, 3], contacts: [contact({ prcId: 11 })] }), useBy: 9, granted: ALL, ctx });
+
+    expect(prismaMock.tbl_provider_classifications.deleteMany.mock.calls[0][0]).toEqual({ where: { prv_id: 77, pvt_id: { in: [2] } } });
+    expect(prismaMock.tbl_provider_classifications.createMany.mock.calls[0][0].data).toEqual([
+      { prv_id: 77, pvt_id: 3 },
+      { prv_id: 77, pvt_id: 4 },
+    ]);
+    expect(auditRows()).toEqual([expect.objectContaining({ aud_operation: "EDITAR", aud_field: "pvt_ids", aud_old_value: "2", aud_new_value: "3,4" })]);
+  });
+
+  it("sin cambios en los tipos no escribe la tabla de unión", async () => {
+    await service.saveProvider({ prvId: 77, input: input({ contacts: [contact({ prcId: 11 })] }), useBy: 9, granted: ALL, ctx });
+
+    expect(prismaMock.tbl_provider_classifications.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_provider_classifications.createMany).not.toHaveBeenCalled();
+  });
+
+  it("un tipo inactivo que ya tenía se conserva; uno inactivo nuevo se rechaza", async () => {
+    prismaMock.tbl_provider_types.findUnique.mockResolvedValue({ pvt_name: "Simple", sta_id: 2 });
+
+    await expect(
+      service.saveProvider({ prvId: 77, input: input({ contacts: [contact({ prcId: 11 })] }), useBy: 9, granted: ALL, ctx })
+    ).resolves.toMatchObject({ prvId: 77 });
+
+    await expect(
+      service.saveProvider({ prvId: 77, input: input({ pvtIds: [2, 5], contacts: [contact({ prcId: 11 })] }), useBy: 9, granted: ALL, ctx })
+    ).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("inactivo") });
   });
 
   it("bloquea el proveedor antes de leerlo", async () => {

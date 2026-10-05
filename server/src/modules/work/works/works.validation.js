@@ -30,6 +30,12 @@ export const paginationWorksSchema = [...paginationRules(), optionalText("search
 
 export const getWorkSchema = [query("wrkId").isInt({ min: 1 }).withMessage("wrkId es obligatorio y debe ser un entero positivo.")];
 
+export const previewWorkEndDateSchema = [
+  query("startDate").matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("La fecha de inicio es requerida (AAAA-MM-DD)."),
+  query("initialTerm").isInt({ min: 0, max: 100000 }).withMessage("El plazo inicial debe ser un entero no negativo."),
+  query("termUnit").isIn(TERM_UNITS).withMessage("La unidad del plazo debe ser días, meses o años."),
+];
+
 export const selectWorkManagersSchema = [
   query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
 ];

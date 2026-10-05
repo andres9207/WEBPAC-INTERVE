@@ -40,6 +40,11 @@ export const getContractFormOptionsController = handle((req) => {
   return contractsService.getContractFormOptions({ wrkId, includeWksId, includePrvId });
 });
 
+export const previewContractEndDateController = handle((req) => {
+  const { ctrId, startDate, term, termUnit } = req.query;
+  return contractsService.previewContractEndDate({ ctrId, startDate, term, termUnit });
+});
+
 export const getContractFieldsController = handle((req) =>
   contractsService.getContractFields({ cttId: req.query.cttId, version: req.query.version })
 );

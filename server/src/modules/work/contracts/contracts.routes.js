@@ -8,6 +8,7 @@ import {
   getContractSchema,
   selectContractWorksSchema,
   getContractFormOptionsSchema,
+  previewContractEndDateSchema,
   getContractFieldsSchema,
   saveContractSchema,
   deleteContractSchema,
@@ -21,6 +22,7 @@ import {
   getContractController,
   selectContractWorksController,
   getContractFormOptionsController,
+  previewContractEndDateController,
   getContractFieldsController,
   saveContractController,
   deleteContractController,
@@ -48,6 +50,15 @@ contractsRoutes.get(
   getContractFormOptionsSchema,
   validate,
   getContractFormOptionsController
+);
+// Fecha fin mientras se edita el formulario: la calcula el servidor (FRONTEND_STANDARD, regla 9).
+contractsRoutes.get(
+  "/preview_contract_end_date",
+  verifyToken,
+  requirePermission(can.view),
+  previewContractEndDateSchema,
+  validate,
+  previewContractEndDateController
 );
 // Descriptores de los campos configurables de un tipo (ADR-0006, decisión 5),
 // para el formulario de contrato y el de otrosí.

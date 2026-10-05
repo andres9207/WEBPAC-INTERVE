@@ -105,7 +105,8 @@ export default function ConceptsTab({ contract, onChanged }) {
         {canLiquidate && (
           <Button
             variant="outlined"
-            color="warning"
+            color="inherit"
+            sx={{ color: 'grey.700', borderColor: 'grey.300' }}
             startIcon={<IconFileCheck size={16} />}
             onClick={() => setDialog({ mode: 'liquidation' })}
           >

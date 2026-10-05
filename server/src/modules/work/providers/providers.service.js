@@ -20,12 +20,13 @@ import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/
  *   El UNIQUE de la BD es la garantía; la verificación previa da el mensaje.
  *   Las dos responden igual: 409 con el proveedor existente en `data`, para
  *   que el cliente ofrezca asignarlo en vez de crear otro (decisión 7).
- * - Contactos: parte del proveedor, guardados con él por diferencial.
+ * - Contactos y tipos de proveedor (uno o varios, DEC-041): parte del
+ *   proveedor, guardados con él por diferencial.
  * - Cambiar la identificación de un proveedor existente exige su propio
  *   permiso (ADR-0012, regla 5): el controller pasa los permisos efectivos.
  * - Asignar, editar la asignación y desasignar tienen endpoints propios
  *   (DEC-031). Bloqueo: obra → proveedor → maestros (LOCK_ORDER).
- * - Bitácora funcional: identidad, nombre, tipo, estado, y la asignación y
+ * - Bitácora funcional: identidad, nombre, tipos, estado, y la asignación y
  *   desasignación a obras. Técnica (columnas de autoría) para el resto.
  */
 
@@ -42,10 +43,16 @@ const optionalText = (value) => text(value) || null;
 const SORT_FIELDS = {
   name: (order) => ({ prv_name: order }),
   identification: (order) => ({ prv_identification: order }),
-  providerType: (order) => ({ tbl_provider_types: { pvt_name: order } }),
   statusName: (order) => ({ tbl_status: { sta_name: order } }),
   updatedAt: (order) => ({ prv_update_at: order }),
 };
+
+// Tipos del proveedor (DEC-041), por nombre.
+const CLASSIFICATIONS_SELECT = {
+  select: { pvt_id: true, tbl_provider_types: { select: { pvt_name: true } } },
+  orderBy: { tbl_provider_types: { pvt_name: "asc" } },
+};
+const typeNamesOf = (classifications = []) => classifications.map((c) => c.tbl_provider_types?.pvt_name).filter(Boolean);
 
 const LIST_SELECT = {
   prv_id: true,
@@ -55,7 +62,7 @@ const LIST_SELECT = {
   sta_id: true,
   prv_update_at: true,
   tbl_identity_documents: { select: { idd_code: true } },
-  tbl_provider_types: { select: { pvt_name: true } },
+  tbl_provider_classifications: CLASSIFICATIONS_SELECT,
   tbl_status: { select: { sta_name: true } },
   updated_by_user: USER_NAME_SELECT,
   _count: { select: { tbl_work_providers: true } },
@@ -66,7 +73,7 @@ const toListDto = (row) => ({
   name: row.prv_name,
   identityCode: row.tbl_identity_documents?.idd_code ?? null,
   identification: row.prv_identification,
-  providerType: row.tbl_provider_types?.pvt_name ?? null,
+  providerTypes: typeNamesOf(row.tbl_provider_classifications),
   serviceType: row.prv_service_type,
   worksCount: row._count?.tbl_work_providers ?? 0,
   staId: row.sta_id,
@@ -99,7 +106,7 @@ export const paginationProviders = async ({ search, staId, rows, first, sortFiel
 
 // ─── Detalle ─────────────────────────────────────────────────────────────────
 
-const HEADER_COLUMNS = ["idd_id", "prv_identification", "prv_name", "pvt_id", "prv_service_type", "prv_email", "prv_observation"];
+const HEADER_COLUMNS = ["idd_id", "prv_identification", "prv_name", "prv_service_type", "prv_email", "prv_observation"];
 const HEADER_SELECT = Object.fromEntries(HEADER_COLUMNS.map((column) => [column, true]));
 
 const CONTACT_COLUMNS = [
@@ -141,7 +148,7 @@ const toAssignmentDto = (a) => ({
   providerName: a.tbl_providers?.prv_name ?? null,
   identityCode: a.tbl_providers?.tbl_identity_documents?.idd_code ?? null,
   identification: a.tbl_providers?.prv_identification ?? null,
-  providerType: a.tbl_providers?.tbl_provider_types?.pvt_name ?? null,
+  providerTypes: typeNamesOf(a.tbl_providers?.tbl_provider_classifications),
   providerStaId: a.tbl_providers?.sta_id ?? null,
   assignmentDate: dateOnlyText(a.wkp_assignment_date),
   observation: a.wkp_observation,
@@ -161,7 +168,7 @@ export const getProvider = async ({ prvId }) => {
       prv_update_at: true,
       tbl_status: { select: { sta_name: true } },
       tbl_identity_documents: { select: { idd_code: true, idd_name: true } },
-      tbl_provider_types: { select: { pvt_name: true } },
+      tbl_provider_classifications: CLASSIFICATIONS_SELECT,
       created_by_user: USER_NAME_SELECT,
       updated_by_user: USER_NAME_SELECT,
       tbl_provider_contacts: {
@@ -195,8 +202,8 @@ export const getProvider = async ({ prvId }) => {
     identityName: row.tbl_identity_documents?.idd_name ?? null,
     identification: row.prv_identification,
     name: row.prv_name,
-    pvtId: row.pvt_id,
-    providerType: row.tbl_provider_types?.pvt_name ?? null,
+    pvtIds: row.tbl_provider_classifications.map((c) => c.pvt_id),
+    providerTypes: typeNamesOf(row.tbl_provider_classifications),
     serviceType: row.prv_service_type,
     email: row.prv_email,
     observation: row.prv_observation,
@@ -305,11 +312,17 @@ const headerValuesOf = (input) => ({
   idd_id: Number(input.iddId),
   prv_identification: text(input.identification),
   prv_name: text(input.name),
-  pvt_id: Number(input.pvtId),
   prv_service_type: optionalText(input.serviceType),
   prv_email: optionalText(input.email),
   prv_observation: optionalText(input.observation),
 });
+
+// Tipos de proveedor pedidos (DEC-041): ids sin repetir, en orden.
+const typeIdsOf = (input) => [...new Set((input.pvtIds ?? []).map(Number))].sort((a, b) => a - b);
+
+const assertTypeIds = (pvtIds) => {
+  if (pvtIds.length === 0 || pvtIds.some((id) => !(id > 0))) throw httpError(400, "Selecciona al menos un tipo de proveedor.");
+};
 
 const contactsOf = (input) =>
   (input.contacts ?? []).map((c) => ({
@@ -355,11 +368,11 @@ const assertAddressTypes = async (tx, contacts, currentById = new Map()) => {
   }
 };
 
-const masterLocksOf = (values, contacts) => {
+const masterLocksOf = (values, pvtIds, contacts) => {
   const addressTypes = [...new Set(contacts.map((c) => c.adt_id))];
   return {
     TIPO_IDENTIFICACION: values.idd_id,
-    TIPO_PROVEEDOR: values.pvt_id,
+    TIPO_PROVEEDOR: pvtIds,
     ...(addressTypes.length > 0 ? { TIPO_DIRECCION: addressTypes } : {}),
   };
 };
@@ -399,8 +412,25 @@ const applyContacts = async (tx, { prvId, diff, useBy }) => {
   }
 };
 
-// Bitácora funcional del proveedor (ADR-0012, "Auditoría").
-const AUDITED_HEADER = ["idd_id", "prv_identification", "prv_name", "pvt_id"];
+// Un tipo inactivo se conserva si el proveedor ya lo tenía; no se agrega uno
+// nuevo (como los demás maestros). Con los tipos ya bloqueados.
+const assertProviderTypes = async (tx, pvtIds, currentIds = []) => {
+  for (const id of pvtIds) {
+    await providerTypesService.assertAssignable(tx, id, currentIds.includes(id) ? id : undefined);
+  }
+};
+
+// Diferencial de tipos contra la BD: altas y bajas de la tabla de unión.
+const applyProviderTypes = async (tx, { prvId, currentIds, pvtIds }) => {
+  const toDelete = currentIds.filter((id) => !pvtIds.includes(id));
+  const toInsert = pvtIds.filter((id) => !currentIds.includes(id));
+  if (toDelete.length > 0) await tx.tbl_provider_classifications.deleteMany({ where: { prv_id: prvId, pvt_id: { in: toDelete } } });
+  if (toInsert.length > 0) await tx.tbl_provider_classifications.createMany({ data: toInsert.map((pvt_id) => ({ prv_id: prvId, pvt_id })) });
+};
+
+// Bitácora funcional del proveedor (ADR-0012, "Auditoría"). `pvt_ids` es la
+// lista de tipos (DEC-041), registrada como texto ordenado.
+const AUDITED_HEADER = ["idd_id", "prv_identification", "prv_name", "pvt_ids"];
 
 // ─── Asignación proveedor-obra ───────────────────────────────────────────────
 
@@ -472,13 +502,13 @@ const PROVIDER_IDEMPOTENCY = {
   toResult: (row) => ({ message: "Proveedor creado correctamente", prvId: row.prv_id }),
 };
 
-const createProvider = ({ values, contacts, assignment, useBy, ctx, idempotencyData }) =>
+const createProvider = ({ values, pvtIds, contacts, assignment, useBy, ctx, idempotencyData }) =>
   withLockedTransaction(
-    { ...(assignment ? { OBRA: assignment.wrkId } : {}), ...masterLocksOf(values, contacts) },
+    { ...(assignment ? { OBRA: assignment.wrkId } : {}), ...masterLocksOf(values, pvtIds, contacts) },
     async (tx) => {
       if (assignment) await assertWorkAssignable(tx, assignment.wrkId);
       await assertIdentification(tx, values);
-      await providerTypesService.assertAssignable(tx, values.pvt_id);
+      await assertProviderTypes(tx, pvtIds);
       await assertAddressTypes(tx, contacts);
 
       // Cortesía: el mensaje claro y el proveedor existente. El UNIQUE es la
@@ -498,8 +528,9 @@ const createProvider = ({ values, contacts, assignment, useBy, ctx, idempotencyD
         recordId: prvId,
         operation: AUDIT_OPERATIONS.CREATE,
         ctx,
-        changes: diffFields({}, values, AUDITED_HEADER),
+        changes: diffFields({}, { ...values, pvt_ids: pvtIds }, AUDITED_HEADER),
       });
+      await applyProviderTypes(tx, { prvId, currentIds: [], pvtIds });
       await applyContacts(tx, { prvId, diff: diffContacts([], contacts), useBy });
 
       // Crear desde una obra: el proveedor nuevo queda asignado en la misma
@@ -517,9 +548,9 @@ const createProvider = ({ values, contacts, assignment, useBy, ctx, idempotencyD
 
 // Editar fija la cabecera y los contactos: repetirlo deja lo mismo, así que
 // se puede reintentar ante un interbloqueo.
-const updateProvider = ({ prvId, values, contacts, useBy, granted, ctx }) =>
+const updateProvider = ({ prvId, values, pvtIds, contacts, useBy, granted, ctx }) =>
   withLockedTransaction(
-    { PROVEEDOR: prvId, ...masterLocksOf(values, contacts) },
+    { PROVEEDOR: prvId, ...masterLocksOf(values, pvtIds, contacts) },
     async (tx) => {
       const id = Number(prvId);
       const before = await tx.tbl_providers.findUnique({ where: { prv_id: id }, select: { ...HEADER_SELECT, sta_id: true } });
@@ -532,9 +563,12 @@ const updateProvider = ({ prvId, values, contacts, useBy, granted, ctx }) =>
 
       const currentContacts = await tx.tbl_provider_contacts.findMany({ where: { prv_id: id }, select: CONTACT_SELECT });
       const contactDiff = diffContacts(currentContacts, contacts);
+      const currentIds = (await tx.tbl_provider_classifications.findMany({ where: { prv_id: id }, select: { pvt_id: true } }))
+        .map((c) => c.pvt_id)
+        .sort((a, b) => a - b);
 
       await assertIdentification(tx, values, before);
-      await providerTypesService.assertAssignable(tx, values.pvt_id, before.pvt_id);
+      await assertProviderTypes(tx, pvtIds, currentIds);
       await assertAddressTypes(tx, contacts, new Map(currentContacts.map((c) => [c.prc_id, c])));
 
       if (identityChanged) {
@@ -544,10 +578,11 @@ const updateProvider = ({ prvId, values, contacts, useBy, granted, ctx }) =>
 
       await tx.tbl_providers.update({ where: { prv_id: id }, data: { ...values, prv_update_by: useBy } });
 
-      const changes = diffFields(before, values, AUDITED_HEADER);
+      const changes = diffFields({ ...before, pvt_ids: currentIds }, { ...values, pvt_ids: pvtIds }, AUDITED_HEADER);
       if (changes.length > 0) {
         await writeAudit(tx, { entity: AUDIT_ENTITIES.PROVIDER, recordId: id, operation: AUDIT_OPERATIONS.UPDATE, ctx, changes });
       }
+      await applyProviderTypes(tx, { prvId: id, currentIds, pvtIds });
       await applyContacts(tx, { prvId: id, diff: contactDiff, useBy });
 
       return { message: "Proveedor modificado correctamente", prvId: id };
@@ -573,12 +608,14 @@ const translateDuplicate = async (err, values, excludeId = null) => {
  */
 export const saveProvider = async ({ prvId, input, useBy, granted, ctx = { useId: useBy }, idempotencyKey }) => {
   const values = headerValuesOf(input);
+  const pvtIds = typeIdsOf(input);
   const contacts = contactsOf(input);
+  assertTypeIds(pvtIds);
   assertContacts(contacts);
 
   if (Number(prvId) > 0) {
     try {
-      return await updateProvider({ prvId, values, contacts, useBy: Number(useBy), granted, ctx });
+      return await updateProvider({ prvId, values, pvtIds, contacts, useBy: Number(useBy), granted, ctx });
     } catch (err) {
       return translateDuplicate(err, values, prvId);
     }
@@ -600,10 +637,11 @@ export const saveProvider = async ({ prvId, input, useBy, granted, ctx = { useId
       ownerId: useBy,
       payload: {
         ...values,
+        pvtIds,
         contacts,
         assignment: assignment && { wrkId: assignment.wrkId, ...assignment.values },
       },
-      execute: (idempotencyData) => createProvider({ values, contacts, assignment, useBy: Number(useBy), ctx, idempotencyData }),
+      execute: (idempotencyData) => createProvider({ values, pvtIds, contacts, assignment, useBy: Number(useBy), ctx, idempotencyData }),
     });
   } catch (err) {
     return translateDuplicate(err, values);
@@ -690,7 +728,7 @@ const ASSIGNMENT_LIST_SELECT = {
       prv_identification: true,
       sta_id: true,
       tbl_identity_documents: { select: { idd_code: true } },
-      tbl_provider_types: { select: { pvt_name: true } },
+      tbl_provider_classifications: CLASSIFICATIONS_SELECT,
     },
   },
 };

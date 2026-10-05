@@ -388,3 +388,36 @@ describe("campos configurables del tipo de contrato (DEC-037)", () => {
     await expect(service.getContractFields({ cttId: 2 })).rejects.toMatchObject({ statusCode: 404 });
   });
 });
+
+describe("previewContractEndDate (FRONTEND_STANDARD, regla 9)", () => {
+  it("contrato nuevo: inicio + plazo, con el último día del mes si el destino es más corto", async () => {
+    await expect(service.previewContractEndDate({ startDate: "2026-01-31", term: "1", termUnit: "MES" })).resolves.toEqual({
+      endDate: "2026-02-28",
+    });
+    expect(prismaMock.tbl_contracts.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("contrato existente: suma las prórrogas vigentes de sus otrosí y sus días suspendidos, como al guardar", async () => {
+    prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce({
+      ctr_suspended_days: 10,
+      tbl_contract_concepts: [
+        { ccp_type: "INITIAL", ccp_extension: null, sta_id: 1 },
+        { ccp_type: "AMENDMENT", ccp_extension: 2, sta_id: 1 },
+        { ccp_type: "AMENDMENT", ccp_extension: 5, sta_id: 3 },
+      ],
+    });
+
+    // 2026-01-15 + (6 + 2) meses = 2026-09-15, + 10 días = 2026-09-25. El otrosí eliminado no cuenta.
+    await expect(service.previewContractEndDate({ ctrId: "30", startDate: "2026-01-15", term: "6", termUnit: "MES" })).resolves.toEqual({
+      endDate: "2026-09-25",
+    });
+    expect(prismaMock.tbl_contracts.findFirst.mock.calls[0][0].where).toEqual({ ctr_id: 30, sta_id: { not: 3 } });
+  });
+
+  it("un contrato inexistente o eliminado responde 404", async () => {
+    prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce(null);
+    await expect(service.previewContractEndDate({ ctrId: 99, startDate: "2026-01-15", term: 6, termUnit: "MES" })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+});

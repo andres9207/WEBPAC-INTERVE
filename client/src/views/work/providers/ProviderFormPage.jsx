@@ -42,7 +42,7 @@ import { newIdempotencyKey } from 'utils/idempotency';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const EMPTY_FORM = { iddId: '', identification: '', name: '', pvtId: '', serviceType: '', email: '', observation: '', contacts: [] };
+const EMPTY_FORM = { iddId: '', identification: '', name: '', pvtIds: [], serviceType: '', email: '', observation: '', contacts: [] };
 
 const text = (value) => String(value ?? '').trim();
 
@@ -50,7 +50,7 @@ const toForm = (provider) => ({
   iddId: provider.iddId,
   identification: provider.identification,
   name: provider.name,
-  pvtId: provider.pvtId,
+  pvtIds: provider.pvtIds ?? [],
   serviceType: provider.serviceType ?? '',
   email: provider.email ?? '',
   observation: provider.observation ?? '',
@@ -73,7 +73,7 @@ const toPayload = (prvId, form) => ({
   iddId: form.iddId,
   identification: text(form.identification),
   name: text(form.name),
-  pvtId: form.pvtId,
+  pvtIds: form.pvtIds,
   serviceType: text(form.serviceType),
   email: text(form.email),
   observation: text(form.observation),
@@ -159,7 +159,16 @@ export default function ProviderFormPage() {
   // Estables (useCallback): SelectSocket recarga las opciones cuando cambian.
   // El valor actual se incluye aunque el maestro esté inactivo.
   const fetchIdentityDocuments = useCallback(() => getIdentityDocumentsSelectAPI(loaded?.iddId), [loaded?.iddId]);
-  const fetchProviderTypes = useCallback(() => getProviderTypesSelectAPI(loaded?.pvtId), [loaded?.pvtId]);
+  // Tipos (uno o varios, DEC-041): el selector trae los activos y se le suman
+  // los que ya tiene el proveedor, aunque estén inactivos.
+  const fetchProviderTypes = useCallback(() => getProviderTypesSelectAPI(), []);
+  const withCurrentTypes = useCallback(
+    (options) => {
+      const current = (loaded?.pvtIds ?? []).map((value, i) => ({ value, label: loaded.providerTypes[i] }));
+      return [...options, ...current.filter((c) => !options.some((o) => o.value === c.value))];
+    },
+    [loaded]
+  );
   const keepIdentityOptions = useCallback((options) => {
     setIdentityOptions(options);
     return options;
@@ -331,17 +340,19 @@ export default function ProviderFormPage() {
             </Grid>
             <Grid size={{ xs: 12, sm: 5 }}>
               <Controller
-                name="pvtId"
+                name="pvtIds"
                 control={control}
-                rules={{ required: 'Selecciona el tipo de proveedor.' }}
+                rules={{ validate: (value) => value.length > 0 || 'Selecciona al menos un tipo de proveedor.' }}
                 render={({ field, fieldState }) => (
                   <SelectSocket
+                    multiple
                     value={field.value}
                     onChange={field.onChange}
-                    label="Tipo de proveedor"
+                    label="Tipos de proveedor"
                     required
                     error={fieldState.error}
                     fetchApi={fetchProviderTypes}
+                    mapOptions={withCurrentTypes}
                     socketEvent="refresh-provider-types"
                   />
                 )}

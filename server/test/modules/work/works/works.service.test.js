@@ -603,3 +603,17 @@ describe("summaryWorks", () => {
     });
   });
 });
+
+describe("previewWorkEndDate (FRONTEND_STANDARD, regla 9)", () => {
+  it("inicio + plazo inicial en su unidad, con la misma regla que al mostrar la obra guardada", () => {
+    expect(service.previewWorkEndDate({ startDate: "2026-09-30", initialTerm: "1", termUnit: "MES" })).toEqual({ endDate: "2026-10-30" });
+    expect(service.previewWorkEndDate({ startDate: "2026-01-31", initialTerm: "1", termUnit: "MES" })).toEqual({ endDate: "2026-02-28" });
+    expect(service.previewWorkEndDate({ startDate: "2026-01-01", initialTerm: "45", termUnit: "DIA" })).toEqual({ endDate: "2026-02-15" });
+    expect(service.previewWorkEndDate({ startDate: "2024-02-29", initialTerm: "1", termUnit: "ANIO" })).toEqual({ endDate: "2025-02-28" });
+  });
+
+  it("sin datos suficientes devuelve null en vez de una fecha", () => {
+    expect(service.previewWorkEndDate({ startDate: "2026-02-30", initialTerm: "1", termUnit: "MES" })).toEqual({ endDate: null });
+    expect(service.previewWorkEndDate({ startDate: "2026-01-01", initialTerm: "1", termUnit: "SEMANA" })).toEqual({ endDate: null });
+  });
+});

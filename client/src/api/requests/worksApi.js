@@ -17,3 +17,10 @@ export const getWorksSummaryAPI = () => httpCliente.get('work/works/summary_work
  * @param {string} [search]  texto para filtrar por nombre
  */
 export const getWorkManagersSelectAPI = (search) => httpCliente.get('work/works/select_work_managers', search ? { search } : {});
+
+/**
+ * Fecha final mientras se edita la obra: la calcula el servidor (FRONTEND_STANDARD, regla 9).
+ * @param {{ startDate: string, initialTerm: number|string, termUnit: string }} params
+ * @returns {Promise<{ data: { endDate: string|null } }>}
+ */
+export const previewWorkEndDateAPI = (params) => httpCliente.get('work/works/preview_work_end_date', params);

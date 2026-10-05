@@ -196,6 +196,27 @@ export const derivedEndDate = async (tx, contract) => {
   return toDateOnly(end);
 };
 
+/**
+ * Vista previa de la fecha fin mientras se edita el contrato (FRONTEND_STANDARD,
+ * regla 9: la cuenta la hace el servidor). Con `ctrId`, suma las prórrogas de
+ * sus otrosí y sus días suspendidos, como al guardar; sin él (contrato
+ * nuevo), inicio + plazo. Solo lee; sin bloqueo: no decide nada.
+ */
+export const previewContractEndDate = async ({ ctrId, startDate, term, termUnit }) => {
+  let extensions = 0;
+  let suspendedDays = 0;
+  if (Number(ctrId) > 0) {
+    const contract = await prisma.tbl_contracts.findFirst({
+      where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS } },
+      select: { ctr_suspended_days: true, tbl_contract_concepts: { select: { ccp_type: true, ccp_extension: true, sta_id: true } } },
+    });
+    if (!contract) throw httpError(404, "No se encontró el contrato.");
+    extensions = totalExtensions(contract.tbl_contract_concepts);
+    suspendedDays = contract.ctr_suspended_days;
+  }
+  return { endDate: contractEndDate({ startDate, term, unit: termUnit, extensions, suspendedDays }) };
+};
+
 /** Valor vigente del contrato con lo que hay en la transacción (para la bitácora de un acto). */
 export const currentValueText = async (tx, ctrId) => {
   const concepts = await tx.tbl_contract_concepts.findMany({ where: { ctr_id: Number(ctrId) }, select: CONCEPT_SELECT });

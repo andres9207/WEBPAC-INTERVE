@@ -21,6 +21,14 @@ export const getContractWorksSelectAPI = (search) => httpCliente.get('work/contr
 export const getContractFormOptionsAPI = (params) => httpCliente.get('work/contracts/get_contract_form_options', params);
 
 /**
+ * Fecha fin mientras se edita el contrato: la calcula el servidor (FRONTEND_STANDARD, regla 9).
+ * Con `ctrId`, suma las prórrogas y los días suspendidos del contrato.
+ * @param {{ ctrId?: number, startDate: string, term: number|string, termUnit: string }} params
+ * @returns {Promise<{ data: { endDate: string|null } }>}
+ */
+export const previewContractEndDateAPI = (params) => httpCliente.get('work/contracts/preview_contract_end_date', params);
+
+/**
  * Descriptores de los campos configurables de un tipo de contrato (ADR-0006,
  * DEC-037): la configuración vigente o, con `version`, la de esa versión.
  * @param {{ cttId: number, version?: number }} params

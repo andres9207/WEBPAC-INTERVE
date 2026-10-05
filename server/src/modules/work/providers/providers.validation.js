@@ -49,7 +49,9 @@ export const saveProviderSchema = [
   requiredId("iddId").withMessage("Selecciona el tipo de identificación."),
   requiredText("identification", "número de documento", 20),
   requiredText("name", "nombre o razón social", 255),
-  requiredId("pvtId").withMessage("Selecciona el tipo de proveedor."),
+  // Uno o varios tipos (DEC-041).
+  body("pvtIds").isArray({ min: 1, max: 20 }).withMessage("Selecciona al menos un tipo de proveedor."),
+  body("pvtIds.*").isInt({ min: 1 }).withMessage("Cada tipo de proveedor debe ser un id válido."),
   optionalBodyText("serviceType", "El tipo de servicio", 150),
   emailRule("email", { optional: true }),
   optionalBodyText("observation", "La observación", 500),

@@ -27,7 +27,8 @@ import { useAuth } from 'contexts/AuthContext';
 import { getConstructionCompaniesSelectAPI } from 'api/requests/constructionCompaniesApi';
 import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import { getSupervisionTypesSelectAPI } from 'api/requests/supervisionTypesApi';
-import { getWorkManagersSelectAPI, worksApi } from 'api/requests/worksApi';
+import { getWorkManagersSelectAPI, previewWorkEndDateAPI, worksApi } from 'api/requests/worksApi';
+import useEndDatePreview from 'hooks/useEndDatePreview';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
 import { STATUS, STATUS_OPTIONS, TERM_UNIT_OPTIONS } from 'utils/constants';
@@ -40,8 +41,9 @@ import { STATUS, STATUS_OPTIONS, TERM_UNIT_OPTIONS } from 'utils/constants';
  *
  * - Importes como texto con punto decimal (MoneyField, DEC-028). El cliente no
  *   compara ni calcula: ampliado ≥ inicial, valor vigente y fecha final los
- *   decide el servidor (FRONTEND_STANDARD, regla 9). Si cambian la fecha de
- *   inicio o el plazo, la fecha final dice "Se calcula al guardar".
+ *   decide el servidor (FRONTEND_STANDARD, regla 9). La fecha final se le
+ *   pide al servidor al salir del plazo, al cambiar la unidad o la fecha de
+ *   inicio (useEndDatePreview); se guarda con la obra.
  * - Plazo ampliado y área no se muestran (DEC-030): se conservan tal como
  *   vienen del servidor y se reenvían sin cambios.
  * - Crear lleva clave de idempotencia (FRONTEND_STANDARD, regla 7).
@@ -50,6 +52,9 @@ import { STATUS, STATUS_OPTIONS, TERM_UNIT_OPTIONS } from 'utils/constants';
  */
 
 const MONEY = /^\d{1,16}(\.\d{0,2})?$/;
+
+// Parámetros de la vista previa de la fecha final (preview_work_end_date).
+const workEndParams = ({ startDate, term, termUnit }) => ({ startDate, initialTerm: term, termUnit });
 
 const EMPTY_FORM = {
   code: '',
@@ -179,6 +184,14 @@ export default function WorkFormPage() {
 
   const { control, handleSubmit, reset, setValue, getValues, formState } = useForm({ defaultValues: EMPTY_FORM });
   const { errors, isDirty, isSubmitted } = formState;
+  const endPreview = useEndDatePreview(previewWorkEndDateAPI, workEndParams);
+  const resetEndDate = endPreview.reset;
+
+  // Fecha final: al salir del plazo, al cambiar la unidad o la fecha de inicio.
+  const recalcEndDate = (changed = {}) => {
+    const [startDate, initialTerm, termUnit] = getValues(['startDate', 'initialTerm', 'termUnit']);
+    endPreview.recalc({ startDate, term: initialTerm, termUnit, ...changed });
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -195,6 +208,7 @@ export default function WorkFormPage() {
         setUserOptions([...candidates, ...current]);
         setLoaded(work);
         reset(work ? toForm(work) : EMPTY_FORM);
+        resetEndDate(work?.endDate);
       } catch (err) {
         showError(err.response?.data?.message || 'Error al cargar la obra');
         navigate('/work/works', { replace: true });
@@ -203,7 +217,7 @@ export default function WorkFormPage() {
       }
     };
     load();
-  }, [isEdit, wrkId, reset, navigate]);
+  }, [isEdit, wrkId, reset, resetEndDate, navigate]);
 
   // Estables (useCallback): SelectSocket recarga las opciones cuando cambian.
   // El valor actual se incluye aunque el maestro esté inactivo.
@@ -212,12 +226,6 @@ export default function WorkFormPage() {
   const fetchSupervisionTypes = useCallback(() => getSupervisionTypesSelectAPI(loaded?.sptId), [loaded?.sptId]);
 
   const managers = useWatch({ control, name: 'managers' });
-  const [startDate, initialTerm, termUnit] = useWatch({ control, name: ['startDate', 'initialTerm', 'termUnit'] });
-
-  // Fecha final: la del servidor mientras el plazo no cambie (FRONTEND_STANDARD, regla 9).
-  const termChanged =
-    !loaded || startDate !== loaded.startDate || String(initialTerm) !== String(loaded.initialTerm) || termUnit !== loaded.termUnit;
-  const endDate = termChanged ? '' : loaded.endDate;
 
   const dialogUserOptions = useMemo(() => {
     const taken = new Set(managers.filter((m) => m.key !== managerDialog?.manager?.key).map((m) => m.useId));
@@ -406,7 +414,10 @@ export default function WorkFormPage() {
                 render={({ field, fieldState }) => (
                   <DateField
                     value={field.value}
-                    onChange={field.onChange}
+                    onChange={(value) => {
+                      field.onChange(value);
+                      recalcEndDate({ startDate: value });
+                    }}
                     label="Fecha de inicio"
                     required
                     error={fieldState.error?.message}
@@ -424,6 +435,10 @@ export default function WorkFormPage() {
                     <TextField
                       {...field}
                       onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onBlur={() => {
+                        field.onBlur();
+                        recalcEndDate();
+                      }}
                       label="Plazo inicial"
                       required
                       size="small"
@@ -448,7 +463,10 @@ export default function WorkFormPage() {
                     render={({ field }) => (
                       <SearchSelect
                         value={field.value}
-                        onChange={(value) => field.onChange(value || 'MES')}
+                        onChange={(value) => {
+                          field.onChange(value || 'MES');
+                          recalcEndDate({ termUnit: value || 'MES' });
+                        }}
                         options={TERM_UNIT_OPTIONS}
                         label="Unidad del plazo"
                         hideLabel
@@ -461,10 +479,10 @@ export default function WorkFormPage() {
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <DateField
-                value={endDate}
+                value={endPreview.endDate}
                 label="Fecha final"
                 readOnly
-                helperText={termChanged ? 'Se calcula al guardar: fecha de inicio + plazo inicial' : 'Fecha de inicio + plazo inicial'}
+                helperText={endPreview.loading ? 'Calculando…' : 'Fecha de inicio + plazo inicial'}
               />
             </Grid>
           </Grid>

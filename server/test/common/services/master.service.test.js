@@ -275,6 +275,18 @@ describe("remove", () => {
     expect(things.update).not.toHaveBeenCalled();
   });
 
+  it("con where, el dependiente se filtra por ese criterio (tabla de unión sin estado, DEC-041)", async () => {
+    const joinService = createMasterService({
+      ...config,
+      dependents: [{ model: "tbl_owners", column: "thg_id", label: "proveedor(es)", where: { tbl_parents: { sta_id: { not: 3 } } } }],
+    });
+    things.findUnique.mockResolvedValue({ sta_id: 1 });
+    prismaMock.tbl_owners.count.mockResolvedValue(2);
+
+    await expect(joinService.remove({ id: 5, useBy: 7 })).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.tbl_owners.count).toHaveBeenCalledWith({ where: { thg_id: 5, tbl_parents: { sta_id: { not: 3 } } } });
+  });
+
   it("con dependientes no eliminados, no elimina y dice cuántos y de qué", async () => {
     things.findUnique.mockResolvedValue({ sta_id: 1 });
     prismaMock.tbl_owners.count.mockResolvedValue(3);

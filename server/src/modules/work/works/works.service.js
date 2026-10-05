@@ -215,6 +215,14 @@ const HEADER_COLUMNS = [
 const MONEY_COLUMNS = new Set(["wrk_area", "wrk_direct_cost", "wrk_initial_value", "wrk_extended_value", "wrk_max_service_order_value"]);
 const HEADER_SELECT = Object.fromEntries(HEADER_COLUMNS.map((column) => [column, true]));
 
+/**
+ * Vista previa de la fecha final mientras se edita la obra (inicio + plazo
+ * inicial): la misma cuenta que se muestra después de guardar, hecha aquí y
+ * no en el cliente (FRONTEND_STANDARD, regla 9). No lee ni escribe la BD.
+ * `endDate` es null si los datos no alcanzan.
+ */
+export const previewWorkEndDate = ({ startDate, initialTerm, termUnit }) => ({ endDate: addTerm(startDate, initialTerm, termUnit) });
+
 export const getWork = async ({ wrkId }) => {
   const row = await prisma.tbl_works.findFirst({
     where: { wrk_id: Number(wrkId), sta_id: { not: DELETED_STATUS } },

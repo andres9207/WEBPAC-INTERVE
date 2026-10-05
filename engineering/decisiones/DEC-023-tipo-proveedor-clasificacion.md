@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-09-29 · **Tipo:** Vigente · **ADR:** [0010](../adr/0010-tipos-proveedor.md)
 
+> **Reemplazada en parte por [DEC-041](DEC-041-varios-tipos-proveedor.md)** (2026-10-05): un proveedor tiene uno o varios tipos, en `tbl_provider_classifications`, y `tbl_providers.pvt_id` ya no existe. Lo demás sigue vigente: el tipo es una clasificación, sin campos ni reglas por tipo.
+
 Resuelve la decisión de negocio DEC-10 del backlog (`docs/backlog/BACKLOG.md`).
 
 ## Contexto
