@@ -29,6 +29,15 @@ export const getInvoiceFormOptionsAPI = (params) => httpCliente.get('billing/inv
  */
 export const getInvoiceContractsSelectAPI = (params) => httpCliente.get('billing/invoices/select_invoice_contracts', params);
 
+/**
+ * Saldos de anticipo del contrato (DEC-044): pactado, facturado, amortizado,
+ * pendientes y porcentaje efectivo. Con `value`, también la amortización por
+ * defecto de una liquidación por ese VALOR. Los calcula el servidor; al
+ * guardar los vuelve a calcular bajo bloqueo.
+ * @param {{ ctrId: number, value?: string }} params
+ */
+export const getContractAdvanceAPI = (params) => httpCliente.get('billing/invoices/get_contract_advance', params);
+
 /** Transiciones: cada una con su endpoint y su permiso (WORKFLOW_STANDARD, regla 3). */
 export const invoiceTransitionsApi = {
   /** @param {{ invId, approvalDate, observation }} params */

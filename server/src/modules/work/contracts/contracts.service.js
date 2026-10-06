@@ -1,8 +1,7 @@
-import { Prisma } from "@prisma/client";
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { paginate, MAX_ROWS } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
-import { moneyText, toMoney } from "../../../common/utils/money.utils.js";
+import { decimal, moneyText, percentText, toMoney, toPercent } from "../../../common/utils/money.utils.js";
 import { dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
@@ -50,8 +49,6 @@ export const httpError = (statusCode, message) => Object.assign(new Error(messag
 
 const text = (value) => String(value ?? "").trim();
 const optionalText = (value) => text(value) || null;
-const toPercent = (value) => new Prisma.Decimal(text(value) || "0").toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-const percentText = (value) => (value === null || value === undefined ? null : new Prisma.Decimal(value).toFixed(2));
 
 // ─── Conceptos: lectura y escritura compartidas ─────────────────────────────
 
@@ -136,7 +133,7 @@ const conceptDto = (concept, cumulativeValue) => {
 
 /** Conceptos en orden, cada uno con el valor vigente acumulado hasta él (PRO-FE-07). */
 const conceptsDto = (concepts) => {
-  let cumulative = new Prisma.Decimal(0);
+  let cumulative = decimal(0);
   return sortConcepts(concepts).map((concept) => {
     if (concept.sta_id !== DELETED_STATUS) cumulative = cumulative.plus(conceptAmounts(concept).value);
     return conceptDto(concept, cumulative);

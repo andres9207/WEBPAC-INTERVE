@@ -1,18 +1,20 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
+import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 
 import MasterPage from 'ui-component/extended/MasterPage';
+import SearchSelect from 'ui-component/extended/SearchSelect';
 import { invoicesApi } from 'api/requests/invoicesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { fDateOnly } from 'utils/formatTime';
-import { INVOICE_STATE_COLORS, INVOICE_STATE_TABS } from 'utils/constants';
+import { INVOICE_STATE_COLORS, INVOICE_STATE_TABS, INVOICE_TYPE_OPTIONS } from 'utils/constants';
 
 // Facturas (ADR-0020, DEC-042). Reutiliza el listado de MasterPage con
 // pestañas por el estado del ciclo de vida (registrada, aprobada, anulada).
 // Detalle, alta y edición son rutas hijas que se abren en un modal sobre el
-// listado (DEC-034). En la fase A una factura no tiene importes: registra el
-// documento y su ciclo de vida.
+// listado (DEC-034). El tipo de factura es un filtro del listado: las
+// pestañas cuentan dentro del tipo elegido.
 
 export const INVOICE_COLUMNS = [
   { id: 'number', label: 'Número', sortable: true },
@@ -62,6 +64,8 @@ export default function InvoicesPage() {
   const navigate = useNavigate();
   const [reloadKey, setReloadKey] = useState(0);
   const outletContext = useMemo(() => ({ refresh: () => setReloadKey((k) => k + 1) }), []);
+  const [type, setType] = useState('');
+  const filters = useMemo(() => ({ type }), [type]);
 
   const navigation = useMemo(
     () => ({
@@ -87,6 +91,12 @@ export default function InvoicesPage() {
         rowLabel={rowLabel}
         navigation={navigation}
         stateTabs={INVOICE_STATE_FILTER}
+        filters={filters}
+        toolbar={
+          <Box sx={{ width: { xs: '100%', sm: 240 } }}>
+            <SearchSelect value={type} onChange={setType} options={INVOICE_TYPE_OPTIONS} label="Tipo de factura" />
+          </Box>
+        }
         reloadKey={reloadKey}
       />
       <Outlet context={outletContext} />

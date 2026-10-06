@@ -86,7 +86,7 @@ Por eso casi todos los ADR están en estado `Propuesto`:
 | [0021](0021-facturacion-contrato-mayor.md) | Anticipo, liquidación (asociada al otrosí de liquidación) y devolución | Facturación | Propuesto — **asociación confirmada** | 0016, 0017, 0020, 0024, 0025, 0026, 0027 |
 | [0022](0022-facturacion-subcontratista.md) | Mismo modelo que 0021; sin reglas diferenciadas halladas | Facturación | Propuesto | 0010, 0021 |
 | [0023](0023-facturacion-simple.md) | Tipo `SIMPLE` sin contrato; total facturado y neto a pagar | Facturación | Propuesto | 0011, 0012, 0020, 0026, 0027 |
-| [0024](0024-amortizacion-anticipo.md) | Saldo único por contrato, calculado; amortiza contra lo facturado | Facturación | Propuesto | 0016, 0021, 0027 |
+| [0024](0024-amortizacion-anticipo.md) | Saldo único por contrato, calculado; amortiza contra lo facturado | Facturación | Aceptado parcial ([DEC-044](../decisiones/DEC-044-anticipo-amortizacion.md)) | 0016, 0021, 0027 |
 | [0025](0025-retenciones.md) | Retenido simétrico al anticipo; distinto de retenciones tributarias | Facturación | Propuesto | 0016, 0021, 0024, 0027 |
 | [0026](0026-calculos-facturacion.md) | Módulo de cálculo único, versionado, con aritmética exacta | **Transversal del CORE** | Propuesto | 0006, 0016, 0019, 0020 |
 | [0027](0027-integridad-transaccional.md) | Transacción por operación, bloqueo del contrato, idempotencia | **Transversal del CORE** | **Aceptado — estándar obligatorio** para todo service (utilidad de transacción, `REPEATABLE READ`, protocolo de bloqueo); idempotencia e invariantes se aplican al construir el CORE | 0013, 0014 |

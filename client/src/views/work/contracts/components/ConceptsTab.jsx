@@ -9,7 +9,7 @@ import { IconEdit, IconFileCheck, IconPlus } from '@tabler/icons-react';
 import DataTable from 'ui-component/extended/DataTable';
 import ConceptDialog from './ConceptDialog';
 import { useAuth } from 'contexts/AuthContext';
-import { fMoneyText } from 'utils/formatNumber';
+import { fMoneyText, fPercentText } from 'utils/formatNumber';
 import { fDateOnly } from 'utils/formatTime';
 import { fTerm } from 'utils/constants';
 
@@ -25,7 +25,7 @@ import { fTerm } from 'utils/constants';
  * de levantar (DEC-039).
  */
 
-const pct = (value) => (value === null || value === undefined ? '—' : `${String(Number(value)).replace('.', ',')} %`);
+const pct = (value) => (value === null || value === undefined ? '—' : fPercentText(value));
 const money = (value) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fMoneyText(value)}</span>;
 
 export default function ConceptsTab({ contract, onChanged }) {

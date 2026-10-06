@@ -1,5 +1,4 @@
-import { Prisma } from "@prisma/client";
-import { MONEY_SCALE, sumMoney } from "../../../common/utils/money.utils.js";
+import { decimal, percentOf, sumMoney } from "../../../common/utils/money.utils.js";
 import { addTerm, dateOnlyText } from "../../../common/utils/term.utils.js";
 import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
@@ -199,24 +198,22 @@ export const totalExtensions = (concepts) =>
 
 // ─── Valor (ADR-0026, "Composición autoritativa", propuesta) ─────────────────
 
-const round = (value) => value.toDecimalPlaces(MONEY_SCALE, Prisma.Decimal.ROUND_HALF_UP);
-const share = (base, percent) => round(new Prisma.Decimal(base).times(new Prisma.Decimal(percent ?? 0)).dividedBy(100));
-
 /**
  * Composición de un concepto (DEC-036). Con AIU (algún porcentaje de A, I o U
  * mayor que 0), el IVA se liquida sobre la utilidad; sin AIU, sobre el costo
- * directo. Cada componente se redondea a dos decimales con medio hacia arriba.
+ * directo. Cada componente es una línea redondeada con la regla única
+ * (`percentOf`, DEC-045) antes de sumarse.
  * Es la propuesta de ADR-0026, pendiente de validación tributaria (backlog
  * DEC-03): si cambia, cambia solo aquí.
  */
 export const conceptAmounts = (concept) => {
-  const directCost = new Prisma.Decimal(concept.ccp_direct_cost);
-  const administration = share(directCost, concept.ccp_admin_pct);
-  const contingency = share(directCost, concept.ccp_contingency_pct);
-  const profit = share(directCost, concept.ccp_profit_pct);
-  const hasAiu = [concept.ccp_admin_pct, concept.ccp_contingency_pct, concept.ccp_profit_pct].some((p) => new Prisma.Decimal(p ?? 0).gt(0));
+  const directCost = decimal(concept.ccp_direct_cost);
+  const administration = percentOf(directCost, concept.ccp_admin_pct);
+  const contingency = percentOf(directCost, concept.ccp_contingency_pct);
+  const profit = percentOf(directCost, concept.ccp_profit_pct);
+  const hasAiu = [concept.ccp_admin_pct, concept.ccp_contingency_pct, concept.ccp_profit_pct].some((p) => decimal(p).gt(0));
   const base = directCost.plus(administration).plus(contingency).plus(profit);
-  const vat = share(hasAiu ? profit : directCost, concept.ccp_vat_pct);
+  const vat = percentOf(hasAiu ? profit : directCost, concept.ccp_vat_pct);
   return {
     directCost,
     administration,
@@ -225,8 +222,8 @@ export const conceptAmounts = (concept) => {
     base,
     vat,
     value: base.plus(vat),
-    advance: share(base, concept.ccp_advance_pct),
-    retention: share(base, concept.ccp_retention_pct),
+    advance: percentOf(base, concept.ccp_advance_pct),
+    retention: percentOf(base, concept.ccp_retention_pct),
   };
 };
 

@@ -139,12 +139,15 @@ export const PERMISSIONS = {
   // efectos sobre saldos (ADR-0020, "Autorización").
   billing: {
     invoices: {
-      view: 83, // pagination_invoices, get_invoice, get_invoice_form_options, select_invoice_contracts
+      view: 83, // pagination_invoices, get_invoice, get_invoice_form_options, select_invoice_contracts, get_contract_advance
       create: 84,
       edit: 85,
       approve: 86,
       cancel: 87,
       cancelApproved: 88,
+      // Registrar una liquidación con una amortización distinta del valor
+      // por defecto (ADR-0024, DEC-044). Aceptar el valor por defecto no lo exige.
+      adjustAmortization: 89,
     },
   },
 };

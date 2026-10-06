@@ -1,11 +1,12 @@
 import { body, query } from "express-validator";
-import { paginationRules, optionalText, optionalId, requiredId, idempotencyKeyRule } from "../../../common/utils/validation.utils.js";
+import { paginationRules, optionalText, optionalId, requiredId, idempotencyKeyRule, moneyRule } from "../../../common/utils/validation.utils.js";
 import { INVOICE_STATES, INVOICE_TYPES, hasContract } from "./invoiceTerms.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). Las reglas de
 // negocio (proveedor de la obra, estado del contrato, cronología…) viven en
-// el service. Estado, fecha de aprobación e importes no se aceptan en el
-// formulario: si llegan, se ignoran (ADR-0020, "Seguridad").
+// el service. Estado, fecha de aprobación y saldos no se aceptan en el
+// formulario: si llegan, se ignoran (ADR-0020, "Seguridad"). Los importes
+// capturados son opcionales aquí: si el tipo los exige lo decide el service.
 
 const isCreate = (req) => !(Number(req.body.invId) > 0);
 const isSimpleCreate = (req) => isCreate(req) && !hasContract(req.body.type);
@@ -47,6 +48,14 @@ export const selectInvoiceContractsSchema = [
   query("includeCtrId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includeCtrId debe ser un entero positivo."),
 ];
 
+export const getContractAdvanceSchema = [
+  query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo."),
+  query("value")
+    .optional({ values: "falsy" })
+    .matches(/^\d{1,16}(\.\d+)?$/)
+    .withMessage("El valor debe ser un número no negativo, con punto decimal y hasta 16 dígitos enteros."),
+];
+
 export const saveInvoiceSchema = [
   idempotencyKeyRule(isCreate),
   body("invId").optional({ values: "falsy" }).isInt({ min: 0 }).withMessage("invId debe ser un entero."),
@@ -70,6 +79,10 @@ export const saveInvoiceSchema = [
   optionalLongText("voucherNumber", "El número de comprobante", 50),
   optionalLongText("statement", "El extracto", 100),
   optionalLongText("description", "La descripción", 500),
+  // Anticipo: valor. Liquidación: VALOR y amortización (DEC-044).
+  moneyRule("value", "valor de la factura", { optional: true }),
+  moneyRule("amortization", "valor de la amortización", { optional: true }),
+  optionalLongText("amortizationObservation", "La observación del ajuste", 1000),
 ];
 
 export const approveInvoiceSchema = [

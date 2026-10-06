@@ -1,3 +1,5 @@
+import { decimal } from "../../../common/utils/money.utils.js";
+
 /**
  * Campos configurables del contrato (ADR-0006, DEC-037): reglas puras, sin BD.
  *
@@ -38,12 +40,14 @@ const isBlank = (value) => value === null || value === undefined || String(value
 /** ¿Tiene un valor que cuente? Un porcentaje en 0 es "sin valor": es lo que guarda la BD cuando no aplica. */
 const hasValue = (kind, value) => {
   if (isBlank(value)) return false;
-  if (kind === "percent" || kind === "id") return Number(value) !== 0;
+  if (kind === "percent") return !decimal(value).isZero();
+  if (kind === "id") return Number(value) !== 0;
   return true;
 };
 
 const sameValue = (kind, a, b) => {
   if (kind === "text") return String(a ?? "").trim() === String(b ?? "").trim();
+  if (kind === "percent") return decimal(a).eq(decimal(b));
   return Number(a ?? 0) === Number(b ?? 0);
 };
 

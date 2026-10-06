@@ -125,6 +125,8 @@ const PERMISSIONS = [
   { per_id: 86, per_name: "Aprobar factura", pag_id: 19, per_order: 3 },
   { per_id: 87, per_name: "Anular factura", pag_id: 19, per_order: 4 },
   { per_id: 88, per_name: "Anular factura aprobada", pag_id: 19, per_order: 5 },
+  // database/migrations/0072_seed_adjust_amortization_permission.sql
+  { per_id: 89, per_name: "Ajustar amortización de anticipo", pag_id: 19, per_order: 6 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver

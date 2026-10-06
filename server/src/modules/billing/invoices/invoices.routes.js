@@ -9,6 +9,7 @@ import {
   selectInvoiceWorksSchema,
   getInvoiceFormOptionsSchema,
   selectInvoiceContractsSchema,
+  getContractAdvanceSchema,
   saveInvoiceSchema,
   approveInvoiceSchema,
   cancelInvoiceSchema,
@@ -19,6 +20,7 @@ import {
   selectInvoiceWorksController,
   getInvoiceFormOptionsController,
   selectInvoiceContractsController,
+  getContractAdvanceController,
   saveInvoiceController,
   approveInvoiceController,
   cancelInvoiceController,
@@ -51,6 +53,15 @@ invoicesRoutes.get(
   selectInvoiceContractsSchema,
   validate,
   selectInvoiceContractsController
+);
+// Saldos de anticipo del contrato y amortización por defecto (DEC-044).
+invoicesRoutes.get(
+  "/get_contract_advance",
+  verifyToken,
+  requirePermission(can.view),
+  getContractAdvanceSchema,
+  validate,
+  getContractAdvanceController
 );
 // save_invoice sirve registrar (invId 0) y editar.
 invoicesRoutes.post(

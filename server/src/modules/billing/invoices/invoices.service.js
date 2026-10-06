@@ -6,10 +6,13 @@ import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
+import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
+import { moneyText, ratioText, toMoney } from "../../../common/utils/money.utils.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
-import { findLockedContract, getContractFormOptions, selectContractWorks } from "../../work/contracts/contracts.service.js";
+import { CONCEPT_SELECT, findLockedContract, getContractFormOptions, selectContractWorks } from "../../work/contracts/contracts.service.js";
 import {
   INVOICE_ACTIONS,
+  contractTotals,
   STATE_ALLOWS as CONTRACT_STATE_ALLOWS,
   STATE_NAMES as CONTRACT_STATE_NAMES,
   assertStateAllows as assertContractAllows,
@@ -17,6 +20,7 @@ import {
 } from "../../work/contracts/contractTerms.js";
 import {
   INVOICE_STATES,
+  INVOICE_TYPES,
   NOTE_COLUMNS,
   STATE_ALLOWS,
   STATE_NAMES,
@@ -27,6 +31,15 @@ import {
   historyRow,
   stateAllows,
 } from "./invoiceTerms.js";
+import {
+  advanceBalances,
+  appliedPct,
+  assertAdvanceCancellable,
+  assertAdvanceFits,
+  assertAmortizationFits,
+  balancesDto,
+  defaultAmortization,
+} from "./advanceTerms.js";
 
 /**
  * Facturas, fase A (ADR-0020, DEC-042): encabezado común, ciclo de vida y
@@ -43,9 +56,15 @@ import {
  *   historial y bitácora en la misma transacción. Estado y fecha de
  *   aprobación nunca vienen del formulario.
  * - Una factura no se elimina: se anula (ADR-0020, decisión 12).
+ * - Anticipo y liquidación llevan su detalle con importes (DEC-044): el
+ *   valor del anticipo, y el VALOR y la amortización de la liquidación. Los
+ *   saldos (ADR-0024) se calculan bajo el bloqueo del contrato al registrar,
+ *   editar, aprobar y anular, nunca se reciben ni se guardan. IVA,
+ *   retenciones y retenido siguen pendientes (backlog DEC-03, DEC-07).
  */
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
+const can = PERMISSIONS.billing.invoices;
 
 const text = (value) => String(value ?? "").trim();
 const optionalText = (value) => text(value) || null;
@@ -95,6 +114,17 @@ const LOCKED_SELECT = {
   inv_statement: true,
   inv_description: true,
   inv_state: true,
+  tbl_invoice_advance_details: { select: { iad_value: true } },
+  tbl_invoice_liquidation_details: {
+    select: {
+      ild_value: true,
+      ild_amortization: true,
+      ild_default_amortization: true,
+      ild_default_pct: true,
+      ild_applied_pct: true,
+      ild_adjustment_observation: true,
+    },
+  },
 };
 
 /** Factura bloqueada (la utilidad ya ejecutó el FOR UPDATE). 404 si no existe. */
@@ -120,6 +150,196 @@ const findImmutable = async (invId) => {
 /** Bloqueos de una factura existente: contrato → factura, u obra → proveedor → factura. */
 const locksOf = (known, invId, prvId = known.prv_id) =>
   known.ctr_id ? { CONTRATO: known.ctr_id, FACTURA: Number(invId) } : { OBRA: known.wrk_id, PROVEEDOR: prvId, FACTURA: Number(invId) };
+
+// ─── Anticipo y amortización (ADR-0024, DEC-044) ────────────────────────────
+
+/**
+ * Saldos de anticipo del contrato con lo que ve `db`. Dentro de una
+ * escritura, `db` es el tx con el contrato ya bloqueado (primera sentencia):
+ * las sumas ven las aprobaciones confirmadas por otras transacciones. Solo
+ * cuentan las facturas aprobadas; las registradas no reservan saldo.
+ */
+export const contractAdvanceBalances = async (db, ctrId) => {
+  const id = Number(ctrId);
+  const approved = (type) => ({ tbl_invoices: { ctr_id: id, inv_type: type, inv_state: INVOICE_STATES.APPROVED } });
+  const concepts = await db.tbl_contract_concepts.findMany({ where: { ctr_id: id }, select: CONCEPT_SELECT });
+  const advance = await db.tbl_invoice_advance_details.aggregate({ where: approved(INVOICE_TYPES.ADVANCE), _sum: { iad_value: true } });
+  const liquidation = await db.tbl_invoice_liquidation_details.aggregate({
+    where: approved(INVOICE_TYPES.LIQUIDATION),
+    _sum: { ild_amortization: true },
+  });
+  const totals = contractTotals(concepts);
+  return advanceBalances({
+    base: totals.base,
+    agreed: totals.advance,
+    invoiced: advance._sum.iad_value,
+    amortized: liquidation._sum.ild_amortization,
+  });
+};
+
+/**
+ * Información de anticipo del contrato para el formulario (PRO-BE-28): los
+ * saldos y, si llega `value`, la amortización por defecto de una
+ * liquidación por ese VALOR. Solo lectura: al guardar se recalcula todo.
+ */
+export const getContractAdvance = async ({ ctrId, value }) => {
+  const contract = await prisma.tbl_contracts.findFirst({
+    where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS } },
+    select: { ctr_id: true },
+  });
+  if (!contract) throw httpError(404, "No se encontró el contrato.");
+  const balances = await contractAdvanceBalances(prisma, contract.ctr_id);
+  const amount = toMoney(value);
+  return {
+    ...balancesDto(balances),
+    defaultAmortization: amount ? moneyText(defaultAmortization(amount, balances)) : null,
+  };
+};
+
+/** Tipos con detalle de importes en esta fase. */
+const hasDetail = (type) => type === INVOICE_TYPES.ADVANCE || type === INVOICE_TYPES.LIQUIDATION;
+
+const positiveMoney = (value, label) => {
+  const amount = toMoney(value);
+  if (!amount || amount.lte(0)) throw httpError(400, `El ${label} es requerido y debe ser mayor que cero.`);
+  return amount;
+};
+
+/**
+ * Importes del detalle según el tipo, validados contra los saldos del
+ * contrato bloqueado (al registrar y al editar una registrada).
+ *
+ * - Anticipo: valor ≤ anticipo por facturar (I1).
+ * - Liquidación: amortización ≤ mín(pendiente por amortizar, VALOR) (I2).
+ *   Sin amortización en la petición se usa la de por defecto; una distinta
+ *   exige el permiso de ajustar y una observación (`granted`, como anular
+ *   una aprobada).
+ */
+const resolveDetail = async (tx, { type, ctrId, input, granted }) => {
+  if (type === INVOICE_TYPES.ADVANCE) {
+    const value = positiveMoney(input.value, "valor del anticipo");
+    assertAdvanceFits(value, await contractAdvanceBalances(tx, ctrId));
+    return { advance: { iad_value: value } };
+  }
+  if (type === INVOICE_TYPES.LIQUIDATION) {
+    const value = positiveMoney(input.value, "valor de la factura");
+    const balances = await contractAdvanceBalances(tx, ctrId);
+    const byDefault = defaultAmortization(value, balances);
+    const amortization = toMoney(input.amortization) ?? byDefault;
+    const adjusted = !amortization.eq(byDefault);
+    const observation = optionalText(input.amortizationObservation);
+    if (adjusted) {
+      if (!granted?.has(can.adjustAmortization)) {
+        throw httpError(403, `La amortización por defecto es ${moneyText(byDefault)}. Cambiarla exige el permiso de ajustar la amortización.`);
+      }
+      if (!observation) throw httpError(400, "Explica por qué la amortización se aparta del valor por defecto.");
+    }
+    assertAmortizationFits(amortization, value, balances);
+    return {
+      liquidation: {
+        ild_value: value,
+        ild_amortization: amortization,
+        ild_default_amortization: byDefault,
+        ild_default_pct: balances.effectivePct,
+        ild_applied_pct: appliedPct(amortization, value),
+        ild_adjustment_observation: adjusted ? observation : null,
+      },
+    };
+  }
+  return {};
+};
+
+// Bitácora del detalle: importes como texto con dos decimales.
+const DETAIL_AUDITED = ["iad_value", "ild_value", "ild_amortization", "ild_default_amortization", "ild_adjustment_observation"];
+const MONEY_COLUMNS = new Set(["iad_value", "ild_value", "ild_amortization", "ild_default_amortization"]);
+
+const detailText = (row) =>
+  Object.fromEntries(Object.entries(row ?? {}).map(([column, value]) => [column, MONEY_COLUMNS.has(column) ? moneyText(value) : value]));
+
+/** Detalle guardado de una factura (de LOCKED_SELECT) como fila plana. */
+const storedDetail = (invoice) => ({ ...(invoice.tbl_invoice_advance_details ?? {}), ...(invoice.tbl_invoice_liquidation_details ?? {}) });
+
+const detailChanges = (before, detail) =>
+  diffFields(detailText(storedDetail(before)), detailText({ ...detail.advance, ...detail.liquidation }), DETAIL_AUDITED);
+
+/**
+ * Importes que llegan para una factura que ya no admite cambios (aprobada):
+ * solo los que difieren de lo guardado, para responder 409 como con
+ * cualquier otro campo. Sin importes en la petición, nada.
+ */
+const requestedDetailChanges = (before, input) => {
+  const requested = {};
+  const value = toMoney(input.value);
+  const amortization = toMoney(input.amortization);
+  if (value) requested[before.inv_type === INVOICE_TYPES.ADVANCE ? "iad_value" : "ild_value"] = value;
+  if (amortization && before.inv_type === INVOICE_TYPES.LIQUIDATION) requested.ild_amortization = amortization;
+  return diffFields(detailText(storedDetail(before)), detailText(requested), DETAIL_AUDITED);
+};
+
+/** Crea o reemplaza el detalle de la factura (1:1, inv_id es la clave). */
+const writeDetail = async (tx, { invId, detail, useBy }) => {
+  if (detail.advance) {
+    await tx.tbl_invoice_advance_details.upsert({
+      where: { inv_id: invId },
+      create: { inv_id: invId, ...detail.advance, iad_create_by: useBy, iad_update_by: useBy },
+      update: { ...detail.advance, iad_update_by: useBy },
+    });
+  }
+  if (detail.liquidation) {
+    await tx.tbl_invoice_liquidation_details.upsert({
+      where: { inv_id: invId },
+      create: { inv_id: invId, ...detail.liquidation, ild_create_by: useBy, ild_update_by: useBy },
+      update: { ...detail.liquidation, ild_update_by: useBy },
+    });
+  }
+};
+
+/** Importe guardado del detalle, o null si la factura no lo tiene (registrada en la fase A). */
+const storedAmount = (invoice, column) => storedDetail(invoice)[column] ?? null;
+
+/**
+ * Aprobar un anticipo o una liquidación revalida su detalle contra los
+ * saldos bajo bloqueo: es la validación definitiva (ADR-0024, decisión 8).
+ * Devuelve los cambios de saldo para la bitácora. 409 si la factura no
+ * tiene importes.
+ */
+const revalidateOnApprove = async (tx, invoice) => {
+  if (!hasDetail(invoice.inv_type)) return [];
+  const isAdvance = invoice.inv_type === INVOICE_TYPES.ADVANCE;
+  const value = storedAmount(invoice, isAdvance ? "iad_value" : "ild_value");
+  if (value === null) {
+    throw httpError(409, "La factura no tiene su valor registrado. Edítala y registra los importes antes de aprobarla.");
+  }
+  const balances = await contractAdvanceBalances(tx, invoice.ctr_id);
+  if (isAdvance) {
+    assertAdvanceFits(value, balances);
+    return [{ field: "advance_invoiced", oldValue: moneyText(balances.invoiced), newValue: moneyText(balances.invoiced.plus(value)) }];
+  }
+  const amortization = storedAmount(invoice, "ild_amortization");
+  assertAmortizationFits(amortization, value, balances);
+  return [
+    { field: "advance_amortized", oldValue: moneyText(balances.amortized), newValue: moneyText(balances.amortized.plus(amortization)) },
+    { field: "advance_effective_pct", oldValue: null, newValue: ratioText(balances.effectivePct) },
+  ];
+};
+
+/**
+ * Anular un anticipo aprobado no puede dejar el amortizado por encima del
+ * facturado (I2). Anular una liquidación aprobada reduce el amortizado:
+ * siempre cumple. Devuelve los cambios de saldo para la bitácora.
+ */
+const revalidateOnCancel = async (tx, invoice) => {
+  if (invoice.inv_state !== INVOICE_STATES.APPROVED || !hasDetail(invoice.inv_type)) return [];
+  const isAdvance = invoice.inv_type === INVOICE_TYPES.ADVANCE;
+  const amount = storedAmount(invoice, isAdvance ? "iad_value" : "ild_amortization");
+  if (amount === null) return [];
+  const balances = await contractAdvanceBalances(tx, invoice.ctr_id);
+  if (isAdvance) {
+    assertAdvanceCancellable(amount, balances);
+    return [{ field: "advance_invoiced", oldValue: moneyText(balances.invoiced), newValue: moneyText(balances.invoiced.minus(amount)) }];
+  }
+  return [{ field: "advance_amortized", oldValue: moneyText(balances.amortized), newValue: moneyText(balances.amortized.minus(amount)) }];
+};
 
 // ─── Listado ─────────────────────────────────────────────────────────────────
 
@@ -222,6 +442,23 @@ export const paginationInvoices = async ({ search, state, type, wrkId, prvId, ct
 
 // ─── Detalle ─────────────────────────────────────────────────────────────────
 
+const amountsDto = (row) => {
+  const advance = row.tbl_invoice_advance_details;
+  const liquidation = row.tbl_invoice_liquidation_details;
+  if (advance) return { value: moneyText(advance.iad_value) };
+  if (liquidation) {
+    return {
+      value: moneyText(liquidation.ild_value),
+      amortization: moneyText(liquidation.ild_amortization),
+      defaultAmortization: moneyText(liquidation.ild_default_amortization),
+      defaultPct: ratioText(liquidation.ild_default_pct),
+      appliedPct: ratioText(liquidation.ild_applied_pct),
+      adjustmentObservation: liquidation.ild_adjustment_observation,
+    };
+  }
+  return null;
+};
+
 export const getInvoice = async ({ invId }) => {
   const row = await prisma.tbl_invoices.findFirst({
     where: { inv_id: Number(invId), sta_id: { not: DELETED_STATUS } },
@@ -279,6 +516,9 @@ export const getInvoice = async ({ invId }) => {
     contractStateName: contract ? (CONTRACT_STATE_NAMES[contract.ctr_state] ?? contract.ctr_state) : null,
     // Si el estado del contrato admite hoy este tipo de factura (para aprobar).
     contractAdmits: contract ? contractAllows(contract.ctr_state, contractAction) : true,
+    // Importes del detalle (DEC-044): null si el tipo no los tiene o la
+    // factura se registró sin ellos.
+    amounts: amountsDto(row),
     state: row.inv_state,
     stateName: STATE_NAMES[row.inv_state] ?? row.inv_state,
     // Qué admite el estado actual: el cliente lo cruza con los permisos.
@@ -414,7 +654,7 @@ const assertUniqueNumber = async (tx, { prvId, number, excludeId = null }) => {
 
 // ─── Crear ───────────────────────────────────────────────────────────────────
 
-/** Datos del documento que llegan del cliente → columnas. Nunca estado, fecha de aprobación ni importes. */
+/** Datos del documento que llegan del cliente → columnas. Nunca estado ni fecha de aprobación; los importes van al detalle. */
 const documentValuesOf = (input) => ({
   inv_number: text(input.number),
   inv_date: toDateOnly(input.date),
@@ -432,7 +672,7 @@ const IDEMPOTENCY_TARGET = {
   toResult: (row) => ({ message: "Factura registrada correctamente", invId: row.inv_id }),
 };
 
-const insertInvoice = async (tx, { values, useBy, ctx, idempotencyData }) => {
+const insertInvoice = async (tx, { values, detail = {}, useBy, ctx, idempotencyData }) => {
   await assertUniqueNumber(tx, { prvId: values.prv_id, number: values.inv_number });
   const { to: initialState } = assertTransition("register");
   const created = await tx.tbl_invoices.create({
@@ -445,13 +685,18 @@ const insertInvoice = async (tx, { values, useBy, ctx, idempotencyData }) => {
       ...idempotencyData,
     },
   });
+  await writeDetail(tx, { invId: created.inv_id, detail, useBy });
   await tx.tbl_invoice_status_history.create({ data: historyRow({ invId: created.inv_id, transition: "register", useBy }) });
   await writeAudit(tx, {
     entity: AUDIT_ENTITIES.INVOICE,
     recordId: created.inv_id,
     operation: AUDIT_OPERATIONS.CREATE,
     ctx,
-    changes: [...diffFields({}, auditable(values), INVOICE_AUDITED), { field: "inv_state", oldValue: null, newValue: initialState }],
+    changes: [
+      ...diffFields({}, auditable(values), INVOICE_AUDITED),
+      ...detailChanges({}, detail),
+      { field: "inv_state", oldValue: null, newValue: initialState },
+    ],
   });
   return { message: "Factura registrada correctamente", invId: created.inv_id };
 };
@@ -474,9 +719,9 @@ const createSimpleInvoice = ({ input, document, useBy, ctx, idempotencyData }) =
  * Factura de contrato: obra y proveedor salen del contrato bloqueado, y su
  * estado debe admitir el tipo (ADR-0017, "Efectos de cada estado"). Bloquea
  * el contrato: serializa con el otrosí de liquidación y la suspensión, que
- * cambian ese estado.
+ * cambian ese estado, y con las facturas que mueven los saldos de anticipo.
  */
-const createContractInvoice = ({ input, document, useBy, ctx, idempotencyData }) =>
+const createContractInvoice = ({ input, document, granted, useBy, ctx, idempotencyData }) =>
   withLockedTransaction({ CONTRATO: Number(input.ctrId) }, async (tx) => {
     const contract = await findLockedContract(tx, input.ctrId);
     assertContractAllows(contract.ctr_state, INVOICE_ACTIONS[input.type]);
@@ -484,7 +729,8 @@ const createContractInvoice = ({ input, document, useBy, ctx, idempotencyData })
       throw httpError(400, `La fecha de la factura no puede ser anterior al inicio del contrato (${dateOnlyText(contract.ctr_start_date)}).`);
     }
     const values = { inv_type: input.type, prv_id: contract.prv_id, wrk_id: contract.wrk_id, wks_id: null, ctr_id: contract.ctr_id, ...document };
-    return insertInvoice(tx, { values, useBy, ctx, idempotencyData });
+    const detail = await resolveDetail(tx, { type: input.type, ctrId: contract.ctr_id, input, granted });
+    return insertInvoice(tx, { values, detail, useBy, ctx, idempotencyData });
   });
 
 // ─── Editar ──────────────────────────────────────────────────────────────────
@@ -492,10 +738,11 @@ const createContractInvoice = ({ input, document, useBy, ctx, idempotencyData })
 /**
  * Editar según el estado (ADR-0020, "Inmutabilidad"): registrada, todo salvo
  * tipo, obra y contrato; aprobada, solo extracto y descripción; anulada,
- * nada (409). Fija valores: repetirlo deja lo mismo, así que se puede
- * reintentar ante un interbloqueo.
+ * nada (409). Los importes de una registrada se revalidan contra los saldos
+ * bajo bloqueo; los de una aprobada no cambian. Fija valores: repetirlo deja
+ * lo mismo, así que se puede reintentar ante un interbloqueo.
  */
-const updateInvoice = async ({ invId, input, document, useBy, ctx }) => {
+const updateInvoice = async ({ invId, input, document, granted, useBy, ctx }) => {
   const known = await findImmutable(invId);
   const isSimple = !hasContract(known.inv_type);
   // Proveedor y etapa son de la simple; si no llegan, se conservan.
@@ -507,7 +754,18 @@ const updateInvoice = async ({ invId, input, document, useBy, ctx }) => {
       const before = await findLockedInvoice(tx, invId);
       const values = isSimple ? { ...document, prv_id: requestedPrvId, wks_id: positiveId(input.wksId) ?? before.wks_id } : { ...document };
 
-      const changes = diffFields(auditable(before), auditable(values), INVOICE_AUDITED);
+      let detail = {};
+      let amountChanges = [];
+      if (hasDetail(before.inv_type)) {
+        if (stateAllows(before.inv_state, "edit")) {
+          detail = await resolveDetail(tx, { type: before.inv_type, ctrId: before.ctr_id, input, granted });
+          amountChanges = detailChanges(before, detail);
+        } else {
+          amountChanges = requestedDetailChanges(before, input);
+        }
+      }
+
+      const changes = [...diffFields(auditable(before), auditable(values), INVOICE_AUDITED), ...amountChanges];
       if (changes.length === 0) return { message: "Factura modificada correctamente", invId: before.inv_id };
 
       if (!stateAllows(before.inv_state, "editNotes")) {
@@ -533,6 +791,7 @@ const updateInvoice = async ({ invId, input, document, useBy, ctx }) => {
       }
 
       await tx.tbl_invoices.update({ where: { inv_id: before.inv_id }, data: { ...values, inv_update_by: useBy } });
+      if (amountChanges.length > 0) await writeDetail(tx, { invId: before.inv_id, detail, useBy });
       await writeAudit(tx, { entity: AUDIT_ENTITIES.INVOICE, recordId: before.inv_id, operation: AUDIT_OPERATIONS.UPDATE, ctx, changes });
       return { message: "Factura modificada correctamente", invId: before.inv_id };
     },
@@ -542,14 +801,15 @@ const updateInvoice = async ({ invId, input, document, useBy, ctx }) => {
 
 /**
  * Registrar (invId vacío o 0) o editar. Crear exige `Idempotency-Key`: el
- * reintento devuelve la factura creada y no "ya existe".
+ * reintento devuelve la factura creada y no "ya existe". `granted`: permisos
+ * efectivos, para ajustar la amortización de una liquidación.
  */
-export const saveInvoice = async ({ invId, input, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
+export const saveInvoice = async ({ invId, input, useBy, granted, ctx = { useId: useBy }, idempotencyKey }) => {
   const document = documentValuesOf(input);
   pastDate(input.date, "fecha de la factura");
   if (!document.inv_number) throw httpError(400, "El número de la factura es requerido.");
 
-  if (Number(invId) > 0) return updateInvoice({ invId: Number(invId), input, document, useBy: Number(useBy), ctx });
+  if (Number(invId) > 0) return updateInvoice({ invId: Number(invId), input, document, granted, useBy: Number(useBy), ctx });
 
   if (!TYPE_NAMES[input.type]) throw httpError(400, "El tipo de factura no es válido.");
   const create = hasContract(input.type) ? createContractInvoice : createSimpleInvoice;
@@ -561,8 +821,14 @@ export const saveInvoice = async ({ invId, input, useBy, ctx = { useId: useBy },
     target: IDEMPOTENCY_TARGET,
     key: idempotencyKey,
     ownerId: useBy,
-    payload: { ...target, ...auditable(document) },
-    execute: (idempotencyData) => create({ input, document, useBy: Number(useBy), ctx, idempotencyData }),
+    payload: {
+      ...target,
+      ...auditable(document),
+      value: moneyText(toMoney(input.value)),
+      amortization: moneyText(toMoney(input.amortization)),
+      amortizationObservation: optionalText(input.amortizationObservation),
+    },
+    execute: (idempotencyData) => create({ input, document, granted, useBy: Number(useBy), ctx, idempotencyData }),
   });
 };
 
@@ -589,8 +855,9 @@ const assertContractStillAdmits = async (tx, invoice) => {
 /**
  * Aprobar (ADR-0020, decisión 7): la factura empieza a contar. Bloquea
  * contrato → factura y revalida bajo bloqueo el estado de los dos. La fecha
- * de aprobación no es futura ni anterior a la factura. En la fase B, aquí se
- * revalidan los saldos y se evalúan C1–C8 (ADR-0017).
+ * de aprobación no es futura ni anterior a la factura. Anticipo y
+ * liquidación revalidan aquí I1 e I2 con carácter definitivo (DEC-044). Falta
+ * evaluar C1–C8 (ADR-0017).
  */
 export const approveInvoice = async ({ invId, input, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
   const approvalDate = pastDate(input.approvalDate, "fecha de aprobación");
@@ -611,6 +878,7 @@ export const approveInvoice = async ({ invId, input, useBy, ctx = { useId: useBy
         if (approvalDate.getTime() < before.inv_date.getTime()) {
           throw httpError(400, `La fecha de aprobación no puede ser anterior a la fecha de la factura (${dateOnlyText(before.inv_date)}).`);
         }
+        const balanceChanges = await revalidateOnApprove(tx, before);
 
         await tx.tbl_invoices.update({
           where: { inv_id: before.inv_id },
@@ -630,6 +898,7 @@ export const approveInvoice = async ({ invId, input, useBy, ctx = { useId: useBy
           changes: [
             { field: "inv_state", oldValue: before.inv_state, newValue: nextState },
             { field: "inv_approval_date", oldValue: null, newValue: dateOnlyText(approvalDate) },
+            ...balanceChanges,
           ],
         });
         return { message, invId: before.inv_id };
@@ -642,7 +911,8 @@ export const approveInvoice = async ({ invId, input, useBy, ctx = { useId: useBy
  * Anular (ADR-0020, decisión 9): no borra, cambia el estado con motivo del
  * catálogo y observación. Una registrada exige el permiso de anular (la
  * ruta); una aprobada, además el reforzado, que el service verifica con el
- * estado bajo bloqueo (`granted`, como levantar una suspensión). Bloquea
+ * estado bajo bloqueo (`granted`, como levantar una suspensión). Anular un
+ * anticipo aprobado ya amortizado responde 409 (I2, DEC-044). Bloquea
  * contrato → factura → motivo.
  */
 export const cancelInvoice = async ({ invId, input, useBy, granted, ctx = { useId: useBy }, idempotencyKey }) => {
@@ -667,6 +937,7 @@ export const cancelInvoice = async ({ invId, input, useBy, granted, ctx = { useI
         }
         const reason = await reasonsService.assertAssignable(tx, reaId);
         if (reason.rea_scope !== REASON_SCOPES.INVOICE_CANCEL) throw httpError(400, "El motivo seleccionado no es de anulación de factura.");
+        const balanceChanges = await revalidateOnCancel(tx, before);
 
         await tx.tbl_invoices.update({ where: { inv_id: before.inv_id }, data: { inv_state: rule.to, inv_update_by: Number(useBy) } });
         await tx.tbl_invoice_status_history.create({
@@ -683,6 +954,7 @@ export const cancelInvoice = async ({ invId, input, useBy, granted, ctx = { useI
           changes: [
             { field: "inv_state", oldValue: before.inv_state, newValue: rule.to },
             { field: "rea_id", oldValue: null, newValue: reaId },
+            ...balanceChanges,
           ],
         });
         return { message, invId: before.inv_id };

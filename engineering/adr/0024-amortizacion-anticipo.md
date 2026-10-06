@@ -2,9 +2,21 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-10-06, [DEC-044](../decisiones/DEC-044-anticipo-amortizacion.md)). Existen:
 
-El anticipo y su amortización **no existen** en el código ni en el esquema. Este ADR documenta la decisión arquitectónica recomendada para uno de los dos recursos finitos del CORE —el otro es el retenido, en [ADR-0025](0025-retenciones.md)—.
+- las cinco magnitudes, calculadas y no guardadas;
+- el detalle de las facturas de anticipo y de liquidación, con la amortización guardada como valor y su evidencia;
+- I1 e I2 al registrar, aprobar y anular, bajo el bloqueo del contrato;
+- el porcentaje efectivo A / B como valor por defecto;
+- el permiso `AJUSTAR AMORTIZACIÓN` (89), con observación obligatoria.
+
+Se validaron las decisiones 5, 6 y 7: porcentaje efectivo, base antes de IVA con AIU y ajuste con permiso. Faltan:
+
+- la conciliación periódica (decisión 12);
+- la condición C2 en la liquidación del contrato;
+- el permiso propio de consulta: hoy la información financiera usa el de ver facturas.
+
+Al escribirse este ADR (2026-09-10), el anticipo y su amortización no existían en el código ni en el esquema; las secciones "Estado actual" y "Brechas" describen ese momento. Este ADR documenta la decisión arquitectónica recomendada para uno de los dos recursos finitos del CORE —el otro es el retenido, en [ADR-0025](0025-retenciones.md)—.
 
 ## Fecha
 

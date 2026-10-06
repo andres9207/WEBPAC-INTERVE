@@ -25,7 +25,7 @@ El esquema no tenía ninguna columna monetaria ni convención de precisión. ADR
 ## Qué implica
 
 - Toda columna de importe nueva usa `DECIMAL(18,2)`. Un PR con `FLOAT` o `DOUBLE` para dinero se rechaza.
-- **Fuera de esta ficha**: porcentajes, tarifas y la regla de redondeo por línea de la facturación (ADR-0026, decisión 4). Se fijan con facturación.
+- **Fuera de esta ficha**: porcentajes, tarifas y la regla de redondeo por línea de la facturación (ADR-0026, decisión 4). Porcentajes, razones y la regla por línea quedaron en [DEC-045](DEC-045-aritmetica-exacta-redondeo-unico.md); las tarifas tributarias siguen con facturación.
 
 ## Dónde
 

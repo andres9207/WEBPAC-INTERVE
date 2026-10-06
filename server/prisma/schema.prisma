@@ -216,106 +216,110 @@ model tbl_user_permissions {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model tbl_users {
-  use_id                         Int                                @id @default(autoincrement())
-  use_name                       String?                            @db.VarChar(255)
-  use_last_name                  String?                            @db.VarChar(255)
-  use_identification             String?                            @db.VarChar(255)
-  idd_id                         Int?
-  use_user                       String?                            @unique(map: "use_user") @db.VarChar(100)
-  use_email                      String?                            @unique(map: "use_email") @db.VarChar(255)
-  use_password                   String?                            @db.VarChar(255)
-  pro_id                         Int?
-  sta_id                         Int?                               @default(1)
-  use_access                     Int?                               @default(1) @db.SmallInt
-  use_change_password            Int?                               @default(1) @db.SmallInt
-  use_create_by                  Int?
-  use_create_at                  DateTime?                          @default(now()) @db.Timestamp(0)
-  use_update_by                  Int?
-  use_update_at                  DateTime?                          @default(now()) @db.Timestamp(0)
-  use_delete_by                  Int?
-  use_delete_at                  DateTime?                          @db.Timestamp(0)
-  use_idempotency_key            String?                            @unique(map: "uq_users_idempotency_key") @db.Char(36)
-  use_idempotency_hash           String?                            @db.Char(64)
-  address_types_created          tbl_address_types[]                @relation("AddressTypeCreatedBy")
-  address_types_deleted          tbl_address_types[]                @relation("AddressTypeDeletedBy")
-  address_types_updated          tbl_address_types[]                @relation("AddressTypeUpdatedBy")
-  tbl_audit_log                  tbl_audit_log[]
-  construction_companies_created tbl_construction_companies[]       @relation("ConstructionCompanyCreatedBy")
-  construction_companies_deleted tbl_construction_companies[]       @relation("ConstructionCompanyDeletedBy")
-  construction_companies_updated tbl_construction_companies[]       @relation("ConstructionCompanyUpdatedBy")
-  contract_types_created         tbl_contract_types[]               @relation("ContractTypeCreatedBy")
-  contract_types_deleted         tbl_contract_types[]               @relation("ContractTypeDeletedBy")
-  contract_types_updated         tbl_contract_types[]               @relation("ContractTypeUpdatedBy")
-  contracts_created              tbl_contracts[]                    @relation("ContractCreatedBy")
-  contracts_deleted              tbl_contracts[]                    @relation("ContractDeletedBy")
-  contracts_updated              tbl_contracts[]                    @relation("ContractUpdatedBy")
-  contract_concepts_created      tbl_contract_concepts[]            @relation("ContractConceptCreatedBy")
-  contract_concepts_updated      tbl_contract_concepts[]            @relation("ContractConceptUpdatedBy")
-  contract_status_history        tbl_contract_status_history[]      @relation("ContractStatusHistoryCreatedBy")
-  contract_type_fields_created   tbl_contract_type_fields[]         @relation("ContractTypeFieldCreatedBy")
-  contract_type_fields_updated   tbl_contract_type_fields[]         @relation("ContractTypeFieldUpdatedBy")
-  contract_type_field_versions   tbl_contract_type_field_versions[] @relation("ContractTypeFieldVersionCreatedBy")
-  work_managers                  tbl_work_managers[]                @relation("WorkManagerUser")
-  work_managers_created          tbl_work_managers[]                @relation("WorkManagerCreatedBy")
-  work_managers_updated          tbl_work_managers[]                @relation("WorkManagerUpdatedBy")
-  work_stages_created            tbl_work_stages[]                  @relation("WorkStageCreatedBy")
-  work_stages_updated            tbl_work_stages[]                  @relation("WorkStageUpdatedBy")
-  works_created                  tbl_works[]                        @relation("WorkCreatedBy")
-  works_deleted                  tbl_works[]                        @relation("WorkDeletedBy")
-  works_updated                  tbl_works[]                        @relation("WorkUpdatedBy")
-  work_providers_created         tbl_work_providers[]               @relation("WorkProviderCreatedBy")
-  work_providers_updated         tbl_work_providers[]               @relation("WorkProviderUpdatedBy")
-  providers_created              tbl_providers[]                    @relation("ProviderCreatedBy")
-  providers_deleted              tbl_providers[]                    @relation("ProviderDeletedBy")
-  providers_updated              tbl_providers[]                    @relation("ProviderUpdatedBy")
-  provider_contacts_created      tbl_provider_contacts[]            @relation("ProviderContactCreatedBy")
-  provider_contacts_updated      tbl_provider_contacts[]            @relation("ProviderContactUpdatedBy")
-  work_contacts_created          tbl_work_contacts[]                @relation("WorkContactCreatedBy")
-  work_contacts_updated          tbl_work_contacts[]                @relation("WorkContactUpdatedBy")
-  documents_created              tbl_documents[]                    @relation("DocumentCreatedBy")
-  documents_deleted              tbl_documents[]                    @relation("DocumentDeletedBy")
-  documents_updated              tbl_documents[]                    @relation("DocumentUpdatedBy")
-  identity_documents_created     tbl_identity_documents[]           @relation("IdentityDocumentCreatedBy")
-  identity_documents_deleted     tbl_identity_documents[]           @relation("IdentityDocumentDeletedBy")
-  identity_documents_updated     tbl_identity_documents[]           @relation("IdentityDocumentUpdatedBy")
-  insurers_created               tbl_insurers[]                     @relation("InsurerCreatedBy")
-  insurers_deleted               tbl_insurers[]                     @relation("InsurerDeletedBy")
-  insurers_updated               tbl_insurers[]                     @relation("InsurerUpdatedBy")
-  tbl_login_attempts             tbl_login_attempts?
-  tbl_notifications              tbl_notifications[]
-  password_resets_created        tbl_password_resets[]              @relation("PasswordResetCreatedBy")
-  password_resets_updated        tbl_password_resets[]              @relation("PasswordResetUpdatedBy")
-  tbl_password_resets            tbl_password_resets?               @relation("PasswordResetUser")
-  profiles_created               tbl_profiles[]                     @relation("ProfileCreatedBy")
-  profiles_deleted               tbl_profiles[]                     @relation("ProfileDeletedBy")
-  profiles_updated               tbl_profiles[]                     @relation("ProfileUpdatedBy")
-  provider_types_created         tbl_provider_types[]               @relation("ProviderTypeCreatedBy")
-  provider_types_deleted         tbl_provider_types[]               @relation("ProviderTypeDeletedBy")
-  provider_types_updated         tbl_provider_types[]               @relation("ProviderTypeUpdatedBy")
-  tbl_sessions                   tbl_sessions?
-  supervision_types_created      tbl_supervision_types[]            @relation("SupervisionTypeCreatedBy")
-  supervision_types_deleted      tbl_supervision_types[]            @relation("SupervisionTypeDeletedBy")
-  supervision_types_updated      tbl_supervision_types[]            @relation("SupervisionTypeUpdatedBy")
-  reasons_created                tbl_reasons[]                      @relation("ReasonCreatedBy")
-  reasons_deleted                tbl_reasons[]                      @relation("ReasonDeletedBy")
-  reasons_updated                tbl_reasons[]                      @relation("ReasonUpdatedBy")
-  contract_suspensions_created   tbl_contract_suspensions[]         @relation("ContractSuspensionCreatedBy")
-  contract_suspensions_updated   tbl_contract_suspensions[]         @relation("ContractSuspensionUpdatedBy")
-  tbl_user_pages                 tbl_user_pages[]
-  tbl_user_permissions           tbl_user_permissions[]
-  created_by_user                tbl_users?                         @relation("UserCreatedBy", fields: [use_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_create_by")
-  users_created                  tbl_users[]                        @relation("UserCreatedBy")
-  deleted_by_user                tbl_users?                         @relation("UserDeletedBy", fields: [use_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_delete_by")
-  users_deleted                  tbl_users[]                        @relation("UserDeletedBy")
-  tbl_identity_documents         tbl_identity_documents?            @relation("UserIdentityDocument", fields: [idd_id], references: [idd_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_identity_documents")
-  tbl_profiles                   tbl_profiles?                      @relation("UserProfile", fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_profiles")
-  tbl_status                     tbl_status?                        @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_status")
-  updated_by_user                tbl_users?                         @relation("UserUpdatedBy", fields: [use_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_update_by")
-  users_updated                  tbl_users[]                        @relation("UserUpdatedBy")
-  invoices_created               tbl_invoices[]                     @relation("InvoiceCreatedBy")
-  invoices_deleted               tbl_invoices[]                     @relation("InvoiceDeletedBy")
-  invoices_updated               tbl_invoices[]                     @relation("InvoiceUpdatedBy")
-  invoice_status_history         tbl_invoice_status_history[]       @relation("InvoiceStatusHistoryCreatedBy")
+  use_id                              Int                                @id @default(autoincrement())
+  use_name                            String?                            @db.VarChar(255)
+  use_last_name                       String?                            @db.VarChar(255)
+  use_identification                  String?                            @db.VarChar(255)
+  idd_id                              Int?
+  use_user                            String?                            @unique(map: "use_user") @db.VarChar(100)
+  use_email                           String?                            @unique(map: "use_email") @db.VarChar(255)
+  use_password                        String?                            @db.VarChar(255)
+  pro_id                              Int?
+  sta_id                              Int?                               @default(1)
+  use_access                          Int?                               @default(1) @db.SmallInt
+  use_change_password                 Int?                               @default(1) @db.SmallInt
+  use_create_by                       Int?
+  use_create_at                       DateTime?                          @default(now()) @db.Timestamp(0)
+  use_update_by                       Int?
+  use_update_at                       DateTime?                          @default(now()) @db.Timestamp(0)
+  use_delete_by                       Int?
+  use_delete_at                       DateTime?                          @db.Timestamp(0)
+  use_idempotency_key                 String?                            @unique(map: "uq_users_idempotency_key") @db.Char(36)
+  use_idempotency_hash                String?                            @db.Char(64)
+  address_types_created               tbl_address_types[]                @relation("AddressTypeCreatedBy")
+  address_types_deleted               tbl_address_types[]                @relation("AddressTypeDeletedBy")
+  address_types_updated               tbl_address_types[]                @relation("AddressTypeUpdatedBy")
+  tbl_audit_log                       tbl_audit_log[]
+  construction_companies_created      tbl_construction_companies[]       @relation("ConstructionCompanyCreatedBy")
+  construction_companies_deleted      tbl_construction_companies[]       @relation("ConstructionCompanyDeletedBy")
+  construction_companies_updated      tbl_construction_companies[]       @relation("ConstructionCompanyUpdatedBy")
+  contract_types_created              tbl_contract_types[]               @relation("ContractTypeCreatedBy")
+  contract_types_deleted              tbl_contract_types[]               @relation("ContractTypeDeletedBy")
+  contract_types_updated              tbl_contract_types[]               @relation("ContractTypeUpdatedBy")
+  contracts_created                   tbl_contracts[]                    @relation("ContractCreatedBy")
+  contracts_deleted                   tbl_contracts[]                    @relation("ContractDeletedBy")
+  contracts_updated                   tbl_contracts[]                    @relation("ContractUpdatedBy")
+  contract_concepts_created           tbl_contract_concepts[]            @relation("ContractConceptCreatedBy")
+  contract_concepts_updated           tbl_contract_concepts[]            @relation("ContractConceptUpdatedBy")
+  contract_status_history             tbl_contract_status_history[]      @relation("ContractStatusHistoryCreatedBy")
+  contract_type_fields_created        tbl_contract_type_fields[]         @relation("ContractTypeFieldCreatedBy")
+  contract_type_fields_updated        tbl_contract_type_fields[]         @relation("ContractTypeFieldUpdatedBy")
+  contract_type_field_versions        tbl_contract_type_field_versions[] @relation("ContractTypeFieldVersionCreatedBy")
+  work_managers                       tbl_work_managers[]                @relation("WorkManagerUser")
+  work_managers_created               tbl_work_managers[]                @relation("WorkManagerCreatedBy")
+  work_managers_updated               tbl_work_managers[]                @relation("WorkManagerUpdatedBy")
+  work_stages_created                 tbl_work_stages[]                  @relation("WorkStageCreatedBy")
+  work_stages_updated                 tbl_work_stages[]                  @relation("WorkStageUpdatedBy")
+  works_created                       tbl_works[]                        @relation("WorkCreatedBy")
+  works_deleted                       tbl_works[]                        @relation("WorkDeletedBy")
+  works_updated                       tbl_works[]                        @relation("WorkUpdatedBy")
+  work_providers_created              tbl_work_providers[]               @relation("WorkProviderCreatedBy")
+  work_providers_updated              tbl_work_providers[]               @relation("WorkProviderUpdatedBy")
+  providers_created                   tbl_providers[]                    @relation("ProviderCreatedBy")
+  providers_deleted                   tbl_providers[]                    @relation("ProviderDeletedBy")
+  providers_updated                   tbl_providers[]                    @relation("ProviderUpdatedBy")
+  provider_contacts_created           tbl_provider_contacts[]            @relation("ProviderContactCreatedBy")
+  provider_contacts_updated           tbl_provider_contacts[]            @relation("ProviderContactUpdatedBy")
+  work_contacts_created               tbl_work_contacts[]                @relation("WorkContactCreatedBy")
+  work_contacts_updated               tbl_work_contacts[]                @relation("WorkContactUpdatedBy")
+  documents_created                   tbl_documents[]                    @relation("DocumentCreatedBy")
+  documents_deleted                   tbl_documents[]                    @relation("DocumentDeletedBy")
+  documents_updated                   tbl_documents[]                    @relation("DocumentUpdatedBy")
+  identity_documents_created          tbl_identity_documents[]           @relation("IdentityDocumentCreatedBy")
+  identity_documents_deleted          tbl_identity_documents[]           @relation("IdentityDocumentDeletedBy")
+  identity_documents_updated          tbl_identity_documents[]           @relation("IdentityDocumentUpdatedBy")
+  insurers_created                    tbl_insurers[]                     @relation("InsurerCreatedBy")
+  insurers_deleted                    tbl_insurers[]                     @relation("InsurerDeletedBy")
+  insurers_updated                    tbl_insurers[]                     @relation("InsurerUpdatedBy")
+  tbl_login_attempts                  tbl_login_attempts?
+  tbl_notifications                   tbl_notifications[]
+  password_resets_created             tbl_password_resets[]              @relation("PasswordResetCreatedBy")
+  password_resets_updated             tbl_password_resets[]              @relation("PasswordResetUpdatedBy")
+  tbl_password_resets                 tbl_password_resets?               @relation("PasswordResetUser")
+  profiles_created                    tbl_profiles[]                     @relation("ProfileCreatedBy")
+  profiles_deleted                    tbl_profiles[]                     @relation("ProfileDeletedBy")
+  profiles_updated                    tbl_profiles[]                     @relation("ProfileUpdatedBy")
+  provider_types_created              tbl_provider_types[]               @relation("ProviderTypeCreatedBy")
+  provider_types_deleted              tbl_provider_types[]               @relation("ProviderTypeDeletedBy")
+  provider_types_updated              tbl_provider_types[]               @relation("ProviderTypeUpdatedBy")
+  tbl_sessions                        tbl_sessions?
+  supervision_types_created           tbl_supervision_types[]            @relation("SupervisionTypeCreatedBy")
+  supervision_types_deleted           tbl_supervision_types[]            @relation("SupervisionTypeDeletedBy")
+  supervision_types_updated           tbl_supervision_types[]            @relation("SupervisionTypeUpdatedBy")
+  reasons_created                     tbl_reasons[]                      @relation("ReasonCreatedBy")
+  reasons_deleted                     tbl_reasons[]                      @relation("ReasonDeletedBy")
+  reasons_updated                     tbl_reasons[]                      @relation("ReasonUpdatedBy")
+  contract_suspensions_created        tbl_contract_suspensions[]         @relation("ContractSuspensionCreatedBy")
+  contract_suspensions_updated        tbl_contract_suspensions[]         @relation("ContractSuspensionUpdatedBy")
+  tbl_user_pages                      tbl_user_pages[]
+  tbl_user_permissions                tbl_user_permissions[]
+  created_by_user                     tbl_users?                         @relation("UserCreatedBy", fields: [use_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_create_by")
+  users_created                       tbl_users[]                        @relation("UserCreatedBy")
+  deleted_by_user                     tbl_users?                         @relation("UserDeletedBy", fields: [use_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_delete_by")
+  users_deleted                       tbl_users[]                        @relation("UserDeletedBy")
+  tbl_identity_documents              tbl_identity_documents?            @relation("UserIdentityDocument", fields: [idd_id], references: [idd_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_identity_documents")
+  tbl_profiles                        tbl_profiles?                      @relation("UserProfile", fields: [pro_id], references: [pro_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_profiles")
+  tbl_status                          tbl_status?                        @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_status")
+  updated_by_user                     tbl_users?                         @relation("UserUpdatedBy", fields: [use_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_users_update_by")
+  users_updated                       tbl_users[]                        @relation("UserUpdatedBy")
+  invoices_created                    tbl_invoices[]                     @relation("InvoiceCreatedBy")
+  invoices_deleted                    tbl_invoices[]                     @relation("InvoiceDeletedBy")
+  invoices_updated                    tbl_invoices[]                     @relation("InvoiceUpdatedBy")
+  invoice_status_history              tbl_invoice_status_history[]       @relation("InvoiceStatusHistoryCreatedBy")
+  invoice_advance_details_created     tbl_invoice_advance_details[]      @relation("InvoiceAdvanceDetailCreatedBy")
+  invoice_advance_details_updated     tbl_invoice_advance_details[]      @relation("InvoiceAdvanceDetailUpdatedBy")
+  invoice_liquidation_details_created tbl_invoice_liquidation_details[]  @relation("InvoiceLiquidationDetailCreatedBy")
+  invoice_liquidation_details_updated tbl_invoice_liquidation_details[]  @relation("InvoiceLiquidationDetailUpdatedBy")
 
   @@index([pro_id], map: "tbl_users_profiles")
   @@index([sta_id], map: "tbl_users_status")
@@ -1029,43 +1033,46 @@ model tbl_contract_suspensions {
 }
 
 model tbl_invoices {
-  inv_id                     Int                          @id @default(autoincrement())
-  inv_type                   String                       @db.VarChar(20)
-  prv_id                     Int
-  wrk_id                     Int
-  wks_id                     Int?
-  ctr_id                     Int?
-  inv_number                 String                       @db.VarChar(50)
-  inv_date                   DateTime                     @db.Date
-  inv_approval_date          DateTime?                    @db.Date
-  inv_voucher_number         String?                      @db.VarChar(50)
-  inv_statement              String?                      @db.VarChar(100)
-  inv_description            String?                      @db.VarChar(500)
-  inv_state                  String                       @default("REGISTERED") @db.VarChar(20)
-  sta_id                     Int                          @default(1)
-  inv_create_by              Int?
-  inv_create_at              DateTime?                    @default(now()) @db.Timestamp(0)
-  inv_update_by              Int?
-  inv_update_at              DateTime?                    @default(now()) @db.Timestamp(0)
-  inv_delete_by              Int?
-  inv_delete_at              DateTime?                    @db.Timestamp(0)
-  inv_idempotency_key        String?                      @unique(map: "uq_invoices_idempotency_key") @db.Char(36)
-  inv_idempotency_hash       String?                      @db.Char(64)
-  tbl_invoice_status_history tbl_invoice_status_history[]
-  tbl_contracts              tbl_contracts?               @relation(fields: [ctr_id, wrk_id, prv_id], references: [ctr_id, wrk_id, prv_id], onUpdate: NoAction, map: "tbl_invoices_contract")
-  created_by_user            tbl_users?                   @relation("InvoiceCreatedBy", fields: [inv_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_create_by")
-  deleted_by_user            tbl_users?                   @relation("InvoiceDeletedBy", fields: [inv_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_delete_by")
-  tbl_providers              tbl_providers                @relation(fields: [prv_id], references: [prv_id], onUpdate: NoAction, map: "tbl_invoices_provider")
-  tbl_status                 tbl_status                   @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_invoices_status")
-  updated_by_user            tbl_users?                   @relation("InvoiceUpdatedBy", fields: [inv_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_update_by")
-  tbl_works                  tbl_works                    @relation(fields: [wrk_id], references: [wrk_id], onUpdate: NoAction, map: "tbl_invoices_work")
-  tbl_work_providers         tbl_work_providers           @relation(fields: [wrk_id, prv_id], references: [wrk_id, prv_id], onUpdate: NoAction, map: "tbl_invoices_work_provider")
-  tbl_work_stages            tbl_work_stages?             @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: NoAction, map: "tbl_invoices_work_stage")
+  inv_id                          Int                              @id @default(autoincrement())
+  inv_type                        String                           @db.VarChar(20)
+  prv_id                          Int
+  wrk_id                          Int
+  wks_id                          Int?
+  ctr_id                          Int?
+  inv_number                      String                           @db.VarChar(50)
+  inv_date                        DateTime                         @db.Date
+  inv_approval_date               DateTime?                        @db.Date
+  inv_voucher_number              String?                          @db.VarChar(50)
+  inv_statement                   String?                          @db.VarChar(100)
+  inv_description                 String?                          @db.VarChar(500)
+  inv_state                       String                           @default("REGISTERED") @db.VarChar(20)
+  sta_id                          Int                              @default(1)
+  inv_create_by                   Int?
+  inv_create_at                   DateTime?                        @default(now()) @db.Timestamp(0)
+  inv_update_by                   Int?
+  inv_update_at                   DateTime?                        @default(now()) @db.Timestamp(0)
+  inv_delete_by                   Int?
+  inv_delete_at                   DateTime?                        @db.Timestamp(0)
+  inv_idempotency_key             String?                          @unique(map: "uq_invoices_idempotency_key") @db.Char(36)
+  inv_idempotency_hash            String?                          @db.Char(64)
+  tbl_invoice_status_history      tbl_invoice_status_history[]
+  tbl_invoice_advance_details     tbl_invoice_advance_details?
+  tbl_invoice_liquidation_details tbl_invoice_liquidation_details?
+  tbl_contracts                   tbl_contracts?                   @relation(fields: [ctr_id, wrk_id, prv_id], references: [ctr_id, wrk_id, prv_id], onUpdate: NoAction, map: "tbl_invoices_contract")
+  created_by_user                 tbl_users?                       @relation("InvoiceCreatedBy", fields: [inv_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_create_by")
+  deleted_by_user                 tbl_users?                       @relation("InvoiceDeletedBy", fields: [inv_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_delete_by")
+  tbl_providers                   tbl_providers                    @relation(fields: [prv_id], references: [prv_id], onUpdate: NoAction, map: "tbl_invoices_provider")
+  tbl_status                      tbl_status                       @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_invoices_status")
+  updated_by_user                 tbl_users?                       @relation("InvoiceUpdatedBy", fields: [inv_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_update_by")
+  tbl_works                       tbl_works                        @relation(fields: [wrk_id], references: [wrk_id], onUpdate: NoAction, map: "tbl_invoices_work")
+  tbl_work_providers              tbl_work_providers               @relation(fields: [wrk_id, prv_id], references: [wrk_id, prv_id], onUpdate: NoAction, map: "tbl_invoices_work_provider")
+  tbl_work_stages                 tbl_work_stages?                 @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: NoAction, map: "tbl_invoices_work_stage")
 
   @@unique([prv_id, inv_number], map: "uq_invoices_provider_number")
   @@index([inv_date], map: "idx_invoices_date")
   @@index([inv_state], map: "idx_invoices_state")
   @@index([inv_type], map: "idx_invoices_type")
+  @@index([ctr_id, inv_type, inv_state], map: "idx_invoices_contract_type_state")
   @@index([ctr_id, wrk_id, prv_id], map: "tbl_invoices_contract")
   @@index([inv_create_by], map: "tbl_invoices_create_by")
   @@index([inv_delete_by], map: "tbl_invoices_delete_by")
@@ -1094,6 +1101,41 @@ model tbl_invoice_status_history {
   @@index([inv_id, ish_create_at], map: "idx_invoice_status_history_invoice")
   @@index([ish_create_by], map: "tbl_invoice_status_history_create_by")
   @@index([rea_id], map: "tbl_invoice_status_history_reason")
+}
+
+model tbl_invoice_advance_details {
+  inv_id          Int          @id
+  iad_value       Decimal      @db.Decimal(18, 2)
+  iad_create_by   Int?
+  iad_create_at   DateTime?    @default(now()) @db.Timestamp(0)
+  iad_update_by   Int?
+  iad_update_at   DateTime?    @default(now()) @db.Timestamp(0)
+  created_by_user tbl_users?   @relation("InvoiceAdvanceDetailCreatedBy", fields: [iad_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_advance_details_create_by")
+  tbl_invoices    tbl_invoices @relation(fields: [inv_id], references: [inv_id], onUpdate: NoAction, map: "tbl_invoice_advance_details_invoice")
+  updated_by_user tbl_users?   @relation("InvoiceAdvanceDetailUpdatedBy", fields: [iad_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_advance_details_update_by")
+
+  @@index([iad_create_by], map: "tbl_invoice_advance_details_create_by")
+  @@index([iad_update_by], map: "tbl_invoice_advance_details_update_by")
+}
+
+model tbl_invoice_liquidation_details {
+  inv_id                     Int          @id
+  ild_value                  Decimal      @db.Decimal(18, 2)
+  ild_amortization           Decimal      @db.Decimal(18, 2)
+  ild_default_amortization   Decimal      @db.Decimal(18, 2)
+  ild_default_pct            Decimal      @db.Decimal(9, 6)
+  ild_applied_pct            Decimal      @db.Decimal(9, 6)
+  ild_adjustment_observation String?      @db.VarChar(1000)
+  ild_create_by              Int?
+  ild_create_at              DateTime?    @default(now()) @db.Timestamp(0)
+  ild_update_by              Int?
+  ild_update_at              DateTime?    @default(now()) @db.Timestamp(0)
+  created_by_user            tbl_users?   @relation("InvoiceLiquidationDetailCreatedBy", fields: [ild_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_liquidation_details_create_by")
+  tbl_invoices               tbl_invoices @relation(fields: [inv_id], references: [inv_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_invoice")
+  updated_by_user            tbl_users?   @relation("InvoiceLiquidationDetailUpdatedBy", fields: [ild_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_liquidation_details_update_by")
+
+  @@index([ild_create_by], map: "tbl_invoice_liquidation_details_create_by")
+  @@index([ild_update_by], map: "tbl_invoice_liquidation_details_update_by")
 }
 
 model tbl_work_contacts {

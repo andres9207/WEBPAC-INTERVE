@@ -16,7 +16,9 @@ import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import DateField from 'ui-component/extended/DateField';
 import RouteDialog from 'ui-component/extended/RouteDialog';
 import SearchSelect from 'ui-component/extended/SearchSelect';
+import AdvanceAmountsSection from './components/AdvanceAmountsSection';
 import { getInvoiceContractsSelectAPI, getInvoiceFormOptionsAPI, getInvoiceWorksSelectAPI, invoicesApi } from 'api/requests/invoicesApi';
+import { useAuth } from 'contexts/AuthContext';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
 import { INVOICE_TYPE_OPTIONS } from 'utils/constants';
@@ -39,6 +41,8 @@ import { INVOICE_TYPE_OPTIONS } from 'utils/constants';
  *   `?type=SIMPLE&wrkId=…`.
  * - Contratos y obras se buscan en el servidor (los selectores tienen tope,
  *   DEC-018): por número, nombre, proveedor u obra.
+ * - Anticipo y liquidación llevan sus importes (DEC-044, AdvanceAmountsSection).
+ *   Los de una aprobada no se envían: no cambian.
  */
 
 const EMPTY_FORM = {
@@ -51,19 +55,39 @@ const EMPTY_FORM = {
   date: '',
   voucherNumber: '',
   statement: '',
-  description: ''
+  description: '',
+  // Importes del anticipo y de la liquidación (DEC-044).
+  value: '',
+  amortization: '',
+  adjustAmortization: false,
+  amortizationObservation: ''
 };
+
+const DOCUMENT_FIELDS = ['type', 'ctrId', 'wrkId', 'prvId', 'wksId', 'number', 'date', 'voucherNumber', 'statement', 'description'];
 
 const text = (value) => String(value ?? '').trim();
 const today = () => format(new Date(), 'yyyy-MM-dd');
 const isSimple = (type) => type === 'SIMPLE';
+const hasAmounts = (type) => type === 'ADVANCE' || type === 'LIQUIDATION';
 
 const toForm = (invoice) => ({
   ...EMPTY_FORM,
-  ...Object.fromEntries(Object.keys(EMPTY_FORM).map((field) => [field, invoice[field] ?? EMPTY_FORM[field]]))
+  ...Object.fromEntries(DOCUMENT_FIELDS.map((field) => [field, invoice[field] ?? EMPTY_FORM[field]])),
+  value: invoice.amounts?.value ?? '',
+  amortization: invoice.amounts?.amortization ?? '',
+  adjustAmortization: Boolean(invoice.amounts?.adjustmentObservation),
+  amortizationObservation: invoice.amounts?.adjustmentObservation ?? ''
 });
 
-const toPayload = (invId, form) => ({
+// Sin ajuste, la amortización no se envía: el servidor usa la de por defecto.
+const amountsPayload = (form) => ({
+  value: form.value,
+  ...(form.type === 'LIQUIDATION' && form.adjustAmortization
+    ? { amortization: form.amortization, amortizationObservation: text(form.amortizationObservation) }
+    : {})
+});
+
+const toPayload = (invId, form, sendAmounts) => ({
   invId,
   ...(invId ? {} : { type: form.type, ...(isSimple(form.type) ? { wrkId: form.wrkId } : { ctrId: form.ctrId }) }),
   ...(isSimple(form.type) ? { prvId: form.prvId, wksId: form.wksId } : {}),
@@ -71,7 +95,8 @@ const toPayload = (invId, form) => ({
   date: form.date,
   voucherNumber: text(form.voucherNumber),
   statement: text(form.statement),
-  description: text(form.description)
+  description: text(form.description),
+  ...(sendAmounts && hasAmounts(form.type) ? amountsPayload(form) : {})
 });
 
 
@@ -121,6 +146,9 @@ export default function InvoiceFormPage() {
   const isEdit = invId > 0;
   const navigate = useNavigate();
   const { refresh } = useOutletContext() ?? {};
+  const { permissionsCatalog, hasPermission } = useAuth();
+  const adjustPermission = permissionsCatalog.billing?.invoices?.adjustAmortization;
+  const canAdjust = adjustPermission != null && hasPermission(adjustPermission);
   const [searchParams] = useSearchParams();
   const presetType = INVOICE_TYPE_OPTIONS.some((o) => o.value === searchParams.get('type')) ? searchParams.get('type') : '';
   const presetCtrId = Number(searchParams.get('ctrId')) || '';
@@ -210,7 +238,10 @@ export default function InvoiceFormPage() {
 
   const changeType = (value) => {
     setValue('type', value ?? '', { shouldDirty: true });
-    for (const field of ['ctrId', 'wrkId', 'prvId', 'wksId']) setValue(field, '', { shouldDirty: true });
+    for (const field of ['ctrId', 'wrkId', 'prvId', 'wksId', 'value', 'amortization', 'amortizationObservation']) {
+      setValue(field, '', { shouldDirty: true });
+    }
+    setValue('adjustAmortization', false, { shouldDirty: true });
     contractOptions.setSearch('');
     workOptions.setSearch('');
   };
@@ -227,7 +258,8 @@ export default function InvoiceFormPage() {
   const onSubmit = async (form) => {
     setSaving(true);
     try {
-      const { data } = await invoicesApi.save(toPayload(invId, form), isEdit ? undefined : idempotencyKey);
+      const sendAmounts = !isEdit || loaded.allowedActions.includes('edit');
+      const { data } = await invoicesApi.save(toPayload(invId, form, sendAmounts), isEdit ? undefined : idempotencyKey);
       showSuccess(data.message || 'Guardado correctamente.');
       refresh?.();
       navigate(`/billing/invoices/${data.invId ?? invId}`);
@@ -294,8 +326,9 @@ export default function InvoiceFormPage() {
           </Alert>
         )}
         <Alert severity="info" variant="outlined">
-          Los importes (valor, IVA, retenciones, anticipo y retenido) todavía no se registran: llegan cuando se defina la composición de
-          cada tipo de factura.
+          {hasAmounts(type)
+            ? 'IVA, retenciones y retenido todavía no se registran: llegan cuando se defina la composición de cada tipo de factura.'
+            : 'Los importes de este tipo de factura todavía no se registran: llegan cuando se defina su composición.'}
         </Alert>
 
         <FormSection
@@ -545,6 +578,18 @@ export default function InvoiceFormPage() {
             </Grid>
           </Grid>
         </FormSection>
+
+        {hasAmounts(type) && (
+          <AdvanceAmountsSection
+            control={control}
+            setValue={setValue}
+            type={type}
+            ctrId={ctrId}
+            readOnly={lockDocument || blocked}
+            canAdjust={canAdjust}
+            onError={showError}
+          />
+        )}
       </Stack>
 
       <ConfirmDialog

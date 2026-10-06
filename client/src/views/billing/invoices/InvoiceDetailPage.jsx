@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import PropTypes from 'prop-types';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
 import Alert from '@mui/material/Alert';
@@ -12,7 +13,7 @@ import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 
 import SubCard from 'ui-component/cards/SubCard';
-import { DataList, Pending } from 'ui-component/extended/DetailBlocks';
+import { DataList, Figure, Pending } from 'ui-component/extended/DetailBlocks';
 import RouteDialog from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import ApproveInvoiceDialog from './components/ApproveInvoiceDialog';
@@ -22,6 +23,7 @@ import { useAuth } from 'contexts/AuthContext';
 import { useSocket } from 'socket/SocketProvider';
 import { showError } from 'services/ToastService';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
+import { fMoneyText, fPercentText } from 'utils/formatNumber';
 import { INVOICE_STATE_COLORS } from 'utils/constants';
 
 /**
@@ -29,8 +31,62 @@ import { INVOICE_STATE_COLORS } from 'utils/constants';
  * dirección propia `/billing/invoices/:invId` (DEC-034): identidad, estado,
  * datos del documento e historial de estado. El estado no se edita: lo
  * cambian Aprobar y Anular, cada una con su diálogo y su permiso, ofrecidas
- * según `allowedActions` del servidor. Los importes llegan con la fase B.
+ * según `allowedActions` del servidor. Importes: los del anticipo y la
+ * liquidación (DEC-044); IVA, retenciones y retenido llegan con la fase B.
  */
+
+const pct = fPercentText;
+
+/** Importes del anticipo o de la liquidación, como los guardó el servidor. */
+function InvoiceAmounts({ invoice }) {
+  const { amounts, type } = invoice;
+  if (!amounts) {
+    return type === 'ADVANCE' || type === 'LIQUIDATION' ? (
+      <Pending
+        title="La factura no tiene sus importes registrados."
+        text="Se registró antes de que existieran los importes. Edítala para registrar el valor: sin él no se puede aprobar."
+      />
+    ) : (
+      <Pending
+        title="Los importes de este tipo de factura todavía no se registran."
+        text="Llegan cuando se defina la composición de cada tipo de factura (decisiones contables pendientes). Hoy la factura registra el documento y su ciclo de vida."
+      />
+    );
+  }
+  const adjusted = Boolean(amounts.adjustmentObservation);
+  const figures =
+    type === 'ADVANCE'
+      ? [{ label: 'Valor del anticipo', value: fMoneyText(amounts.value) }]
+      : [
+          { label: 'VALOR', value: fMoneyText(amounts.value), hint: 'Antes de IVA, con AIU' },
+          { label: 'Amortización del anticipo', value: fMoneyText(amounts.amortization), hint: `${pct(amounts.appliedPct)} del VALOR` },
+          {
+            label: 'Amortización por defecto',
+            value: fMoneyText(amounts.defaultAmortization),
+            hint: `% efectivo del contrato: ${pct(amounts.defaultPct)}`
+          }
+        ];
+  return (
+    <Stack spacing={2}>
+      <Grid container spacing={2}>
+        {figures.map((figure) => (
+          <Grid key={figure.label} size={{ xs: 12, sm: 6, md: 4 }}>
+            <Figure {...figure} />
+          </Grid>
+        ))}
+      </Grid>
+      {adjusted && <Alert severity="warning">Amortización ajustada respecto del valor por defecto: {amounts.adjustmentObservation}</Alert>}
+      <Typography variant="caption" color="text.secondary">
+        {invoice.state === 'APPROVED'
+          ? 'Aprobada: estos importes cuentan en los saldos de anticipo del contrato.'
+          : 'Solo las facturas aprobadas cuentan en los saldos de anticipo del contrato. Al aprobar se revalidan contra los saldos vigentes.'}
+        {' IVA, retenciones y retenido llegan con las decisiones contables pendientes.'}
+      </Typography>
+    </Stack>
+  );
+}
+
+InvoiceAmounts.propTypes = { invoice: PropTypes.object.isRequired };
 
 const TABS = [
   { key: 'summary', label: 'Resumen' },
@@ -245,12 +301,7 @@ export default function InvoiceDetailPage() {
         </Box>
       )}
 
-      {tab === 'amounts' && (
-        <Pending
-          title="Los importes de la factura todavía no se registran."
-          text="Valor, IVA, retenciones, amortización del anticipo y retenido llegan cuando se defina la composición de cada tipo de factura (decisiones contables pendientes). Hoy la factura registra el documento y su ciclo de vida."
-        />
-      )}
+      {tab === 'amounts' && <InvoiceAmounts invoice={invoice} />}
 
       <ApproveInvoiceDialog
         open={dialog === 'approve'}

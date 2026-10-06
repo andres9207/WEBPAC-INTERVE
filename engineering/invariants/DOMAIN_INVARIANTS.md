@@ -14,6 +14,12 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | I4 | Retenido acumulado ≤ retenido pactado — *pendiente: backlog DEC-11* | Bloqueo + revalidación | ADR-0025 |
 | I5 | Σ facturas de liquidación ≤ base vigente — *pendiente: backlog DEC-08* | Bloqueo + revalidación | ADR-0021 |
 
+**Aplicadas (2026-10-06), con anticipo y amortización ([DEC-044](../decisiones/DEC-044-anticipo-amortizacion.md)):**
+
+- **I1:** el valor de una factura de anticipo no supera el anticipo por facturar, máx(0, A − AF). Se verifica al registrar y al editar una registrada, y con carácter definitivo al aprobar. No se aplica hacia atrás: un otrosí que baje A por debajo de AF deja el saldo por facturar en cero.
+- **I2:** la amortización de una liquidación no supera el pendiente por amortizar (AF − AM) ni su VALOR. Se verifica al registrar, al editar y al aprobar. Anular un anticipo aprobado exige AF − valor ≥ AM; si no, responde 409.
+- Mecanismo de las dos: `contractAdvanceBalances` suma bajo el bloqueo del contrato, que es la primera sentencia de la transacción, y `advanceTerms.js` compara. Las registradas no reservan saldo. Falta la conciliación periódica (ADR-0024, decisión 12).
+
 ## Estructura (ADR-0027, catálogo I6–I15)
 
 | ID | Invariante | Mecanismo previsto | Fuente |
@@ -65,7 +71,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 - **DOM-06:** `CANCELLED` no tiene transiciones de salida, y no hay endpoint de eliminar.
 - **DOM-03:** para las facturas. `STATE_ALLOWS` del contrato solo admite anticipo en ejecución, y liquidación y devolución en liquidación; se verifica al registrar y al aprobar.
 - **DOM-08:** para las facturas, con `tbl_invoice_status_history`.
-- **DOM-04:** se aplica cuando haya algo que contar, en la fase B.
+- **DOM-04:** se aplica desde el 2026-10-06 a los saldos de anticipo ([DEC-044](../decisiones/DEC-044-anticipo-amortizacion.md)): AF y AM suman solo facturas aprobadas. Faltan el retenido, las condiciones de liquidación y los indicadores.
 
 ## Cálculo
 

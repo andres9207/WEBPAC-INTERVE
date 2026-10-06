@@ -1,4 +1,5 @@
 import { body, header } from "express-validator";
+import { decimal } from "./money.utils.js";
 
 /**
  * Reglas de express-validator reutilizadas por varios `*.validation.js`
@@ -87,7 +88,7 @@ export const percentRule = (field, label, { when, optional = false } = {}) => {
     .matches(/^\d{1,3}(\.\d{1,2})?$/)
     .withMessage(`El ${label} debe ser un número con hasta dos decimales.`)
     .bail()
-    .custom((value) => Number(value) <= 100)
+    .custom((value) => decimal(value).lte(100))
     .withMessage(`El ${label} debe estar entre 0 y 100.`);
 };
 
