@@ -32,6 +32,21 @@ export const FIELD_INPUTS = {
 
 const PERCENT = /^\d{1,3}(\.\d{1,2})?$/;
 
+/** AIU desagregado (DEC-046): administración, imprevistos y utilidad. */
+const AIU_KEYS = ['ADMIN_PCT', 'CONTINGENCY_PCT', 'PROFIT_PCT'];
+
+/**
+ * Descriptores con la solicitud de AIU del contrato aplicada, igual que en el
+ * servidor (`withContractAiu`): si el contrato no la solicita, A, I y U no
+ * aplican. Sirve para el valor inicial mientras se crea el contrato; para un
+ * contrato guardado, el servidor ya los entrega así (`get_contract_fields`
+ * con `ctrId`).
+ */
+export const withContractAiu = (descriptors, aiuRequested) =>
+  aiuRequested === false
+    ? (descriptors ?? []).map((d) => (AIU_KEYS.includes(d.key) ? { ...d, applies: false, visible: false, required: false } : d))
+    : descriptors;
+
 /** ¿Hay un valor guardado que cuente? Un porcentaje en 0 es lo que guarda la BD cuando el campo no aplica. */
 const hasValue = (dataType, value) => {
   if (value === null || value === undefined || String(value).trim() === '') return false;

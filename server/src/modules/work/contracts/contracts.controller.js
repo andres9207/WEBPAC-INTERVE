@@ -23,7 +23,7 @@ const handle = (fn) => async (req, res, next) => {
 const pick = (source, fields) => Object.fromEntries(fields.map((field) => [field, source?.[field]]));
 
 const CONCEPT_FIELDS = ["directCost", "adminPct", "contingencyPct", "profitPct", "vatPct", "advancePct", "retentionPct"];
-const CONTRACT_FIELDS = ["wrkId", "prvId", "wksId", "cttId", "number", "name", "startDate", "term", "termUnit", "observation"];
+const CONTRACT_FIELDS = ["wrkId", "prvId", "wksId", "cttId", "number", "name", "startDate", "term", "termUnit", "observation", "aiuRequested"];
 const ACT_FIELDS = ["startDate", "description", ...CONCEPT_FIELDS];
 
 export const paginationContractsController = handle((req) => {
@@ -46,14 +46,19 @@ export const previewContractEndDateController = handle((req) => {
 });
 
 export const getContractFieldsController = handle((req) =>
-  contractsService.getContractFields({ cttId: req.query.cttId, version: req.query.version })
+  contractsService.getContractFields({ cttId: req.query.cttId, version: req.query.version, ctrId: req.query.ctrId })
 );
 
 export const saveContractController = handle(async (req) => {
+  const { useId, proId } = req.user;
+  // Cambiar la solicitud de AIU exige además su permiso (DEC-046): el
+  // service decide con la configuración del tipo bajo bloqueo.
+  const granted = new Set(await getEffectivePermissionIds({ useId, proId }));
   const result = await contractsService.saveContract({
     ctrId: req.body.ctrId,
     input: { ...pick(req.body, CONTRACT_FIELDS), initialConcept: pick(req.body.initialConcept, CONCEPT_FIELDS) },
-    useBy: req.user.useId,
+    useBy: useId,
+    granted,
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });

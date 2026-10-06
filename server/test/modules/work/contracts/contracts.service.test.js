@@ -18,7 +18,7 @@ const prismaMock = {
     findMany: jest.fn(),
     count: jest.fn(),
   },
-  tbl_contract_concepts: { create: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
+  tbl_contract_concepts: { create: jest.fn(), findMany: jest.fn(), updateMany: jest.fn(), count: jest.fn(async () => 0) },
   tbl_contract_status_history: { create: jest.fn() },
   tbl_invoices: { count: jest.fn() },
   tbl_works: { findUnique: jest.fn() },
@@ -81,6 +81,7 @@ const storedContract = {
   ctr_suspended_days: 0,
   ctr_state: "IN_PROGRESS",
   ctr_observation: null,
+  ctr_aiu_requested: true,
   sta_id: 1,
 };
 
@@ -458,5 +459,72 @@ describe("previewContractEndDate (FRONTEND_STANDARD, regla 9)", () => {
     await expect(service.previewContractEndDate({ ctrId: 99, startDate: "2026-01-15", term: 6, termUnit: "MES" })).rejects.toMatchObject({
       statusCode: 404,
     });
+  });
+});
+
+describe("solicitud de AIU del contrato (ADR-0026, P13; DEC-046)", () => {
+  const CHANGE_AIU = 90;
+  const save = (data, { ctrId = 0, granted = [] } = {}) =>
+    service.saveContract({ ctrId, input: data, useBy: 9, granted: new Set(granted), ctx, idempotencyKey: ctrId ? undefined : KEY });
+  const noAiuConcept = { ...input().initialConcept, adminPct: "0", contingencyPct: "0", profitPct: "0" };
+
+  it("al crear, el valor por defecto lo da el tipo: solicita AIU si el tipo lo aplica", async () => {
+    await save(input());
+    expect(prismaMock.tbl_contracts.create.mock.calls[0][0].data.ctr_aiu_requested).toBe(true);
+
+    prismaMock.tbl_contracts.create.mockClear();
+    state.typeFields = typeFieldRows({ ADMIN_PCT: { ctf_applies: null }, CONTINGENCY_PCT: { ctf_applies: null }, PROFIT_PCT: { ctf_applies: null } });
+    await save(input({ initialConcept: noAiuConcept }));
+    expect(prismaMock.tbl_contracts.create.mock.calls[0][0].data.ctr_aiu_requested).toBe(false);
+  });
+
+  it("apagarlo al crear exige el permiso (403); con él, A, I y U no se aceptan en el valor inicial", async () => {
+    await expect(save(input({ aiuRequested: false }))).rejects.toMatchObject({ statusCode: 403 });
+    await expect(save(input({ aiuRequested: false }), { granted: [CHANGE_AIU] })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Administración: el contrato no solicita AIU.",
+    });
+    expect(prismaMock.tbl_contracts.create).not.toHaveBeenCalled();
+
+    await save(input({ aiuRequested: false, initialConcept: noAiuConcept }), { granted: [CHANGE_AIU] });
+    expect(prismaMock.tbl_contracts.create.mock.calls[0][0].data.ctr_aiu_requested).toBe(false);
+    expect(auditRows().find((r) => r.aud_field === "ctr_aiu_requested")).toMatchObject({ aud_new_value: "false" });
+  });
+
+  it("no se solicita si el tipo no aplica AIU (400)", async () => {
+    state.typeFields = typeFieldRows({ ADMIN_PCT: { ctf_applies: null }, CONTINGENCY_PCT: { ctf_applies: null }, PROFIT_PCT: { ctf_applies: null } });
+    await expect(save(input({ aiuRequested: true, initialConcept: noAiuConcept }), { granted: [CHANGE_AIU] })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "El tipo de contrato no aplica AIU: el contrato no puede solicitarlo.",
+    });
+  });
+
+  it("al editar, sin cambiarlo no pide permiso; cambiarlo sí, y queda en la bitácora", async () => {
+    state.contract = { ...storedContract };
+    await save(input(), { ctrId: 30 });
+    await save(input({ aiuRequested: true }), { ctrId: 30 });
+    expect(prismaMock.tbl_contracts.update.mock.calls.every((c) => c[0].data.ctr_aiu_requested === true)).toBe(true);
+
+    await expect(save(input({ aiuRequested: false }), { ctrId: 30 })).rejects.toMatchObject({ statusCode: 403 });
+    prismaMock.tbl_audit_log.createMany.mockClear();
+    await save(input({ aiuRequested: false }), { ctrId: 30, granted: [CHANGE_AIU] });
+    expect(prismaMock.tbl_contracts.update.mock.calls.at(-1)[0].data.ctr_aiu_requested).toBe(false);
+    expect(auditRows().find((r) => r.aud_field === "ctr_aiu_requested")).toMatchObject({ aud_old_value: "true", aud_new_value: "false" });
+  });
+
+  it("no se apaga si algún concepto vigente ya pactó A, I o U (409)", async () => {
+    state.contract = { ...storedContract };
+    prismaMock.tbl_contract_concepts.count.mockResolvedValueOnce(1);
+    await expect(save(input({ aiuRequested: false }), { ctrId: 30, granted: [CHANGE_AIU] })).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.tbl_contract_concepts.count.mock.calls[0][0].where).toMatchObject({ ctr_id: 30, sta_id: { not: 3 } });
+    expect(prismaMock.tbl_contracts.update).not.toHaveBeenCalled();
+  });
+
+  it("getContractFields con el contrato: sin AIU, A, I y U no aplican", async () => {
+    prismaMock.tbl_contracts.findUnique.mockResolvedValueOnce({ ctr_aiu_requested: false });
+    const result = await service.getContractFields({ cttId: 2, ctrId: 30 });
+    expect(result).toMatchObject({ typeAppliesAiu: true, aiuRequested: false });
+    expect(result.fields.filter((f) => ["ADMIN_PCT", "CONTINGENCY_PCT", "PROFIT_PCT"].includes(f.key)).every((f) => !f.applies && !f.visible)).toBe(true);
+    expect(result.fields.find((f) => f.key === "VAT_PCT").applies).toBe(true);
   });
 });

@@ -1,5 +1,5 @@
 import { readFileSync } from "fs";
-import { CONFIGURABLE_FIELDS, enforceFields, resolveFields } from "../../../../src/modules/admin/contractTypes/contractFields.js";
+import { CONFIGURABLE_FIELDS, enforceFields, resolveFields, typeAppliesAiu, withContractAiu } from "../../../../src/modules/admin/contractTypes/contractFields.js";
 import { CONTRACT_FIELDS_CATALOG, fieldId } from "../../../helpers/contractFields.fixtures.js";
 
 // Campos configurables (ADR-0006, DEC-037): resolución única de la
@@ -99,5 +99,26 @@ describe("enforceFields", () => {
     const descriptors = all({ CONCEPT_DESCRIPTION: { applies: false }, STAGE: { applies: false } });
     const output = enforceFields({ descriptors, group: "CONCEPT", input: { description: "x", directCost: "10", wksId: 5 }, skip: ["CONCEPT_DESCRIPTION"] });
     expect(output).toMatchObject({ description: "x", directCost: "10", wksId: 5 });
+  });
+});
+
+describe("AIU en cadena (DEC-046)", () => {
+  const all = () => resolveFields(CONTRACT_FIELDS_CATALOG, CONTRACT_FIELDS_CATALOG.map((f) => row(f.cfd_key)));
+
+  it("el tipo aplica AIU si alguno de A, I o U aplica", () => {
+    expect(typeAppliesAiu(all())).toBe(true);
+    const onlyProfit = resolveFields(CONTRACT_FIELDS_CATALOG, [row("PROFIT_PCT"), row("VAT_PCT")]);
+    expect(typeAppliesAiu(onlyProfit)).toBe(true);
+    expect(typeAppliesAiu(resolveFields(CONTRACT_FIELDS_CATALOG, [row("VAT_PCT")]))).toBe(false);
+  });
+
+  it("sin solicitud del contrato, A, I y U dejan de aplicar con su propio motivo; los demás no cambian", () => {
+    const off = withContractAiu(all(), false);
+    for (const key of ["ADMIN_PCT", "CONTINGENCY_PCT", "PROFIT_PCT"]) expect(descriptor(off, key)).toMatchObject({ applies: false, visible: false, required: false });
+    expect(descriptor(off, "VAT_PCT").applies).toBe(true);
+    expect(withContractAiu(all(), true)).toEqual(all());
+
+    expect(() => enforceFields({ descriptors: off, group: "CONCEPT", input: { adminPct: "10" } })).toThrow("Administración: el contrato no solicita AIU.");
+    expect(enforceFields({ descriptors: off, group: "CONCEPT", input: { adminPct: "0" } }).adminPct).toBeNull();
   });
 });

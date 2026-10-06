@@ -285,7 +285,7 @@ TOTAL = VALOR DEVOLUCIÓN
 | P10 | Retenciones tributarias | Tasa congelada (propuesta) · valor capturado | 0023 |
 | P11 | Impuestos en anticipo y devolución | Ninguno (propuesta, según alcance) · con impuestos | 0021 |
 | P12 | Precisión y modo de redondeo | Pesos enteros · dos decimales; modo por definir | 0026 |
-| P13 | Dónde se apaga el AIU | Por contrato (propuesta) · solo en el tipo | 0026 |
+| P13 | Dónde se apaga el AIU — **resuelto 2026-10-06 en [DEC-046](../decisiones/DEC-046-aiu-por-contrato.md): por contrato**, con permiso propio y bitácora | Por contrato (propuesta) · solo en el tipo | 0026 |
 
 ### Estructura del módulo de cálculo
 

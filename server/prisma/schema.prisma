@@ -814,6 +814,7 @@ model tbl_contracts {
   ctr_state                   String                        @default("IN_PROGRESS") @db.VarChar(20)
   ctr_config_version          Int                           @default(1)
   ctr_observation             String?                       @db.VarChar(1000)
+  ctr_aiu_requested           Boolean                       @default(true)
   sta_id                      Int                           @default(1)
   ctr_create_by               Int?
   ctr_create_at               DateTime?                     @default(now()) @db.Timestamp(0)

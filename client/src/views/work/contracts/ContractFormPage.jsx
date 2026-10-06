@@ -5,6 +5,9 @@ import { Controller, FormProvider, useForm, useWatch } from 'react-hook-form';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import FormHelperText from '@mui/material/FormHelperText';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
@@ -18,7 +21,7 @@ import RouteDialog from 'ui-component/extended/RouteDialog';
 import SearchSelect from 'ui-component/extended/SearchSelect';
 import SelectSocket from 'ui-component/extended/SelectSocket';
 import ConceptFields, { EMPTY_CONCEPT } from './components/ConceptFields';
-import { shownFields, toFormFields, visiblePayload } from './components/configurableFields';
+import { shownFields, toFormFields, visiblePayload, withContractAiu } from './components/configurableFields';
 import {
   contractsApi,
   getContractFieldsAPI,
@@ -27,6 +30,7 @@ import {
   previewContractEndDateAPI
 } from 'api/requests/contractsApi';
 import useEndDatePreview from 'hooks/useEndDatePreview';
+import { useAuth } from 'contexts/AuthContext';
 import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
@@ -66,6 +70,8 @@ const EMPTY_FORM = {
   term: '',
   termUnit: 'MES',
   observation: '',
+  // Solicitud de AIU (DEC-046): al crear, la da el tipo elegido.
+  aiuRequested: true,
   initialConcept: EMPTY_CONCEPT
 };
 
@@ -75,7 +81,8 @@ const toForm = (contract) => ({
   ...EMPTY_FORM,
   ...Object.fromEntries(Object.keys(EMPTY_FORM).map((field) => [field, contract[field] ?? EMPTY_FORM[field]])),
   term: String(contract.term ?? ''),
-  observation: contract.observation ?? ''
+  observation: contract.observation ?? '',
+  aiuRequested: contract.aiuRequested !== false
 });
 
 const NO_DESCRIPTION = { skip: ['CONCEPT_DESCRIPTION'] };
@@ -96,18 +103,18 @@ const toPayload = (ctrId, form, descriptors) => {
     startDate: form.startDate,
     term: text(form.term),
     termUnit: form.termUnit,
+    aiuRequested: Boolean(form.aiuRequested),
     ...configured,
     ...(ctrId
       ? {}
       : {
           initialConcept: {
             directCost: form.initialConcept.directCost,
-            ...visiblePayload(descriptors, 'CONCEPT', form.initialConcept, NO_DESCRIPTION)
+            ...visiblePayload(withContractAiu(descriptors, Boolean(form.aiuRequested)), 'CONCEPT', form.initialConcept, NO_DESCRIPTION)
           }
         })
   };
 };
-
 
 export default function ContractFormPage() {
   const { ctrId: ctrIdParam } = useParams();
@@ -125,7 +132,7 @@ export default function ContractFormPage() {
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   // Descriptores de los campos configurables del tipo elegido (`cttId` dice de qué tipo son).
-  const [fieldConfig, setFieldConfig] = useState({ cttId: null, fields: [] });
+  const [fieldConfig, setFieldConfig] = useState({ cttId: null, fields: [], typeAppliesAiu: false });
   const [loadingFields, setLoadingFields] = useState(false);
 
   const methods = useForm({ defaultValues: EMPTY_FORM });
@@ -163,24 +170,32 @@ export default function ContractFormPage() {
     load();
   }, [isEdit, ctrId, reset, resetEndDate, navigate]);
 
-  const [wrkId, cttId] = useWatch({ control, name: ['wrkId', 'cttId'] });
+  const [wrkId, cttId, aiuRequested] = useWatch({ control, name: ['wrkId', 'cttId', 'aiuRequested'] });
+  const { permissionsCatalog, hasPermission } = useAuth();
+  const aiuPermission = permissionsCatalog.work?.contracts?.changeAiu;
+  const canChangeAiu = aiuPermission != null && hasPermission(aiuPermission);
 
   // Configuración del tipo elegido, la vigente (ADR-0006, decisión 5).
   useEffect(() => {
     if (!cttId) {
-      setFieldConfig({ cttId: null, fields: [] });
+      setFieldConfig({ cttId: null, fields: [], typeAppliesAiu: false });
       return;
     }
     let cancelled = false;
     setLoadingFields(true);
     getContractFieldsAPI({ cttId })
-      .then(({ data }) => !cancelled && setFieldConfig({ cttId: data.cttId, fields: data.fields }))
+      .then(({ data }) => {
+        if (cancelled) return;
+        setFieldConfig({ cttId: data.cttId, fields: data.fields, typeAppliesAiu: data.typeAppliesAiu });
+        // Al crear, la solicitud de AIU la da el tipo (DEC-046).
+        if (!isEdit) setValue('aiuRequested', data.typeAppliesAiu);
+      })
       .catch((err) => showError(err.response?.data?.message || 'Error al cargar los campos del tipo de contrato'))
       .finally(() => !cancelled && setLoadingFields(false));
     return () => {
       cancelled = true;
     };
-  }, [cttId]);
+  }, [cttId, isEdit, setValue]);
 
   // Etapas y proveedores de la obra elegida; al editar, también los actuales aunque estén inactivos.
   useEffect(() => {
@@ -248,7 +263,10 @@ export default function ContractFormPage() {
     }
   );
   const otherContractFields = toFormFields(contractFields.filter((field) => field.key !== 'STAGE'));
-  const conceptFields = shownFields(descriptors, 'CONCEPT', null, NO_DESCRIPTION);
+  const conceptFields = shownFields(withContractAiu(descriptors, Boolean(aiuRequested)), 'CONCEPT', null, NO_DESCRIPTION);
+  // Cambiar la solicitud de AIU respecto de la del tipo (al crear) o la guardada (al editar) exige permiso.
+  const aiuDefault = isEdit ? loaded?.aiuRequested !== false : fieldConfig.typeAppliesAiu;
+  const showAiu = fieldsReady && (fieldConfig.typeAppliesAiu || (isEdit && loaded?.aiuRequested !== false));
   const inherited = contractFields.filter((field) => field.inherited);
 
   return (
@@ -510,12 +528,39 @@ export default function ContractFormPage() {
                   value={endPreview.endDate}
                   label="Fecha fin"
                   readOnly
-                  helperText={endPreview.loading ? 'Calculando…' : 'Calculada por el sistema: inicio + plazo + prórrogas + días suspendidos'}
+                  helperText={
+                    endPreview.loading ? 'Calculando…' : 'Calculada por el sistema: inicio + plazo + prórrogas + días suspendidos'
+                  }
                 />
               </Grid>
               {otherContractFields.length > 0 && (
                 <Grid size={12} sx={{ mt: -2 }}>
                   <GenericFormSection fields={otherContractFields} />
+                </Grid>
+              )}
+              {showAiu && (
+                <Grid size={12}>
+                  <Controller
+                    name="aiuRequested"
+                    control={control}
+                    render={({ field }) => (
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={Boolean(field.value)}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                            disabled={blocked || (!canChangeAiu && Boolean(field.value) === aiuDefault)}
+                          />
+                        }
+                        label="Solicita AIU (administración, imprevistos y utilidad)"
+                      />
+                    )}
+                  />
+                  <FormHelperText sx={{ mt: -0.5 }}>
+                    {canChangeAiu
+                      ? 'Sin AIU, los conceptos del contrato no llevan administración, imprevistos ni utilidad. Cambiarlo queda en la bitácora.'
+                      : 'Cambiar la solicitud de AIU exige el permiso de cambiar la solicitud de AIU del contrato.'}
+                  </FormHelperText>
                 </Grid>
               )}
             </Grid>

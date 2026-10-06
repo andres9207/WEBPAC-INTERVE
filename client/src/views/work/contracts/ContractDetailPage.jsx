@@ -235,6 +235,7 @@ export default function ContractDetailPage() {
                     ['Etapa', contract.stageName],
                     ['Proveedor', `${contract.providerName} · ${contract.providerIdentification}`],
                     ['Tipo de contrato', contract.contractType],
+                    ['AIU', contract.aiuRequested === false ? 'No solicitado' : 'Solicitado'],
                     ['Observaciones', contract.observation]
                   ]}
                 />

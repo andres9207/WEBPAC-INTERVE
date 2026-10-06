@@ -132,6 +132,9 @@ export const PERMISSIONS = {
       // el contrato, que exige este permiso además de createAmendment (DEC-039).
       suspend: 76,
       liftSuspension: 77,
+      // Apagar o volver a encender el AIU de un contrato cuyo tipo lo aplica
+      // (ADR-0026, P13; DEC-046).
+      changeAiu: 90,
     },
   },
   // Facturación (DEC-042). Aprobar va separado de crear (segregación de

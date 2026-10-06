@@ -86,6 +86,27 @@ export const resolveFields = (catalog, rows) => {
     .sort((a, b) => a.group.localeCompare(b.group) || a.order - b.order || a.cfdId - b.cfdId);
 };
 
+// ─── AIU en cadena (ADR-0026, P13; DEC-046) ──────────────────────────────────
+
+/** Campos del AIU desagregado: administración, imprevistos y utilidad. */
+export const AIU_FIELDS = Object.freeze(["ADMIN_PCT", "CONTINGENCY_PCT", "PROFIT_PCT"]);
+
+/** El tipo declara que aplica AIU si alguno de A, I o U aplica en su configuración. */
+export const typeAppliesAiu = (descriptors) => descriptors.some((d) => AIU_FIELDS.includes(d.key) && d.applies);
+
+/**
+ * Descriptores con la decisión del contrato aplicada: si el contrato no
+ * solicita AIU, A, I y U dejan de aplicar para él (ni visibles ni
+ * obligatorios), con su propio motivo. Un valor ya guardado se conserva como
+ * heredado, igual que cuando deja de aplicar en el tipo.
+ */
+export const withContractAiu = (descriptors, aiuRequested) =>
+  aiuRequested !== false
+    ? descriptors
+    : descriptors.map((d) =>
+        AIU_FIELDS.includes(d.key) ? { ...d, applies: false, visible: false, required: false, notApplicableReason: "el contrato no solicita AIU" } : d
+      );
+
 /**
  * Aplica la configuración resuelta a los datos que llegan del cliente, para
  * un grupo. Devuelve la entrada con los campos configurables ya decididos;
@@ -111,11 +132,11 @@ export const enforceFields = ({ descriptors, group, input, before = null, skip =
     if (!descriptor.applies) {
       if (hasValue(kind, stored)) {
         if (hasValue(kind, raw) && !sameValue(kind, raw, stored)) {
-          throw httpError(400, `${descriptor.label}: ya no aplica para este tipo de contrato y conserva su valor heredado; no se puede cambiar.`);
+          throw httpError(400, `${descriptor.label}: ${descriptor.notApplicableReason ?? "ya no aplica para este tipo de contrato"} y conserva su valor heredado; no se puede cambiar.`);
         }
         output[name] = stored;
       } else {
-        if (hasValue(kind, raw)) throw httpError(400, `${descriptor.label}: no aplica para este tipo de contrato.`);
+        if (hasValue(kind, raw)) throw httpError(400, `${descriptor.label}: ${descriptor.notApplicableReason ?? "no aplica para este tipo de contrato"}.`);
         output[name] = null;
       }
     } else if (!descriptor.visible) {

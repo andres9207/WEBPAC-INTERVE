@@ -79,6 +79,7 @@ export const previewContractEndDateSchema = [
 export const getContractFieldsSchema = [
   query("cttId").isInt({ min: 1 }).withMessage("cttId es obligatorio y debe ser un entero positivo."),
   query("version").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("version debe ser un entero positivo."),
+  query("ctrId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("ctrId debe ser un entero positivo."),
 ];
 
 export const saveContractSchema = [
@@ -95,6 +96,8 @@ export const saveContractSchema = [
   body("term").isInt({ min: 1, max: 100000 }).withMessage("El plazo debe ser un entero positivo."),
   body("termUnit").isIn(TERM_UNITS).withMessage("La unidad del plazo debe ser días, meses o años."),
   optionalLongText("observation", "Las observaciones", 1000),
+  // Solicitud de AIU (DEC-046). Sin valor, la del tipo al crear o la guardada al editar.
+  body("aiuRequested").optional({ values: "null" }).isBoolean({ strict: true }).withMessage("aiuRequested debe ser verdadero o falso."),
   body("initialConcept").if((_value, { req }) => isCreate(req)).isObject().withMessage("Faltan los datos del valor inicial."),
   ...conceptRules("initialConcept.", isCreate),
 ];

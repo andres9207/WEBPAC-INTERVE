@@ -8,7 +8,8 @@ import { withLockedTransaction } from "../../../common/services/transaction.serv
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
 import { resolveContractFields } from "../../admin/contractTypes/contractTypeFields.service.js";
-import { FIELD_GROUPS, enforceFields } from "../../admin/contractTypes/contractFields.js";
+import { FIELD_GROUPS, enforceFields, typeAppliesAiu, withContractAiu } from "../../admin/contractTypes/contractFields.js";
+import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import {
   CONCEPT_TYPES,
   CONCEPT_TYPE_NAMES,
@@ -43,6 +44,9 @@ import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.
  *   aplican con la configuración actual del tipo, resuelta dentro de la
  *   transacción por la misma función que entrega los descriptores al
  *   formulario. El contrato guarda la versión con que se capturó.
+ * - AIU en cadena (ADR-0026, P13; DEC-046): el tipo declara si aplica, el
+ *   contrato lo solicita (`ctr_aiu_requested`) y el concepto pacta A, I y U.
+ *   Apagarlo o encenderlo exige el permiso propio.
  */
 
 export const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
@@ -170,6 +174,7 @@ export const findLockedContract = async (tx, ctrId) => {
       ctr_suspended_days: true,
       ctr_state: true,
       ctr_observation: true,
+      ctr_aiu_requested: true,
       sta_id: true,
     },
   });
@@ -362,6 +367,7 @@ export const getContract = async ({ ctrId }) => {
       ctr_state: true,
       ctr_config_version: true,
       ctr_observation: true,
+      ctr_aiu_requested: true,
       sta_id: true,
       ctr_create_at: true,
       ctr_update_at: true,
@@ -436,6 +442,7 @@ export const getContract = async ({ ctrId }) => {
     economicsLocked: await hasApprovedInvoices(prisma, row.ctr_id),
     configVersion: row.ctr_config_version,
     observation: row.ctr_observation,
+    aiuRequested: row.ctr_aiu_requested,
     staId: row.sta_id,
     createdAt: row.ctr_create_at,
     createdByName: userFullName(row.created_by_user),
@@ -529,7 +536,7 @@ export const getContractFormOptions = async ({ wrkId, includeWksId, includePrvId
  * decisión 5): la configuración actual o, con `version`, la de esa versión.
  * El cliente no deduce la configuración: la recibe.
  */
-export const getContractFields = async ({ cttId, version }) => {
+export const getContractFields = async ({ cttId, version, ctrId }) => {
   const type = await prisma.tbl_contract_types.findUnique({
     where: { ctt_id: Number(cttId) },
     select: { ctt_id: true, ctt_config_version: true, sta_id: true },
@@ -537,11 +544,17 @@ export const getContractFields = async ({ cttId, version }) => {
   if (!type || type.sta_id === DELETED_STATUS) throw httpError(404, "No se encontró el tipo de contrato.");
   const byVersion = Number(version) > 0;
   const configVersion = byVersion ? Number(version) : type.ctt_config_version;
+  const fields = await resolveContractFields(prisma, type.ctt_id, byVersion ? { version: configVersion } : {});
+  // Con `ctrId`, los campos de ese contrato: si no solicita AIU, A, I y U no aplican (DEC-046).
+  const contract =
+    Number(ctrId) > 0 ? await prisma.tbl_contracts.findUnique({ where: { ctr_id: Number(ctrId) }, select: { ctr_aiu_requested: true } }) : null;
   return {
     cttId: type.ctt_id,
     configVersion,
     currentVersion: type.ctt_config_version,
-    fields: await resolveContractFields(prisma, type.ctt_id, byVersion ? { version: configVersion } : {}),
+    typeAppliesAiu: typeAppliesAiu(fields),
+    ...(contract ? { aiuRequested: contract.ctr_aiu_requested } : {}),
+    fields: contract ? withContractAiu(fields, contract.ctr_aiu_requested) : fields,
   };
 };
 
@@ -561,7 +574,18 @@ const headerValuesOf = (input) => ({
 });
 
 // Bitácora funcional (ADR-0015, "Auditoría"). Nombre y observaciones: técnica.
-const CONTRACT_AUDITED = ["wrk_id", "prv_id", "wks_id", "ctt_id", "ctr_number", "ctr_start_date", "ctr_term", "ctr_term_unit", "ctr_end_date"];
+const CONTRACT_AUDITED = [
+  "wrk_id",
+  "prv_id",
+  "wks_id",
+  "ctt_id",
+  "ctr_number",
+  "ctr_start_date",
+  "ctr_term",
+  "ctr_term_unit",
+  "ctr_end_date",
+  "ctr_aiu_requested",
+];
 const auditableContract = (row) =>
   Object.fromEntries(
     Object.entries(row).map(([column, value]) => [column, column === "ctr_start_date" || column === "ctr_end_date" ? dateOnlyText(value) : value])
@@ -621,6 +645,44 @@ const countInvoices = (tx, ctrId) => tx.tbl_invoices.count({ where: { ctr_id: ct
 export const hasApprovedInvoices = async (db, ctrId) =>
   (await db.tbl_invoices.count({ where: { ctr_id: Number(ctrId), inv_approval_date: { not: null } } })) > 0;
 
+/** Algún concepto vigente del contrato pactó A, I o U mayores que 0. */
+const hasAgreedAiu = async (tx, ctrId) =>
+  (await tx.tbl_contract_concepts.count({
+    where: {
+      ctr_id: ctrId,
+      sta_id: { not: DELETED_STATUS },
+      OR: [{ ccp_admin_pct: { gt: 0 } }, { ccp_contingency_pct: { gt: 0 } }, { ccp_profit_pct: { gt: 0 } }],
+    },
+  })) > 0;
+
+/**
+ * Solicitud de AIU del contrato (ADR-0026, P13; DEC-046), con la
+ * configuración del tipo ya resuelta bajo bloqueo:
+ *
+ * - Valor por defecto: al crear, el del tipo (solicita AIU si el tipo lo
+ *   aplica); al editar, el guardado. Sin `aiuRequested` en la petición se
+ *   conserva el valor por defecto.
+ * - Apartarse de él (apagarlo o encenderlo) exige el permiso propio.
+ * - No se enciende si el tipo no aplica AIU (400).
+ * - No se apaga si algún concepto vigente ya pactó A, I o U (409): se
+ *   corrigen antes los conceptos, con su propio permiso.
+ */
+const resolveAiuRequested = async (tx, { input, descriptors, before = null, granted }) => {
+  const typeApplies = typeAppliesAiu(descriptors);
+  const current = before ? before.ctr_aiu_requested : typeApplies;
+  const requested = input.aiuRequested === undefined || input.aiuRequested === null ? current : input.aiuRequested === true;
+  if (requested === current) return requested;
+
+  if (!granted?.has(PERMISSIONS.work.contracts.changeAiu)) {
+    throw httpError(403, `${requested ? "Solicitar" : "Apagar"} el AIU del contrato exige el permiso de cambiar la solicitud de AIU.`);
+  }
+  if (requested && !typeApplies) throw httpError(400, "El tipo de contrato no aplica AIU: el contrato no puede solicitarlo.");
+  if (!requested && before && (await hasAgreedAiu(tx, before.ctr_id))) {
+    throw httpError(409, "Algún concepto del contrato ya pactó porcentajes de AIU. Llévalos a 0 en cada concepto antes de apagar el AIU.");
+  }
+  return requested;
+};
+
 const assertHeader = (values) => {
   if (!values.ctr_start_date) throw httpError(400, "La fecha de inicio no es una fecha válida.");
 };
@@ -640,20 +702,28 @@ const IDEMPOTENCY_TARGET = {
   toResult: (row) => ({ message: "Contrato creado correctamente", ctrId: row.ctr_id }),
 };
 
-const createContract = ({ wrkId, input, useBy, ctx, idempotencyData }) =>
+const createContract = ({ wrkId, input, granted, useBy, ctx, idempotencyData }) =>
   withLockedTransaction({ OBRA: wrkId, PROVEEDOR: Number(input.prvId), TIPO_CONTRATO: Number(input.cttId) }, async (tx) => {
     const cttId = Number(input.cttId);
     await contractTypesService.assertAssignable(tx, cttId);
     // Configuración del tipo, con el tipo bloqueado: la versión que se guarda
     // es la que se aplicó.
     const descriptors = await resolveContractFields(tx, cttId);
+    const aiuRequested = await resolveAiuRequested(tx, { input, descriptors, granted });
     const values = {
       ...headerValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONTRACT, input })),
+      ctr_aiu_requested: aiuRequested,
       ctr_config_version: await typeConfigVersion(tx, cttId),
     };
-    // El valor inicial toma la fecha del contrato y no lleva descripción propia.
+    // El valor inicial toma la fecha del contrato y no lleva descripción
+    // propia. Si el contrato no solicita AIU, A, I y U no se aceptan.
     const { ccp_start_date: _start, ccp_description: _description, ...initialConcept } = conceptValuesOf(
-      enforceFields({ descriptors, group: FIELD_GROUPS.CONCEPT, input: input.initialConcept ?? {}, skip: ["CONCEPT_DESCRIPTION"] })
+      enforceFields({
+        descriptors: withContractAiu(descriptors, aiuRequested),
+        group: FIELD_GROUPS.CONCEPT,
+        input: input.initialConcept ?? {},
+        skip: ["CONCEPT_DESCRIPTION"],
+      })
     );
 
     await assertWork(tx, wrkId, { isNew: true });
@@ -723,7 +793,7 @@ const createContract = ({ wrkId, input, useBy, ctx, idempotencyData }) =>
 
 // Editar fija la cabecera: repetirlo deja lo mismo, así que se puede
 // reintentar ante un interbloqueo. La obra no cambia.
-const updateContract = async ({ ctrId, input, useBy, ctx }) => {
+const updateContract = async ({ ctrId, input, granted, useBy, ctx }) => {
   // La obra del contrato no cambia nunca después de crearlo, así que leerla
   // antes del bloqueo no da una foto vieja de nada que decida: solo dice qué
   // obra bloquear primero (ADR-0027, regla 3). Bajo bloqueo se vuelve a leer.
@@ -742,7 +812,10 @@ const updateContract = async ({ ctrId, input, useBy, ctx }) => {
       // Configuración actual del tipo. Un valor guardado en un campo que dejó
       // de aplicar se conserva como heredado (ADR-0006, decisiones 7 y 8).
       const descriptors = await resolveContractFields(tx, cttId);
-      const values = headerValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONTRACT, input, before }));
+      const values = {
+        ...headerValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONTRACT, input, before })),
+        ctr_aiu_requested: await resolveAiuRequested(tx, { input, descriptors, before, granted }),
+      };
       // Si cambia el tipo, el contrato pasa a registrar la versión del nuevo.
       if (cttId !== before.ctt_id) values.ctr_config_version = await typeConfigVersion(tx, cttId);
 
@@ -785,11 +858,11 @@ const updateContract = async ({ ctrId, input, useBy, ctx }) => {
  * exige `input.initialConcept`; al editar se ignora: los conceptos se
  * modifican con su propio endpoint y permiso.
  */
-export const saveContract = async ({ ctrId, input, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
+export const saveContract = async ({ ctrId, input, useBy, granted, ctx = { useId: useBy }, idempotencyKey }) => {
   const values = headerValuesOf(input);
   assertHeader(values);
 
-  if (Number(ctrId) > 0) return updateContract({ ctrId: Number(ctrId), input, useBy: Number(useBy), ctx });
+  if (Number(ctrId) > 0) return updateContract({ ctrId: Number(ctrId), input, granted, useBy: Number(useBy), ctx });
 
   const wrkId = Number(input.wrkId);
   // La huella de idempotencia es de lo que pidió el cliente; la
@@ -802,8 +875,8 @@ export const saveContract = async ({ ctrId, input, useBy, ctx = { useId: useBy }
     target: IDEMPOTENCY_TARGET,
     key: idempotencyKey,
     ownerId: useBy,
-    payload: { wrkId, ...auditableContract(values), initialConcept: auditableConcept(initialConcept) },
-    execute: (idempotencyData) => createContract({ wrkId, input, useBy: Number(useBy), ctx, idempotencyData }),
+    payload: { wrkId, ...auditableContract(values), aiuRequested: input.aiuRequested ?? null, initialConcept: auditableConcept(initialConcept) },
+    execute: (idempotencyData) => createContract({ wrkId, input, granted, useBy: Number(useBy), ctx, idempotencyData }),
   });
 };
 

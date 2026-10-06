@@ -239,3 +239,14 @@ describe("campos configurables del tipo de contrato (DEC-037)", () => {
     expect(prismaMock.tbl_contract_concepts.update.mock.calls[0][0].data.ccp_vat_pct.toFixed(2)).toBe("19.00");
   });
 });
+
+describe("solicitud de AIU del contrato (DEC-046)", () => {
+  it("si el contrato no solicita AIU, un otrosí no acepta A, I ni U", async () => {
+    state.contract = contract({ ctr_aiu_requested: false });
+    await expect(service.createAmendment({ ctrId: 30, input: act({ profitPct: "5" }), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Utilidad: el contrato no solicita AIU.",
+    });
+    await expect(service.createAmendment({ ctrId: 30, input: act(), useBy: 9, ctx, idempotencyKey: KEY })).resolves.toMatchObject({ number: 2 });
+  });
+});

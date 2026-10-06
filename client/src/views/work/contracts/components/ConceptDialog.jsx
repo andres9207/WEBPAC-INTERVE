@@ -72,7 +72,8 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
     if (!open || !contract?.cttId) return;
     let cancelled = false;
     setDescriptors(null);
-    getContractFieldsAPI({ cttId: contract.cttId })
+    // Con el contrato: si no solicita AIU, A, I y U no aplican (DEC-046).
+    getContractFieldsAPI({ cttId: contract.cttId, ctrId: contract.ctrId })
       .then(({ data }) => !cancelled && setDescriptors(data.fields))
       .catch((err) => {
         showError(err.response?.data?.message || 'Error al cargar los campos del tipo de contrato');
@@ -81,7 +82,7 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
     return () => {
       cancelled = true;
     };
-  }, [open, contract?.cttId, onClose]);
+  }, [open, contract?.cttId, contract?.ctrId, onClose]);
 
   useEffect(() => {
     if (!open) return;

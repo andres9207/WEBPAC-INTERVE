@@ -5,7 +5,7 @@ import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { resolveContractFields } from "../../admin/contractTypes/contractTypeFields.service.js";
-import { FIELD_GROUPS, enforceFields } from "../../admin/contractTypes/contractFields.js";
+import { FIELD_GROUPS, enforceFields, withContractAiu } from "../../admin/contractTypes/contractFields.js";
 import { CONCEPT_TYPES, assertStateAllows, assertTransition, chronologyError, contractTotals, historyRow, sortConcepts } from "./contractTerms.js";
 import {
   CONCEPT_AUDITED,
@@ -47,9 +47,13 @@ const activeSequence = (concepts) => sortConcepts(concepts.filter((c) => c.sta_i
 
 const valueText = (concepts) => moneyText(contractTotals(concepts).value);
 
-/** Datos del acto con la configuración del tipo del contrato aplicada (ADR-0006, decisión 6). */
+/**
+ * Datos del acto con la configuración del tipo del contrato aplicada (ADR-0006,
+ * decisión 6) y la solicitud de AIU del contrato (DEC-046): sin AIU, A, I y U
+ * no se aceptan.
+ */
 const configuredConcept = async (tx, contract, input, { before = null, skip = [] } = {}) => {
-  const descriptors = await resolveContractFields(tx, contract.ctt_id);
+  const descriptors = withContractAiu(await resolveContractFields(tx, contract.ctt_id), contract.ctr_aiu_requested);
   return conceptValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONCEPT, input, before, skip }));
 };
 
