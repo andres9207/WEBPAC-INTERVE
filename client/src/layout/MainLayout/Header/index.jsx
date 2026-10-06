@@ -8,6 +8,7 @@ import Box from '@mui/material/Box';
 import LogoSection from '../LogoSection';
 import SearchSection from './SearchSection';
 import ProfileSection from './ProfileSection';
+import WorkSection from './WorkSection';
 import NotificationSection from './NotificationSection';
 
 import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
@@ -58,6 +59,9 @@ export default function Header() {
 
       {/* notification */}
       {/* <NotificationSection /> */}
+
+      {/* obra activa (DEC-047) */}
+      <WorkSection />
 
       {/* profile */}
       <ProfileSection />

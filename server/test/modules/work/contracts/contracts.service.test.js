@@ -529,3 +529,41 @@ describe("solicitud de AIU del contrato (ADR-0026, P13; DEC-046)", () => {
     expect(result.fields.find((f) => f.key === "VAT_PCT").applies).toBe(true);
   });
 });
+
+// ─── Alcance por obra (DEC-047) ──────────────────────────────────────────────
+// Obra 8 = la del registro; obra 9 = otra. Fuera del alcance, 404 sin tocar nada.
+const OWN = Object.freeze({ all: false, wrkId: 8 });
+const OTHER = Object.freeze({ all: false, wrkId: 9 });
+const NONE = Object.freeze({ all: false, wrkId: null });
+
+describe("alcance por obra (DEC-047)", () => {
+  it("el listado filtra por la obra del alcance", async () => {
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+    await service.paginationContracts({ scope: OWN });
+    expect(prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0].where.wrk_id).toEqual({ in: [8] });
+  });
+
+  it("un contrato de otra obra no se lee, no se edita ni se elimina (404)", async () => {
+    state.contract = { ...storedContract };
+    await expect(service.getContract({ ctrId: 30, scope: OTHER })).rejects.toMatchObject({ statusCode: 404, message: "No se encontró el contrato." });
+    await expect(service.saveContract({ ctrId: 30, input: input(), useBy: 9, scope: OTHER, ctx })).rejects.toMatchObject({ statusCode: 404 });
+    await expect(service.deleteContract({ ctrId: 30, useBy: 9, scope: OTHER, ctx })).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("no se crea un contrato en una obra fuera del alcance (404)", async () => {
+    await expect(service.saveContract({ ctrId: 0, input: input(), useBy: 9, scope: OTHER, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 404,
+      message: "No se encontró la obra.",
+    });
+    await expect(service.getContractFormOptions({ wrkId: 8, scope: OTHER })).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.tbl_contracts.create).not.toHaveBeenCalled();
+  });
+
+  it("en su obra, sí", async () => {
+    state.contract = { ...storedContract };
+    await expect(service.saveContract({ ctrId: 0, input: input(), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY })).resolves.toMatchObject({ ctrId: 30 });
+  });
+});

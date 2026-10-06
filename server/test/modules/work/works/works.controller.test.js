@@ -18,6 +18,10 @@ const emit = jest.fn();
 
 jest.unstable_mockModule("../../../../src/modules/work/works/works.service.js", () => serviceMock);
 jest.unstable_mockModule("../../../../src/common/services/effectivePermissions.service.js", () => ({ getEffectivePermissionIds }));
+// Alcance por obra (DEC-047): el controller lo resuelve y lo pasa al service.
+const SCOPE = Object.freeze({ all: false, wrkId: 8 });
+const workScopeOf = jest.fn(async () => SCOPE);
+jest.unstable_mockModule("../../../../src/common/services/workScope.service.js", () => ({ workScopeOf, selectMyWorks: jest.fn() }));
 jest.unstable_mockModule("../../../../src/common/configs/socket.manager.js", () => ({ getIO: () => ({ emit }) }));
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: {} }));
 
@@ -55,6 +59,9 @@ describe("works.controller", () => {
     const args = serviceMock.saveWork.mock.calls[0][0];
     expect(args).toMatchObject({ wrkId: 0, useBy: 7, ctx: { useId: 7, ip: "10.0.0.1" }, idempotencyKey: KEY });
     expect([...args.granted]).toEqual([53, 57]);
+    // Alcance por obra (DEC-047): el del servidor, nunca uno del body.
+    expect(workScopeOf).toHaveBeenCalledWith(req);
+    expect(args.scope).toBe(SCOPE);
     expect(args.input).not.toHaveProperty("useBy");
     expect(args.input).not.toHaveProperty("sta_id");
     expect(args.input).not.toHaveProperty("granted");

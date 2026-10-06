@@ -2,6 +2,7 @@ import { getIO } from "../../../common/configs/socket.manager.js";
 import { auditContext } from "../../../common/services/audit.service.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
+import { workScopeOf } from "../../../common/services/workScope.service.js";
 import * as contractsService from "./contracts.service.js";
 import * as conceptsService from "./contractConcepts.service.js";
 import * as suspensionsService from "./contractSuspensions.service.js";
@@ -26,27 +27,34 @@ const CONCEPT_FIELDS = ["directCost", "adminPct", "contingencyPct", "profitPct",
 const CONTRACT_FIELDS = ["wrkId", "prvId", "wksId", "cttId", "number", "name", "startDate", "term", "termUnit", "observation", "aiuRequested"];
 const ACT_FIELDS = ["startDate", "description", ...CONCEPT_FIELDS];
 
-export const paginationContractsController = handle((req) => {
+export const paginationContractsController = handle(async (req) => {
   const { search, state, wrkId, cttId, rows, first, sortField, sortOrder } = req.body;
-  return contractsService.paginationContracts({ search, state, wrkId, cttId, rows, first, sortField, sortOrder });
+  return contractsService.paginationContracts({ search, state, wrkId, cttId, rows, first, sortField, sortOrder, scope: await workScopeOf(req) });
 });
 
-export const getContractController = handle((req) => contractsService.getContract({ ctrId: req.query.ctrId }));
+export const getContractController = handle(async (req) => contractsService.getContract({ ctrId: req.query.ctrId, scope: await workScopeOf(req) }));
 
-export const selectContractWorksController = handle((req) => contractsService.selectContractWorks({ search: req.query.search }));
+export const selectContractWorksController = handle(async (req) =>
+  contractsService.selectContractWorks({ search: req.query.search, scope: await workScopeOf(req) })
+);
 
-export const getContractFormOptionsController = handle((req) => {
+export const getContractFormOptionsController = handle(async (req) => {
   const { wrkId, includeWksId, includePrvId } = req.query;
-  return contractsService.getContractFormOptions({ wrkId, includeWksId, includePrvId });
+  return contractsService.getContractFormOptions({ wrkId, includeWksId, includePrvId, scope: await workScopeOf(req) });
 });
 
-export const previewContractEndDateController = handle((req) => {
+export const previewContractEndDateController = handle(async (req) => {
   const { ctrId, startDate, term, termUnit } = req.query;
-  return contractsService.previewContractEndDate({ ctrId, startDate, term, termUnit });
+  return contractsService.previewContractEndDate({ ctrId, startDate, term, termUnit, scope: await workScopeOf(req) });
 });
 
-export const getContractFieldsController = handle((req) =>
-  contractsService.getContractFields({ cttId: req.query.cttId, version: req.query.version, ctrId: req.query.ctrId })
+export const getContractFieldsController = handle(async (req) =>
+  contractsService.getContractFields({
+    cttId: req.query.cttId,
+    version: req.query.version,
+    ctrId: req.query.ctrId,
+    scope: await workScopeOf(req),
+  })
 );
 
 export const saveContractController = handle(async (req) => {
@@ -59,6 +67,7 @@ export const saveContractController = handle(async (req) => {
     input: { ...pick(req.body, CONTRACT_FIELDS), initialConcept: pick(req.body.initialConcept, CONCEPT_FIELDS) },
     useBy: useId,
     granted,
+    scope: await workScopeOf(req),
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
@@ -67,7 +76,12 @@ export const saveContractController = handle(async (req) => {
 });
 
 export const deleteContractController = handle(async (req) => {
-  const result = await contractsService.deleteContract({ ctrId: req.body.ctrId, useBy: req.user.useId, ctx: auditContext(req) });
+  const result = await contractsService.deleteContract({
+    ctrId: req.body.ctrId,
+    useBy: req.user.useId,
+    scope: await workScopeOf(req),
+    ctx: auditContext(req),
+  });
   notify();
   return result;
 });
@@ -82,6 +96,7 @@ export const createAmendmentController = handle(async (req) => {
     input: pick(req.body, [...ACT_FIELDS, "extension", "liftDate"]),
     useBy: useId,
     granted,
+    scope: await workScopeOf(req),
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
@@ -94,6 +109,7 @@ export const createLiquidationController = handle(async (req) => {
     ctrId: req.body.ctrId,
     input: pick(req.body, ACT_FIELDS),
     useBy: req.user.useId,
+    scope: await workScopeOf(req),
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
@@ -106,6 +122,7 @@ export const suspendContractController = handle(async (req) => {
     ctrId: req.body.ctrId,
     input: pick(req.body, ["reaId", "suspensionDate", "liftCondition", "observation", "requiresReport"]),
     useBy: req.user.useId,
+    scope: await workScopeOf(req),
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
@@ -118,6 +135,7 @@ export const updateConceptController = handle(async (req) => {
     ccpId: req.body.ccpId,
     input: pick(req.body, [...ACT_FIELDS, "extension"]),
     useBy: req.user.useId,
+    scope: await workScopeOf(req),
     ctx: auditContext(req),
   });
   notify();

@@ -9,6 +9,13 @@ import { createMasterApi } from 'api/services/masterApi';
  */
 export const worksApi = createMasterApi('work/works', { entity: 'work', plural: 'works' });
 
+/**
+ * Obras que el usuario puede elegir en el selector del encabezado (DEC-047):
+ * `{ viewAll, works: [{ value, label, active }] }`. Con `viewAll`, todas las
+ * obras y además la opción "Ver todo".
+ */
+export const getMyWorksSelectAPI = () => httpCliente.get('work/works/select_my_works');
+
 /** Indicadores del listado de obras (DEC-033): conteos, valor vigente total y avance. */
 export const getWorksSummaryAPI = () => httpCliente.get('work/works/summary_works');
 

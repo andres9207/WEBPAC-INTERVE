@@ -4,6 +4,7 @@ import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils
 import { decimal, moneyText, percentText, toMoney, toPercent } from "../../../common/utils/money.utils.js";
 import { dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
+import { assertInScope, inScope, scopeWhere } from "../../../common/services/workScope.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
@@ -50,6 +51,20 @@ import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.
  */
 
 export const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
+
+const NOT_FOUND = "No se encontró el contrato.";
+
+/**
+ * 404 si la obra del contrato está fuera del alcance de la petición (DEC-047).
+ * La obra de un contrato no cambia nunca: leerla fuera de la transacción no
+ * da una foto vieja de nada que decida. Un contrato inexistente da el mismo
+ * 404 que su service.
+ */
+export const assertContractInScope = async (scope, ctrId) => {
+  if (!scope || scope.all) return;
+  const row = await prisma.tbl_contracts.findUnique({ where: { ctr_id: Number(ctrId) }, select: { wrk_id: true } });
+  if (!row || !inScope(scope, row.wrk_id)) throw httpError(404, NOT_FOUND);
+};
 
 const text = (value) => String(value ?? "").trim();
 const optionalText = (value) => text(value) || null;
@@ -207,10 +222,11 @@ export const derivedEndDate = async (tx, contract) => {
  * sus otrosí y sus días suspendidos, como al guardar; sin él (contrato
  * nuevo), inicio + plazo. Solo lee; sin bloqueo: no decide nada.
  */
-export const previewContractEndDate = async ({ ctrId, startDate, term, termUnit }) => {
+export const previewContractEndDate = async ({ ctrId, startDate, term, termUnit, scope }) => {
   let extensions = 0;
   let suspendedDays = 0;
   if (Number(ctrId) > 0) {
+    await assertContractInScope(scope, ctrId);
     const contract = await prisma.tbl_contracts.findFirst({
       where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS } },
       select: { ctr_suspended_days: true, tbl_contract_concepts: { select: { ccp_type: true, ccp_extension: true, sta_id: true } } },
@@ -312,12 +328,14 @@ const countByState = async (where) => {
  * vida (las pestañas), `wrkId`, por obra (la pestaña de la obra) y `cttId`,
  * por tipo de contrato. Los conteos de las pestañas respetan obra y tipo.
  */
-export const paginationContracts = async ({ search, state, wrkId, cttId, rows, first, sortField, sortOrder }) => {
+/** `scope`: alcance por obra de la petición (DEC-047). */
+export const paginationContracts = async ({ search, state, wrkId, cttId, rows, first, sortField, sortOrder, scope }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
   const baseWhere = {
     sta_id: { not: DELETED_STATUS },
+    ...scopeWhere(scope),
     ...(Number(wrkId) > 0 ? { wrk_id: Number(wrkId) } : {}),
     ...(Number(cttId) > 0 ? { ctt_id: Number(cttId) } : {}),
     ...searchWhereOf(search),
@@ -348,7 +366,8 @@ const suspensionDto = (row) => ({
   createdByName: userFullName(row.created_by_user),
 });
 
-export const getContract = async ({ ctrId }) => {
+export const getContract = async ({ ctrId, scope }) => {
+  await assertContractInScope(scope, ctrId);
   const row = await prisma.tbl_contracts.findFirst({
     where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS } },
     select: {
@@ -477,12 +496,13 @@ export const getContract = async ({ ctrId }) => {
  * el formulario) se devuelve aunque la búsqueda o el tope la dejen fuera,
  * siempre que esté activa.
  */
-export const selectContractWorks = async ({ search, includeWrkId } = {}) => {
+export const selectContractWorks = async ({ search, includeWrkId, scope } = {}) => {
   const value = text(search);
   const select = { wrk_id: true, wrk_code: true, wrk_name: true };
   const rows = await prisma.tbl_works.findMany({
     where: {
       sta_id: ACTIVE_STATUS,
+      ...scopeWhere(scope),
       ...(value ? { OR: [{ wrk_code: { contains: value } }, { wrk_name: { contains: value } }] } : {}),
     },
     select,
@@ -491,7 +511,7 @@ export const selectContractWorks = async ({ search, includeWrkId } = {}) => {
   });
   const includeId = Number(includeWrkId) || null;
   if (includeId && !rows.some((row) => row.wrk_id === includeId)) {
-    const included = await prisma.tbl_works.findFirst({ where: { wrk_id: includeId, sta_id: ACTIVE_STATUS }, select });
+    const included = await prisma.tbl_works.findFirst({ where: { wrk_id: includeId, sta_id: ACTIVE_STATUS, ...scopeWhere(scope) }, select });
     if (included) rows.unshift(included);
   }
   return rows.map((row) => ({ value: row.wrk_id, label: `${row.wrk_code} — ${row.wrk_name}` }));
@@ -503,7 +523,8 @@ export const selectContractWorks = async ({ search, includeWrkId } = {}) => {
  * proveedor actuales del contrato aunque ya no lo estén (mismo criterio que
  * los maestros, DOM-21).
  */
-export const getContractFormOptions = async ({ wrkId, includeWksId, includePrvId }) => {
+export const getContractFormOptions = async ({ wrkId, includeWksId, includePrvId, scope }) => {
+  assertInScope(scope, wrkId, "No se encontró la obra.");
   const id = Number(wrkId);
   const [stages, assignments] = await Promise.all([
     prisma.tbl_work_stages.findMany({
@@ -538,7 +559,8 @@ export const getContractFormOptions = async ({ wrkId, includeWksId, includePrvId
  * decisión 5): la configuración actual o, con `version`, la de esa versión.
  * El cliente no deduce la configuración: la recibe.
  */
-export const getContractFields = async ({ cttId, version, ctrId }) => {
+export const getContractFields = async ({ cttId, version, ctrId, scope }) => {
+  if (Number(ctrId) > 0) await assertContractInScope(scope, ctrId);
   const type = await prisma.tbl_contract_types.findUnique({
     where: { ctt_id: Number(cttId) },
     select: { ctt_id: true, ctt_config_version: true, sta_id: true },
@@ -860,7 +882,10 @@ const updateContract = async ({ ctrId, input, granted, useBy, ctx }) => {
  * exige `input.initialConcept`; al editar se ignora: los conceptos se
  * modifican con su propio endpoint y permiso.
  */
-export const saveContract = async ({ ctrId, input, useBy, granted, ctx = { useId: useBy }, idempotencyKey }) => {
+export const saveContract = async ({ ctrId, input, useBy, granted, scope, ctx = { useId: useBy }, idempotencyKey }) => {
+  // Alcance por obra (DEC-047): el contrato se crea y se edita solo en la obra del alcance.
+  if (Number(ctrId) > 0) await assertContractInScope(scope, ctrId);
+  else assertInScope(scope, input.wrkId, "No se encontró la obra.");
   const values = headerValuesOf(input);
   assertHeader(values);
 
@@ -890,8 +915,9 @@ export const saveContract = async ({ ctrId, input, useBy, granted, ctx = { useId
  * conservan: un contrato eliminado es historial, y su número queda libre en
  * la obra.
  */
-export const deleteContract = ({ ctrId, useBy, ctx = { useId: useBy } }) =>
-  withLockedTransaction({ CONTRATO: ctrId }, async (tx) => {
+export const deleteContract = async ({ ctrId, useBy, scope, ctx = { useId: useBy } }) => {
+  await assertContractInScope(scope, ctrId);
+  return withLockedTransaction({ CONTRATO: ctrId }, async (tx) => {
     const before = await findLockedContract(tx, ctrId);
     const invoices = await countInvoices(tx, before.ctr_id);
     if (invoices > 0) throw httpError(409, `No se puede eliminar el contrato: tiene ${invoices} factura(s) registrada(s).`);
@@ -908,3 +934,4 @@ export const deleteContract = ({ ctrId, useBy, ctx = { useId: useBy } }) =>
     });
     return { message: "Contrato eliminado correctamente" };
   });
+};

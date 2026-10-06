@@ -15,6 +15,7 @@ import {
 import {
   paginationWorksController,
   summaryWorksController,
+  selectMyWorksController,
   getWorkController,
   previewWorkEndDateController,
   selectWorkManagersController,
@@ -31,6 +32,10 @@ const worksRoutes = express.Router();
 worksRoutes.post("/pagination_works", verifyToken, requirePermission(can.view), paginationWorksSchema, validate, paginationWorksController);
 // Indicadores del listado (DEC-033). Sin parámetros: no hay esquema que validar.
 worksRoutes.get("/summary_works", verifyToken, requirePermission(can.view), summaryWorksController);
+// Obras del selector del encabezado (DEC-047): las del usuario, o todas con el
+// permiso de ver todas. Solo verifyToken, como un selector (DEC-018): cada
+// usuario ve aquí únicamente lo que puede elegir.
+worksRoutes.get("/select_my_works", verifyToken, selectMyWorksController);
 worksRoutes.get("/get_work", verifyToken, requirePermission(can.view), getWorkSchema, validate, getWorkController);
 // Fecha final mientras se edita el formulario: la calcula el servidor (FRONTEND_STANDARD, regla 9).
 worksRoutes.get(

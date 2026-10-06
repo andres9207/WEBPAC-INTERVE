@@ -6,7 +6,7 @@ import { withLockedTransaction } from "../../../common/services/transaction.serv
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { CONTRACT_STATES, STATE_NAMES, assertStateAllows, assertTransition, historyRow, suspendedDaysBetween } from "./contractTerms.js";
-import { findLockedContract, httpError } from "./contracts.service.js";
+import { assertContractInScope, findLockedContract, httpError } from "./contracts.service.js";
 
 /**
  * Suspensiones de contrato (ADR-0017, decisiones 3, 8 y 9; DEC-039).
@@ -74,7 +74,8 @@ const SUSPEND_TARGET = {
  * Suspender un contrato en ejecución. Bloquea contrato → motivo (DEC-019):
  * nadie elimina el motivo mientras se asigna.
  */
-export const suspendContract = async ({ ctrId, input, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
+export const suspendContract = async ({ ctrId, input, useBy, scope, ctx = { useId: useBy }, idempotencyKey }) => {
+  await assertContractInScope(scope, ctrId);
   const requested = {
     rea_id: Number(input.reaId),
     csp_suspension_date: pastDate(input.suspensionDate, "fecha de suspensión"),

@@ -12,6 +12,10 @@ const emit = jest.fn();
 
 jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.service.js", () => invoicesServiceMock);
 jest.unstable_mockModule("../../../../src/common/services/effectivePermissions.service.js", () => ({ getEffectivePermissionIds }));
+// Alcance por obra (DEC-047): el controller lo resuelve y lo pasa al service.
+const SCOPE = Object.freeze({ all: false, wrkId: 8 });
+const workScopeOf = jest.fn(async () => SCOPE);
+jest.unstable_mockModule("../../../../src/common/services/workScope.service.js", () => ({ workScopeOf, selectMyWorks: jest.fn() }));
 jest.unstable_mockModule("../../../../src/common/configs/socket.manager.js", () => ({ getIO: () => ({ emit }) }));
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: {} }));
 
@@ -88,6 +92,9 @@ describe("invoices.controller", () => {
     const call = invoicesServiceMock.approveInvoice.mock.calls[0][0];
     expect(call).toMatchObject({ invId: 70, useBy: 7, idempotencyKey: KEY });
     expect(call.input).toEqual({ approvalDate: "2026-03-05", observation: "ok" });
+    // Alcance por obra (DEC-047): el del servidor, nunca uno del body.
+    expect(workScopeOf).toHaveBeenCalledWith(req);
+    expect(call.scope).toBe(SCOPE);
   });
 
   it("cancelInvoice pasa los permisos efectivos para que el service decida con el estado bajo bloqueo", async () => {

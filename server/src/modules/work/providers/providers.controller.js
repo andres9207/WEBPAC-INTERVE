@@ -2,6 +2,7 @@ import { getIO } from "../../../common/configs/socket.manager.js";
 import { auditContext } from "../../../common/services/audit.service.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
+import { workScopeOf } from "../../../common/services/workScope.service.js";
 import * as providersService from "./providers.service.js";
 
 // Solo leen la petición y delegan. El autor y sus permisos salen de req.user
@@ -28,12 +29,12 @@ const INPUT_FIELDS = ["iddId", "identification", "name", "pvtIds", "serviceType"
 const ASSIGNMENT_FIELDS = ["assignmentDate", "observation", "staId"];
 const pick = (source, fields) => Object.fromEntries(fields.map((field) => [field, source[field]]));
 
-export const paginationProvidersController = handle((req) => {
+export const paginationProvidersController = handle(async (req) => {
   const { search, staId, rows, first, sortField, sortOrder } = req.body;
-  return providersService.paginationProviders({ search, staId, rows, first, sortField, sortOrder });
+  return providersService.paginationProviders({ search, staId, rows, first, sortField, sortOrder, scope: await workScopeOf(req) });
 });
 
-export const getProviderController = handle((req) => providersService.getProvider({ prvId: req.query.prvId }));
+export const getProviderController = handle(async (req) => providersService.getProvider({ prvId: req.query.prvId, scope: await workScopeOf(req) }));
 
 export const checkIdentificationController = handle((req) => {
   const { iddId, identification, excludeId } = req.query;
@@ -42,8 +43,8 @@ export const checkIdentificationController = handle((req) => {
 
 export const selectProvidersController = handle((req) => providersService.selectProviders({ search: req.query.search, wrkId: req.query.wrkId }));
 
-export const selectAssignableWorksController = handle((req) =>
-  providersService.selectAssignableWorks({ search: req.query.search, prvId: req.query.prvId })
+export const selectAssignableWorksController = handle(async (req) =>
+  providersService.selectAssignableWorks({ search: req.query.search, prvId: req.query.prvId, scope: await workScopeOf(req) })
 );
 
 export const saveProviderController = handle(async (req) => {
@@ -56,6 +57,7 @@ export const saveProviderController = handle(async (req) => {
     input: pick(req.body, INPUT_FIELDS),
     useBy: useId,
     granted,
+    scope: await workScopeOf(req),
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
@@ -69,6 +71,7 @@ export const changeProviderStatusController = handle(async (req) => {
     prvId: req.body.prvId,
     staId: req.body.staId,
     useBy: req.user.useId,
+    scope: await workScopeOf(req),
     ctx: auditContext(req),
   });
   notifyProviders();
@@ -76,14 +79,19 @@ export const changeProviderStatusController = handle(async (req) => {
 });
 
 export const deleteProviderController = handle(async (req) => {
-  const result = await providersService.deleteProvider({ prvId: req.body.prvId, useBy: req.user.useId, ctx: auditContext(req) });
+  const result = await providersService.deleteProvider({
+    prvId: req.body.prvId,
+    useBy: req.user.useId,
+    scope: await workScopeOf(req),
+    ctx: auditContext(req),
+  });
   notifyProviders();
   return result;
 });
 
-export const paginationWorkProvidersController = handle((req) => {
+export const paginationWorkProvidersController = handle(async (req) => {
   const { wrkId, search, rows, first } = req.body;
-  return providersService.paginationWorkProviders({ wrkId, search, rows, first });
+  return providersService.paginationWorkProviders({ wrkId, search, rows, first, scope: await workScopeOf(req) });
 });
 
 export const assignProviderController = handle(async (req) => {
@@ -92,6 +100,7 @@ export const assignProviderController = handle(async (req) => {
     prvId: req.body.prvId,
     input: pick(req.body, ASSIGNMENT_FIELDS),
     useBy: req.user.useId,
+    scope: await workScopeOf(req),
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
@@ -105,6 +114,7 @@ export const updateWorkProviderController = handle(async (req) => {
     prvId: req.body.prvId,
     input: pick(req.body, ASSIGNMENT_FIELDS),
     useBy: req.user.useId,
+    scope: await workScopeOf(req),
     ctx: auditContext(req),
   });
   notifyAssignment();
@@ -116,6 +126,7 @@ export const unassignProviderController = handle(async (req) => {
     wrkId: req.body.wrkId,
     prvId: req.body.prvId,
     useBy: req.user.useId,
+    scope: await workScopeOf(req),
     ctx: auditContext(req),
   });
   notifyAssignment();

@@ -36,7 +36,9 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   // Sin encabezados de identidad propios (currenuserapp, currentpermissionsuserapp):
   // el usuario sale solo de la cookie de sesión httpOnly, nunca del cliente.
-  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key']
+  // X-Work-Id: la obra elegida en el encabezado (DEC-047). Solo acota; el
+  // servidor verifica que el usuario pueda usarla.
+  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Work-Id']
 }));
 
 

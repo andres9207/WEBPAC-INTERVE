@@ -2,8 +2,9 @@ import { prisma } from "../../../common/configs/prismaClient.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import { paginate, MAX_ROWS, countByStatus } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
-import { dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
+import { dateOnlyText, toDateOnly, todayDateOnly } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
+import { assertInScope, scopeWhere } from "../../../common/services/workScope.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { identityDocumentsService } from "../../admin/identityDocuments/identityDocuments.service.js";
@@ -90,11 +91,27 @@ const searchWhereOf = (search) => {
   return { OR: [{ prv_name: { contains: value } }, { prv_identification: { contains: value } }] };
 };
 
-export const paginationProviders = async ({ search, staId, rows, first, sortField, sortOrder }) => {
+// ─── Alcance por obra (DEC-047) ──────────────────────────────────────────────
+
+const NOT_FOUND = "No se encontró el proveedor.";
+
+/** Un proveedor está en el alcance si está asignado a alguna obra del alcance. */
+const providerScopeWhere = (scope) => scopeWhere(scope, (ids) => ({ tbl_work_providers: { some: { wrk_id: { in: ids } } } }));
+
+/** 404 si el proveedor no está asignado a la obra del alcance: no revela que exista. */
+const assertProviderInScope = async (scope, prvId) => {
+  const where = providerScopeWhere(scope);
+  if (Object.keys(where).length === 0) return;
+  const found = await prisma.tbl_providers.findFirst({ where: { prv_id: Number(prvId), ...where }, select: { prv_id: true } });
+  if (!found) throw httpError(404, NOT_FOUND);
+};
+
+/** `scope`: alcance por obra de la petición (DEC-047): solo los proveedores de esa obra. */
+export const paginationProviders = async ({ search, staId, rows, first, sortField, sortOrder, scope }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
-  const baseWhere = { sta_id: { not: DELETED_STATUS }, ...searchWhereOf(search) };
+  const baseWhere = { sta_id: { not: DELETED_STATUS }, ...providerScopeWhere(scope), ...searchWhereOf(search) };
   const where = { ...baseWhere, ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}) };
 
   const [page, statusCounts] = await Promise.all([
@@ -136,9 +153,11 @@ const toAssignmentDto = (a) => ({
   updatedByName: userFullName(a.updated_by_user),
 });
 
-export const getProvider = async ({ prvId }) => {
+/** Detalle. Con alcance de una obra, sus obras se limitan a esa (DEC-047). */
+export const getProvider = async ({ prvId, scope }) => {
+  const worksWhere = scopeWhere(scope);
   const row = await prisma.tbl_providers.findFirst({
-    where: { prv_id: Number(prvId), sta_id: { not: DELETED_STATUS } },
+    where: { prv_id: Number(prvId), sta_id: { not: DELETED_STATUS }, ...providerScopeWhere(scope) },
     select: {
       prv_id: true,
       ...HEADER_SELECT,
@@ -153,6 +172,7 @@ export const getProvider = async ({ prvId }) => {
       tbl_provider_contacts: contactsHelper.detailSelect,
       // Obras del proveedor, con tope fijo; el total viene en worksCount.
       tbl_work_providers: {
+        where: worksWhere,
         select: {
           wkp_id: true,
           wrk_id: true,
@@ -166,10 +186,10 @@ export const getProvider = async ({ prvId }) => {
         orderBy: { wkp_assignment_date: "desc" },
         take: MAX_ROWS,
       },
-      _count: { select: { tbl_work_providers: true } },
+      _count: { select: { tbl_work_providers: { where: worksWhere } } },
     },
   });
-  if (!row) throw httpError(404, "No se encontró el proveedor.");
+  if (!row) throw httpError(404, NOT_FOUND);
 
   return {
     prvId: row.prv_id,
@@ -264,13 +284,14 @@ export const selectProviders = async ({ search, wrkId } = {}) => {
 /**
  * Obras a las que se puede asignar el proveedor (el selector del lado del
  * proveedor, simétrico de selectProviders): activas, donde todavía no está, por
- * código o nombre, con tope fijo.
+ * código o nombre, con tope fijo. Solo las del alcance (DEC-047).
  */
-export const selectAssignableWorks = async ({ search, prvId } = {}) => {
+export const selectAssignableWorks = async ({ search, prvId, scope } = {}) => {
   const value = text(search);
   const rows = await prisma.tbl_works.findMany({
     where: {
       sta_id: ACTIVE_STATUS,
+      ...scopeWhere(scope),
       ...(value ? { OR: [{ wrk_code: { contains: value } }, { wrk_name: { contains: value } }] } : {}),
       ...(Number(prvId) > 0 ? { tbl_work_providers: { none: { prv_id: Number(prvId) } } } : {}),
     },
@@ -508,8 +529,13 @@ const translateDuplicate = async (err, values, excludeId = null) => {
  * `input.assignment` ({ wrkId, assignmentDate, observation }) lo asigna a esa
  * obra en la misma transacción, y exige el permiso de asignar. `granted` es
  * el Set de per_id efectivos del autor. El estado no se toca aquí.
+ *
+ * Alcance por obra (DEC-047): editar exige que el proveedor esté en la obra
+ * del alcance. Sin "ver todo", crear lo asigna a una obra del alcance (la
+ * pedida, o la del alcance con fecha de hoy): un proveedor sin obra no lo
+ * vería nadie más que quien ve todo.
  */
-export const saveProvider = async ({ prvId, input, useBy, granted, ctx = { useId: useBy }, idempotencyKey }) => {
+export const saveProvider = async ({ prvId, input, useBy, granted, scope, ctx = { useId: useBy }, idempotencyKey }) => {
   const values = headerValuesOf(input);
   const pvtIds = typeIdsOf(input);
   const contacts = contactsHelper.fromInput(input.contacts);
@@ -517,6 +543,7 @@ export const saveProvider = async ({ prvId, input, useBy, granted, ctx = { useId
   contactsHelper.assertList(contacts);
 
   if (Number(prvId) > 0) {
+    await assertProviderInScope(scope, prvId);
     try {
       return await updateProvider({ prvId, values, pvtIds, contacts, useBy: Number(useBy), granted, ctx });
     } catch (err) {
@@ -525,7 +552,13 @@ export const saveProvider = async ({ prvId, input, useBy, granted, ctx = { useId
   }
 
   let assignment = null;
+  const restricted = scope && !scope.all;
+  if (restricted && !input.assignment) {
+    if (!scope.wrkId) throw httpError(403, "Selecciona una obra en el encabezado para registrar proveedores.");
+    input = { ...input, assignment: { wrkId: scope.wrkId, assignmentDate: dateOnlyText(todayDateOnly()) } };
+  }
   if (input.assignment) {
+    if (restricted) assertInScope(scope, input.assignment.wrkId, "No se encontró la obra.");
     if (!granted.has(CAN.assignWork)) throw httpError(403, "No tienes permiso para asignar proveedores a obras.");
     assignment = { wrkId: Number(input.assignment.wrkId), values: assignmentValuesOf(input.assignment) };
     assertAssignmentDate(assignment.values);
@@ -564,8 +597,9 @@ const findLockedProvider = async (tx, prvId) => {
  * afecta a las asignaciones existentes (regla 14). Fija un estado final:
  * reintentable.
  */
-export const changeProviderStatus = ({ prvId, staId, useBy, ctx = { useId: useBy } }) =>
-  withLockedTransaction(
+export const changeProviderStatus = async ({ prvId, staId, useBy, scope, ctx = { useId: useBy } }) => {
+  await assertProviderInScope(scope, prvId);
+  return withLockedTransaction(
     { PROVEEDOR: prvId },
     async (tx) => {
       const before = await findLockedProvider(tx, prvId);
@@ -585,14 +619,16 @@ export const changeProviderStatus = ({ prvId, staId, useBy, ctx = { useId: useBy
     },
     { idempotent: true }
   );
+};
 
 /**
  * Eliminación lógica (DEC-006), bloqueada con 409 si el proveedor tiene obras
  * asignadas (regla 15): forma parte de sus expedientes. Los contactos se
  * conservan. Con contratos y facturas se agregan aquí sus tablas.
  */
-export const deleteProvider = ({ prvId, useBy, ctx = { useId: useBy } }) =>
-  withLockedTransaction({ PROVEEDOR: prvId }, async (tx) => {
+export const deleteProvider = async ({ prvId, useBy, scope, ctx = { useId: useBy } }) => {
+  await assertProviderInScope(scope, prvId);
+  return withLockedTransaction({ PROVEEDOR: prvId }, async (tx) => {
     const before = await findLockedProvider(tx, prvId);
 
     const works = await tx.tbl_work_providers.count({ where: { prv_id: Number(prvId) } });
@@ -613,6 +649,7 @@ export const deleteProvider = ({ prvId, useBy, ctx = { useId: useBy } }) =>
     });
     return { message: "Proveedor eliminado correctamente" };
   });
+};
 
 // ─── Endpoints de asignación ─────────────────────────────────────────────────
 
@@ -637,7 +674,8 @@ const ASSIGNMENT_LIST_SELECT = {
 };
 
 /** Proveedores asignados a una obra, paginados (ENDPOINT_STANDARD, "Listados"). */
-export const paginationWorkProviders = async ({ wrkId, search, rows, first }) => {
+export const paginationWorkProviders = async ({ wrkId, search, rows, first, scope }) => {
+  assertInScope(scope, wrkId, "No se encontró la obra.");
   const value = text(search);
   const where = {
     wrk_id: Number(wrkId),
@@ -663,7 +701,8 @@ const ASSIGNMENT_IDEMPOTENCY = {
 };
 
 /** Asignar un proveedor existente a una obra (bloqueo obra → proveedor). */
-export const assignProviderToWork = async ({ wrkId, prvId, input, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
+export const assignProviderToWork = async ({ wrkId, prvId, input, useBy, scope, ctx = { useId: useBy }, idempotencyKey }) => {
+  assertInScope(scope, wrkId, "No se encontró la obra.");
   const values = assignmentValuesOf(input);
   assertAssignmentDate(values);
   return runIdempotent({
@@ -690,7 +729,8 @@ const findLockedAssignment = async (tx, { wrkId, prvId }) => {
 };
 
 /** Editar fecha, observaciones o estado de la asignación. Reintentable. */
-export const updateWorkProvider = ({ wrkId, prvId, input, useBy, ctx = { useId: useBy } }) => {
+export const updateWorkProvider = async ({ wrkId, prvId, input, useBy, scope, ctx = { useId: useBy } }) => {
+  assertInScope(scope, wrkId, "No se encontró la obra.");
   const values = { ...assignmentValuesOf(input), sta_id: Number(input.staId ?? ACTIVE_STATUS) };
   assertAssignmentDate(values);
   if (values.sta_id !== ACTIVE_STATUS && values.sta_id !== INACTIVE_STATUS) throw httpError(400, "El estado debe ser activo o inactivo.");
@@ -717,8 +757,9 @@ export const updateWorkProvider = ({ wrkId, prvId, input, useBy, ctx = { useId: 
  * FK del contrato y de la factura a la asignación lo impiden (DEC-035,
  * DEC-042); esto da el mensaje claro.
  */
-export const unassignProviderFromWork = ({ wrkId, prvId, useBy, ctx = { useId: useBy } }) =>
-  withLockedTransaction({ OBRA: wrkId, PROVEEDOR: prvId }, async (tx) => {
+export const unassignProviderFromWork = async ({ wrkId, prvId, useBy, scope, ctx = { useId: useBy } }) => {
+  assertInScope(scope, wrkId, "No se encontró la obra.");
+  return withLockedTransaction({ OBRA: wrkId, PROVEEDOR: prvId }, async (tx) => {
     const before = await findLockedAssignment(tx, { wrkId, prvId });
     const contracts = await tx.tbl_contracts.count({ where: { wrk_id: Number(wrkId), prv_id: Number(prvId) } });
     if (contracts > 0) {
@@ -733,3 +774,4 @@ export const unassignProviderFromWork = ({ wrkId, prvId, useBy, ctx = { useId: u
     await auditAssignment(tx, { operation: AUDIT_OPERATIONS.REVOKE, before, ctx });
     return { message: "Proveedor desasignado de la obra" };
   });
+};

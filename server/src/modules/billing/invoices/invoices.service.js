@@ -4,12 +4,19 @@ import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils
 import { dateOnlyText, toDateOnly, todayDateOnly } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
+import { assertInScope, inScope, scopeWhere } from "../../../common/services/workScope.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import { moneyText, ratioText, toMoney } from "../../../common/utils/money.utils.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
-import { CONCEPT_SELECT, findLockedContract, getContractFormOptions, selectContractWorks } from "../../work/contracts/contracts.service.js";
+import {
+  CONCEPT_SELECT,
+  assertContractInScope,
+  findLockedContract,
+  getContractFormOptions,
+  selectContractWorks,
+} from "../../work/contracts/contracts.service.js";
 import {
   INVOICE_ACTIONS,
   contractTotals,
@@ -127,6 +134,19 @@ const LOCKED_SELECT = {
   },
 };
 
+const NOT_FOUND = "No se encontró la factura.";
+
+/**
+ * 404 si la obra de la factura está fuera del alcance de la petición
+ * (DEC-047). La obra de una factura no cambia nunca, así que se lee fuera de
+ * la transacción. Una factura inexistente da el mismo 404.
+ */
+const assertInvoiceInScope = async (scope, invId) => {
+  if (!scope || scope.all) return;
+  const row = await prisma.tbl_invoices.findUnique({ where: { inv_id: Number(invId) }, select: { wrk_id: true } });
+  if (!row || !inScope(scope, row.wrk_id)) throw httpError(404, NOT_FOUND);
+};
+
 /** Factura bloqueada (la utilidad ya ejecutó el FOR UPDATE). 404 si no existe. */
 const findLockedInvoice = async (tx, invId) => {
   const row = await tx.tbl_invoices.findUnique({ where: { inv_id: Number(invId) }, select: LOCKED_SELECT });
@@ -182,7 +202,8 @@ export const contractAdvanceBalances = async (db, ctrId) => {
  * saldos y, si llega `value`, la amortización por defecto de una
  * liquidación por ese VALOR. Solo lectura: al guardar se recalcula todo.
  */
-export const getContractAdvance = async ({ ctrId, value }) => {
+export const getContractAdvance = async ({ ctrId, value, scope }) => {
+  await assertContractInScope(scope, ctrId);
   const contract = await prisma.tbl_contracts.findFirst({
     where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS } },
     select: { ctr_id: true },
@@ -419,12 +440,14 @@ const countByState = async (where) => {
  * `wrkId`, `prvId` y `ctrId`, por tipo, obra, proveedor o contrato (la
  * pestaña Facturas del contrato).
  */
-export const paginationInvoices = async ({ search, state, type, wrkId, prvId, ctrId, rows, first, sortField, sortOrder }) => {
+/** `scope`: alcance por obra de la petición (DEC-047). */
+export const paginationInvoices = async ({ search, state, type, wrkId, prvId, ctrId, rows, first, sortField, sortOrder, scope }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
   const baseWhere = {
     sta_id: { not: DELETED_STATUS },
+    ...scopeWhere(scope),
     ...(type ? { inv_type: type } : {}),
     ...(positiveId(wrkId) ? { wrk_id: positiveId(wrkId) } : {}),
     ...(positiveId(prvId) ? { prv_id: positiveId(prvId) } : {}),
@@ -459,7 +482,8 @@ const amountsDto = (row) => {
   return null;
 };
 
-export const getInvoice = async ({ invId }) => {
+export const getInvoice = async ({ invId, scope }) => {
+  await assertInvoiceInScope(scope, invId);
   const row = await prisma.tbl_invoices.findFirst({
     where: { inv_id: Number(invId), sta_id: { not: DELETED_STATUS } },
     select: {
@@ -558,13 +582,13 @@ export const getInvoiceFormOptions = getContractFormOptions;
  * (el que abre el formulario desde su expediente) se devuelve aunque la
  * búsqueda o el tope lo dejen fuera, si su estado admite el tipo.
  */
-export const selectInvoiceContracts = async ({ type, search, includeCtrId } = {}) => {
+export const selectInvoiceContracts = async ({ type, search, includeCtrId, scope } = {}) => {
   const action = INVOICE_ACTIONS[type];
   if (!action) return [];
   const states = Object.entries(CONTRACT_STATE_ALLOWS)
     .filter(([, actions]) => actions.includes(action))
     .map(([state]) => state);
-  const admitted = { sta_id: { not: DELETED_STATUS }, ctr_state: { in: states } };
+  const admitted = { sta_id: { not: DELETED_STATUS }, ctr_state: { in: states }, ...scopeWhere(scope) };
   const select = {
     ctr_id: true,
     ctr_number: true,
@@ -804,7 +828,11 @@ const updateInvoice = async ({ invId, input, document, granted, useBy, ctx }) =>
  * reintento devuelve la factura creada y no "ya existe". `granted`: permisos
  * efectivos, para ajustar la amortización de una liquidación.
  */
-export const saveInvoice = async ({ invId, input, useBy, granted, ctx = { useId: useBy }, idempotencyKey }) => {
+export const saveInvoice = async ({ invId, input, useBy, granted, scope, ctx = { useId: useBy }, idempotencyKey }) => {
+  // Alcance por obra (DEC-047): se registra y se edita solo en la obra del alcance.
+  if (Number(invId) > 0) await assertInvoiceInScope(scope, invId);
+  else if (hasContract(input.type)) await assertContractInScope(scope, input.ctrId);
+  else assertInScope(scope, input.wrkId, "No se encontró la obra.");
   const document = documentValuesOf(input);
   pastDate(input.date, "fecha de la factura");
   if (!document.inv_number) throw httpError(400, "El número de la factura es requerido.");
@@ -859,7 +887,8 @@ const assertContractStillAdmits = async (tx, invoice) => {
  * liquidación revalidan aquí I1 e I2 con carácter definitivo (DEC-044). Falta
  * evaluar C1–C8 (ADR-0017).
  */
-export const approveInvoice = async ({ invId, input, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
+export const approveInvoice = async ({ invId, input, useBy, scope, ctx = { useId: useBy }, idempotencyKey }) => {
+  await assertInvoiceInScope(scope, invId);
   const approvalDate = pastDate(input.approvalDate, "fecha de aprobación");
   const observation = optionalText(input.observation);
   const message = "Factura aprobada correctamente";
@@ -915,7 +944,8 @@ export const approveInvoice = async ({ invId, input, useBy, ctx = { useId: useBy
  * anticipo aprobado ya amortizado responde 409 (I2, DEC-044). Bloquea
  * contrato → factura → motivo.
  */
-export const cancelInvoice = async ({ invId, input, useBy, granted, ctx = { useId: useBy }, idempotencyKey }) => {
+export const cancelInvoice = async ({ invId, input, useBy, granted, scope, ctx = { useId: useBy }, idempotencyKey }) => {
+  await assertInvoiceInScope(scope, invId);
   const reaId = Number(input.reaId);
   const observation = text(input.observation);
   if (!observation) throw httpError(400, "La observación de la anulación es requerida.");

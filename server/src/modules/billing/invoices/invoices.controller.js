@@ -2,6 +2,7 @@ import { getIO } from "../../../common/configs/socket.manager.js";
 import { auditContext } from "../../../common/services/audit.service.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
+import { workScopeOf } from "../../../common/services/workScope.service.js";
 import * as invoicesService from "./invoices.service.js";
 
 // Solo leen la petición y delegan. El autor sale de req.user (DEC-005); la
@@ -39,28 +40,34 @@ const INVOICE_FIELDS = [
 
 const grantedOf = async ({ useId, proId }) => new Set(await getEffectivePermissionIds({ useId, proId }));
 
-export const paginationInvoicesController = handle((req) => {
+export const paginationInvoicesController = handle(async (req) => {
   const { search, state, type, wrkId, prvId, ctrId, rows, first, sortField, sortOrder } = req.body;
-  return invoicesService.paginationInvoices({ search, state, type, wrkId, prvId, ctrId, rows, first, sortField, sortOrder });
+  const scope = await workScopeOf(req);
+  return invoicesService.paginationInvoices({ search, state, type, wrkId, prvId, ctrId, rows, first, sortField, sortOrder, scope });
 });
 
-export const getInvoiceController = handle((req) => invoicesService.getInvoice({ invId: req.query.invId }));
+export const getInvoiceController = handle(async (req) => invoicesService.getInvoice({ invId: req.query.invId, scope: await workScopeOf(req) }));
 
-export const selectInvoiceWorksController = handle((req) =>
-  invoicesService.selectInvoiceWorks({ search: req.query.search, includeWrkId: req.query.includeWrkId })
+export const selectInvoiceWorksController = handle(async (req) =>
+  invoicesService.selectInvoiceWorks({ search: req.query.search, includeWrkId: req.query.includeWrkId, scope: await workScopeOf(req) })
 );
 
-export const getInvoiceFormOptionsController = handle((req) => {
+export const getInvoiceFormOptionsController = handle(async (req) => {
   const { wrkId, includeWksId, includePrvId } = req.query;
-  return invoicesService.getInvoiceFormOptions({ wrkId, includeWksId, includePrvId });
+  return invoicesService.getInvoiceFormOptions({ wrkId, includeWksId, includePrvId, scope: await workScopeOf(req) });
 });
 
-export const selectInvoiceContractsController = handle((req) =>
-  invoicesService.selectInvoiceContracts({ type: req.query.type, search: req.query.search, includeCtrId: req.query.includeCtrId })
+export const selectInvoiceContractsController = handle(async (req) =>
+  invoicesService.selectInvoiceContracts({
+    type: req.query.type,
+    search: req.query.search,
+    includeCtrId: req.query.includeCtrId,
+    scope: await workScopeOf(req),
+  })
 );
 
-export const getContractAdvanceController = handle((req) =>
-  invoicesService.getContractAdvance({ ctrId: req.query.ctrId, value: req.query.value })
+export const getContractAdvanceController = handle(async (req) =>
+  invoicesService.getContractAdvance({ ctrId: req.query.ctrId, value: req.query.value, scope: await workScopeOf(req) })
 );
 
 export const saveInvoiceController = handle(async (req) => {
@@ -71,6 +78,7 @@ export const saveInvoiceController = handle(async (req) => {
     input: pick(req.body, INVOICE_FIELDS),
     useBy: req.user.useId,
     granted: await grantedOf(req.user),
+    scope: await workScopeOf(req),
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
@@ -83,6 +91,7 @@ export const approveInvoiceController = handle(async (req) => {
     invId: req.body.invId,
     input: pick(req.body, ["approvalDate", "observation"]),
     useBy: req.user.useId,
+    scope: await workScopeOf(req),
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
@@ -100,6 +109,7 @@ export const cancelInvoiceController = handle(async (req) => {
     input: pick(req.body, ["reaId", "observation"]),
     useBy: useId,
     granted,
+    scope: await workScopeOf(req),
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });

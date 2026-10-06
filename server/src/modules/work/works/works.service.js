@@ -13,6 +13,7 @@ import {
   todayDateOnly,
 } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
+import { assertInScope, scopeWhere } from "../../../common/services/workScope.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { constructionCompaniesService } from "../../admin/constructionCompanies/constructionCompanies.service.js";
@@ -151,11 +152,12 @@ const searchWhereOf = (search) => {
   };
 };
 
-export const paginationWorks = async ({ search, staId, rows, first, sortField, sortOrder }) => {
+/** `scope`: alcance por obra de la petición (DEC-047). */
+export const paginationWorks = async ({ search, staId, rows, first, sortField, sortOrder, scope }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
-  const baseWhere = { sta_id: { not: DELETED_STATUS }, ...searchWhereOf(search) };
+  const baseWhere = { sta_id: { not: DELETED_STATUS }, ...scopeWhere(scope), ...searchWhereOf(search) };
   const where = { ...baseWhere, ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}) };
 
   const [page, statusCounts] = await Promise.all([
@@ -169,14 +171,14 @@ export const paginationWorks = async ({ search, staId, rows, first, sortField, s
 // ─── Resumen ─────────────────────────────────────────────────────────────────
 
 /**
- * Indicadores del listado (DEC-033), de todas las obras no eliminadas: no
- * dependen de la búsqueda ni de la pestaña. El valor vigente total se suma en
+ * Indicadores del listado (DEC-033), de las obras no eliminadas del alcance
+ * (DEC-047): no dependen de la búsqueda ni de la pestaña. El valor vigente total se suma en
  * Decimal (DEC-028); el avance promedio y las obras cerca de terminar cuentan
  * solo las activas con fechas.
  */
-export const summaryWorks = async () => {
+export const summaryWorks = async ({ scope } = {}) => {
   const rows = await prisma.tbl_works.findMany({
-    where: { sta_id: { not: DELETED_STATUS } },
+    where: { sta_id: { not: DELETED_STATUS }, ...scopeWhere(scope) },
     select: {
       sta_id: true,
       wrk_initial_value: true,
@@ -235,7 +237,8 @@ const contactsHelper = defineContacts({ model: "tbl_work_contacts", prefix: "wkc
 
 export const previewWorkEndDate = ({ startDate, initialTerm, termUnit }) => ({ endDate: addTerm(startDate, initialTerm, termUnit) });
 
-export const getWork = async ({ wrkId }) => {
+export const getWork = async ({ wrkId, scope }) => {
+  assertInScope(scope, wrkId, "No se encontró la obra.");
   const row = await prisma.tbl_works.findFirst({
     where: { wrk_id: Number(wrkId), sta_id: { not: DELETED_STATUS } },
     select: {
@@ -673,7 +676,12 @@ const updateWork = ({ wrkId, values, managers, stages, contacts, useBy, granted,
  * contactos, en una sola transacción. `granted` es el Set de per_id efectivos del autor.
  * El estado no se toca: ver changeWorkStatus.
  */
-export const saveWork = async ({ wrkId, input, useBy, granted, ctx = { useId: useBy }, idempotencyKey }) => {
+/**
+ * Crear o editar. Editar exige que la obra esté en el alcance (DEC-047);
+ * crear, solo el permiso de crear obras.
+ */
+export const saveWork = async ({ wrkId, input, useBy, granted, scope, ctx = { useId: useBy }, idempotencyKey }) => {
+  if (Number(wrkId) > 0) assertInScope(scope, wrkId, "No se encontró la obra.");
   const values = headerValuesOf(input);
   const managers = managersOf(input);
   const stages = stagesOf(input);
@@ -707,8 +715,9 @@ const findLockedWork = async (tx, wrkId) => {
 };
 
 /** Activar o desactivar. Fija un estado final: reintentable. */
-export const changeWorkStatus = ({ wrkId, staId, useBy, ctx = { useId: useBy } }) =>
-  withLockedTransaction(
+export const changeWorkStatus = async ({ wrkId, staId, useBy, scope, ctx = { useId: useBy } }) => {
+  assertInScope(scope, wrkId, "No se encontró la obra.");
+  return withLockedTransaction(
     { OBRA: wrkId },
     async (tx) => {
       const before = await findLockedWork(tx, wrkId);
@@ -728,14 +737,16 @@ export const changeWorkStatus = ({ wrkId, staId, useBy, ctx = { useId: useBy } }
     },
     { idempotent: true }
   );
+};
 
 /**
  * Eliminación lógica (DEC-006). Bloqueada con 409 si la obra tiene registros
  * dependientes (contratos, cuando existan). Responsables y etapas se
  * conservan: una obra eliminada es historial.
  */
-export const deleteWork = ({ wrkId, useBy, ctx = { useId: useBy } }) =>
-  withLockedTransaction({ OBRA: wrkId }, async (tx) => {
+export const deleteWork = async ({ wrkId, useBy, scope, ctx = { useId: useBy } }) => {
+  assertInScope(scope, wrkId, "No se encontró la obra.");
+  return withLockedTransaction({ OBRA: wrkId }, async (tx) => {
     const before = await findLockedWork(tx, wrkId);
 
     for (const dependent of WORK_DEPENDENTS) {
@@ -756,3 +767,4 @@ export const deleteWork = ({ wrkId, useBy, ctx = { useId: useBy } }) =>
     });
     return { message: "Obra eliminada correctamente" };
   });
+};

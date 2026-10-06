@@ -250,3 +250,12 @@ describe("solicitud de AIU del contrato (DEC-046)", () => {
     await expect(service.createAmendment({ ctrId: 30, input: act(), useBy: 9, ctx, idempotencyKey: KEY })).resolves.toMatchObject({ number: 2 });
   });
 });
+
+describe("alcance por obra (DEC-047)", () => {
+  it("no se registra un otrosí en un contrato de otra obra (404)", async () => {
+    await expect(
+      service.createAmendment({ ctrId: 30, input: act(), useBy: 9, scope: { all: false, wrkId: 9 }, ctx, idempotencyKey: KEY })
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.tbl_contract_concepts.create).not.toHaveBeenCalled();
+  });
+});

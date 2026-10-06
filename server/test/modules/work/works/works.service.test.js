@@ -736,3 +736,29 @@ describe("saveWork — contactos (PRO-BD-04)", () => {
     });
   });
 });
+
+// ─── Alcance por obra (DEC-047) ──────────────────────────────────────────────
+// Obra 8 = la del registro; obra 9 = otra. Fuera del alcance, 404 sin tocar nada.
+const OWN = Object.freeze({ all: false, wrkId: 8 });
+const OTHER = Object.freeze({ all: false, wrkId: 9 });
+const NONE = Object.freeze({ all: false, wrkId: null });
+
+describe("alcance por obra (DEC-047)", () => {
+  it("el listado y los indicadores filtran por la obra del alcance; sin obra, nada", async () => {
+    prismaMock.tbl_works.findMany.mockResolvedValue([]);
+    prismaMock.tbl_works.count.mockResolvedValue(0);
+    prismaMock.tbl_works.groupBy.mockResolvedValue([]);
+    await service.paginationWorks({ scope: OWN });
+    expect(prismaMock.tbl_works.findMany.mock.calls.at(-1)[0].where.wrk_id).toEqual({ in: [8] });
+    await service.summaryWorks({ scope: NONE });
+    expect(prismaMock.tbl_works.findMany.mock.calls.at(-1)[0].where.wrk_id).toEqual({ in: [] });
+  });
+
+  it("una obra de otro alcance no se lee, no se edita, no cambia de estado ni se elimina (404)", async () => {
+    await expect(service.getWork({ wrkId: 8, scope: OTHER })).rejects.toMatchObject({ statusCode: 404, message: "No se encontró la obra." });
+    await expect(service.changeWorkStatus({ wrkId: 8, staId: 2, useBy: 9, scope: OTHER, ctx })).rejects.toMatchObject({ statusCode: 404 });
+    await expect(service.deleteWork({ wrkId: 8, useBy: 9, scope: OTHER, ctx })).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.tbl_works.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});

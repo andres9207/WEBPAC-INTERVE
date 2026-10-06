@@ -102,6 +102,9 @@ export const PERMISSIONS = {
       assignManager: 57,
       removeManager: 58,
       manageStages: 59,
+      // Alcance por obra (DEC-047): sin él, solo las obras de las que el
+      // usuario es responsable, una a la vez; con él, cualquiera o todas.
+      viewAll: 91,
     },
     // Proveedores (DEC-031). Asignar y desasignar a obras van aparte de
     // editar (cambian una obra, no el maestro), y cambiar la identificación

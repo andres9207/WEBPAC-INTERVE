@@ -98,6 +98,8 @@ const PERMISSIONS = [
   { per_id: 57, per_name: "Asignar responsable de obra", pag_id: 14, per_order: 5 },
   { per_id: 58, per_name: "Retirar responsable de obra", pag_id: 14, per_order: 6 },
   { per_id: 59, per_name: "Gestionar etapas de obra", pag_id: 14, per_order: 7 },
+  // database/migrations/0076_seed_view_all_works_permission.sql
+  { per_id: 91, per_name: "Ver todas las obras", pag_id: 14, per_order: 9 },
   // database/migrations/0047_seed_providers_pages_permissions.sql
   { per_id: 61, per_name: "Crear proveedor", pag_id: 15, per_order: 1 },
   { per_id: 62, per_name: "Modificar proveedor", pag_id: 15, per_order: 2 },

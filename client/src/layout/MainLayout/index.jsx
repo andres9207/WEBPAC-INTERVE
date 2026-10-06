@@ -15,13 +15,29 @@ import Sidebar from './Sidebar';
 import MainContentStyled from './MainContentStyled';
 import Loader from 'ui-component/Loader';
 import Breadcrumbs from 'ui-component/extended/Breadcrumbs';
+import { WorkScopeProvider, useWorkScope } from 'contexts/WorkScopeContext';
 
 import useConfig from 'hooks/useConfig';
 import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
 
+// Contenido de la página: se vuelve a montar al cambiar de obra (DEC-047),
+// así sus listados se piden otra vez con el alcance nuevo.
+function ScopedOutlet() {
+  const { scopeKey } = useWorkScope();
+  return <Outlet key={scopeKey} />;
+}
+
 // ==============================|| MAIN LAYOUT ||============================== //
 
 export default function MainLayout() {
+  return (
+    <WorkScopeProvider>
+      <MainLayoutContent />
+    </WorkScopeProvider>
+  );
+}
+
+function MainLayoutContent() {
   const theme = useTheme();
   const downMD = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -60,7 +76,7 @@ export default function MainLayout() {
         <Box sx={{ ...{ px: { xs: 0 } }, minHeight: 'calc(100vh - 128px)', display: 'flex', flexDirection: 'column' }}>
           {/* breadcrumb */}
           <Breadcrumbs />
-          <Outlet />
+          <ScopedOutlet />
           <Footer />
         </Box>
       </MainContentStyled>

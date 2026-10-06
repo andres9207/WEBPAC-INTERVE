@@ -623,3 +623,41 @@ describe("anticipo y amortización (DEC-044)", () => {
     await expect(service.getContractAdvance({ ctrId: "31" })).rejects.toMatchObject({ statusCode: 404 });
   });
 });
+
+// ─── Alcance por obra (DEC-047) ──────────────────────────────────────────────
+// Obra 8 = la del registro; obra 9 = otra. Fuera del alcance, 404 sin tocar nada.
+const OWN = Object.freeze({ all: false, wrkId: 8 });
+const OTHER = Object.freeze({ all: false, wrkId: 9 });
+const NONE = Object.freeze({ all: false, wrkId: null });
+
+describe("alcance por obra (DEC-047)", () => {
+  it("el listado y el selector de contratos filtran por la obra del alcance", async () => {
+    await service.paginationInvoices({ scope: OWN, rows: 10, first: 0 });
+    expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where.wrk_id).toEqual({ in: [8] });
+    await service.selectInvoiceContracts({ type: "ADVANCE", scope: OWN });
+    expect(prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0].where.wrk_id).toEqual({ in: [8] });
+  });
+
+  it("una factura de otra obra no se lee, no se aprueba ni se anula (404)", async () => {
+    state.invoice = storedInvoice();
+    await expect(service.getInvoice({ invId: 70, scope: OTHER })).rejects.toMatchObject({ statusCode: 404, message: "No se encontró la factura." });
+    await expect(service.approveInvoice({ invId: 70, input: { approvalDate: "2026-03-05" }, useBy: 9, scope: OTHER, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    await expect(
+      service.cancelInvoice({ invId: 70, input: { reaId: 4, observation: "x" }, useBy: 9, granted: new Set([CAN_CANCEL]), scope: OTHER, ctx, idempotencyKey: KEY })
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+  });
+
+  it("no se registra una factura contra un contrato o en una obra fuera del alcance (404)", async () => {
+    prismaMock.tbl_contracts.findUnique.mockResolvedValueOnce({ wrk_id: 8 });
+    await expect(service.saveInvoice({ invId: 0, input: contractInput(), useBy: 9, granted: new Set(), scope: OTHER, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    await expect(service.saveInvoice({ invId: 0, input: simpleInput(), useBy: 9, granted: new Set(), scope: OTHER, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
+  });
+});

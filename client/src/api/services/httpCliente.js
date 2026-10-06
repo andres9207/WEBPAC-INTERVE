@@ -1,5 +1,6 @@
 import axios from "axios";
 import Cookies from "js-cookie";
+import { WORK_HEADER, activeWorkHeader } from "utils/workScope";
 
 // ─── Instancia con baseURL desde .env ────────────────────────────────────────
 const baseURL = import.meta.env.VITE_API_URL || "http://localhost:5063/api";
@@ -34,10 +35,16 @@ export const refreshSession = () => {
 // o sesión ya cerrada): no se intenta renovar.
 const NO_REFRESH_URLS = ["/auth/login", "auth/login", "/auth/refresh", "auth/refresh", "/auth/logout", "auth/logout"];
 
-// Sin interceptor de REQUEST a propósito: antes cada petición llevaba el
-// encabezado `currenuserapp` con los datos del usuario (cookie `id`). El
-// backend nunca lo leyó: la identidad sale solo de la cookie de sesión
-// httpOnly (req.user). Enviarlo hacía parecer que el cliente decide quién es.
+// Interceptor de REQUEST: solo la obra activa del encabezado (DEC-047), en
+// `X-Work-Id`. No es identidad ni permiso: el servidor verifica que el
+// usuario pueda usar esa obra. Antes cada petición llevaba el encabezado
+// `currenuserapp` con los datos del usuario (cookie `id`); se quitó porque la
+// identidad sale solo de la cookie de sesión httpOnly (req.user).
+instance.interceptors.request.use((config) => {
+  const work = activeWorkHeader();
+  if (work) config.headers[WORK_HEADER] = work;
+  return config;
+});
 
 // ─── Interceptor de RESPONSE ──────────────────────────────────────────────────
 instance.interceptors.response.use(

@@ -11,6 +11,7 @@ import {
   CONCEPT_AUDITED,
   CONCEPT_SELECT,
   ECONOMIC_COLUMNS,
+  assertContractInScope,
   auditableConcept,
   conceptValuesOf,
   derivedEndDate,
@@ -121,7 +122,8 @@ const liquidationResult = (row) => ({
  * estado previo, todo en esta transacción. Exige además el permiso de
  * levantar; `granted` es el Set de per_id efectivos del autor.
  */
-export const createAmendment = async ({ ctrId, input, useBy, granted, ctx = { useId: useBy }, idempotencyKey }) => {
+export const createAmendment = async ({ ctrId, input, useBy, granted, scope, ctx = { useId: useBy }, idempotencyKey }) => {
+  await assertContractInScope(scope, ctrId);
   // Lo que pidió el cliente: huella de idempotencia. La configuración del
   // tipo se aplica dentro de la transacción.
   const requested = { ...conceptValuesOf(input), ccp_extension: optionalInt(input.extension) };
@@ -185,7 +187,8 @@ export const createAmendment = async ({ ctrId, input, useBy, granted, ctx = { us
  * Dispara la transición a EN LIQUIDACIÓN en la misma transacción (ADR-0016,
  * decisión 13), y desde ahí no se admiten otrosí.
  */
-export const createLiquidation = async ({ ctrId, input, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
+export const createLiquidation = async ({ ctrId, input, useBy, scope, ctx = { useId: useBy }, idempotencyKey }) => {
+  await assertContractInScope(scope, ctrId);
   const requested = conceptValuesOf(input);
   assertStartDate(requested);
 
@@ -257,12 +260,13 @@ export const createLiquidation = async ({ ctrId, input, useBy, ctx = { useId: us
  * Fecha, prórroga y descripción siguen editables. Aprobar una factura
  * bloquea el mismo contrato, así que la verificación no tiene carrera.
  */
-export const updateConcept = async ({ ccpId, input, useBy, ctx = { useId: useBy } }) => {
+export const updateConcept = async ({ ccpId, input, useBy, scope, ctx = { useId: useBy } }) => {
   // El contrato de un concepto no cambia nunca: leerlo antes del bloqueo solo
   // dice qué contrato bloquear primero (ADR-0027, regla 3). Bajo bloqueo se
   // verifica que siga siendo el mismo.
   const known = await prisma.tbl_contract_concepts.findUnique({ where: { ccp_id: Number(ccpId) }, select: { ctr_id: true } });
   if (!known) throw httpError(404, "No se encontró el concepto.");
+  await assertContractInScope(scope, known.ctr_id);
 
   return withLockedTransaction(
     { CONTRATO: known.ctr_id, CONCEPTO: ccpId },

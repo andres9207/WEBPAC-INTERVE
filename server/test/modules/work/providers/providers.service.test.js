@@ -578,3 +578,52 @@ describe("consultas", () => {
     });
   });
 });
+
+// ─── Alcance por obra (DEC-047) ──────────────────────────────────────────────
+// Obra 8 = la del registro; obra 9 = otra. Fuera del alcance, 404 sin tocar nada.
+const OWN = Object.freeze({ all: false, wrkId: 8 });
+const OTHER = Object.freeze({ all: false, wrkId: 9 });
+const NONE = Object.freeze({ all: false, wrkId: null });
+
+describe("alcance por obra (DEC-047)", () => {
+  it("el listado solo trae proveedores asignados a la obra del alcance", async () => {
+    prismaMock.tbl_providers.findMany.mockResolvedValue([]);
+    prismaMock.tbl_providers.count.mockResolvedValue(0);
+    prismaMock.tbl_providers.groupBy.mockResolvedValue([]);
+    await service.paginationProviders({ scope: OWN });
+    expect(prismaMock.tbl_providers.findMany.mock.calls.at(-1)[0].where.tbl_work_providers).toEqual({ some: { wrk_id: { in: [8] } } });
+  });
+
+  it("un proveedor que no está en la obra del alcance no se lee ni se edita (404)", async () => {
+    await expect(service.getProvider({ prvId: 77, scope: OTHER })).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.tbl_providers.findFirst.mock.calls[0][0].where.tbl_work_providers).toEqual({ some: { wrk_id: { in: [9] } } });
+
+    await expect(service.saveProvider({ prvId: 77, input: input(), useBy: 9, granted: ALL, scope: OTHER, ctx })).rejects.toMatchObject({ statusCode: 404 });
+    await expect(service.deleteProvider({ prvId: 77, useBy: 9, scope: OTHER, ctx })).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("sin ver todo, crear lo asigna a la obra del alcance; a otra obra, 404", async () => {
+    await service.saveProvider({ prvId: 0, input: input(), useBy: 9, granted: ALL, scope: OWN, ctx, idempotencyKey: KEY });
+    expect(prismaMock.tbl_work_providers.create.mock.calls[0][0].data).toMatchObject({ wrk_id: 8, prv_id: 50 });
+
+    const elsewhere = input({ assignment: { wrkId: 9, assignmentDate: "2026-10-01" } });
+    await expect(service.saveProvider({ prvId: 0, input: elsewhere, useBy: 9, granted: ALL, scope: OWN, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    await expect(service.saveProvider({ prvId: 0, input: input(), useBy: 9, granted: ALL, scope: NONE, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 403,
+    });
+  });
+
+  it("asignar, editar y desasignar solo en la obra del alcance", async () => {
+    const assignInput = { assignmentDate: "2026-10-01" };
+    await expect(service.assignProviderToWork({ wrkId: 9, prvId: 77, input: assignInput, useBy: 9, scope: OWN, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    await expect(service.unassignProviderFromWork({ wrkId: 9, prvId: 77, useBy: 9, scope: OWN, ctx })).rejects.toMatchObject({ statusCode: 404 });
+    await expect(service.updateWorkProvider({ wrkId: 9, prvId: 77, input: assignInput, useBy: 9, scope: OWN, ctx })).rejects.toMatchObject({ statusCode: 404 });
+    await expect(service.paginationWorkProviders({ wrkId: 9, scope: OWN })).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
