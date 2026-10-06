@@ -287,6 +287,7 @@ export default function ContractDetailPage() {
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   {h.origin === 'AUTOMATIC' ? 'Automática' : 'Manual'} · {h.createdByName ?? '—'}
+                  {h.reasonName ? ` · Motivo: ${h.reasonName}` : ''}
                   {h.observation ? ` · ${h.observation}` : ''}
                 </Typography>
               </Box>

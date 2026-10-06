@@ -900,6 +900,7 @@ model tbl_contract_status_history {
   csh_from_state       String?       @db.VarChar(20)
   csh_to_state         String        @db.VarChar(20)
   csh_origin           String        @db.VarChar(10)
+  rea_id               Int?
   csh_observation      String?       @db.VarChar(500)
   csh_failed_condition String?       @db.VarChar(100)
   csh_create_by        Int?
@@ -908,8 +909,10 @@ model tbl_contract_status_history {
   csh_idempotency_hash String?       @db.Char(64)
   tbl_contracts        tbl_contracts @relation(fields: [ctr_id], references: [ctr_id], onUpdate: NoAction, map: "tbl_contract_status_history_contract")
   created_by_user      tbl_users?    @relation("ContractStatusHistoryCreatedBy", fields: [csh_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_status_history_create_by")
+  tbl_reasons          tbl_reasons?  @relation(fields: [rea_id], references: [rea_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_status_history_reason")
 
   @@index([ctr_id, csh_create_at], map: "idx_contract_status_history_contract")
+  @@index([rea_id], map: "idx_contract_status_history_reason")
   @@index([csh_create_by], map: "tbl_contract_status_history_create_by")
 }
 
@@ -974,25 +977,26 @@ model tbl_contract_type_field_versions {
 /// motivo (hoy solo SUSPENSION). rea_name_active es una columna GENERADA por MySQL (respalda la
 /// unicidad del nombre dentro del ámbito entre no eliminados): nunca se escribe desde el código.
 model tbl_reasons {
-  rea_id                     Int                          @id @default(autoincrement())
-  rea_scope                  String                       @db.VarChar(20)
-  rea_name                   String                       @db.VarChar(100)
-  sta_id                     Int                          @default(1)
-  rea_create_by              Int?
-  rea_create_at              DateTime?                    @default(now()) @db.Timestamp(0)
-  rea_update_by              Int?
-  rea_update_at              DateTime?                    @default(now()) @db.Timestamp(0)
-  rea_delete_by              Int?
-  rea_delete_at              DateTime?                    @db.Timestamp(0)
-  rea_idempotency_key        String?                      @unique(map: "uq_reasons_idempotency_key") @db.Char(36)
-  rea_idempotency_hash       String?                      @db.Char(64)
-  rea_name_active            String?                      @db.VarChar(100)
-  tbl_contract_suspensions   tbl_contract_suspensions[]
-  created_by_user            tbl_users?                   @relation("ReasonCreatedBy", fields: [rea_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_reasons_create_by")
-  deleted_by_user            tbl_users?                   @relation("ReasonDeletedBy", fields: [rea_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_reasons_delete_by")
-  tbl_status                 tbl_status                   @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_reasons_status")
-  updated_by_user            tbl_users?                   @relation("ReasonUpdatedBy", fields: [rea_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_reasons_update_by")
-  tbl_invoice_status_history tbl_invoice_status_history[]
+  rea_id                      Int                           @id @default(autoincrement())
+  rea_scope                   String                        @db.VarChar(20)
+  rea_name                    String                        @db.VarChar(100)
+  sta_id                      Int                           @default(1)
+  rea_create_by               Int?
+  rea_create_at               DateTime?                     @default(now()) @db.Timestamp(0)
+  rea_update_by               Int?
+  rea_update_at               DateTime?                     @default(now()) @db.Timestamp(0)
+  rea_delete_by               Int?
+  rea_delete_at               DateTime?                     @db.Timestamp(0)
+  rea_idempotency_key         String?                       @unique(map: "uq_reasons_idempotency_key") @db.Char(36)
+  rea_idempotency_hash        String?                       @db.Char(64)
+  rea_name_active             String?                       @db.VarChar(100)
+  tbl_contract_suspensions    tbl_contract_suspensions[]
+  tbl_contract_status_history tbl_contract_status_history[]
+  created_by_user             tbl_users?                    @relation("ReasonCreatedBy", fields: [rea_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_reasons_create_by")
+  deleted_by_user             tbl_users?                    @relation("ReasonDeletedBy", fields: [rea_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_reasons_delete_by")
+  tbl_status                  tbl_status                    @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_reasons_status")
+  updated_by_user             tbl_users?                    @relation("ReasonUpdatedBy", fields: [rea_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_reasons_update_by")
+  tbl_invoice_status_history  tbl_invoice_status_history[]
 
   @@unique([rea_scope, rea_name_active], map: "uq_reasons_name_active")
   @@index([sta_id, rea_scope, rea_name], map: "idx_reasons_status_scope_name")

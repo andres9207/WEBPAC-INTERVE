@@ -118,6 +118,7 @@ export const suspendContract = async ({ ctrId, input, useBy, ctx = { useId: useB
               transition: "suspend",
               fromState: contract.ctr_state,
               useBy: Number(useBy),
+              reaId: data.rea_id,
               observation: `Suspendido: ${reason.rea_name}.`,
             }),
             ...idempotencyData,

@@ -135,6 +135,7 @@ describe("saveContract — crear", () => {
       csh_from_state: null,
       csh_to_state: "IN_PROGRESS",
       csh_origin: "AUTOMATIC",
+      rea_id: null,
       csh_observation: null,
       csh_create_by: 9,
     });

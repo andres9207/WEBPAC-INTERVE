@@ -120,14 +120,19 @@ export const assertStateAllows = (state, action) => {
   throw error;
 };
 
-/** Fila del historial de estado para una transición declarada (con el tx del evento). */
-export const historyRow = ({ ctrId, transition, fromState = null, previousState, useBy, observation = null }) => {
+/**
+ * Fila del historial de estado para una transición declarada (con el tx del
+ * evento). `reaId`: motivo del catálogo, en las transiciones que lo exigen
+ * (suspender).
+ */
+export const historyRow = ({ ctrId, transition, fromState = null, previousState, useBy, reaId = null, observation = null }) => {
   const rule = assertTransition(transition, fromState, { previousState });
   return {
     ctr_id: ctrId,
     csh_from_state: fromState,
     csh_to_state: rule.to,
     csh_origin: rule.origin,
+    rea_id: reaId,
     csh_observation: observation,
     csh_create_by: useBy,
   };

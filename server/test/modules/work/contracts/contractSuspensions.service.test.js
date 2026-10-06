@@ -127,6 +127,8 @@ describe("suspendContract", () => {
       csh_observation: "Suspendido: Falta de material.",
       csh_idempotency_key: KEY,
     });
+    // El motivo queda en el historial (ADR-0017, decisión 10; migración 0075).
+    expect(prismaMock.tbl_contract_status_history.create.mock.calls[0][0].data.rea_id).toBe(prismaMock.tbl_contract_suspensions.create.mock.calls[0][0].data.rea_id);
     const rows = auditRows();
     expect(rows.find((r) => r.aud_entity === "SUSPENSION_CONTRATO" && r.aud_field === "csp_suspension_date")).toMatchObject({ aud_new_value: "2026-05-01" });
     expect(rows.find((r) => r.aud_entity === "CONTRATO")).toMatchObject({ aud_field: "ctr_state", aud_old_value: "IN_PROGRESS", aud_new_value: "SUSPENDED" });
