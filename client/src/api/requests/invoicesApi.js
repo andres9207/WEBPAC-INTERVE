@@ -9,8 +9,11 @@ import { idempotencyConfig } from 'utils/idempotency';
  */
 export const invoicesApi = createMasterApi('billing/invoices', { entity: 'invoice', plural: 'invoices' });
 
-/** Obras activas para la factura simple. @param {string} [search] */
-export const getInvoiceWorksSelectAPI = (search) => httpCliente.get('billing/invoices/select_invoice_works', search ? { search } : {});
+/**
+ * Obras activas para la factura simple, con tope: se busca en el servidor.
+ * @param {{ search?: string, includeWrkId?: number }} [params]  la obra ya elegida vuelve aunque la búsqueda la deje fuera
+ */
+export const getInvoiceWorksSelectAPI = (params = {}) => httpCliente.get('billing/invoices/select_invoice_works', params);
 
 /**
  * Etapas y proveedores asignados de una obra, para la factura simple.
@@ -20,8 +23,9 @@ export const getInvoiceFormOptionsAPI = (params) => httpCliente.get('billing/inv
 
 /**
  * Contratos cuyo estado admite el tipo de factura (ADR-0017): el anticipo,
- * en ejecución; liquidación y devolución de retenido, en liquidación.
- * @param {{ type: string, search?: string }} params
+ * en ejecución; liquidación y devolución de retenido, en liquidación. Busca
+ * por número, nombre, proveedor y obra.
+ * @param {{ type: string, search?: string, includeCtrId?: number }} params  el contrato ya elegido vuelve aunque la búsqueda lo deje fuera
  */
 export const getInvoiceContractsSelectAPI = (params) => httpCliente.get('billing/invoices/select_invoice_contracts', params);
 

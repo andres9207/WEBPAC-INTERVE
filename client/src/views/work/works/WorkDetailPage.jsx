@@ -10,6 +10,7 @@ import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
+import { IconPlus } from '@tabler/icons-react';
 
 import SubCard from 'ui-component/cards/SubCard';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
@@ -18,6 +19,7 @@ import RouteDialog from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import WorkProvidersTab from 'views/work/providers/components/WorkProvidersTab';
 import WorkContractsTab from 'views/work/contracts/components/WorkContractsTab';
+import InvoicesTab from 'views/billing/invoices/components/InvoicesTab';
 import { worksApi } from 'api/requests/worksApi';
 import { useAuth } from 'contexts/AuthContext';
 import { showError, showSuccess } from 'services/ToastService';
@@ -33,8 +35,10 @@ import { STATUS, fTerm } from 'utils/constants';
  *
  * Activar, desactivar y eliminar viven aquí, no en el listado. Los proveedores
  * se asignan y desasignan desde su pestaña, con endpoints propios (DEC-031).
- * Los contratos de la obra se listan en su pestaña (DEC-035). Contactos ya
- * tiene su pestaña, aunque todavía no existen (PRO-BD-04).
+ * Los contratos de la obra se listan en su pestaña (DEC-035), y sus facturas
+ * en la suya (DEC-042), desde donde se registra una simple con la obra ya
+ * elegida. Contactos ya tiene su pestaña, aunque todavía no existen
+ * (PRO-BD-04).
  */
 
 const TABS = [
@@ -43,7 +47,8 @@ const TABS = [
   { key: 'stages', label: 'Etapas' },
   { key: 'providers', label: 'Proveedores' },
   { key: 'contacts', label: 'Contactos' },
-  { key: 'contracts', label: 'Contratos' }
+  { key: 'contracts', label: 'Contratos' },
+  { key: 'invoices', label: 'Facturas' }
 ];
 
 const initials = (name = '') =>
@@ -333,6 +338,27 @@ export default function WorkDetailPage() {
       )}
 
       {tab === 'contracts' && <WorkContractsTab wrkId={work.wrkId} />}
+
+      {tab === 'invoices' && (
+        <InvoicesTab
+          filter={{ wrkId: work.wrkId }}
+          actions={
+            active && canDo(permissionsCatalog.billing?.invoices?.create) ? (
+              <Button
+                size="small"
+                variant="outlined"
+                color="secondary"
+                startIcon={<IconPlus size={16} />}
+                onClick={() => navigate(`/billing/invoices/new?type=SIMPLE&wrkId=${work.wrkId}`)}
+              >
+                Factura simple
+              </Button>
+            ) : null
+          }
+          emptyTitle="Todavía no hay facturas en esta obra."
+          emptyText="Aquí se ven las facturas simples, imputadas a una etapa de la obra, y las de sus contratos. Una obra con facturas no se puede eliminar."
+        />
+      )}
 
       <ConfirmDialog
         open={Boolean(confirm)}

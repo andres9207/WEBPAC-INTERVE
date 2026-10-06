@@ -29,7 +29,9 @@ export const paginationInvoicesController = handle((req) => {
 
 export const getInvoiceController = handle((req) => invoicesService.getInvoice({ invId: req.query.invId }));
 
-export const selectInvoiceWorksController = handle((req) => invoicesService.selectInvoiceWorks({ search: req.query.search }));
+export const selectInvoiceWorksController = handle((req) =>
+  invoicesService.selectInvoiceWorks({ search: req.query.search, includeWrkId: req.query.includeWrkId })
+);
 
 export const getInvoiceFormOptionsController = handle((req) => {
   const { wrkId, includeWksId, includePrvId } = req.query;
@@ -37,7 +39,7 @@ export const getInvoiceFormOptionsController = handle((req) => {
 });
 
 export const selectInvoiceContractsController = handle((req) =>
-  invoicesService.selectInvoiceContracts({ type: req.query.type, search: req.query.search })
+  invoicesService.selectInvoiceContracts({ type: req.query.type, search: req.query.search, includeCtrId: req.query.includeCtrId })
 );
 
 export const saveInvoiceController = handle(async (req) => {

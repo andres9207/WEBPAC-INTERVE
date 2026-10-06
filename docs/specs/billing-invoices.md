@@ -168,7 +168,7 @@ Ninguna en la fase A.
 ## Efectos sobre los módulos existentes
 
 - **Contratos:** `STATE_ALLOWS` declara los tipos de factura por estado. Eliminar un contrato con facturas responde 409 (ADR-0015, decisión 11). Cambiar el proveedor de un contrato con facturas responde 409. El expediente del contrato gana la pestaña **Facturas** (listado de solo lectura con enlace al expediente de la factura y botón de registrar si el estado lo admite).
-- **Obras y proveedores:** eliminar una obra con facturas, desasignar un proveedor de una obra donde tiene facturas y quitar una etapa con facturas responden 409 (las FK compuestas lo garantizan; el service da el mensaje).
+- **Obras y proveedores:** su expediente gana la pestaña **Facturas** (el mismo listado filtrado por la obra o el proveedor; en la obra, botón de registrar una simple con la obra ya elegida). Eliminar una obra con facturas, desasignar un proveedor de una obra donde tiene facturas y quitar una etapa con facturas responden 409 (las FK compuestas lo garantizan; el service da el mensaje).
 - **Motivos:** ámbito nuevo `INVOICE_CANCEL`.
 
 ## Pantallas

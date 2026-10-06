@@ -17,6 +17,9 @@ import { IconSearch } from '@tabler/icons-react';
  * - `multiple`: `value` es una lista de valores, las elegidas se ven como
  *   chips y `onChange` recibe la lista ([] si se limpia). El menú queda
  *   abierto al elegir, para marcar varias seguidas.
+ * - `onSearch`: búsqueda en el servidor, para listas con tope (DEC-018). No
+ *   filtra en memoria: avisa el texto escrito y el padre trae las opciones.
+ *   La opción elegida se conserva aunque una búsqueda nueva no la traiga.
  */
 const filterOptions = createFilterOptions({ ignoreAccents: true, ignoreCase: true, stringify: (option) => option.label ?? '' });
 
@@ -34,11 +37,16 @@ export default function SearchSelect({
   disableClearable = false,
   hideLabel = false,
   onOptionChange,
-  multiple = false
+  multiple = false,
+  onSearch
 }) {
+  const remote = Boolean(onSearch) && !multiple;
+  // Última opción elegida (modo remoto): una búsqueda nueva puede no traerla.
+  const [kept, setKept] = useState(null);
+  const listed = remote && kept && kept.value === value && !options.some((o) => o.value === kept.value) ? [kept, ...options] : options;
   const selected = multiple
-    ? options.filter((option) => (value ?? []).includes(option.value))
-    : (options.find((option) => option.value === value) ?? null);
+    ? listed.filter((option) => (value ?? []).includes(option.value))
+    : (listed.find((option) => option.value === value) ?? null);
   const [inputValue, setInputValue] = useState('');
   const searching = inputValue && (multiple || inputValue !== selected?.label);
 
@@ -53,14 +61,18 @@ export default function SearchSelect({
           return;
         }
         onChange(option?.value ?? '');
+        if (remote) setKept(option);
         if (option) onOptionChange?.(option);
       }}
-      options={options}
-      filterOptions={filterOptions}
+      options={listed}
+      filterOptions={remote ? (list) => list : filterOptions}
       getOptionLabel={(option) => option.label ?? ''}
       isOptionEqualToValue={(option, current) => option.value === current.value}
       inputValue={inputValue}
-      onInputChange={(_, text) => setInputValue(text)}
+      onInputChange={(_, text, reason) => {
+        setInputValue(text);
+        if (remote && reason !== 'reset') onSearch(reason === 'clear' ? '' : text);
+      }}
       noOptionsText={searching ? `Sin resultados para «${inputValue}»` : 'Sin opciones'}
       loadingText="Cargando…"
       loading={loading}
@@ -117,5 +129,7 @@ SearchSelect.propTypes = {
   hideLabel: PropTypes.bool,
   onOptionChange: PropTypes.func,
   /** Varias opciones a la vez, como chips. */
-  multiple: PropTypes.bool
+  multiple: PropTypes.bool,
+  /** Búsqueda en el servidor: recibe el texto escrito (sin `multiple`). */
+  onSearch: PropTypes.func
 };

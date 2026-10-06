@@ -30,6 +30,7 @@ export const getInvoiceSchema = [query("invId").isInt({ min: 1 }).withMessage("i
 
 export const selectInvoiceWorksSchema = [
   query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
+  query("includeWrkId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includeWrkId debe ser un entero positivo."),
 ];
 
 export const getInvoiceFormOptionsSchema = [
@@ -43,6 +44,7 @@ export const selectInvoiceContractsSchema = [
     .isIn(Object.values(INVOICE_TYPES).filter(hasContract))
     .withMessage("El tipo debe ser uno de factura de contrato."),
   query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
+  query("includeCtrId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includeCtrId debe ser un entero positivo."),
 ];
 
 export const saveInvoiceSchema = [

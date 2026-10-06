@@ -313,19 +313,30 @@ export const getInvoiceFormOptions = getContractFormOptions;
 /**
  * Contratos que hoy admiten el tipo de factura pedido (ADR-0017, "Efectos de
  * cada estado"): el anticipo, en ejecución; liquidación y devolución, en
- * liquidación. Con tope fijo, como un selector (DEC-018).
+ * liquidación. Con tope fijo, como un selector (DEC-018); busca por
+ * número, nombre, proveedor y obra. `includeCtrId`: el contrato ya elegido
+ * (el que abre el formulario desde su expediente) se devuelve aunque la
+ * búsqueda o el tope lo dejen fuera, si su estado admite el tipo.
  */
-export const selectInvoiceContracts = async ({ type, search } = {}) => {
+export const selectInvoiceContracts = async ({ type, search, includeCtrId } = {}) => {
   const action = INVOICE_ACTIONS[type];
   if (!action) return [];
   const states = Object.entries(CONTRACT_STATE_ALLOWS)
     .filter(([, actions]) => actions.includes(action))
     .map(([state]) => state);
+  const admitted = { sta_id: { not: DELETED_STATUS }, ctr_state: { in: states } };
+  const select = {
+    ctr_id: true,
+    ctr_number: true,
+    ctr_name: true,
+    ctr_state: true,
+    tbl_providers: { select: { prv_name: true } },
+    tbl_works: { select: { wrk_code: true, wrk_name: true } },
+  };
   const value = text(search);
   const rows = await prisma.tbl_contracts.findMany({
     where: {
-      sta_id: { not: DELETED_STATUS },
-      ctr_state: { in: states },
+      ...admitted,
       ...(value
         ? {
             OR: [
@@ -333,21 +344,20 @@ export const selectInvoiceContracts = async ({ type, search } = {}) => {
               { ctr_name: { contains: value } },
               { tbl_providers: { prv_name: { contains: value } } },
               { tbl_works: { wrk_code: { contains: value } } },
+              { tbl_works: { wrk_name: { contains: value } } },
             ],
           }
         : {}),
     },
-    select: {
-      ctr_id: true,
-      ctr_number: true,
-      ctr_name: true,
-      ctr_state: true,
-      tbl_providers: { select: { prv_name: true } },
-      tbl_works: { select: { wrk_code: true, wrk_name: true } },
-    },
+    select,
     orderBy: [{ tbl_works: { wrk_code: "asc" } }, { ctr_number: "asc" }],
     take: MAX_ROWS,
   });
+  const includeId = Number(includeCtrId) || null;
+  if (includeId && !rows.some((row) => row.ctr_id === includeId)) {
+    const included = await prisma.tbl_contracts.findFirst({ where: { ...admitted, ctr_id: includeId }, select });
+    if (included) rows.unshift(included);
+  }
   return rows.map((row) => ({
     value: row.ctr_id,
     label: `${row.tbl_works?.wrk_code ?? ""} · ${row.ctr_number} — ${row.ctr_name}`,

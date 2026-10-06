@@ -18,6 +18,7 @@ import { DataList, Figure, Pending } from 'ui-component/extended/DetailBlocks';
 import RouteDialog from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import WorkProviderDialog from './components/WorkProviderDialog';
+import InvoicesTab from 'views/billing/invoices/components/InvoicesTab';
 import { providersApi, workProvidersApi } from 'api/requests/providersApi';
 import { useAuth } from 'contexts/AuthContext';
 import { showError, showSuccess } from 'services/ToastService';
@@ -35,12 +36,16 @@ import { STATUS } from 'utils/constants';
  * asignación y se desasigna, con los mismos endpoints y permisos que la
  * pestaña Proveedores de la obra (ADR-0012, decisión 2; DEC-031). Desasignar
  * no toca el proveedor: solo quita su participación en esa obra.
+ *
+ * La pestaña Facturas lista las del proveedor en todas sus obras (DEC-042);
+ * se registran desde la obra o el contrato, que fijan dónde se imputan.
  */
 
 const TABS = [
   { key: 'summary', label: 'Resumen' },
   { key: 'contacts', label: 'Contactos' },
-  { key: 'works', label: 'Obras' }
+  { key: 'works', label: 'Obras' },
+  { key: 'invoices', label: 'Facturas' }
 ];
 
 const channels = (c) =>
@@ -413,6 +418,14 @@ export default function ProviderDetailPage() {
             </Box>
           )}
         </Stack>
+      )}
+
+      {tab === 'invoices' && (
+        <InvoicesTab
+          filter={{ prvId: provider.prvId }}
+          emptyTitle="Todavía no hay facturas de este proveedor."
+          emptyText="Se registran desde la pestaña Facturas de la obra (simple) o del contrato (anticipo, liquidación y devolución de retenido). Un proveedor con facturas no se puede desasignar de esa obra."
+        />
       )}
 
       <WorkProviderDialog

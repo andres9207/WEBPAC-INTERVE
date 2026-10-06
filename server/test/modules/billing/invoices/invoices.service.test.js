@@ -15,8 +15,8 @@ const prismaMock = {
     update: jest.fn(),
   },
   tbl_invoice_status_history: { create: jest.fn(), findUnique: jest.fn(async () => state.historyReplay) },
-  tbl_contracts: { findUnique: jest.fn(async () => state.contract) },
-  tbl_works: { findUnique: jest.fn() },
+  tbl_contracts: { findUnique: jest.fn(async () => state.contract), findMany: jest.fn(async () => []), findFirst: jest.fn() },
+  tbl_works: { findUnique: jest.fn(), findMany: jest.fn(async () => []), findFirst: jest.fn() },
   tbl_work_stages: { findUnique: jest.fn() },
   tbl_work_providers: { findUnique: jest.fn() },
   tbl_reasons: { findUnique: jest.fn(async () => state.reason) },
@@ -319,5 +319,55 @@ describe("editar una simple", () => {
     prismaMock.tbl_work_providers.findUnique.mockResolvedValue(null);
     await expect(save(simpleInput({ prvId: 78 }), 70)).rejects.toMatchObject({ statusCode: 400 });
     expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("selectores del formulario", () => {
+  const contractRow = (ctrId) => ({
+    ctr_id: ctrId,
+    ctr_number: `C-${ctrId}`,
+    ctr_name: "Suministro",
+    ctr_state: "IN_PROGRESS",
+    tbl_providers: { prv_name: "Ferretería" },
+    tbl_works: { wrk_code: "OB-1", wrk_name: "Puente" },
+  });
+
+  test("busca contratos por número, nombre, proveedor y obra, solo en los estados que admiten el tipo", async () => {
+    await service.selectInvoiceContracts({ type: "ADVANCE", search: " ferre " });
+    const { where } = prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0];
+    expect(where.ctr_state).toEqual({ in: ["IN_PROGRESS"] });
+    expect(where.OR).toEqual(
+      expect.arrayContaining([
+        { ctr_number: { contains: "ferre" } },
+        { tbl_providers: { prv_name: { contains: "ferre" } } },
+        { tbl_works: { wrk_name: { contains: "ferre" } } },
+      ])
+    );
+  });
+
+  test("el contrato ya elegido vuelve aunque la búsqueda lo deje fuera, con el mismo filtro de estado", async () => {
+    prismaMock.tbl_contracts.findMany.mockResolvedValueOnce([contractRow(31)]);
+    prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce(contractRow(30));
+    const result = await service.selectInvoiceContracts({ type: "ADVANCE", search: "x", includeCtrId: "30" });
+    const { where } = prismaMock.tbl_contracts.findFirst.mock.calls.at(-1)[0];
+    expect(where).toMatchObject({ ctr_id: 30, ctr_state: { in: ["IN_PROGRESS"] } });
+    expect(result.map((o) => o.value)).toEqual([30, 31]);
+  });
+
+  test("no repite el contrato elegido si ya está en la lista, ni lo agrega si su estado no admite el tipo", async () => {
+    prismaMock.tbl_contracts.findFirst.mockClear();
+    prismaMock.tbl_contracts.findMany.mockResolvedValueOnce([contractRow(30)]);
+    expect((await service.selectInvoiceContracts({ type: "ADVANCE", includeCtrId: 30 })).map((o) => o.value)).toEqual([30]);
+    expect(prismaMock.tbl_contracts.findFirst).not.toHaveBeenCalled();
+
+    prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce(null);
+    expect(await service.selectInvoiceContracts({ type: "LIQUIDATION", includeCtrId: 30 })).toEqual([]);
+  });
+
+  test("la obra ya elegida vuelve aunque la búsqueda la deje fuera, solo si está activa", async () => {
+    prismaMock.tbl_works.findFirst.mockResolvedValueOnce({ wrk_id: 8, wrk_code: "OB-8", wrk_name: "Vía" });
+    const result = await service.selectInvoiceWorks({ search: "zzz", includeWrkId: "8" });
+    expect(prismaMock.tbl_works.findFirst.mock.calls.at(-1)[0].where).toEqual({ wrk_id: 8, sta_id: 1 });
+    expect(result).toEqual([{ value: 8, label: "OB-8 — Vía" }]);
   });
 });

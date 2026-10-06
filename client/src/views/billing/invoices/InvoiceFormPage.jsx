@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import { Controller, useForm, useWatch } from 'react-hook-form';
@@ -36,7 +36,10 @@ import { INVOICE_TYPE_OPTIONS } from 'utils/constants';
  * - Estado y fecha de aprobación no están en el formulario: los fijan
  *   Aprobar y Anular. Crear lleva clave de idempotencia.
  * - Desde la pestaña Facturas del contrato llega con `?type=…&ctrId=…`: el
- *   tipo y el contrato ya elegidos.
+ *   tipo y el contrato ya elegidos; desde la de la obra, con
+ *   `?type=SIMPLE&wrkId=…`.
+ * - Contratos y obras se buscan en el servidor (los selectores tienen tope,
+ *   DEC-018): por número, nombre, proveedor u obra.
  */
 
 const EMPTY_FORM = {
@@ -95,6 +98,42 @@ function Section({ title, subtitle, children }) {
 
 Section.propTypes = { title: PropTypes.string.isRequired, subtitle: PropTypes.string, children: PropTypes.node };
 
+/**
+ * Opciones de un selector con tope, buscadas en el servidor al dejar de
+ * escribir (mismo criterio que WorkProviderDialog). `fetchOptions(search)`
+ * debe ser estable (useCallback): cuando cambia, se vuelve a pedir.
+ */
+function useRemoteOptions(enabled, fetchOptions, errorMessage) {
+  const [search, setSearch] = useState('');
+  const [state, setState] = useState({ items: [], loading: false, loaded: false });
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+    const term = search.trim();
+    const timer = setTimeout(
+      async () => {
+        setState((s) => ({ ...s, loading: true }));
+        try {
+          const items = await fetchOptions(term);
+          if (!cancelled) setState({ items, loading: false, loaded: true });
+        } catch (err) {
+          if (cancelled) return;
+          showError(err.response?.data?.message || errorMessage);
+          setState((s) => ({ ...s, loading: false }));
+        }
+      },
+      term ? 300 : 0
+    );
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [enabled, fetchOptions, search, errorMessage]);
+
+  return { ...state, search: search.trim(), setSearch };
+}
+
 const readOnlyField = (label, value) => (
   <TextField label={label} value={value ?? ''} size="small" fullWidth slotProps={{ input: { readOnly: true } }} />
 );
@@ -108,13 +147,14 @@ export default function InvoiceFormPage() {
   const [searchParams] = useSearchParams();
   const presetType = INVOICE_TYPE_OPTIONS.some((o) => o.value === searchParams.get('type')) ? searchParams.get('type') : '';
   const presetCtrId = Number(searchParams.get('ctrId')) || '';
+  const presetWrkId = Number(searchParams.get('wrkId')) || '';
 
   const [idempotencyKey] = useState(() => (isEdit ? null : newIdempotencyKey()));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(null);
-  const [workOptions, setWorkOptions] = useState([]);
-  const [contractOptions, setContractOptions] = useState({ type: null, items: [] });
+  // Contrato elegido: su proveedor y su obra se muestran aunque una búsqueda nueva no lo traiga.
+  const [pickedContract, setPickedContract] = useState(null);
   const [options, setOptions] = useState({ stages: [], providers: [] });
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -126,13 +166,19 @@ export default function InvoiceFormPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const [invoice, works] = await Promise.all([
-          isEdit ? invoicesApi.getById({ invId }).then((res) => res.data) : Promise.resolve(null),
-          isEdit ? Promise.resolve([]) : getInvoiceWorksSelectAPI().then((res) => res.data)
-        ]);
+        const invoice = isEdit ? (await invoicesApi.getById({ invId })).data : null;
         setLoaded(invoice);
-        setWorkOptions(works);
-        reset(invoice ? toForm(invoice) : { ...EMPTY_FORM, date: today(), type: presetType, ctrId: presetType ? presetCtrId : '' });
+        reset(
+          invoice
+            ? toForm(invoice)
+            : {
+                ...EMPTY_FORM,
+                date: today(),
+                type: presetType,
+                ctrId: presetType && !isSimple(presetType) ? presetCtrId : '',
+                wrkId: isSimple(presetType) ? presetWrkId : ''
+              }
+        );
       } catch (err) {
         showError(err.response?.data?.message || 'Error al cargar la factura');
         navigate('/billing/invoices', { replace: true });
@@ -141,22 +187,32 @@ export default function InvoiceFormPage() {
       }
     };
     load();
-  }, [isEdit, invId, reset, navigate, presetType, presetCtrId]);
+  }, [isEdit, invId, reset, navigate, presetType, presetCtrId, presetWrkId]);
 
   const [type, wrkId, ctrId] = useWatch({ control, name: ['type', 'wrkId', 'ctrId'] });
   const simple = isSimple(type);
 
-  // Contratos que hoy admiten el tipo elegido (solo al registrar).
-  useEffect(() => {
-    if (isEdit || !type || simple) return undefined;
-    let cancelled = false;
-    getInvoiceContractsSelectAPI({ type })
-      .then(({ data }) => !cancelled && setContractOptions({ type, items: data }))
-      .catch((err) => showError(err.response?.data?.message || 'Error al cargar los contratos'));
-    return () => {
-      cancelled = true;
-    };
-  }, [isEdit, type, simple]);
+  // Contratos que hoy admiten el tipo elegido, y obras activas (solo al registrar).
+  const fetchContracts = useCallback(
+    (search) =>
+      getInvoiceContractsSelectAPI({ type, ...(search ? { search } : {}), ...(presetCtrId ? { includeCtrId: presetCtrId } : {}) }).then(
+        (res) => res.data
+      ),
+    [type, presetCtrId]
+  );
+  const fetchWorks = useCallback(
+    (search) =>
+      getInvoiceWorksSelectAPI({ ...(search ? { search } : {}), ...(presetWrkId ? { includeWrkId: presetWrkId } : {}) }).then(
+        (res) => res.data
+      ),
+    [presetWrkId]
+  );
+  const contractOptions = useRemoteOptions(
+    !loading && !isEdit && Boolean(type) && !simple,
+    fetchContracts,
+    'Error al cargar los contratos'
+  );
+  const workOptions = useRemoteOptions(!loading && !isEdit && simple, fetchWorks, 'Error al cargar las obras');
 
   // Etapas y proveedores de la obra (factura simple); al editar, también los actuales aunque estén inactivos.
   useEffect(() => {
@@ -178,6 +234,8 @@ export default function InvoiceFormPage() {
   const changeType = (value) => {
     setValue('type', value ?? '', { shouldDirty: true });
     for (const field of ['ctrId', 'wrkId', 'prvId', 'wksId']) setValue(field, '', { shouldDirty: true });
+    contractOptions.setSearch('');
+    workOptions.setSearch('');
   };
 
   const changeWork = (value) => {
@@ -210,8 +268,9 @@ export default function InvoiceFormPage() {
   const blocked = !allows('editNotes');
   const lockDocument = isEdit && !fullEdit;
   const hasErrors = Object.keys(errors).length > 0;
-  const contracts = contractOptions.type === type ? contractOptions.items : [];
-  const contract = contracts.find((c) => Number(c.value) === Number(ctrId));
+  const contract =
+    contractOptions.items.find((c) => Number(c.value) === Number(ctrId)) ??
+    (pickedContract && Number(pickedContract.value) === Number(ctrId) ? pickedContract : undefined);
   const noOptions = wrkId && !loadingOptions;
 
   return (
@@ -304,12 +363,16 @@ export default function InvoiceFormPage() {
                         <SearchSelect
                           value={field.value}
                           onChange={field.onChange}
-                          options={contracts}
+                          onOptionChange={setPickedContract}
+                          onSearch={contractOptions.setSearch}
+                          options={contractOptions.items}
+                          loading={contractOptions.loading}
                           label="Contrato"
                           required
+                          placeholder="Número, nombre, proveedor u obra"
                           error={fieldState.error?.message}
                           helperText={
-                            contractOptions.type === type && contracts.length === 0
+                            contractOptions.loaded && !contractOptions.search && contractOptions.items.length === 0
                               ? 'Ningún contrato está hoy en un estado que admita este tipo de factura'
                               : 'Solo los contratos cuyo estado admite este tipo'
                           }
@@ -339,7 +402,10 @@ export default function InvoiceFormPage() {
                         <SearchSelect
                           value={field.value}
                           onChange={changeWork}
-                          options={workOptions}
+                          onSearch={workOptions.setSearch}
+                          options={workOptions.items}
+                          loading={workOptions.loading}
+                          placeholder="Código o nombre"
                           label="Obra"
                           required
                           error={fieldState.error?.message}

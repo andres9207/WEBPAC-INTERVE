@@ -462,18 +462,29 @@ export const getContract = async ({ ctrId }) => {
 
 // ─── Opciones del formulario ─────────────────────────────────────────────────
 
-/** Obras activas para el formulario de contrato, con tope fijo (como un selector, DEC-018). */
-export const selectContractWorks = async ({ search } = {}) => {
+/**
+ * Obras activas para el formulario de contrato, con tope fijo (como un
+ * selector, DEC-018). `includeWrkId`: una obra ya elegida (p. ej. la que abre
+ * el formulario) se devuelve aunque la búsqueda o el tope la dejen fuera,
+ * siempre que esté activa.
+ */
+export const selectContractWorks = async ({ search, includeWrkId } = {}) => {
   const value = text(search);
+  const select = { wrk_id: true, wrk_code: true, wrk_name: true };
   const rows = await prisma.tbl_works.findMany({
     where: {
       sta_id: ACTIVE_STATUS,
       ...(value ? { OR: [{ wrk_code: { contains: value } }, { wrk_name: { contains: value } }] } : {}),
     },
-    select: { wrk_id: true, wrk_code: true, wrk_name: true },
+    select,
     orderBy: { wrk_code: "asc" },
     take: MAX_ROWS,
   });
+  const includeId = Number(includeWrkId) || null;
+  if (includeId && !rows.some((row) => row.wrk_id === includeId)) {
+    const included = await prisma.tbl_works.findFirst({ where: { wrk_id: includeId, sta_id: ACTIVE_STATUS }, select });
+    if (included) rows.unshift(included);
+  }
   return rows.map((row) => ({ value: row.wrk_id, label: `${row.wrk_code} — ${row.wrk_name}` }));
 };
 
