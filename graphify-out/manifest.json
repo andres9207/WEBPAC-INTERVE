@@ -2376,9 +2376,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractDetailPage.jsx": {
-    "mtime": 1791319147.792373,
-    "seen": 1791320717.70988,
-    "ast_hash": "33be05dd2efd9e824360f6f142412505",
+    "mtime": 1791321553.0573237,
+    "seen": 1791321922.7223458,
+    "ast_hash": "b55b7bfab6c8e1020bae481c4a848953",
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractFormPage.jsx": {
@@ -2454,9 +2454,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contractTerms.js": {
-    "mtime": 1791306239.034761,
-    "seen": 1791318406.059749,
-    "ast_hash": "741a11a0085a86135ba7a6ee7bbaa272",
+    "mtime": 1791321514.8307824,
+    "seen": 1791321922.7225873,
+    "ast_hash": "c8fa53cc70cb14064f231318fa121095",
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contracts.controller.js": {
@@ -2472,9 +2472,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contracts.service.js": {
-    "mtime": 1791319194.6242893,
-    "seen": 1791320717.7101007,
-    "ast_hash": "a424e9d7776bf9eeb8ce100d2c1e97e5",
+    "mtime": 1791321514.8325436,
+    "seen": 1791321922.7225904,
+    "ast_hash": "ab236a852262d6689c839be1a397898a",
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contracts.validation.js": {
@@ -2502,9 +2502,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/work/contracts/contracts.service.test.js": {
-    "mtime": 1791319079.0361676,
-    "seen": 1791320717.7101684,
-    "ast_hash": "cf577ad1f346a8566349a8c0bdab9ad9",
+    "mtime": 1791321533.0219903,
+    "seen": 1791321922.7226596,
+    "ast_hash": "1a6f8450d7e1d0b4335abfea78142fde",
     "semantic_hash": ""
   },
   "client/src/views/admin/contractTypes/components/ContractTypeFieldsDialog.jsx": {
@@ -2712,15 +2712,15 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contractSuspensions.service.js": {
-    "mtime": 1791221784.3562503,
-    "seen": 1791229585.900388,
-    "ast_hash": "f171a800a695471b5184da4930300f25",
+    "mtime": 1791321514.8325436,
+    "seen": 1791321922.7225866,
+    "ast_hash": "2e169424916161f2d26fac5c8c2add88",
     "semantic_hash": ""
   },
   "server/test/modules/work/contracts/contractSuspensions.service.test.js": {
-    "mtime": 1791221938.2880318,
-    "seen": 1791229585.9004514,
-    "ast_hash": "47b11bcbcc4d960eb299051b70c950c0",
+    "mtime": 1791321539.2081637,
+    "seen": 1791321922.7226567,
+    "ast_hash": "cfabb40890c334bfc4cec3d661965add",
     "semantic_hash": ""
   },
   "client/src/hooks/useEndDatePreview.js": {
@@ -2949,6 +2949,12 @@
     "mtime": 1791318886.340167,
     "seen": 1791320717.709984,
     "ast_hash": "d5b883f7195c8c513e9db8913df4778b",
+    "semantic_hash": ""
+  },
+  "database/migrations/0075_add_contract_status_history_reason.sql": {
+    "mtime": 1791321481.4742453,
+    "seen": 1791321922.7224643,
+    "ast_hash": "c64d7b8457276b6759afac2c0577b066",
     "semantic_hash": ""
   }
 }
