@@ -159,9 +159,10 @@ export default function ContractDetailPage() {
               {contract.number} · {contract.name}
             </Typography>
             <StatusChip staId={contract.state} label={contract.stateName} scope={null} colorMap={CONTRACT_STATE_COLORS} />
+            {contract.contractType && <Chip label={contract.contractType} size="small" color="primary" variant="outlined" />}
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            {contract.workCode} {contract.workName} · {contract.providerName} · {contract.contractType}
+            {contract.workCode} {contract.workName} · {contract.providerName}
           </Typography>
           <Typography variant="caption" color="text.secondary">
             Modificado el {fDateTime(contract.updatedAt)} por {contract.updatedByName ?? '—'}

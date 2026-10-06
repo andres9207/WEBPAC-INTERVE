@@ -341,6 +341,20 @@ describe("paginationContracts", () => {
     expect(page.statusCounts).toEqual({ IN_PROGRESS: 4 });
     expect(page.results[0]).toMatchObject({ ctrId: 30, currentValue: "1190.00", stateName: "En ejecución", endDate: "2026-07-31" });
   });
+
+  it("filtra por tipo de contrato, también en los conteos, y ordena por el nombre del tipo", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+
+    await service.paginationContracts({ cttId: "4", rows: 10, first: 0, sortField: "contractType", sortOrder: -1 });
+
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0]).toMatchObject({
+      where: { sta_id: { not: 3 }, ctt_id: 4 },
+      orderBy: { tbl_contract_types: { ctt_name: "desc" } },
+    });
+    expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, ctt_id: 4 });
+  });
 });
 
 describe("campos configurables del tipo de contrato (DEC-037)", () => {

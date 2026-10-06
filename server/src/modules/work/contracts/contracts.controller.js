@@ -27,8 +27,8 @@ const CONTRACT_FIELDS = ["wrkId", "prvId", "wksId", "cttId", "number", "name", "
 const ACT_FIELDS = ["startDate", "description", ...CONCEPT_FIELDS];
 
 export const paginationContractsController = handle((req) => {
-  const { search, state, wrkId, rows, first, sortField, sortOrder } = req.body;
-  return contractsService.paginationContracts({ search, state, wrkId, rows, first, sortField, sortOrder });
+  const { search, state, wrkId, cttId, rows, first, sortField, sortOrder } = req.body;
+  return contractsService.paginationContracts({ search, state, wrkId, cttId, rows, first, sortField, sortOrder });
 });
 
 export const getContractController = handle((req) => contractsService.getContract({ ctrId: req.query.ctrId }));

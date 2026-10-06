@@ -234,6 +234,7 @@ const SORT_FIELDS = {
   name: (order) => ({ ctr_name: order }),
   work: (order) => ({ tbl_works: { wrk_code: order } }),
   provider: (order) => ({ tbl_providers: { prv_name: order } }),
+  contractType: (order) => ({ tbl_contract_types: { ctt_name: order } }),
   startDate: (order) => ({ ctr_start_date: order }),
   endDate: (order) => ({ ctr_end_date: order }),
   state: (order) => ({ ctr_state: order }),
@@ -306,15 +307,17 @@ const countByState = async (where) => {
 
 /**
  * Contratos no eliminados, paginados. `state` filtra por estado del ciclo de
- * vida (las pestañas) y `wrkId`, por obra (la pestaña de la obra).
+ * vida (las pestañas), `wrkId`, por obra (la pestaña de la obra) y `cttId`,
+ * por tipo de contrato. Los conteos de las pestañas respetan obra y tipo.
  */
-export const paginationContracts = async ({ search, state, wrkId, rows, first, sortField, sortOrder }) => {
+export const paginationContracts = async ({ search, state, wrkId, cttId, rows, first, sortField, sortOrder }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
   const baseWhere = {
     sta_id: { not: DELETED_STATUS },
     ...(Number(wrkId) > 0 ? { wrk_id: Number(wrkId) } : {}),
+    ...(Number(cttId) > 0 ? { ctt_id: Number(cttId) } : {}),
     ...searchWhereOf(search),
   };
   const where = { ...baseWhere, ...(state ? { ctr_state: state } : {}) };

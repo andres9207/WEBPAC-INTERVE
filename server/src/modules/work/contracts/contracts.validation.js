@@ -54,6 +54,7 @@ export const paginationContractsSchema = [
   optionalText("search", 100),
   body("state").optional({ values: "falsy" }).isIn(Object.values(CONTRACT_STATES)).withMessage("El estado no es válido."),
   optionalId("wrkId"),
+  optionalId("cttId"),
 ];
 
 export const getContractSchema = [query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo.")];

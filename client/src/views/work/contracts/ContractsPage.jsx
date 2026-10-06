@@ -1,9 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
+import Box from '@mui/material/Box';
+import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 
 import MasterPage from 'ui-component/extended/MasterPage';
+import SelectSocket from 'ui-component/extended/SelectSocket';
 import { contractsApi } from 'api/requests/contractsApi';
+import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly } from 'utils/formatTime';
@@ -14,10 +18,18 @@ import { CONTRACT_STATE_COLORS, CONTRACT_STATE_TABS } from 'utils/constants';
 // liquidación, liquidado), no por activo/inactivo. Detalle, alta y edición
 // son rutas hijas que se abren en un modal sobre el listado (DEC-034). El
 // valor vigente y la fecha fin los calcula el servidor (FRONTEND_STANDARD,
-// regla 9).
+// regla 9). El tipo de contrato va en su propia columna y es un filtro del
+// listado: las pestañas cuentan dentro del tipo elegido.
 
 export const CONTRACT_COLUMNS = [
   { id: 'number', label: 'Número', sortable: true },
+  {
+    id: 'contractType',
+    label: 'Tipo',
+    sortable: true,
+    render: (row) => (row.contractType ? <Chip label={row.contractType} size="small" color="primary" variant="outlined" /> : '—'),
+    cardRender: (row) => row.contractType ?? '—'
+  },
   {
     id: 'name',
     label: 'Contrato',
@@ -61,11 +73,15 @@ export const CONTRACT_STATE_FILTER = { param: 'state', tabs: CONTRACT_STATE_TABS
 
 const rowLabel = (row) => `${row.number} — ${row.name}`;
 
+const fetchContractTypes = () => getContractTypesSelectAPI();
+
 export default function ContractsPage() {
   const { permissionsCatalog } = useAuth();
   const navigate = useNavigate();
   const [reloadKey, setReloadKey] = useState(0);
   const outletContext = useMemo(() => ({ refresh: () => setReloadKey((k) => k + 1) }), []);
+  const [cttId, setCttId] = useState('');
+  const filters = useMemo(() => ({ cttId }), [cttId]);
 
   const navigation = useMemo(
     () => ({
@@ -89,6 +105,18 @@ export default function ContractsPage() {
         rowLabel={rowLabel}
         navigation={navigation}
         stateTabs={CONTRACT_STATE_FILTER}
+        filters={filters}
+        toolbar={
+          <Box sx={{ width: { xs: '100%', sm: 260 } }}>
+            <SelectSocket
+              value={cttId}
+              onChange={setCttId}
+              label="Tipo de contrato"
+              fetchApi={fetchContractTypes}
+              socketEvent="refresh-contract-types"
+            />
+          </Box>
+        }
         reloadKey={reloadKey}
       />
       <Outlet context={outletContext} />

@@ -81,6 +81,9 @@ const saveView = (key, value) => {
  *   del filtro y de la fila (`state`); los conteos llegan en `statusCounts`
  *   por ese valor, y la columna de estado usa `stateName` de la fila.
  * - `filters`: filtros fijos que viajan en cada petición (p. ej. la obra).
+ *   Al cambiar, el listado vuelve a la primera página.
+ * - `toolbar`: controles junto a la búsqueda (p. ej. el filtro por tipo de
+ *   contrato); quien los da maneja su valor y lo pasa en `filters`.
  * - `extraActions(row)`: acciones propias del maestro, después de Editar (p.
  *   ej. "Configurar campos" del tipo de contrato, DEC-037). Cada una con
  *   `label`, `icon`, `command` y `tone`; las filtra por permiso quien las da.
@@ -104,6 +107,7 @@ export default function MasterPage({
   reloadKey,
   stateTabs,
   filters,
+  toolbar,
   extraActions
 }) {
   const { hasPermission } = useAuth();
@@ -167,6 +171,11 @@ export default function MasterPage({
   useEffect(() => {
     fetchRows();
   }, [fetchRows, reloadKey]);
+
+  // Un filtro nuevo puede dejar menos páginas que la actual.
+  useEffect(() => {
+    setPage(0);
+  }, [filters]);
 
   const handleSearch = useCallback((text) => {
     setSearch(text);
@@ -319,7 +328,10 @@ export default function MasterPage({
       title={
         // flexWrap: en ancho de teléfono los botones bajan de línea en vez de desbordar.
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexWrap: 'wrap', gap: 1.5 }}>
-          <SearchInput onSearch={handleSearch} placeholder={searchPlaceholder} />
+          <Stack direction="row" alignItems="center" sx={{ flexWrap: 'wrap', gap: 1.5 }}>
+            <SearchInput onSearch={handleSearch} placeholder={searchPlaceholder} />
+            {toolbar}
+          </Stack>
           <Stack direction="row" alignItems="center" sx={{ flexWrap: 'wrap', gap: 1.5, ml: 'auto' }}>
             <StatusTabs statusTabs={statusTabs} selectedStatus={status} onChange={handleStatus} />
             {renderCard && (
@@ -458,6 +470,8 @@ MasterPage.propTypes = {
   stateTabs: PropTypes.shape({ param: PropTypes.string.isRequired, tabs: PropTypes.array.isRequired, colors: PropTypes.object }),
   /** Filtros fijos de la petición, p. ej. `{ wrkId }`. Debe ser estable (useMemo). */
   filters: PropTypes.object,
+  /** Controles junto a la búsqueda, p. ej. un filtro con su valor en `filters`. */
+  toolbar: PropTypes.node,
   /** Acciones propias de una fila, después de Editar: `(row) => [{ label, icon, command, tone }]`. */
   extraActions: PropTypes.func
 };
