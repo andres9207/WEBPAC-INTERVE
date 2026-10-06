@@ -35,6 +35,7 @@ const INPUT_FIELDS = [
   "maxServiceOrderValue",
   "managers",
   "stages",
+  "contacts",
 ];
 
 export const paginationWorksController = handle((req) => {

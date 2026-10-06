@@ -6,6 +6,7 @@ import {
   requiredId,
   idempotencyKeyRule,
   emailRule,
+  contactsRules,
 } from "../../../common/utils/validation.utils.js";
 import { EDITABLE_STATUS_VALUES } from "../../../common/constants/status.constants.js";
 
@@ -56,18 +57,7 @@ export const saveProviderSchema = [
   emailRule("email", { optional: true }),
   optionalBodyText("observation", "La observación", 500),
 
-  body("contacts").optional({ values: "null" }).isArray({ max: 50 }).withMessage("Los contactos deben ser una lista (máximo 50)."),
-  body("contacts.*.prcId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("El id del contacto no es válido."),
-  body("contacts.*.adtId").isInt({ min: 1 }).withMessage("Selecciona el tipo de dirección de cada contacto."),
-  optionalBodyText("contacts.*.name", "El nombre del contacto", 150),
-  optionalBodyText("contacts.*.position", "El cargo", 100),
-  optionalBodyText("contacts.*.address", "La dirección", 255),
-  optionalBodyText("contacts.*.phone", "El teléfono", 20),
-  optionalBodyText("contacts.*.mobile", "El celular", 20),
-  optionalBodyText("contacts.*.fax", "El fax", 20),
-  emailRule("contacts.*.email", { optional: true }),
-  optionalBodyText("contacts.*.observation", "La observación del contacto", 500),
-  body("contacts.*.main").optional({ values: "null" }).isBoolean().withMessage("La marca de principal debe ser verdadero o falso."),
+  ...contactsRules(),
 
   // Solo al crear desde una obra: crea el proveedor y lo asigna (ADR-0012, dec. 6).
   body("assignment").optional({ values: "null" }).isObject().withMessage("La asignación no es válida."),

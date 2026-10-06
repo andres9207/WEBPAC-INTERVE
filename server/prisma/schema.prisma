@@ -270,6 +270,8 @@ model tbl_users {
   providers_updated              tbl_providers[]                    @relation("ProviderUpdatedBy")
   provider_contacts_created      tbl_provider_contacts[]            @relation("ProviderContactCreatedBy")
   provider_contacts_updated      tbl_provider_contacts[]            @relation("ProviderContactUpdatedBy")
+  work_contacts_created          tbl_work_contacts[]                @relation("WorkContactCreatedBy")
+  work_contacts_updated          tbl_work_contacts[]                @relation("WorkContactUpdatedBy")
   documents_created              tbl_documents[]                    @relation("DocumentCreatedBy")
   documents_deleted              tbl_documents[]                    @relation("DocumentDeletedBy")
   documents_updated              tbl_documents[]                    @relation("DocumentUpdatedBy")
@@ -436,6 +438,7 @@ model tbl_address_types {
   tbl_status            tbl_status              @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_address_types_status")
   updated_by_user       tbl_users?              @relation("AddressTypeUpdatedBy", fields: [adt_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_address_types_update_by")
   tbl_provider_contacts tbl_provider_contacts[]
+  tbl_work_contacts     tbl_work_contacts[]
 
   @@index([adt_create_by], map: "tbl_address_types_create_by")
   @@index([adt_delete_by], map: "tbl_address_types_delete_by")
@@ -598,6 +601,7 @@ model tbl_works {
   wrk_delete_at               DateTime?                  @db.Timestamp(0)
   wrk_idempotency_key         String?                    @unique(map: "uq_works_idempotency_key") @db.Char(36)
   wrk_idempotency_hash        String?                    @db.Char(64)
+  tbl_work_contacts           tbl_work_contacts[]
   tbl_work_managers           tbl_work_managers[]
   tbl_contracts               tbl_contracts[]
   tbl_work_providers          tbl_work_providers[]
@@ -1090,4 +1094,33 @@ model tbl_invoice_status_history {
   @@index([inv_id, ish_create_at], map: "idx_invoice_status_history_invoice")
   @@index([ish_create_by], map: "tbl_invoice_status_history_create_by")
   @@index([rea_id], map: "tbl_invoice_status_history_reason")
+}
+
+model tbl_work_contacts {
+  wkc_id            Int               @id @default(autoincrement())
+  wrk_id            Int
+  adt_id            Int
+  wkc_name          String?           @db.VarChar(150)
+  wkc_position      String?           @db.VarChar(100)
+  wkc_address       String?           @db.VarChar(255)
+  wkc_phone         String?           @db.VarChar(20)
+  wkc_mobile        String?           @db.VarChar(20)
+  wkc_fax           String?           @db.VarChar(20)
+  wkc_email         String?           @db.VarChar(255)
+  wkc_observation   String?           @db.VarChar(500)
+  wkc_main          Boolean           @default(false)
+  wkc_create_by     Int?
+  wkc_create_at     DateTime?         @default(now()) @db.Timestamp(0)
+  wkc_update_by     Int?
+  wkc_update_at     DateTime?         @default(now()) @db.Timestamp(0)
+  wkc_main_work     Int?              @unique(map: "uq_work_contacts_main")
+  tbl_address_types tbl_address_types @relation(fields: [adt_id], references: [adt_id], onUpdate: NoAction, map: "tbl_work_contacts_address_type")
+  created_by_user   tbl_users?        @relation("WorkContactCreatedBy", fields: [wkc_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_work_contacts_create_by")
+  tbl_works         tbl_works         @relation(fields: [wrk_id], references: [wrk_id], onDelete: Cascade, onUpdate: NoAction, map: "tbl_work_contacts_work")
+  updated_by_user   tbl_users?        @relation("WorkContactUpdatedBy", fields: [wkc_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_work_contacts_update_by")
+
+  @@index([adt_id], map: "tbl_work_contacts_address_type")
+  @@index([wkc_create_by], map: "tbl_work_contacts_create_by")
+  @@index([wrk_id], map: "tbl_work_contacts_work")
+  @@index([wkc_update_by], map: "tbl_work_contacts_update_by")
 }

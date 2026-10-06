@@ -281,7 +281,7 @@ describe("saveProvider — editar", () => {
   });
 
   it("guarda los tipos por diferencial y audita la lista (DEC-041)", async () => {
-    await service.saveProvider({ prvId: 77, input: input({ pvtIds: [4, 3], contacts: [contact({ prcId: 11 })] }), useBy: 9, granted: ALL, ctx });
+    await service.saveProvider({ prvId: 77, input: input({ pvtIds: [4, 3], contacts: [contact({ contactId: 11 })] }), useBy: 9, granted: ALL, ctx });
 
     expect(prismaMock.tbl_provider_classifications.deleteMany.mock.calls[0][0]).toEqual({ where: { prv_id: 77, pvt_id: { in: [2] } } });
     expect(prismaMock.tbl_provider_classifications.createMany.mock.calls[0][0].data).toEqual([
@@ -292,7 +292,7 @@ describe("saveProvider — editar", () => {
   });
 
   it("sin cambios en los tipos no escribe la tabla de unión", async () => {
-    await service.saveProvider({ prvId: 77, input: input({ contacts: [contact({ prcId: 11 })] }), useBy: 9, granted: ALL, ctx });
+    await service.saveProvider({ prvId: 77, input: input({ contacts: [contact({ contactId: 11 })] }), useBy: 9, granted: ALL, ctx });
 
     expect(prismaMock.tbl_provider_classifications.deleteMany).not.toHaveBeenCalled();
     expect(prismaMock.tbl_provider_classifications.createMany).not.toHaveBeenCalled();
@@ -302,16 +302,16 @@ describe("saveProvider — editar", () => {
     prismaMock.tbl_provider_types.findUnique.mockResolvedValue({ pvt_name: "Simple", sta_id: 2 });
 
     await expect(
-      service.saveProvider({ prvId: 77, input: input({ contacts: [contact({ prcId: 11 })] }), useBy: 9, granted: ALL, ctx })
+      service.saveProvider({ prvId: 77, input: input({ contacts: [contact({ contactId: 11 })] }), useBy: 9, granted: ALL, ctx })
     ).resolves.toMatchObject({ prvId: 77 });
 
     await expect(
-      service.saveProvider({ prvId: 77, input: input({ pvtIds: [2, 5], contacts: [contact({ prcId: 11 })] }), useBy: 9, granted: ALL, ctx })
+      service.saveProvider({ prvId: 77, input: input({ pvtIds: [2, 5], contacts: [contact({ contactId: 11 })] }), useBy: 9, granted: ALL, ctx })
     ).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("inactivo") });
   });
 
   it("bloquea el proveedor antes de leerlo", async () => {
-    await service.saveProvider({ prvId: 77, input: input({ contacts: [contact({ prcId: 11 })] }), useBy: 9, granted: ALL, ctx });
+    await service.saveProvider({ prvId: 77, input: input({ contacts: [contact({ contactId: 11 })] }), useBy: 9, granted: ALL, ctx });
 
     expect(lockedTables()[0]).toBe("tbl_providers");
     expect(prismaMock.tbl_providers.findUnique.mock.invocationCallOrder[0]).toBeGreaterThan(prismaMock.$queryRaw.mock.invocationCallOrder[0]);
@@ -330,7 +330,7 @@ describe("saveProvider — editar", () => {
     const granted = new Set([CAN.edit]);
 
     await expect(
-      service.saveProvider({ prvId: 77, input: input({ name: "Andina S.A.S.", contacts: [contact({ prcId: 11 })] }), useBy: 9, granted, ctx })
+      service.saveProvider({ prvId: 77, input: input({ name: "Andina S.A.S.", contacts: [contact({ contactId: 11 })] }), useBy: 9, granted, ctx })
     ).resolves.toMatchObject({ prvId: 77 });
     expect(auditRows()).toEqual([
       expect.objectContaining({ aud_operation: "EDITAR", aud_field: "prv_name", aud_old_value: "Ferretería Andina", aud_new_value: "Andina S.A.S." }),
@@ -341,18 +341,18 @@ describe("saveProvider — editar", () => {
     prismaMock.tbl_providers.findFirst.mockResolvedValue({ ...existingRow, prv_id: 12 });
 
     await expect(
-      service.saveProvider({ prvId: 77, input: input({ identification: "99887766", contacts: [contact({ prcId: 11 })] }), useBy: 9, granted: ALL, ctx })
+      service.saveProvider({ prvId: 77, input: input({ identification: "99887766", contacts: [contact({ contactId: 11 })] }), useBy: 9, granted: ALL, ctx })
     ).rejects.toMatchObject({ statusCode: 409, data: { existing: expect.objectContaining({ prvId: 12 }) } });
     expect(prismaMock.tbl_providers.findFirst.mock.calls[0][0].where).toMatchObject({ prv_id: { not: 77 } });
 
     prismaMock.tbl_providers.findFirst.mockResolvedValue(null);
-    await service.saveProvider({ prvId: 77, input: input({ identification: "99887766", contacts: [contact({ prcId: 11 })] }), useBy: 9, granted: ALL, ctx });
+    await service.saveProvider({ prvId: 77, input: input({ identification: "99887766", contacts: [contact({ contactId: 11 })] }), useBy: 9, granted: ALL, ctx });
     expect(auditRows()).toEqual([expect.objectContaining({ aud_field: "prv_identification", aud_old_value: "1020304050", aud_new_value: "99887766" })]);
   });
 
   it("guarda los contactos por diferencial y quita la marca de principal antes de ponerla en otro", async () => {
     const contacts = [
-      contact({ prcId: 11, main: false }),
+      contact({ contactId: 11, main: false }),
       contact({ name: "Luis", phone: null, email: "luis@andina.co", main: true }),
     ];
 
@@ -376,7 +376,7 @@ describe("saveProvider — editar", () => {
     expect(prismaMock.tbl_provider_contacts.deleteMany.mock.calls[0][0]).toEqual({ where: { prv_id: 77, prc_id: { in: [11] } } });
 
     await expect(
-      service.saveProvider({ prvId: 77, input: input({ contacts: [contact({ prcId: 999 })] }), useBy: 9, granted: ALL, ctx })
+      service.saveProvider({ prvId: 77, input: input({ contacts: [contact({ contactId: 999 })] }), useBy: 9, granted: ALL, ctx })
     ).rejects.toMatchObject({ statusCode: 400, message: "Uno de los contactos no pertenece a este proveedor." });
   });
 

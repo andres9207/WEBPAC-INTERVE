@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import PropTypes from 'prop-types';
 import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { format } from 'date-fns';
@@ -12,7 +11,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
-import SubCard from 'ui-component/cards/SubCard';
+import FormSection from 'ui-component/extended/FormSection';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import DateField from 'ui-component/extended/DateField';
 import RouteDialog from 'ui-component/extended/RouteDialog';
@@ -75,28 +74,6 @@ const toPayload = (invId, form) => ({
   description: text(form.description)
 });
 
-function Section({ title, subtitle, children }) {
-  return (
-    <SubCard
-      title={
-        <Box>
-          <Typography variant="h5" component="h2">
-            {title}
-          </Typography>
-          {subtitle && (
-            <Typography variant="caption" color="text.secondary">
-              {subtitle}
-            </Typography>
-          )}
-        </Box>
-      }
-    >
-      {children}
-    </SubCard>
-  );
-}
-
-Section.propTypes = { title: PropTypes.string.isRequired, subtitle: PropTypes.string, children: PropTypes.node };
 
 /**
  * Opciones de un selector con tope, buscadas en el servidor al dejar de
@@ -321,7 +298,7 @@ export default function InvoiceFormPage() {
           cada tipo de factura.
         </Alert>
 
-        <Section
+        <FormSection
           title="Tipo y origen"
           subtitle="El tipo decide si la factura va contra un contrato o se imputa a una etapa de la obra. No cambia después de registrar."
         >
@@ -470,9 +447,9 @@ export default function InvoiceFormPage() {
               </>
             )}
           </Grid>
-        </Section>
+        </FormSection>
 
-        <Section title="Documento">
+        <FormSection title="Documento">
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <Controller
@@ -567,7 +544,7 @@ export default function InvoiceFormPage() {
               />
             </Grid>
           </Grid>
-        </Section>
+        </FormSection>
       </Stack>
 
       <ConfirmDialog

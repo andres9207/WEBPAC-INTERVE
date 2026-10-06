@@ -18,23 +18,28 @@ import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudi
 import { constructionCompaniesService } from "../../admin/constructionCompanies/constructionCompanies.service.js";
 import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
 import { supervisionTypesService } from "../../admin/supervisionTypes/supervisionTypes.service.js";
+import { defineContacts } from "../../admin/addressTypes/addressTypes.contacts.js";
 import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
- * Obras (ADR-0011, DEC-026). La obra es la raíz de un agregado: responsables
- * y etapas se guardan con ella, en una sola transacción, por diferencial
- * contra lo que hay en la BD (decisiones 1 a 3). Los contactos llegan después
- * (PRO-BD-04).
+ * Obras (ADR-0011, DEC-026). La obra es la raíz de un agregado: responsables,
+ * etapas y contactos se guardan con ella, en una sola transacción, por
+ * diferencial contra lo que hay en la BD (decisiones 1 a 3).
  *
  * - Los responsables son usuarios existentes (DEC-029): la obra no crea
  *   usuarios. Asignar y retirar tienen permiso propio, y gestionar etapas
  *   también: el controller pasa los permisos efectivos y el service exige el
  *   que corresponde a lo que realmente cambió.
- * - Bloqueo: obra → usuarios asignados → maestros asignados (DEC-026,
- *   DEC-019). Todo en un solo withLockedTransaction.
+ * - Contactos (PRO-BD-04): las reglas comunes con los de proveedor
+ *   (ADR-0009, addressTypes.contacts.js). Van con el permiso de crear o
+ *   editar la obra, sin uno propio.
+ * - Bloqueo: obra → usuarios asignados → maestros asignados, entre ellos los
+ *   tipos de dirección de los contactos (DEC-026, DEC-019). Todo en un solo
+ *   withLockedTransaction.
  * - Importes en Prisma.Decimal, redondeados por toMoney (DEC-028).
  * - Bitácora funcional de valores, plazos, maestros, código, nombre, estado y
- *   responsables (ADR-0011, "Auditoría"). Área y etapas: auditoría técnica.
+ *   responsables (ADR-0011, "Auditoría"). Área, etapas y contactos: auditoría
+ *   técnica.
  * - Plazo = número + unidad, desde una fecha de inicio. La fecha final
  *   (inicio + plazo inicial) se calcula al leer y no se guarda (DEC-030).
  */
@@ -225,6 +230,9 @@ const HEADER_SELECT = Object.fromEntries(HEADER_COLUMNS.map((column) => [column,
  * no en el cliente (FRONTEND_STANDARD, regla 9). No lee ni escribe la BD.
  * `endDate` es null si los datos no alcanzan.
  */
+// Contactos de la obra (ADR-0009, ADR-0011 regla 16): reglas comunes con los de proveedor.
+const contactsHelper = defineContacts({ model: "tbl_work_contacts", prefix: "wkc", ownerColumn: "wrk_id", ownerLabel: "esta obra" });
+
 export const previewWorkEndDate = ({ startDate, initialTerm, termUnit }) => ({ endDate: addTerm(startDate, initialTerm, termUnit) });
 
 export const getWork = async ({ wrkId }) => {
@@ -257,6 +265,7 @@ export const getWork = async ({ wrkId }) => {
         select: { wks_id: true, wks_name: true, wks_order: true, sta_id: true },
         orderBy: [{ wks_order: "asc" }, { wks_name: "asc" }],
       },
+      tbl_work_contacts: contactsHelper.detailSelect,
       // Proveedores asignados: solo el conteo, para la pestaña. La lista la
       // sirve pagination_work_providers (DEC-031).
       _count: { select: { tbl_work_providers: true, tbl_contracts: { where: { sta_id: { not: DELETED_STATUS } } } } },
@@ -300,6 +309,7 @@ export const getWork = async ({ wrkId }) => {
       staId: m.sta_id,
     })),
     stages: row.tbl_work_stages.map((s) => ({ wksId: s.wks_id, name: s.wks_name, order: s.wks_order, staId: s.sta_id })),
+    contacts: row.tbl_work_contacts.map(contactsHelper.toDto),
     providersCount: row._count?.tbl_work_providers ?? 0,
     contractsCount: row._count?.tbl_contracts ?? 0,
   };
@@ -435,12 +445,13 @@ const assertMasters = async (tx, values, current = {}) => {
   await supervisionTypesService.assertAssignable(tx, values.spt_id, current.spt_id);
 };
 
-const locksOf = (values, managers, wrkId = null) => ({
+const locksOf = (values, managers, contacts, wrkId = null) => ({
   ...(wrkId ? { OBRA: wrkId } : {}),
   USUARIO: managers.map((m) => m.use_id),
   CONSTRUCTORA: values.cnc_id,
   TIPO_CONTRATO: values.ctt_id,
   TIPO_INTERVENTORIA: values.spt_id,
+  ...contactsHelper.locksOf(contacts),
 });
 
 // Diferencial contra la BD (ADR-0011, decisión 3), nunca contra una lista
@@ -566,8 +577,14 @@ const auditableValue = (column, value) => {
 };
 const auditable = (row) => Object.fromEntries(Object.entries(row).map(([column, value]) => [column, auditableValue(column, value)]));
 
-// Huella de la creación (DEC-016): lo que define "la misma obra".
-const fingerprintOf = (values, managers, stages) => ({ ...auditable(values), managers, stages });
+// Huella de la creación (DEC-016): lo que define "la misma obra". Sin
+// contactos, la misma huella que antes de que existieran.
+const fingerprintOf = (values, managers, stages, contacts) => ({
+  ...auditable(values),
+  managers,
+  stages,
+  ...(contacts.length > 0 ? { contacts } : {}),
+});
 
 const IDEMPOTENCY_TARGET = {
   model: prisma.tbl_works,
@@ -578,10 +595,11 @@ const IDEMPOTENCY_TARGET = {
   toResult: (row) => ({ message: "Obra creada correctamente", wrkId: row.wrk_id }),
 };
 
-const createWork = ({ values, managers, stages, useBy, ctx, idempotencyData }) =>
-  withLockedTransaction(locksOf(values, managers), async (tx) => {
+const createWork = ({ values, managers, stages, contacts, useBy, ctx, idempotencyData }) =>
+  withLockedTransaction(locksOf(values, managers, contacts), async (tx) => {
     await assertMasters(tx, values);
     await assertManagerUsers(tx, managers, new Set());
+    await contactsHelper.assertAddressTypes(tx, contacts);
     await assertUniqueCode(tx, values.wrk_code);
 
     const created = await tx.tbl_works.create({
@@ -600,15 +618,16 @@ const createWork = ({ values, managers, stages, useBy, ctx, idempotencyData }) =
     });
     await applyManagers(tx, { wrkId, diff: diffManagers([], managers), useBy, ctx, operationId });
     await applyStages(tx, { wrkId, diff: diffStages([], stages), useBy });
+    await contactsHelper.apply(tx, { ownerId: wrkId, diff: contactsHelper.diff([], contacts), useBy });
 
     return { message: "Obra creada correctamente", wrkId };
   });
 
 // Editar fija la cabecera y las colecciones: repetirlo deja lo mismo, así
 // que se puede reintentar ante un interbloqueo.
-const updateWork = ({ wrkId, values, managers, stages, useBy, granted, ctx }) =>
+const updateWork = ({ wrkId, values, managers, stages, contacts, useBy, granted, ctx }) =>
   withLockedTransaction(
-    locksOf(values, managers, wrkId),
+    locksOf(values, managers, contacts, wrkId),
     async (tx) => {
       const before = await tx.tbl_works.findUnique({
         where: { wrk_id: Number(wrkId) },
@@ -617,17 +636,20 @@ const updateWork = ({ wrkId, values, managers, stages, useBy, granted, ctx }) =>
       if (!before || before.sta_id === DELETED_STATUS) throw httpError(404, "No se encontró la obra.");
 
       const id = Number(wrkId);
-      const [currentManagers, currentStages] = await Promise.all([
+      const [currentManagers, currentStages, currentContacts] = await Promise.all([
         tx.tbl_work_managers.findMany({ where: { wrk_id: id }, select: { use_id: true, wkm_role: true, sta_id: true } }),
         tx.tbl_work_stages.findMany({ where: { wrk_id: id }, select: { wks_id: true, wks_name: true, wks_order: true, sta_id: true } }),
+        contactsHelper.findCurrent(tx, id),
       ]);
       const managerDiff = diffManagers(currentManagers, managers);
       const stageDiff = diffStages(currentStages, stages);
+      const contactDiff = contactsHelper.diff(currentContacts, contacts);
       assertCollectionPermissions(granted, managerDiff, stageDiff);
       await assertStagesRemovable(tx, id, stageDiff.toDelete);
 
       await assertMasters(tx, values, before);
       await assertManagerUsers(tx, managers, new Set(currentManagers.map((m) => m.use_id)));
+      await contactsHelper.assertAddressTypes(tx, contacts, currentContacts);
       await assertUniqueCode(tx, values.wrk_code, id);
 
       await tx.tbl_works.update({ where: { wrk_id: id }, data: { ...values, wrk_update_by: useBy } });
@@ -639,6 +661,7 @@ const updateWork = ({ wrkId, values, managers, stages, useBy, granted, ctx }) =>
       }
       await applyManagers(tx, { wrkId: id, diff: managerDiff, useBy, ctx, operationId });
       await applyStages(tx, { wrkId: id, diff: stageDiff, useBy });
+      await contactsHelper.apply(tx, { ownerId: id, diff: contactDiff, useBy });
 
       return { message: "Obra modificada correctamente", wrkId: id };
     },
@@ -646,18 +669,20 @@ const updateWork = ({ wrkId, values, managers, stages, useBy, granted, ctx }) =>
   );
 
 /**
- * Crear (wrkId vacío o 0) o editar la obra con sus responsables y etapas, en
- * una sola transacción. `granted` es el Set de per_id efectivos del autor.
+ * Crear (wrkId vacío o 0) o editar la obra con sus responsables, etapas y
+ * contactos, en una sola transacción. `granted` es el Set de per_id efectivos del autor.
  * El estado no se toca: ver changeWorkStatus.
  */
 export const saveWork = async ({ wrkId, input, useBy, granted, ctx = { useId: useBy }, idempotencyKey }) => {
   const values = headerValuesOf(input);
   const managers = managersOf(input);
   const stages = stagesOf(input);
+  const contacts = contactsHelper.fromInput(input.contacts);
   assertHeader(values);
   assertCollections(managers, stages);
+  contactsHelper.assertList(contacts);
 
-  if (Number(wrkId) > 0) return updateWork({ wrkId, values, managers, stages, useBy: Number(useBy), granted, ctx });
+  if (Number(wrkId) > 0) return updateWork({ wrkId, values, managers, stages, contacts, useBy: Number(useBy), granted, ctx });
 
   // Crear siempre asigna responsables; con etapas, también las gestiona.
   assertCollectionPermissions(granted, diffManagers([], managers), diffStages([], stages));
@@ -668,8 +693,8 @@ export const saveWork = async ({ wrkId, input, useBy, granted, ctx = { useId: us
     target: IDEMPOTENCY_TARGET,
     key: idempotencyKey,
     ownerId: useBy,
-    payload: fingerprintOf(values, managers, stages),
-    execute: (idempotencyData) => createWork({ values, managers, stages, useBy: Number(useBy), ctx, idempotencyData }),
+    payload: fingerprintOf(values, managers, stages, contacts),
+    execute: (idempotencyData) => createWork({ values, managers, stages, contacts, useBy: Number(useBy), ctx, idempotencyData }),
   });
 };
 

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import PropTypes from 'prop-types';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 
@@ -11,10 +10,10 @@ import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { IconPlus } from '@tabler/icons-react';
 
-import SubCard from 'ui-component/cards/SubCard';
+import FormSection from 'ui-component/extended/FormSection';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
+import ContactsEditor from 'ui-component/extended/ContactsEditor';
 import DateField from 'ui-component/extended/DateField';
 import EditableList from 'ui-component/extended/EditableList';
 import MoneyField from 'ui-component/extended/MoneyField';
@@ -31,13 +30,16 @@ import { getWorkManagersSelectAPI, previewWorkEndDateAPI, worksApi } from 'api/r
 import useEndDatePreview from 'hooks/useEndDatePreview';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
+import { contactsToForm, contactsToPayload } from 'utils/contacts';
 import { STATUS, STATUS_OPTIONS, TERM_UNIT_OPTIONS } from 'utils/constants';
 
 /**
  * Alta y edición de una obra (DEC-030), en un modal sobre el listado con
  * dirección propia `/work/works/new` y `/work/works/:wrkId/edit` (DEC-034):
- * cabecera, responsables y etapas, editados en memoria y enviados juntos en una sola
- * petición. El servidor guarda las colecciones por diferencial.
+ * cabecera, responsables, etapas y contactos, editados en memoria y enviados
+ * juntos en una sola petición. El servidor guarda las colecciones por
+ * diferencial. Los contactos usan el mismo editor que los del proveedor
+ * (ADR-0009, PRO-BD-04) y van con el permiso de crear o editar la obra.
  *
  * - Importes como texto con punto decimal (MoneyField, DEC-028). El cliente no
  *   compara ni calcula: ampliado ≥ inicial, valor vigente y fecha final los
@@ -72,7 +74,8 @@ const EMPTY_FORM = {
   extendedTerm: '',
   area: '',
   managers: [],
-  stages: []
+  stages: [],
+  contacts: []
 };
 
 let rowSeq = 0;
@@ -93,7 +96,8 @@ const toForm = (work) => ({
   })),
   stages: [...work.stages]
     .sort((a, b) => a.order - b.order)
-    .map((s) => ({ key: `s-${s.wksId}`, wksId: s.wksId, name: s.name, order: s.order, staId: s.staId }))
+    .map((s) => ({ key: `s-${s.wksId}`, wksId: s.wksId, name: s.name, order: s.order, staId: s.staId })),
+  contacts: contactsToForm(work.contacts)
 });
 
 const toPayload = (wrkId, form) => ({
@@ -118,7 +122,8 @@ const toPayload = (wrkId, form) => ({
     name: text(name),
     order: Number(order),
     staId
-  }))
+  })),
+  contacts: contactsToPayload(form.contacts)
 });
 
 const validateManagers = (rows) => rows.some((row) => row.staId === STATUS.ACTIVE) || 'Agrega al menos un responsable activo.';
@@ -133,32 +138,6 @@ const moneyRules = (label, required = false) => ({
   ...(required ? { required: `El ${label} es requerido.` } : {}),
   pattern: { value: MONEY, message: 'Importe no válido.' }
 });
-
-function Section({ title, subtitle, action, children }) {
-  return (
-    <SubCard
-      title={
-        <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box>
-            <Typography variant="h5" component="h2">
-              {title}
-            </Typography>
-            {subtitle && (
-              <Typography variant="caption" color="text.secondary">
-                {subtitle}
-              </Typography>
-            )}
-          </Box>
-          {action}
-        </Stack>
-      }
-    >
-      {children}
-    </SubCard>
-  );
-}
-
-Section.propTypes = { title: PropTypes.string.isRequired, subtitle: PropTypes.string, action: PropTypes.node, children: PropTypes.node };
 
 export default function WorkFormPage() {
   const { wrkId: wrkIdParam } = useParams();
@@ -181,6 +160,7 @@ export default function WorkFormPage() {
   const [userOptions, setUserOptions] = useState([]);
   const [managerDialog, setManagerDialog] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [addingContact, setAddingContact] = useState(false);
 
   const { control, handleSubmit, reset, setValue, getValues, formState } = useForm({ defaultValues: EMPTY_FORM });
   const { errors, isDirty, isSubmitted } = formState;
@@ -311,7 +291,7 @@ export default function WorkFormPage() {
           </Alert>
         )}
 
-        <Section title="Datos generales">
+        <FormSection title="Datos generales">
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 4, md: 3 }}>
               <Controller
@@ -376,9 +356,9 @@ export default function WorkFormPage() {
               </Grid>
             ))}
           </Grid>
-        </Section>
+        </FormSection>
 
-        <Section title="Valores y plazos">
+        <FormSection title="Valores y plazos">
           <Grid container spacing={2}>
             {[
               ['initialValue', 'Valor inicial', true, ''],
@@ -486,23 +466,13 @@ export default function WorkFormPage() {
               />
             </Grid>
           </Grid>
-        </Section>
+        </FormSection>
 
-        <Section
+        <FormSection
           title="Responsables"
           subtitle="Usuarios del sistema. Si falta alguien, se crea antes en Usuarios."
-          action={
-            canAssign && (
-              <Button
-                variant="outlined"
-                color="inherit"
-                startIcon={<IconPlus size={16} />}
-                onClick={() => setManagerDialog({ manager: null })}
-              >
-                Agregar responsable
-              </Button>
-            )
-          }
+          onAdd={canAssign ? () => setManagerDialog({ manager: null }) : undefined}
+          addLabel="Agregar responsable"
         >
           <Controller
             name="managers"
@@ -521,18 +491,13 @@ export default function WorkFormPage() {
               </>
             )}
           />
-        </Section>
+        </FormSection>
 
-        <Section
+        <FormSection
           title="Etapas"
           subtitle="El orden es la posición en la lista. Una etapa con contratos no se puede quitar."
-          action={
-            canManageStages && (
-              <Button variant="outlined" color="inherit" startIcon={<IconPlus size={16} />} onClick={addStage}>
-                Agregar etapa
-              </Button>
-            )
-          }
+          onAdd={canManageStages ? addStage : undefined}
+          addLabel="Agregar etapa"
         >
           <Controller
             name="stages"
@@ -556,7 +521,28 @@ export default function WorkFormPage() {
               />
             )}
           />
-        </Section>
+        </FormSection>
+
+        <FormSection
+          title="Contactos"
+          subtitle="De la obra: interventoría, residente, bodega… Uno puede marcarse como principal."
+          onAdd={() => setAddingContact(true)}
+          addLabel="Agregar contacto"
+        >
+          <Controller
+            name="contacts"
+            control={control}
+            render={({ field, fieldState }) => (
+              <ContactsEditor
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error}
+                adding={addingContact}
+                onAddingChange={setAddingContact}
+              />
+            )}
+          />
+        </FormSection>
       </Stack>
 
       <ManagerDialog

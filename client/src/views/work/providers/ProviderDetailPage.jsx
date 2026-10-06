@@ -17,6 +17,7 @@ import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import { DataList, Figure, Pending } from 'ui-component/extended/DetailBlocks';
 import RouteDialog from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
+import ContactsList from 'ui-component/extended/ContactsList';
 import WorkProviderDialog from './components/WorkProviderDialog';
 import InvoicesTab from 'views/billing/invoices/components/InvoicesTab';
 import { providersApi, workProvidersApi } from 'api/requests/providersApi';
@@ -47,9 +48,6 @@ const TABS = [
   { key: 'works', label: 'Obras' },
   { key: 'invoices', label: 'Facturas' }
 ];
-
-const channels = (c) =>
-  [c.address, c.phone && `Tel. ${c.phone}`, c.mobile && `Cel. ${c.mobile}`, c.fax && `Fax ${c.fax}`, c.email].filter(Boolean);
 
 export default function ProviderDetailPage() {
   const { prvId } = useParams();
@@ -293,38 +291,12 @@ export default function ProviderDetailPage() {
         </Stack>
       )}
 
-      {tab === 'contacts' &&
-        (provider.contacts.length === 0 ? (
-          <Pending
-            title="Sin contactos."
-            text="Agrégalos editando el proveedor. Los contactos son de la empresa y valen para todas sus obras."
-          />
-        ) : (
-          <Grid container spacing={1.5} component="ul" sx={{ listStyle: 'none', p: 0, m: 0 }}>
-            {provider.contacts.map((c) => (
-              <Grid key={c.prcId} size={{ xs: 12, md: 6 }} component="li">
-                <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, px: 2, py: 1.5, height: '100%' }}>
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                    <Typography variant="subtitle1">{c.name || c.addressType}</Typography>
-                    {c.main && <Chip label="Principal" size="small" color="primary" />}
-                  </Stack>
-                  <Typography variant="caption" color="text.secondary" component="p">
-                    {c.addressType}
-                    {c.position ? ` · ${c.position}` : ''}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 1, wordBreak: 'break-word' }}>
-                    {channels(c).join(' · ')}
-                  </Typography>
-                  {c.observation && (
-                    <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.5 }}>
-                      {c.observation}
-                    </Typography>
-                  )}
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        ))}
+      {tab === 'contacts' && (
+        <ContactsList
+          contacts={provider.contacts}
+          emptyText="Agrégalos editando el proveedor. Los contactos son de la empresa y valen para todas sus obras."
+        />
+      )}
 
       {tab === 'works' && (
         <Stack spacing={1.5}>

@@ -6,6 +6,7 @@ import {
   requiredId,
   idempotencyKeyRule,
   moneyRule,
+  contactsRules,
 } from "../../../common/utils/validation.utils.js";
 import { MANAGER_ROLES } from "./works.service.js";
 import { TERM_UNITS } from "../../../common/utils/term.utils.js";
@@ -68,6 +69,8 @@ export const saveWorkSchema = [
   body("stages.*.name").trim().notEmpty().withMessage("El nombre de la etapa es requerido.").isLength({ max: 100 }).withMessage("El nombre de la etapa admite hasta 100 caracteres."),
   body("stages.*.order").isInt({ min: 1 }).withMessage("El orden de la etapa debe ser un entero positivo."),
   status("stages.*.staId"),
+  // Contactos (PRO-BD-04): mismas reglas que los de proveedor.
+  ...contactsRules(),
 ];
 
 export const changeWorkStatusSchema = [

@@ -16,7 +16,7 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconEdit, IconTrash } from '@tabler/icons-react';
 
 import ActionButton from 'ui-component/extended/ActionButton';
 import BaseDialog from 'ui-component/extended/BaseDialog';
@@ -25,8 +25,9 @@ import { getAddressTypesSelectAPI } from 'api/requests/addressTypesApi';
 
 /**
  * Contactos de una entidad (ADR-0009): tabla + diálogo, editados en memoria y
- * guardados con su padre en una sola petición. Hoy los usa el proveedor; los
- * contactos de obra (PRO-BD-04) reutilizan este mismo componente.
+ * guardados con su padre en una sola petición. Lo usan el proveedor y la obra
+ * (PRO-BD-04); `utils/contacts.js` los pasa del detalle al formulario y de
+ * vuelta, y ContactsList los muestra en el detalle.
  *
  * - Cada contacto: tipo de dirección (obligatorio), persona, cargo, dirección,
  *   teléfono, celular, fax, correo y observaciones, con al menos un medio de
@@ -35,8 +36,11 @@ import { getAddressTypesSelectAPI } from 'api/requests/addressTypesApi';
  *   quita de los demás. El servidor y la BD repiten ambas reglas.
  * - El tipo de dirección se elige entre los activos; el que ya tenía el
  *   contacto se conserva aunque esté inactivo (ADR-0009, decisión 9).
+ * - El botón "Agregar contacto" no es de este componente: va en el encabezado
+ *   de su FormSection, a la derecha (DESIGN_SYSTEM, "Secciones de
+ *   formulario"), y abre el diálogo con `adding` / `onAddingChange`.
  *
- * Filas: `{ key, prcId?, adtId, addressType, name, position, address, phone, mobile, fax, email, observation, main }`.
+ * Filas: `{ key, contactId?, adtId, addressType, name, position, address, phone, mobile, fax, email, observation, main }`.
  */
 
 const EMPTY = {
@@ -92,7 +96,7 @@ function ContactDialog({ open, contact, onClose, onSave }) {
   }, [open, contact]);
 
   // El tipo que ya tenía el contacto se incluye aunque esté inactivo.
-  const originalAdtId = contact?.prcId ? contact.adtId : undefined;
+  const originalAdtId = contact?.contactId ? contact.adtId : undefined;
   const fetchAddressTypes = useCallback(() => getAddressTypesSelectAPI(originalAdtId), [originalAdtId]);
 
   const set = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
@@ -174,15 +178,22 @@ ContactDialog.propTypes = {
   onSave: PropTypes.func.isRequired
 };
 
-export default function ContactsEditor({ value, onChange, error, disabled = false }) {
+export default function ContactsEditor({ value, onChange, error, disabled = false, adding = false, onAddingChange }) {
   const rows = Array.isArray(value) ? value : [];
+  // Editar uno: `{ contact }`. Agregar lo pide el encabezado de la sección (`adding`).
   const [dialog, setDialog] = useState(null);
+  const open = Boolean(dialog) || adding;
+
+  const close = () => {
+    setDialog(null);
+    onAddingChange?.(false);
+  };
 
   const save = (form) => {
     const row = form.key ? form : { ...form, key: rowKey() };
     const list = form.key ? rows.map((r) => (r.key === form.key ? row : r)) : [...rows, row];
     onChange(row.main ? list.map((r) => (r.key === row.key ? r : { ...r, main: false })) : list);
-    setDialog(null);
+    close();
   };
 
   const remove = (row) => onChange(rows.filter((r) => r.key !== row.key));
@@ -267,20 +278,8 @@ export default function ContactsEditor({ value, onChange, error, disabled = fals
         </Table>
       </TableContainer>
       {error && <FormHelperText error>{error.message}</FormHelperText>}
-      {!disabled && (
-        <Button
-          variant="outlined"
-          color="inherit"
-          size="small"
-          startIcon={<IconPlus size={16} />}
-          onClick={() => setDialog({ contact: null })}
-          sx={{ alignSelf: 'flex-start' }}
-        >
-          Agregar contacto
-        </Button>
-      )}
 
-      <ContactDialog open={Boolean(dialog)} contact={dialog?.contact} onClose={() => setDialog(null)} onSave={save} />
+      <ContactDialog open={open} contact={dialog?.contact} onClose={close} onSave={save} />
     </Stack>
   );
 }
@@ -290,5 +289,9 @@ ContactsEditor.propTypes = {
   onChange: PropTypes.func.isRequired,
   /** Error de la lista completa (react-hook-form): `{ message }`. */
   error: PropTypes.object,
-  disabled: PropTypes.bool
+  disabled: PropTypes.bool,
+  /** El encabezado de la sección pidió agregar uno: abre el diálogo vacío. */
+  adding: PropTypes.bool,
+  /** Avisa que el diálogo de alta se cerró (`false`). */
+  onAddingChange: PropTypes.func
 };

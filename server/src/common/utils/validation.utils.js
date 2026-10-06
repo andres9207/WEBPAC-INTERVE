@@ -106,6 +106,35 @@ export const idArray = (field, { optional = false } = {}) => {
  * (crear, o una transición de estado); se ignora en los demás casos (editar
  * ya es idempotente por sí mismo).
  */
+/**
+ * Contactos tipificados (ADR-0009), comunes a proveedor y obra: forma de
+ * cada campo. "Un solo principal" y "al menos un medio" viven en el service.
+ */
+export const contactsRules = (field = "contacts") => {
+  const text = (path, label, max) =>
+    body(`${field}.*.${path}`)
+      .optional({ values: "null" })
+      .isString()
+      .withMessage(`${label} debe ser texto.`)
+      .trim()
+      .isLength({ max })
+      .withMessage(`${label} admite hasta ${max} caracteres.`);
+  return [
+    body(field).optional({ values: "null" }).isArray({ max: 50 }).withMessage("Los contactos deben ser una lista (máximo 50)."),
+    body(`${field}.*.contactId`).optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("El id del contacto no es válido."),
+    body(`${field}.*.adtId`).isInt({ min: 1 }).withMessage("Selecciona el tipo de dirección de cada contacto."),
+    text("name", "El nombre del contacto", 150),
+    text("position", "El cargo", 100),
+    text("address", "La dirección", 255),
+    text("phone", "El teléfono", 20),
+    text("mobile", "El celular", 20),
+    text("fax", "El fax", 20),
+    emailRule(`${field}.*.email`, { optional: true }),
+    text("observation", "La observación del contacto", 500),
+    body(`${field}.*.main`).optional({ values: "null" }).isBoolean().withMessage("La marca de principal debe ser verdadero o falso."),
+  ];
+};
+
 export const idempotencyKeyRule = (isCreate = () => true) =>
   header("idempotency-key")
     .if((_value, { req }) => isCreate(req))

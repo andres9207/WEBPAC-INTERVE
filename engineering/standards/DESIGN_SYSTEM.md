@@ -66,14 +66,15 @@ Al **capturar** un importe: `MoneyField`. Se escribe con punto de miles y coma d
 | Necesidad | Componente | Regla |
 | --- | --- | --- |
 | Contenedor de página | `MainCard` | Uno por página. Búsqueda y botones en `title` |
-| Grupo dentro de un formulario o detalle | `SubCard` | Título corto en sustantivo ("Valores y plazos"). Un formulario con más de ~8 campos o con colecciones se divide en `SubCard` |
+| Sección de un formulario | `FormSection` (sobre `SubCard`) | Título corto en sustantivo ("Valores y plazos") y subtítulo opcional. Un formulario con más de ~8 campos o con colecciones se divide en secciones. No se copia una `Section` local en cada formulario |
+| Grupo dentro de un detalle | `SubCard` | Título corto en sustantivo |
 | Listado | `DataTable` | Paginado y ordenado en el servidor. Se convierte en tarjetas por debajo de `md` |
 | Estado de un registro | `StatusChip` | Siempre con texto, nunca solo color |
 | Acción por fila | `ActionButton` / `TableActions` | Color por `tone` (`edit`, `info`, `danger`, `neutral`, `success`). Hasta 2 acciones, botones visibles; desde 3, menú ⋮ |
 | Crear o editar | `BaseDialog` (+ `MasterDialog` en maestros) | Ver comportamiento abajo. Un agregado que crece (obra, contrato) usa páginas propias: ver "Página de detalle" |
 | Elegir una opción de una lista | `SearchSelect` (en maestros, `SelectSocket`, que lo usa) | Siempre con buscador; filtra sin distinguir tildes ni mayúsculas |
 | Fecha o importe | `DateField` / `MoneyField` | Ver "Formatos" |
-| Colección dentro de un registro | Tabla + modal para agregar y editar (responsables de obra), o `EditableList` para filas cortas (etapas) | En memoria, se guardan con el padre. El botón "Agregar" va en el encabezado de la sección, a la derecha. `orderField` si el orden importa |
+| Colección dentro de un registro | Tabla + modal para agregar y editar (responsables de obra, contactos con `ContactsEditor`), o `EditableList` para filas cortas (etapas) | En memoria, se guardan con el padre. **El botón "Agregar …" va siempre en el encabezado de su sección, a la derecha** (`FormSection` con `onAdd` y `addLabel`), nunca debajo de la lista ni dentro del componente de la colección. Sin permiso, no se pasa `onAdd` y el botón no aparece. `orderField` si el orden importa |
 | Confirmar | `ConfirmDialog` | Toda acción destructiva o irreversible. El texto nombra el registro: `¿Eliminar "Obra 012"?` |
 | Avisos | `ToastService` (`showSuccess`, `showError`) | Toda escritura avisa el resultado. Los errores muestran el mensaje del servidor |
 
@@ -164,3 +165,4 @@ El CORE necesita patrones que todavía no existen; se diseñan antes de programa
 - [ ] Revisada a 375 px de ancho (tarjetas, diálogo a pantalla completa, sin scroll horizontal de página).
 - [ ] Textos en español, mayúscula solo al inicio, género correcto.
 - [ ] Toda escritura avisa el resultado; toda acción destructiva confirma.
+- [ ] Secciones con `FormSection`; cada colección se agrega desde el encabezado de su sección, a la derecha.

@@ -20,6 +20,8 @@ const prismaMock = {
   },
   tbl_work_managers: { findMany: jest.fn(), deleteMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
   tbl_work_stages: { findMany: jest.fn(), deleteMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
+  tbl_work_contacts: { findMany: jest.fn(), deleteMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
+  tbl_address_types: { findUnique: jest.fn() },
   tbl_users: { findMany: jest.fn() },
   tbl_contracts: { findMany: jest.fn(), count: jest.fn() },
   tbl_invoices: { findMany: jest.fn(), count: jest.fn() },
@@ -89,6 +91,8 @@ beforeEach(() => {
   prismaMock.tbl_works.create.mockResolvedValue({ wrk_id: 40 });
   prismaMock.tbl_work_managers.findMany.mockResolvedValue([]);
   prismaMock.tbl_work_stages.findMany.mockResolvedValue([]);
+  prismaMock.tbl_work_contacts.findMany.mockResolvedValue([]);
+  prismaMock.tbl_address_types.findUnique.mockResolvedValue({ adt_name: "Oficina", sta_id: 1 });
   prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
   prismaMock.tbl_contracts.count.mockResolvedValue(0);
   prismaMock.tbl_invoices.findMany.mockResolvedValue([]);
@@ -461,6 +465,9 @@ describe("getWork", () => {
       tbl_supervision_types: { spt_name: "Técnica" },
       tbl_work_managers: [],
       tbl_work_stages: [],
+      tbl_work_contacts: [
+        { wkc_id: 3, adt_id: 4, wkc_name: "Ana", wkc_phone: "6011234567", wkc_main: true, tbl_address_types: { adt_name: "Oficina" } },
+      ],
     });
 
     await expect(service.getWork({ wrkId: 40 })).resolves.toMatchObject({
@@ -472,6 +479,7 @@ describe("getWork", () => {
       constructionCompany: "Andina",
       contractType: "Suministro",
       supervisionType: "Técnica",
+      contacts: [expect.objectContaining({ contactId: 3, adtId: 4, addressType: "Oficina", name: "Ana", phone: "6011234567", main: true })],
     });
   });
 
@@ -637,5 +645,94 @@ describe("previewWorkEndDate (FRONTEND_STANDARD, regla 9)", () => {
   it("sin datos suficientes devuelve null en vez de una fecha", () => {
     expect(service.previewWorkEndDate({ startDate: "2026-02-30", initialTerm: "1", termUnit: "MES" })).toEqual({ endDate: null });
     expect(service.previewWorkEndDate({ startDate: "2026-01-01", initialTerm: "1", termUnit: "SEMANA" })).toEqual({ endDate: null });
+  });
+});
+
+describe("saveWork — contactos (PRO-BD-04)", () => {
+  const contact = (overrides = {}) => ({ adtId: 4, name: "Ana", phone: "6011234567", main: true, ...overrides });
+
+  it("crea la obra con sus contactos en la misma transacción, bloqueando el tipo de dirección", async () => {
+    await service.saveWork({ wrkId: 0, input: input({ contacts: [contact()] }), useBy: 9, granted: ALL, ctx, idempotencyKey: KEY });
+
+    expect(prismaMock.tbl_work_contacts.createMany.mock.calls[0][0].data).toEqual([
+      expect.objectContaining({ wrk_id: 40, adt_id: 4, wkc_name: "Ana", wkc_phone: "6011234567", wkc_main: true, wkc_create_by: 9 }),
+    ]);
+    const lockedSql = prismaMock.$queryRaw.mock.calls.map((call) => call.slice(1).map((v) => v?.strings?.join("") ?? "").join(" ")).join("\n");
+    expect(lockedSql).toMatch(/tbl_address_types/);
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("dos principales o un contacto sin medio se rechazan antes de abrir la transacción", async () => {
+    await expect(
+      service.saveWork({ wrkId: 0, input: input({ contacts: [contact(), contact({ name: "Luis" })] }), useBy: 9, granted: ALL, ctx, idempotencyKey: KEY })
+    ).rejects.toMatchObject({ statusCode: 400, message: "Solo un contacto puede ser el principal." });
+    await expect(
+      service.saveWork({ wrkId: 0, input: input({ contacts: [contact({ phone: "" })] }), useBy: 9, granted: ALL, ctx, idempotencyKey: KEY })
+    ).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("al menos una dirección") });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("no asigna un tipo de dirección inactivo a un contacto nuevo", async () => {
+    prismaMock.tbl_address_types.findUnique.mockResolvedValue({ adt_name: "Bodega", sta_id: 2 });
+    await expect(
+      service.saveWork({ wrkId: 0, input: input({ contacts: [contact()] }), useBy: 9, granted: ALL, ctx, idempotencyKey: KEY })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.tbl_work_contacts.createMany).not.toHaveBeenCalled();
+  });
+
+  describe("al editar", () => {
+    const stored = { wkc_id: 21, adt_id: 4, wkc_name: "Ana", wkc_position: null, wkc_address: null, wkc_phone: "6011234567", wkc_mobile: null, wkc_fax: null, wkc_email: null, wkc_observation: null, wkc_main: true };
+
+    beforeEach(() => {
+      state.work = existingWork;
+      prismaMock.tbl_work_managers.findMany.mockResolvedValue([{ use_id: 5, wkm_role: "MAIN", sta_id: 1 }]);
+      prismaMock.tbl_work_stages.findMany.mockResolvedValue([{ wks_id: 11, wks_name: "Cimentación", wks_order: 1, sta_id: 1 }]);
+      prismaMock.tbl_work_contacts.findMany.mockResolvedValue([{ ...stored }, { ...stored, wkc_id: 22, wkc_name: "Pedro", wkc_main: false }]);
+    });
+
+    const editInput = (contacts) => input({ initialValue: "250000.01", stages: [{ wksId: 11, name: "Cimentación", order: 1, staId: 1 }], contacts });
+
+    it("guarda por diferencial: quita, pasa la marca de principal y agrega, en ese orden", async () => {
+      await service.saveWork({
+        wrkId: 40,
+        input: editInput([contact({ contactId: 21, main: false }), contact({ name: "Luis", main: true })]),
+        useBy: 9,
+        granted: ALL,
+        ctx,
+      });
+
+      const contacts = prismaMock.tbl_work_contacts;
+      expect(contacts.deleteMany).toHaveBeenCalledWith({ where: { wrk_id: 40, wkc_id: { in: [22] } } });
+      expect(contacts.updateMany.mock.calls[0][0]).toMatchObject({ where: { wkc_id: 21, wrk_id: 40 }, data: { wkc_main: false, wkc_update_by: 9 } });
+      expect(contacts.createMany.mock.calls[0][0].data).toEqual([expect.objectContaining({ wrk_id: 40, wkc_name: "Luis", wkc_main: true })]);
+      expect(contacts.updateMany.mock.invocationCallOrder[0]).toBeLessThan(contacts.createMany.mock.invocationCallOrder[0]);
+    });
+
+    it("sin cambios en los contactos no los toca", async () => {
+      await service.saveWork({
+        wrkId: 40,
+        input: editInput([contact({ contactId: 21 }), contact({ contactId: 22, name: "Pedro", main: false })]),
+        useBy: 9,
+        granted: ALL,
+        ctx,
+      });
+      expect(prismaMock.tbl_work_contacts.deleteMany).not.toHaveBeenCalled();
+      expect(prismaMock.tbl_work_contacts.updateMany).not.toHaveBeenCalled();
+      expect(prismaMock.tbl_work_contacts.createMany).not.toHaveBeenCalled();
+    });
+
+    it("no acepta un contacto de otra obra", async () => {
+      await expect(
+        service.saveWork({ wrkId: 40, input: editInput([contact({ contactId: 999 })]), useBy: 9, granted: ALL, ctx })
+      ).rejects.toMatchObject({ statusCode: 400, message: "Uno de los contactos no pertenece a esta obra." });
+      expect(prismaMock.tbl_works.update).not.toHaveBeenCalled();
+    });
+
+    it("conserva un tipo de dirección inactivo en el contacto que ya lo tenía", async () => {
+      prismaMock.tbl_address_types.findUnique.mockResolvedValue({ adt_name: "Oficina", sta_id: 2 });
+      await expect(
+        service.saveWork({ wrkId: 40, input: editInput([contact({ contactId: 21, name: "Ana María" })]), useBy: 9, granted: ALL, ctx })
+      ).resolves.toMatchObject({ wrkId: 40 });
+    });
   });
 });

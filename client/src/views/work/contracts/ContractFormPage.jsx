@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import PropTypes from 'prop-types';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { Controller, FormProvider, useForm, useWatch } from 'react-hook-form';
 
@@ -11,7 +10,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
-import SubCard from 'ui-component/cards/SubCard';
+import FormSection from 'ui-component/extended/FormSection';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import DateField from 'ui-component/extended/DateField';
 import GenericFormSection from 'ui-component/extended/GenericFormSection';
@@ -109,28 +108,6 @@ const toPayload = (ctrId, form, descriptors) => {
   };
 };
 
-function Section({ title, subtitle, children }) {
-  return (
-    <SubCard
-      title={
-        <Box>
-          <Typography variant="h5" component="h2">
-            {title}
-          </Typography>
-          {subtitle && (
-            <Typography variant="caption" color="text.secondary">
-              {subtitle}
-            </Typography>
-          )}
-        </Box>
-      }
-    >
-      {children}
-    </SubCard>
-  );
-}
-
-Section.propTypes = { title: PropTypes.string.isRequired, subtitle: PropTypes.string, children: PropTypes.node };
 
 export default function ContractFormPage() {
   const { ctrId: ctrIdParam } = useParams();
@@ -326,7 +303,7 @@ export default function ContractFormPage() {
             </Alert>
           )}
 
-          <Section
+          <FormSection
             title="Obra, etapa y proveedor"
             subtitle="La etapa y el proveedor se eligen entre los de la obra. La obra no cambia después de crear el contrato."
           >
@@ -391,9 +368,9 @@ export default function ContractFormPage() {
                 </Grid>
               )}
             </Grid>
-          </Section>
+          </FormSection>
 
-          <Section title="Datos del contrato">
+          <FormSection title="Datos del contrato">
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 4, md: 3 }}>
                 <Controller
@@ -542,12 +519,12 @@ export default function ContractFormPage() {
                 </Grid>
               )}
             </Grid>
-          </Section>
+          </FormSection>
 
           {isEdit ? (
             <Alert severity="info">El valor inicial y los otrosí se modifican en la pestaña «Valor» del contrato.</Alert>
           ) : (
-            <Section title="Valor inicial" subtitle="Todo contrato nace con su valor inicial. Su fecha es la de inicio del contrato.">
+            <FormSection title="Valor inicial" subtitle="Todo contrato nace con su valor inicial. Su fecha es la de inicio del contrato.">
               {fieldsReady ? (
                 <ConceptFields control={control} prefix="initialConcept." fields={conceptFields} />
               ) : (
@@ -555,7 +532,7 @@ export default function ContractFormPage() {
                   {cttId ? 'Cargando los campos del tipo de contrato…' : 'Elige el tipo de contrato para capturar el valor inicial.'}
                 </Typography>
               )}
-            </Section>
+            </FormSection>
           )}
         </Stack>
       </FormProvider>

@@ -17,6 +17,7 @@ import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import { DataList, Figure, Pending } from 'ui-component/extended/DetailBlocks';
 import RouteDialog from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
+import ContactsList from 'ui-component/extended/ContactsList';
 import WorkProvidersTab from 'views/work/providers/components/WorkProvidersTab';
 import WorkContractsTab from 'views/work/contracts/components/WorkContractsTab';
 import InvoicesTab from 'views/billing/invoices/components/InvoicesTab';
@@ -37,8 +38,8 @@ import { STATUS, fTerm } from 'utils/constants';
  * se asignan y desasignan desde su pestaña, con endpoints propios (DEC-031).
  * Los contratos de la obra se listan en su pestaña (DEC-035), y sus facturas
  * en la suya (DEC-042), desde donde se registra una simple con la obra ya
- * elegida. Contactos ya tiene su pestaña, aunque todavía no existen
- * (PRO-BD-04).
+ * elegida. Los contactos (PRO-BD-04) se ven en su pestaña y se editan con la
+ * obra.
  */
 
 const TABS = [
@@ -157,7 +158,7 @@ export default function WorkDetailPage() {
     managers: work.managers.length,
     stages: work.stages.length,
     providers: work.providersCount,
-    contacts: 0,
+    contacts: work.contacts.length,
     contracts: work.contractsCount
   };
 
@@ -331,9 +332,9 @@ export default function WorkDetailPage() {
       {tab === 'providers' && <WorkProvidersTab wrkId={work.wrkId} workCode={work.code} onChanged={providersChanged} />}
 
       {tab === 'contacts' && (
-        <Pending
-          title="Todavía no hay contactos en esta obra."
-          text="Cada contacto tendrá nombre, cargo, tipo de dirección, dirección, teléfono y correo, y se editará dentro de la obra. Llega con PRO-BD-04."
+        <ContactsList
+          contacts={work.contacts}
+          emptyText="Agrégalos editando la obra: interventoría, residente, bodega… Uno puede marcarse como principal."
         />
       )}
 

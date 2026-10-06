@@ -33,6 +33,7 @@ export const UNIQUE_CONSTRAINT_MESSAGES = Object.freeze({
   // Proveedores
   uq_providers_identity_active: "Ya existe un proveedor con ese documento.",
   uq_provider_contacts_main: "El proveedor ya tiene un contacto principal.",
+  uq_work_contacts_main: "La obra ya tiene un contacto principal.",
   uq_work_providers_work_provider: "El proveedor ya está asignado a esta obra.",
 
   // Contratos

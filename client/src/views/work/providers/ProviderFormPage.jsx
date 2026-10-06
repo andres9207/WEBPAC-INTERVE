@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import PropTypes from 'prop-types';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 
@@ -11,9 +10,10 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
-import SubCard from 'ui-component/cards/SubCard';
+import FormSection from 'ui-component/extended/FormSection';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import ContactsEditor from 'ui-component/extended/ContactsEditor';
+import { contactsToForm, contactsToPayload } from 'utils/contacts';
 import RouteDialog from 'ui-component/extended/RouteDialog';
 import SelectSocket from 'ui-component/extended/SelectSocket';
 import useIdentityCheck from './components/useIdentityCheck';
@@ -54,18 +54,7 @@ const toForm = (provider) => ({
   serviceType: provider.serviceType ?? '',
   email: provider.email ?? '',
   observation: provider.observation ?? '',
-  contacts: provider.contacts.map((c) => ({
-    key: `c-${c.prcId}`,
-    ...c,
-    name: c.name ?? '',
-    position: c.position ?? '',
-    address: c.address ?? '',
-    phone: c.phone ?? '',
-    mobile: c.mobile ?? '',
-    fax: c.fax ?? '',
-    email: c.email ?? '',
-    observation: c.observation ?? ''
-  }))
+  contacts: contactsToForm(provider.contacts)
 });
 
 const toPayload = (prvId, form) => ({
@@ -77,43 +66,8 @@ const toPayload = (prvId, form) => ({
   serviceType: text(form.serviceType),
   email: text(form.email),
   observation: text(form.observation),
-  contacts: form.contacts.map((c) => ({
-    ...(c.prcId ? { prcId: c.prcId } : {}),
-    adtId: c.adtId,
-    name: text(c.name),
-    position: text(c.position),
-    address: text(c.address),
-    phone: text(c.phone),
-    mobile: text(c.mobile),
-    fax: text(c.fax),
-    email: text(c.email),
-    observation: text(c.observation),
-    main: Boolean(c.main)
-  }))
+  contacts: contactsToPayload(form.contacts)
 });
-
-function Section({ title, subtitle, children }) {
-  return (
-    <SubCard
-      title={
-        <Box>
-          <Typography variant="h5" component="h2">
-            {title}
-          </Typography>
-          {subtitle && (
-            <Typography variant="caption" color="text.secondary">
-              {subtitle}
-            </Typography>
-          )}
-        </Box>
-      }
-    >
-      {children}
-    </SubCard>
-  );
-}
-
-Section.propTypes = { title: PropTypes.string.isRequired, subtitle: PropTypes.string, children: PropTypes.node };
 
 export default function ProviderFormPage() {
   const { prvId: prvIdParam } = useParams();
@@ -134,6 +88,7 @@ export default function ProviderFormPage() {
   const [identityOptions, setIdentityOptions] = useState([]);
   const [conflict, setConflict] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [addingContact, setAddingContact] = useState(false);
 
   const { control, handleSubmit, reset, formState } = useForm({ defaultValues: EMPTY_FORM });
   const { errors, isDirty } = formState;
@@ -251,7 +206,7 @@ export default function ProviderFormPage() {
           </Alert>
         )}
 
-        <Section
+        <FormSection
           title="Identidad"
           subtitle={
             identityLocked
@@ -359,9 +314,9 @@ export default function ProviderFormPage() {
               />
             </Grid>
           </Grid>
-        </Section>
+        </FormSection>
 
-        <Section title="Datos generales">
+        <FormSection title="Datos generales">
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 6 }}>
               <Controller
@@ -416,15 +371,28 @@ export default function ProviderFormPage() {
               />
             </Grid>
           </Grid>
-        </Section>
+        </FormSection>
 
-        <Section title="Contactos" subtitle="Son de la empresa y valen para todas sus obras. Uno puede marcarse como principal.">
+        <FormSection
+          title="Contactos"
+          subtitle="Son de la empresa y valen para todas sus obras. Uno puede marcarse como principal."
+          onAdd={() => setAddingContact(true)}
+          addLabel="Agregar contacto"
+        >
           <Controller
             name="contacts"
             control={control}
-            render={({ field, fieldState }) => <ContactsEditor value={field.value} onChange={field.onChange} error={fieldState.error} />}
+            render={({ field, fieldState }) => (
+              <ContactsEditor
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error}
+                adding={addingContact}
+                onAddingChange={setAddingContact}
+              />
+            )}
           />
-        </Section>
+        </FormSection>
       </Stack>
 
       <ConfirmDialog

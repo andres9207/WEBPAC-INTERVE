@@ -9,7 +9,7 @@ import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudi
 import { identityDocumentsService } from "../../admin/identityDocuments/identityDocuments.service.js";
 import { identificationError } from "../../admin/identityDocuments/identityDocuments.formats.js";
 import { providerTypesService } from "../../admin/providerTypes/providerTypes.service.js";
-import { addressTypesService } from "../../admin/addressTypes/addressTypes.service.js";
+import { defineContacts } from "../../admin/addressTypes/addressTypes.contacts.js";
 import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
@@ -109,33 +109,12 @@ export const paginationProviders = async ({ search, staId, rows, first, sortFiel
 const HEADER_COLUMNS = ["idd_id", "prv_identification", "prv_name", "prv_service_type", "prv_email", "prv_observation"];
 const HEADER_SELECT = Object.fromEntries(HEADER_COLUMNS.map((column) => [column, true]));
 
-const CONTACT_COLUMNS = [
-  "adt_id",
-  "prc_name",
-  "prc_position",
-  "prc_address",
-  "prc_phone",
-  "prc_mobile",
-  "prc_fax",
-  "prc_email",
-  "prc_observation",
-  "prc_main",
-];
-const CONTACT_SELECT = { prc_id: true, ...Object.fromEntries(CONTACT_COLUMNS.map((column) => [column, true])) };
-
-const toContactDto = (c) => ({
-  prcId: c.prc_id,
-  adtId: c.adt_id,
-  addressType: c.tbl_address_types?.adt_name ?? null,
-  name: c.prc_name,
-  position: c.prc_position,
-  address: c.prc_address,
-  phone: c.prc_phone,
-  mobile: c.prc_mobile,
-  fax: c.prc_fax,
-  email: c.prc_email,
-  observation: c.prc_observation,
-  main: Boolean(c.prc_main),
+// Contactos del proveedor (ADR-0009): reglas comunes con los de obra.
+const contactsHelper = defineContacts({
+  model: "tbl_provider_contacts",
+  prefix: "prc",
+  ownerColumn: "prv_id",
+  ownerLabel: "este proveedor",
 });
 
 const toAssignmentDto = (a) => ({
@@ -171,10 +150,7 @@ export const getProvider = async ({ prvId }) => {
       tbl_provider_classifications: CLASSIFICATIONS_SELECT,
       created_by_user: USER_NAME_SELECT,
       updated_by_user: USER_NAME_SELECT,
-      tbl_provider_contacts: {
-        select: { ...CONTACT_SELECT, tbl_address_types: { select: { adt_name: true } } },
-        orderBy: [{ prc_main: "desc" }, { prc_id: "asc" }],
-      },
+      tbl_provider_contacts: contactsHelper.detailSelect,
       // Obras del proveedor, con tope fijo; el total viene en worksCount.
       tbl_work_providers: {
         select: {
@@ -213,7 +189,7 @@ export const getProvider = async ({ prvId }) => {
     createdByName: userFullName(row.created_by_user),
     updatedAt: row.prv_update_at,
     updatedByName: userFullName(row.updated_by_user),
-    contacts: row.tbl_provider_contacts.map(toContactDto),
+    contacts: row.tbl_provider_contacts.map(contactsHelper.toDto),
     works: row.tbl_work_providers.map(toAssignmentDto),
     worksCount: row._count.tbl_work_providers,
   };
@@ -324,33 +300,6 @@ const assertTypeIds = (pvtIds) => {
   if (pvtIds.length === 0 || pvtIds.some((id) => !(id > 0))) throw httpError(400, "Selecciona al menos un tipo de proveedor.");
 };
 
-const contactsOf = (input) =>
-  (input.contacts ?? []).map((c) => ({
-    prc_id: Number(c.prcId) > 0 ? Number(c.prcId) : null,
-    adt_id: Number(c.adtId),
-    prc_name: optionalText(c.name),
-    prc_position: optionalText(c.position),
-    prc_address: optionalText(c.address),
-    prc_phone: optionalText(c.phone),
-    prc_mobile: optionalText(c.mobile),
-    prc_fax: optionalText(c.fax),
-    prc_email: optionalText(c.email),
-    prc_observation: optionalText(c.observation),
-    prc_main: c.main === true || c.main === 1 || c.main === "1" || c.main === "true",
-  }));
-
-/** Reglas de la lista, sin BD (ADR-0009, decisión 7; el CHECK de 0045). */
-const assertContacts = (contacts) => {
-  if (contacts.filter((c) => c.prc_main).length > 1) throw httpError(400, "Solo un contacto puede ser el principal.");
-  contacts.forEach((c, i) => {
-    if (!c.prc_address && !c.prc_phone && !c.prc_mobile && !c.prc_email) {
-      throw httpError(400, `El contacto ${i + 1} necesita al menos una dirección, un teléfono, un celular o un correo.`);
-    }
-  });
-  const ids = contacts.filter((c) => c.prc_id).map((c) => c.prc_id);
-  if (new Set(ids).size !== ids.length) throw httpError(400, "Un contacto aparece dos veces en la lista.");
-};
-
 // Con los maestros ya bloqueados: tipo de identificación y de proveedor
 // asignables (activos, o el que ya tenía), y el número con el formato de su
 // tipo (DEC-021).
@@ -360,57 +309,11 @@ const assertIdentification = async (tx, values, current = {}) => {
   if (reason) throw httpError(400, `Número de identificación inválido para ${document.idd_name}: ${reason}.`);
 };
 
-// Un tipo de dirección inactivo se conserva en el contacto que ya lo tenía;
-// no se asigna en uno nuevo ni al cambiar el tipo (ADR-0009, decisión 9).
-const assertAddressTypes = async (tx, contacts, currentById = new Map()) => {
-  for (const contact of contacts) {
-    await addressTypesService.assertAssignable(tx, contact.adt_id, currentById.get(contact.prc_id)?.adt_id);
-  }
-};
-
-const masterLocksOf = (values, pvtIds, contacts) => {
-  const addressTypes = [...new Set(contacts.map((c) => c.adt_id))];
-  return {
-    TIPO_IDENTIFICACION: values.idd_id,
-    TIPO_PROVEEDOR: pvtIds,
-    ...(addressTypes.length > 0 ? { TIPO_DIRECCION: addressTypes } : {}),
-  };
-};
-
-// Diferencial contra la BD, nunca contra una lista anterior del cliente.
-const diffContacts = (current, desired) => {
-  const currentById = new Map(current.map((c) => [c.prc_id, c]));
-  for (const contact of desired) {
-    // Un id de contacto ajeno a este proveedor no se acepta.
-    if (contact.prc_id && !currentById.has(contact.prc_id)) throw httpError(400, "Uno de los contactos no pertenece a este proveedor.");
-  }
-  const keptIds = new Set(desired.filter((c) => c.prc_id).map((c) => c.prc_id));
-  return {
-    toInsert: desired.filter((c) => !c.prc_id),
-    toDelete: current.filter((c) => !keptIds.has(c.prc_id)),
-    toUpdate: desired.filter((c) => {
-      const before = c.prc_id && currentById.get(c.prc_id);
-      return before && CONTACT_COLUMNS.some((column) => (before[column] ?? null) !== (c[column] ?? null));
-    }),
-  };
-};
-
-// Primero bajas y quitar la marca de principal, después altas: el UNIQUE de
-// prc_main_provider no admite dos principales ni por un instante.
-const applyContacts = async (tx, { prvId, diff, useBy }) => {
-  if (diff.toDelete.length > 0) {
-    await tx.tbl_provider_contacts.deleteMany({ where: { prv_id: prvId, prc_id: { in: diff.toDelete.map((c) => c.prc_id) } } });
-  }
-  const ordered = [...diff.toUpdate].sort((a, b) => Number(a.prc_main) - Number(b.prc_main));
-  for (const { prc_id, ...contact } of ordered) {
-    await tx.tbl_provider_contacts.updateMany({ where: { prc_id, prv_id: prvId }, data: { ...contact, prc_update_by: useBy } });
-  }
-  if (diff.toInsert.length > 0) {
-    await tx.tbl_provider_contacts.createMany({
-      data: diff.toInsert.map(({ prc_id, ...contact }) => ({ prv_id: prvId, ...contact, prc_create_by: useBy, prc_update_by: useBy })),
-    });
-  }
-};
+const masterLocksOf = (values, pvtIds, contacts) => ({
+  TIPO_IDENTIFICACION: values.idd_id,
+  TIPO_PROVEEDOR: pvtIds,
+  ...contactsHelper.locksOf(contacts),
+});
 
 // Un tipo inactivo se conserva si el proveedor ya lo tenía; no se agrega uno
 // nuevo (como los demás maestros). Con los tipos ya bloqueados.
@@ -509,7 +412,7 @@ const createProvider = ({ values, pvtIds, contacts, assignment, useBy, ctx, idem
       if (assignment) await assertWorkAssignable(tx, assignment.wrkId);
       await assertIdentification(tx, values);
       await assertProviderTypes(tx, pvtIds);
-      await assertAddressTypes(tx, contacts);
+      await contactsHelper.assertAddressTypes(tx, contacts);
 
       // Cortesía: el mensaje claro y el proveedor existente. El UNIQUE es la
       // garantía si otra petición inserta entre esta lectura y el INSERT.
@@ -531,7 +434,7 @@ const createProvider = ({ values, pvtIds, contacts, assignment, useBy, ctx, idem
         changes: diffFields({}, { ...values, pvt_ids: pvtIds }, AUDITED_HEADER),
       });
       await applyProviderTypes(tx, { prvId, currentIds: [], pvtIds });
-      await applyContacts(tx, { prvId, diff: diffContacts([], contacts), useBy });
+      await contactsHelper.apply(tx, { ownerId: prvId, diff: contactsHelper.diff([], contacts), useBy });
 
       // Crear desde una obra: el proveedor nuevo queda asignado en la misma
       // transacción (ADR-0012, decisión 6). La obra se bloqueó y verificó
@@ -561,15 +464,15 @@ const updateProvider = ({ prvId, values, pvtIds, contacts, useBy, granted, ctx }
         throw httpError(403, "No tienes permiso para cambiar la identificación del proveedor.");
       }
 
-      const currentContacts = await tx.tbl_provider_contacts.findMany({ where: { prv_id: id }, select: CONTACT_SELECT });
-      const contactDiff = diffContacts(currentContacts, contacts);
+      const currentContacts = await contactsHelper.findCurrent(tx, id);
+      const contactDiff = contactsHelper.diff(currentContacts, contacts);
       const currentIds = (await tx.tbl_provider_classifications.findMany({ where: { prv_id: id }, select: { pvt_id: true } }))
         .map((c) => c.pvt_id)
         .sort((a, b) => a - b);
 
       await assertIdentification(tx, values, before);
       await assertProviderTypes(tx, pvtIds, currentIds);
-      await assertAddressTypes(tx, contacts, new Map(currentContacts.map((c) => [c.prc_id, c])));
+      await contactsHelper.assertAddressTypes(tx, contacts, currentContacts);
 
       if (identityChanged) {
         const existing = await findByIdentity(tx, { iddId: values.idd_id, identification: values.prv_identification, excludeId: id });
@@ -583,7 +486,7 @@ const updateProvider = ({ prvId, values, pvtIds, contacts, useBy, granted, ctx }
         await writeAudit(tx, { entity: AUDIT_ENTITIES.PROVIDER, recordId: id, operation: AUDIT_OPERATIONS.UPDATE, ctx, changes });
       }
       await applyProviderTypes(tx, { prvId: id, currentIds, pvtIds });
-      await applyContacts(tx, { prvId: id, diff: contactDiff, useBy });
+      await contactsHelper.apply(tx, { ownerId: id, diff: contactDiff, useBy });
 
       return { message: "Proveedor modificado correctamente", prvId: id };
     },
@@ -609,9 +512,9 @@ const translateDuplicate = async (err, values, excludeId = null) => {
 export const saveProvider = async ({ prvId, input, useBy, granted, ctx = { useId: useBy }, idempotencyKey }) => {
   const values = headerValuesOf(input);
   const pvtIds = typeIdsOf(input);
-  const contacts = contactsOf(input);
+  const contacts = contactsHelper.fromInput(input.contacts);
   assertTypeIds(pvtIds);
-  assertContacts(contacts);
+  contactsHelper.assertList(contacts);
 
   if (Number(prvId) > 0) {
     try {

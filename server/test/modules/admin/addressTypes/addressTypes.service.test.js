@@ -13,6 +13,7 @@ const prismaMock = {
     create: jest.fn(),
   },
   tbl_provider_contacts: { count: jest.fn() },
+  tbl_work_contacts: { count: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
 };
@@ -30,6 +31,7 @@ beforeEach(() => {
   types.findUnique.mockResolvedValue(null);
   types.findFirst.mockResolvedValue(null);
   prismaMock.tbl_provider_contacts.count.mockResolvedValue(0);
+  prismaMock.tbl_work_contacts.count.mockResolvedValue(0);
 });
 
 describe("tipos de dirección", () => {
@@ -42,6 +44,18 @@ describe("tipos de dirección", () => {
       message: expect.stringContaining("lo usan 2 contacto(s) de proveedor"),
     });
     expect(prismaMock.tbl_provider_contacts.count).toHaveBeenCalledWith({ where: { adt_id: 5 } });
+    expect(types.update).not.toHaveBeenCalled();
+  });
+
+  it("tampoco si lo usan contactos de obra (PRO-BD-04)", async () => {
+    types.findUnique.mockResolvedValue({ sta_id: 1 });
+    prismaMock.tbl_work_contacts.count.mockResolvedValue(3);
+
+    await expect(service.remove({ id: 5, useBy: 9 })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining("lo usan 3 contacto(s) de obra"),
+    });
+    expect(prismaMock.tbl_work_contacts.count).toHaveBeenCalledWith({ where: { adt_id: 5 } });
     expect(types.update).not.toHaveBeenCalled();
   });
 
