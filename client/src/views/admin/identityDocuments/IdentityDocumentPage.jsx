@@ -35,6 +35,12 @@ const FORM_FIELDS = [
   }
 ];
 
+// Filtros del listado (DEC-048): los campos `filter` del maestro en el servidor.
+const FILTER_FIELDS = [
+  { key: 'code', type: 'input', label: 'Código', props: { maxLength: 10 }, grid: { xs: 12, sm: 4 } },
+  { key: 'name', type: 'input', label: 'Nombre', props: { maxLength: 100 }, grid: { xs: 12, sm: 8 } }
+];
+
 const rowLabel = (row) => row.name;
 
 export default function IdentityDocumentPage() {
@@ -48,7 +54,7 @@ export default function IdentityDocumentPage() {
       api={identityDocumentsApi}
       permissions={permissionsCatalog.admin?.identityDocuments}
       columns={COLUMNS}
-      searchPlaceholder="Buscar por código o nombre"
+      filterFields={FILTER_FIELDS}
       formFields={FORM_FIELDS}
       defaultSort="name"
       rowLabel={rowLabel}

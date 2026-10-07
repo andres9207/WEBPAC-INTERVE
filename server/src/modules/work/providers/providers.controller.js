@@ -30,8 +30,20 @@ const ASSIGNMENT_FIELDS = ["assignmentDate", "observation", "staId"];
 const pick = (source, fields) => Object.fromEntries(fields.map((field) => [field, source[field]]));
 
 export const paginationProvidersController = handle(async (req) => {
-  const { search, staId, rows, first, sortField, sortOrder } = req.body;
-  return providersService.paginationProviders({ search, staId, rows, first, sortField, sortOrder, scope: await workScopeOf(req) });
+  const { search, staId, name, identification, pvtId, wrkId, rows, first, sortField, sortOrder } = req.body;
+  return providersService.paginationProviders({
+    search,
+    staId,
+    name,
+    identification,
+    pvtId,
+    wrkId,
+    rows,
+    first,
+    sortField,
+    sortOrder,
+    scope: await workScopeOf(req),
+  });
 });
 
 export const getProviderController = handle(async (req) => providersService.getProvider({ prvId: req.query.prvId, scope: await workScopeOf(req) }));

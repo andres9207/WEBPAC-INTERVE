@@ -27,7 +27,16 @@ const term = (field, label, { optional = false } = {}) =>
 
 const status = (field) => body(field).optional({ values: "null" }).isIn(EDITABLE_STATUS_VALUES).withMessage("El estado debe ser activo o inactivo.");
 
-export const paginationWorksSchema = [...paginationRules(), optionalText("search", 100), optionalId("staId")];
+export const paginationWorksSchema = [
+  ...paginationRules(),
+  optionalText("search", 100),
+  optionalId("staId"),
+  // Filtros por campo (DEC-048).
+  optionalText("code", 30),
+  optionalText("name", 200),
+  optionalId("cncId"),
+  optionalId("sptId"),
+];
 
 export const getWorkSchema = [query("wrkId").isInt({ min: 1 }).withMessage("wrkId es obligatorio y debe ser un entero positivo.")];
 

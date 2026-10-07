@@ -46,7 +46,7 @@ export default function XPage() {
       title="Aseguradora" idField="xId" api={xApi}
       permissions={permissionsCatalog.admin?.x}
       columns={[{ id: 'name', label: 'Nombre', sortable: true }]}
-      searchPlaceholder="Buscar por nombre"   // busca en los campos filter: true ([DEC-024](../decisiones/DEC-024-busqueda-listados.md))
+      filterFields={FILTER_FIELDS}          // un campo por cada filter: true del servidor ([DEC-048](../decisiones/DEC-048-filtros-listados.md))
       formFields={[{ name: 'name', type: 'text', label: 'Nombre', required: true, validation: { required: 'El nombre es requerido' } }]}
       defaultSort="name" rowLabel={(row) => row.name}
     />

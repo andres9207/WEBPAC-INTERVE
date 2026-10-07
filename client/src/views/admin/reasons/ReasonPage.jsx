@@ -35,6 +35,12 @@ const FORM_FIELDS = [
   }
 ];
 
+// Filtros del listado (DEC-048): los campos `filter` del maestro en el servidor.
+const FILTER_FIELDS = [
+  { key: 'scope', type: 'dropdown', label: 'Acto', props: { options: REASON_SCOPE_OPTIONS }, grid: { xs: 12, sm: 5 } },
+  { key: 'name', type: 'input', label: 'Nombre', props: { maxLength: 100 }, grid: { xs: 12, sm: 7 } }
+];
+
 const rowLabel = (row) => row.name;
 
 export default function ReasonPage() {
@@ -48,7 +54,7 @@ export default function ReasonPage() {
       api={reasonsApi}
       permissions={permissionsCatalog.admin?.reasons}
       columns={COLUMNS}
-      searchPlaceholder="Buscar por nombre"
+      filterFields={FILTER_FIELDS}
       formFields={FORM_FIELDS}
       defaultSort="name"
       rowLabel={rowLabel}

@@ -77,6 +77,44 @@ export const searchWhere = (columns, search) => {
 };
 
 /**
+ * Filtros por campo de un listado (DEC-048). Cada helper devuelve una
+ * condición de Prisma, o null si el filtro viene vacío; `filtersWhere` las
+ * junta en un `AND`. Van en un `AND` y no sueltas en el `where` para que un
+ * filtro nunca pise otra condición de la misma columna (p. ej. el alcance por
+ * obra, DEC-047, sobre `wrk_id`).
+ */
+
+/** Texto contenido: `build({ contains })` arma la condición (columna propia o de una relación). */
+export const containsFilter = (value, build) => {
+  const text = String(value ?? "").trim();
+  return text ? build({ contains: text }) : null;
+};
+
+/** Id exacto: `build(id)` arma la condición. */
+export const idFilter = (value, build) => {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? build(id) : null;
+};
+
+/** Valor exacto de una lista cerrada (tipo, acto…). */
+export const valueFilter = (value, build) => (value ? build(String(value)) : null);
+
+/** Rango de fechas "AAAA-MM-DD" sobre una columna DATE, con los dos extremos incluidos. */
+export const dateRangeFilter = (column, from, to) => {
+  const range = {
+    ...(from ? { gte: new Date(`${from}T00:00:00.000Z`) } : {}),
+    ...(to ? { lte: new Date(`${to}T00:00:00.000Z`) } : {}),
+  };
+  return Object.keys(range).length > 0 ? { [column]: range } : null;
+};
+
+/** `{ AND: [...] }` con las condiciones no vacías, o `{}`. */
+export const filtersWhere = (conditions) => {
+  const list = conditions.filter(Boolean);
+  return list.length > 0 ? { AND: list } : {};
+};
+
+/**
  * Cuántos registros hay por estado con el `where` dado, para las pestañas
  * por estado: `{ 1: 4, 2: 1 }`. El `where` NO lleva el filtro de estado, o
  * todas las pestañas menos la elegida mostrarían 0.

@@ -92,3 +92,17 @@ export const useWorkScope = () => {
   if (!context) throw new Error('useWorkScope debe usarse dentro de WorkScopeProvider');
   return context;
 };
+
+/**
+ * Filtro "Obra" de un listado (DEC-048), en el formato de FilterPopper. Solo
+ * con "Ver todo": con una obra elegida en el encabezado, el listado ya es de
+ * esa obra. Las opciones son las del selector del encabezado; el servidor
+ * suma el filtro al alcance, nunca lo reemplaza.
+ */
+export const useWorkFilterField = () => {
+  const { activeWork, works } = useWorkScope();
+  return useMemo(
+    () => (activeWork === ALL_WORKS ? { key: 'wrkId', type: 'dropdown', label: 'Obra', props: { options: works } } : null),
+    [activeWork, works]
+  );
+};

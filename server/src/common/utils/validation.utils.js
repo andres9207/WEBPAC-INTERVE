@@ -26,6 +26,16 @@ export const optionalText = (field, max = 255) =>
 export const optionalId = (field) =>
   body(field).optional(nullable).isInt({ min: 1 }).withMessage(`${field} debe ser un entero positivo.`);
 
+/** Fecha opcional "AAAA-MM-DD" en el body (extremo de un filtro por rango, DEC-048). */
+export const optionalDate = (field) =>
+  body(field)
+    .optional(nullable)
+    .matches(/^\d{4}-\d{2}-\d{2}$/)
+    .withMessage(`${field} debe ser una fecha AAAA-MM-DD.`)
+    .bail()
+    .isISO8601({ strict: true })
+    .withMessage(`${field} debe ser una fecha AAAA-MM-DD.`);
+
 /** Id entero obligatorio en el body. */
 export const requiredId = (field) =>
   body(field).isInt({ min: 1 }).withMessage(`${field} es obligatorio y debe ser un entero positivo.`);

@@ -7,7 +7,7 @@ import Typography from '@mui/material/Typography';
 import { IconEdit, IconTrash, IconPlus, IconKey } from '@tabler/icons-react';
 
 import MainCard from 'ui-component/cards/MainCard';
-import SearchInput from 'ui-component/extended/SearchInput';
+import FilterButton from 'ui-component/extended/FilterButton';
 import StatusTabs from 'ui-component/extended/StatusTabs';
 import DataTable from 'ui-component/extended/DataTable';
 import StatusChip from 'ui-component/extended/StatusChip';
@@ -15,9 +15,21 @@ import LastModifiedCell from 'ui-component/extended/LastModifiedCell';
 import UserDialog from './components/UserDialog';
 import PermissionsDrawer from '../profiles/components/PermissionsDrawer';
 import { paginationUsersAPI, deleteUserAPI } from 'api/requests/usersApi';
+import { getProfilesAPI } from 'api/requests/profilesApi';
 import { useAuth } from 'contexts/AuthContext';
+import useListFilters from 'hooks/useListFilters';
 import { statusTabsWithCounts } from 'utils/constants';
 import { showError, showSuccess } from 'services/ToastService';
+
+// Filtros del listado (DEC-048): los que ya acepta list_users.
+const FILTER_FIELDS = [
+  { key: 'name', type: 'input', label: 'Nombre', props: { maxLength: 255 }, grid: { xs: 12, sm: 6 } },
+  { key: 'lastName', type: 'input', label: 'Apellido', props: { maxLength: 255 }, grid: { xs: 12, sm: 6 } },
+  { key: 'identification', type: 'input', label: 'Documento', props: { maxLength: 20 }, grid: { xs: 12, sm: 6 } },
+  { key: 'username', type: 'input', label: 'Usuario', props: { maxLength: 100 }, grid: { xs: 12, sm: 6 } },
+  { key: 'email', type: 'input', label: 'Correo', props: { maxLength: 255 } },
+  { key: 'proId', type: 'socketDropdown', label: 'Perfil', fetchApi: getProfilesAPI, socketEvent: 'refresh-profiles' }
+];
 
 export default function UsersPage() {
   const { hasPermission, permissionsCatalog } = useAuth();
@@ -30,15 +42,11 @@ export default function UsersPage() {
   const [sortField, setSortField] = useState('name');
   const [sortOrder, setSortOrder] = useState(1);
 
-  // Búsqueda general y pestañas por estado (DEC-024), como en los maestros.
-  const [search, setSearch] = useState('');
+  // Filtros del popper (DEC-048) y pestañas por estado, como en los maestros.
+  const resetPage = useCallback(() => setPage(0), []);
+  const filters = useListFilters(FILTER_FIELDS, resetPage);
   const [status, setStatus] = useState('all');
   const [statusCounts, setStatusCounts] = useState({});
-
-  const handleSearch = useCallback((text) => {
-    setSearch(text);
-    setPage(0);
-  }, []);
 
   const handleStatus = (_, value) => {
     setStatus(value);
@@ -73,7 +81,7 @@ export default function UsersPage() {
     setLoading(true);
     try {
       const { data } = await paginationUsersAPI({
-        search,
+        ...filters.params,
         staId: status === 'all' ? '' : status,
         rows: rowsPerPage,
         first: page * rowsPerPage,
@@ -88,7 +96,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, status, page, rowsPerPage, sortField, sortOrder]);
+  }, [filters.params, status, page, rowsPerPage, sortField, sortOrder]);
 
   useEffect(() => {
     fetchUsers();
@@ -171,7 +179,7 @@ export default function UsersPage() {
       title={
         // flexWrap: en ancho de teléfono los botones bajan de línea en vez de desbordar.
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexWrap: 'wrap', gap: 1.5 }}>
-          <SearchInput onSearch={handleSearch} placeholder="Buscar por nombre, correo o documento" />
+          <FilterButton fields={FILTER_FIELDS} values={filters.values} setValues={filters.setValues} active={filters.active} />
           <Stack direction="row" alignItems="center" sx={{ flexWrap: 'wrap', gap: 1.5, ml: 'auto' }}>
             <StatusTabs statusTabs={statusTabsWithCounts(statusCounts)} selectedStatus={status} onChange={handleStatus} />
             {canCreate && (
@@ -202,7 +210,11 @@ export default function UsersPage() {
         cardTitleRender={(row) => `${row.name} ${row.lastName}`}
         actions={actionItems}
         emptyMessage={
-          search ? `No hay resultados para «${search}».` : status !== 'all' ? 'No hay usuarios en este estado.' : 'Todavía no hay usuarios.'
+          filters.hasFilters
+            ? 'No hay resultados con los filtros aplicados.'
+            : status !== 'all'
+              ? 'No hay usuarios en este estado.'
+              : 'Todavía no hay usuarios.'
         }
       />
 

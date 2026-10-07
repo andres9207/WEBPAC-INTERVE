@@ -336,10 +336,10 @@ describe("paginationContracts", () => {
     const page = await service.paginationContracts({ state: "IN_PROGRESS", wrkId: 8, rows: 10, first: 0, sortField: "drop table", sortOrder: 1 });
 
     expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0]).toMatchObject({
-      where: { sta_id: { not: 3 }, wrk_id: 8, ctr_state: "IN_PROGRESS" },
+      where: { sta_id: { not: 3 }, AND: [{ wrk_id: 8 }], ctr_state: "IN_PROGRESS" },
       orderBy: { ctr_update_at: "asc" },
     });
-    expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, wrk_id: 8 });
+    expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, AND: [{ wrk_id: 8 }] });
     expect(page.statusCounts).toEqual({ IN_PROGRESS: 4 });
     expect(page.results[0]).toMatchObject({ ctrId: 30, currentValue: "1190.00", stateName: "En ejecución", endDate: "2026-07-31" });
   });
@@ -356,6 +356,40 @@ describe("paginationContracts", () => {
       orderBy: { tbl_contract_types: { ctt_name: "desc" } },
     });
     expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, ctt_id: 4 });
+  });
+
+  it("filtra por número, nombre, razón social del proveedor y rango de fecha fin, también en los conteos (DEC-048)", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+
+    await service.paginationContracts({
+      number: " C-0 ",
+      name: "acero",
+      providerName: "acer",
+      endDateFrom: "2026-01-01",
+      endDateTo: "2026-12-31",
+      state: "IN_PROGRESS",
+    });
+
+    const expected = [
+      { tbl_providers: { prv_name: { contains: "acer" } } },
+      { ctr_number: { contains: "C-0" } },
+      { ctr_name: { contains: "acero" } },
+      { ctr_end_date: { gte: new Date("2026-01-01T00:00:00Z"), lte: new Date("2026-12-31T00:00:00Z") } },
+    ];
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where.AND).toEqual(expected);
+    expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where.AND).toEqual(expected);
+  });
+
+  it("los filtros vacíos no filtran", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+
+    await service.paginationContracts({ number: "  ", name: "", providerName: "", endDateFrom: "", endDateTo: null });
+
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where).not.toHaveProperty("AND");
   });
 });
 
@@ -543,6 +577,17 @@ describe("alcance por obra (DEC-047)", () => {
     prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
     await service.paginationContracts({ scope: OWN });
     expect(prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0].where.wrk_id).toEqual({ in: [8] });
+  });
+
+  it("el filtro de obra se suma al alcance y no lo reemplaza: otra obra no devuelve nada ajeno", async () => {
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+    await service.paginationContracts({ scope: OWN, wrkId: 9 });
+    const where = prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0].where;
+    expect(where.wrk_id).toEqual({ in: [8] });
+    expect(where.AND).toEqual([{ wrk_id: 9 }]);
+    expect(prismaMock.tbl_contracts.groupBy.mock.calls.at(-1)[0].where.wrk_id).toEqual({ in: [8] });
   });
 
   it("un contrato de otra obra no se lee, no se edita ni se elimina (404)", async () => {

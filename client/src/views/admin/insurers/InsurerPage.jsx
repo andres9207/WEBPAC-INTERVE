@@ -19,6 +19,9 @@ const FORM_FIELDS = [
   }
 ];
 
+// Filtros del listado (DEC-048): los campos `filter` del maestro en el servidor.
+const FILTER_FIELDS = [{ key: 'description', type: 'input', label: 'Descripción', props: { maxLength: 150 } }];
+
 const rowLabel = (row) => row.description;
 
 export default function InsurerPage() {
@@ -32,7 +35,7 @@ export default function InsurerPage() {
       api={insurersApi}
       permissions={permissionsCatalog.admin?.insurers}
       columns={COLUMNS}
-      searchPlaceholder="Buscar por descripción"
+      filterFields={FILTER_FIELDS}
       formFields={FORM_FIELDS}
       defaultSort="description"
       rowLabel={rowLabel}

@@ -94,7 +94,7 @@ En `server/test/modules/<área>/<modulo>/`, con mocks de Prisma y `transactionRa
 
 - `client/src/api/requests/<modulo>Api.js` sobre `httpCliente`: `pagination<X>API`, `save<X>API(params, idempotencyKey)` con `idempotencyConfig(key)`, `delete<X>API`.
 - Diálogo `components/<X>Dialog.jsx`: `forwardRef` + `useImperativeHandle` con `new<X>()` y `edit<X>(item)`; `BaseDialog`; `react-hook-form` + `GenericFormSection`; clave nueva con `newIdempotencyKey()` al abrir para crear y `null` al editar; `showSuccess` / `showError`.
-- Página `<X>Page.jsx`: `MainCard`; `SearchInput` y `StatusTabs` con conteo ([DEC-024](../decisiones/DEC-024-busqueda-listados.md)); `DataTable` paginado en el servidor; `StatusChip`; `LastModifiedCell`; acciones con `canDo(perId)` y `confirm` para eliminar; `showError` en todo `catch`.
+- Página `<X>Page.jsx`: `MainCard`; `filterFields` (botón Filtros con `FilterPopper`) y `StatusTabs` con conteo ([DEC-048](../decisiones/DEC-048-filtros-listados.md)); `DataTable` paginado en el servidor; `StatusChip`; `LastModifiedCell`; acciones con `canDo(perId)` y `confirm` para eliminar; `showError` en todo `catch`.
 - Ruta lazy en `client/src/routes/MainRoutes.jsx`, con el mismo path que `pag_url`.
 - Entrada en `client/src/menu-items/` solo si se quieren migas de pan: el sidebar sale de `tbl_pages`.
 

@@ -1,5 +1,5 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
-import { paginate, MAX_ROWS } from "../../../common/utils/pagination.utils.js";
+import { paginate, MAX_ROWS, containsFilter, idFilter, dateRangeFilter, filtersWhere } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { dateOnlyText, toDateOnly, todayDateOnly } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
@@ -438,10 +438,34 @@ const countByState = async (where) => {
 /**
  * Facturas paginadas. `state` filtra por estado (las pestañas); `type`,
  * `wrkId`, `prvId` y `ctrId`, por tipo, obra, proveedor o contrato (la
- * pestaña Facturas del contrato).
+ * pestaña Facturas del contrato). `number`, `voucherNumber`,
+ * `contractNumber`, `providerName` (razón social) y los rangos de fecha y de aprobación son filtros por
+ * campo (DEC-048). Los conteos respetan todos los filtros menos el estado.
+ *
+ * `scope`: alcance por obra de la petición (DEC-047). El filtro de obra va en
+ * el `AND`: se suma al alcance y nunca lo reemplaza.
  */
-/** `scope`: alcance por obra de la petición (DEC-047). */
-export const paginationInvoices = async ({ search, state, type, wrkId, prvId, ctrId, rows, first, sortField, sortOrder, scope }) => {
+export const paginationInvoices = async ({
+  search,
+  state,
+  type,
+  wrkId,
+  prvId,
+  ctrId,
+  number,
+  voucherNumber,
+  contractNumber,
+  providerName,
+  dateFrom,
+  dateTo,
+  approvalDateFrom,
+  approvalDateTo,
+  rows,
+  first,
+  sortField,
+  sortOrder,
+  scope,
+}) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
@@ -449,10 +473,18 @@ export const paginationInvoices = async ({ search, state, type, wrkId, prvId, ct
     sta_id: { not: DELETED_STATUS },
     ...scopeWhere(scope),
     ...(type ? { inv_type: type } : {}),
-    ...(positiveId(wrkId) ? { wrk_id: positiveId(wrkId) } : {}),
     ...(positiveId(prvId) ? { prv_id: positiveId(prvId) } : {}),
     ...(positiveId(ctrId) ? { ctr_id: positiveId(ctrId) } : {}),
     ...searchWhereOf(search),
+    ...filtersWhere([
+      idFilter(wrkId, (id) => ({ wrk_id: id })),
+      containsFilter(number, (c) => ({ inv_number: c })),
+      containsFilter(voucherNumber, (c) => ({ inv_voucher_number: c })),
+      containsFilter(contractNumber, (c) => ({ tbl_contracts: { ctr_number: c } })),
+      containsFilter(providerName, (c) => ({ tbl_providers: { prv_name: c } })),
+      dateRangeFilter("inv_date", dateFrom, dateTo),
+      dateRangeFilter("inv_approval_date", approvalDateFrom, approvalDateTo),
+    ]),
   };
   const where = { ...baseWhere, ...(state ? { inv_state: state } : {}) };
 

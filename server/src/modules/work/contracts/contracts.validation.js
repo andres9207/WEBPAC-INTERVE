@@ -3,6 +3,7 @@ import {
   paginationRules,
   optionalText,
   optionalId,
+  optionalDate,
   requiredId,
   idempotencyKeyRule,
   moneyRule,
@@ -55,6 +56,12 @@ export const paginationContractsSchema = [
   body("state").optional({ values: "falsy" }).isIn(Object.values(CONTRACT_STATES)).withMessage("El estado no es válido."),
   optionalId("wrkId"),
   optionalId("cttId"),
+  // Filtros por campo (DEC-048).
+  optionalText("number", 50),
+  optionalText("name", 200),
+  optionalText("providerName", 255),
+  optionalDate("endDateFrom"),
+  optionalDate("endDateTo"),
 ];
 
 export const getContractSchema = [query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo.")];

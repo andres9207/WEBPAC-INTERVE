@@ -536,6 +536,32 @@ describe("consultas", () => {
     expect(args.take).toBe(100);
   });
 
+  it("filtra por razón social, documento, tipo y obra asignada; el de obra se suma al alcance (DEC-048)", async () => {
+    prismaMock.tbl_providers.findMany.mockResolvedValue([]);
+    prismaMock.tbl_providers.count.mockResolvedValue(0);
+    prismaMock.tbl_providers.groupBy.mockResolvedValue([]);
+
+    await service.paginationProviders({
+      name: "acer",
+      identification: "900",
+      pvtId: "3",
+      wrkId: 9,
+      staId: 2,
+      scope: { all: false, wrkId: 8 },
+    });
+
+    const filters = [
+      { prv_name: { contains: "acer" } },
+      { prv_identification: { contains: "900" } },
+      { tbl_provider_classifications: { some: { pvt_id: 3 } } },
+      { tbl_work_providers: { some: { wrk_id: 9 } } },
+    ];
+    const where = prismaMock.tbl_providers.findMany.mock.calls[0][0].where;
+    expect(where.tbl_work_providers).toEqual({ some: { wrk_id: { in: [8] } } });
+    expect(where.AND).toEqual([...filters, { sta_id: 2 }]);
+    expect(prismaMock.tbl_providers.groupBy.mock.calls[0][0].where.AND).toEqual(filters);
+  });
+
   it("la verificación por documento es exacta y no encuentra eliminados", async () => {
     prismaMock.tbl_providers.findFirst.mockResolvedValue(existingRow);
 

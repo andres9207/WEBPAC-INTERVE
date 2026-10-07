@@ -139,7 +139,7 @@ Referencia: `ui-component/extended/RouteDialog.jsx`, `views/work/works/WorkDetai
 Referencia: `views/work/works/WorksPage.jsx`, `components/WorksSummary.jsx` y `WorkCard.jsx`.
 
 - **Indicadores** arriba del listado (`MasterPage`, prop `header`): hasta 4, cada uno con ícono en un tono de `ACTION_TONES`, etiqueta, cifra y una línea que explica qué cuenta. Todas las cifras las calcula el servidor; mientras cargan, "—".
-- **Tarjetas** (`renderCard`): selector Tarjetas | Tabla junto a las pestañas, recordado por listado. Mismas búsqueda, pestañas, paginación y acciones que la tabla. La tarjeta de obra lleva una franja de estado arriba, el nombre como enlace al detalle, el importe principal en `h3` con `tabular-nums`, la barra de avance (color por el nivel que manda el servidor: `primary.800`, `orange.dark`, `error.dark`; gris si está inactiva) y las acciones abajo.
+- **Tarjetas** (`renderCard`): selector Tarjetas | Tabla junto a las pestañas, recordado por listado. Mismos filtros, pestañas, paginación y acciones que la tabla. La tarjeta de obra lleva una franja de estado arriba, el nombre como enlace al detalle, el importe principal en `h3` con `tabular-nums`, la barra de avance (color por el nivel que manda el servidor: `primary.800`, `orange.dark`, `error.dark`; gris si está inactiva) y las acciones abajo.
 - Un importe en un indicador va completo (`fMoneyText`), nunca abreviado.
 
 ## Patrones que vienen
@@ -153,7 +153,7 @@ El CORE necesita patrones que todavía no existen; se diseñan antes de programa
 | **Formulario con resumen financiero**: captura a la izquierda, saldos y vista previa calculada por el servidor a la derecha | Facturas (PRO-FE-12 a 14) | Pendiente; depende de DEC-02 y DEC-03 |
 | **Buscar o crear**: selector con búsqueda remota que ofrece crear si no encuentra | Proveedor en obra (PRO-FE-04), responsables con más de 100 usuarios | **Primera versión en proveedores de obra, pendiente de revisión** (2026-10-01): dos botones ("Agregar proveedor existente" con búsqueda remota, "Crear proveedor nuevo"); si el documento ya existe, el alta ofrece "Asignar este proveedor". `views/work/providers/components/WorkProvidersTab.jsx` |
 | **Matriz de configuración**: filas = campos, columnas = aplica / visible / obligatorio | Tipos de contrato (MAE-FE-08) | Pendiente |
-| **Filtros de listado** además de la búsqueda única de [DEC-024](../decisiones/DEC-024-busqueda-listados.md) | Obras, contratos, facturas (PRO-FE-01) | **REQUIERE DECISIÓN**: DEC-024 fijó un solo campo de búsqueda |
+| **Filtros de listado**: botón Filtros con panel de un campo por filtro | Todos los listados | **Decidido** en [DEC-048](../decisiones/DEC-048-filtros-listados.md) (2026-10-07): reemplaza la búsqueda única de DEC-024 |
 | **Adjuntos por entidad** | PRO-FE-18 | Pendiente; `DocumentManagement` está deshabilitado |
 
 ## Antes de entregar una pantalla

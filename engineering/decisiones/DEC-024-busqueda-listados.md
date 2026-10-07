@@ -1,5 +1,7 @@
 # DEC-024 — Los listados buscan con un solo campo de texto y filtran el estado con pestañas
 
+> **Reemplazada por [DEC-048](DEC-048-filtros-listados.md)** (2026-10-07): los listados vuelven a filtrar con el botón Filtros y `FilterPopper`. Siguen vigentes las pestañas por estado con conteo y la recarga después de guardar. El servidor sigue aceptando `search`.
+
 **Fecha:** 2026-09-29 · **Tipo:** Obligatoria · **ADR:** [0003](../adr/0003-aseguradoras.md), [0004](../adr/0004-constructoras.md), [0006](../adr/0006-tipos-contrato.md)–[0010](../adr/0010-tipos-proveedor.md), [0019](../adr/0019-tipos-poliza.md)
 
 Reemplaza la parte de filtros de [DEC-022](DEC-022-vista-maestro.md) (el botón "Filtros" con `FilterPopper` y la prop `filters`). El resto de DEC-022 sigue vigente. Aplica a los maestros, a perfiles y a usuarios.

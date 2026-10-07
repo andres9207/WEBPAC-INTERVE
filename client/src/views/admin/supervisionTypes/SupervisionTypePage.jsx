@@ -19,6 +19,9 @@ const FORM_FIELDS = [
   }
 ];
 
+// Filtros del listado (DEC-048): los campos `filter` del maestro en el servidor.
+const FILTER_FIELDS = [{ key: 'name', type: 'input', label: 'Nombre', props: { maxLength: 100 } }];
+
 const rowLabel = (row) => row.name;
 
 export default function SupervisionTypePage() {
@@ -32,7 +35,7 @@ export default function SupervisionTypePage() {
       api={supervisionTypesApi}
       permissions={permissionsCatalog.admin?.supervisionTypes}
       columns={COLUMNS}
-      searchPlaceholder="Buscar por nombre"
+      filterFields={FILTER_FIELDS}
       formFields={FORM_FIELDS}
       defaultSort="name"
       rowLabel={rowLabel}

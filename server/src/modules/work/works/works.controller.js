@@ -41,8 +41,8 @@ const INPUT_FIELDS = [
 ];
 
 export const paginationWorksController = handle(async (req) => {
-  const { search, staId, rows, first, sortField, sortOrder } = req.body;
-  return worksService.paginationWorks({ search, staId, rows, first, sortField, sortOrder, scope: await workScopeOf(req) });
+  const { search, staId, code, name, cncId, sptId, rows, first, sortField, sortOrder } = req.body;
+  return worksService.paginationWorks({ search, staId, code, name, cncId, sptId, rows, first, sortField, sortOrder, scope: await workScopeOf(req) });
 });
 
 export const summaryWorksController = handle(async (req) => worksService.summaryWorks({ scope: await workScopeOf(req) }));

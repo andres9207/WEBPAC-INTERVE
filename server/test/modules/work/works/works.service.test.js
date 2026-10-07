@@ -550,6 +550,18 @@ describe("paginationWorks y selectWorkManagers", () => {
     expect(page.statusCounts).toEqual({ 1: 1 });
   });
 
+  it("filtra por código, nombre, constructora e interventoría, y el estado no borra esos filtros (DEC-048)", async () => {
+    prismaMock.tbl_works.findMany.mockResolvedValue([]);
+    prismaMock.tbl_works.count.mockResolvedValue(0);
+    prismaMock.tbl_works.groupBy.mockResolvedValue([]);
+
+    await service.paginationWorks({ code: "OB", name: " torre ", cncId: "4", sptId: 2, staId: 1 });
+
+    const filters = [{ wrk_code: { contains: "OB" } }, { wrk_name: { contains: "torre" } }, { cnc_id: 4 }, { spt_id: 2 }];
+    expect(prismaMock.tbl_works.findMany.mock.calls[0][0].where.AND).toEqual([...filters, { sta_id: 1 }]);
+    expect(prismaMock.tbl_works.groupBy.mock.calls[0][0].where.AND).toEqual(filters);
+  });
+
   it("un campo de orden fuera de la lista blanca usa el de por defecto", async () => {
     prismaMock.tbl_works.findMany.mockResolvedValue([]);
     prismaMock.tbl_works.count.mockResolvedValue(0);

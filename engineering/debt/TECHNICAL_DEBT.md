@@ -118,4 +118,5 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 | `server/process.env.NODE_ENV`: archivo suelto en la raíz del servidor, sin uso aparente | Baja | Descubrimiento |
 | `server/logs/*.log` está versionado y cambia en cada ejecución | Baja | Descubrimiento |
 | `server/src/common/templates/` (plantillas de correo del boilerplate, sin caller), `src/images/` (logos sin uso), `src/socket/`, `src/utils/`, `src/webhooks/` (vacías) | Baja | `server/CLAUDE.md` |
+| `client/src/ui-component/extended/SearchInput.jsx` quedó sin uso al volver a los filtros por campo ([DEC-048](../decisiones/DEC-048-filtros-listados.md)). Borrarlo requiere aprobación | Baja | DEC-048 |
 | El `.gitignore` de la raíz quedó vacío: solo excluía la documentación de trabajo, que ahora se versiona. Decidir si se borra o se le agrega lo que corresponda (p. ej. `server/logs/`) | Baja | Reorganización de `engineering/` |

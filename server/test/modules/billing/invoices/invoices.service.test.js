@@ -402,6 +402,29 @@ describe("listado", () => {
     await service.paginationInvoices({ type: "", rows: 10, first: 0 });
     expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where).not.toHaveProperty("inv_type");
   });
+
+  test("filtra por número, comprobante, contrato y rangos de fecha, también en los conteos (DEC-048)", async () => {
+    await service.paginationInvoices({
+      number: "F-1",
+      voucherNumber: " CE-9 ",
+      contractNumber: "C-001",
+      providerName: "acer",
+      dateFrom: "2026-03-01",
+      approvalDateTo: "2026-03-31",
+      state: "APPROVED",
+    });
+
+    const expected = [
+      { inv_number: { contains: "F-1" } },
+      { inv_voucher_number: { contains: "CE-9" } },
+      { tbl_contracts: { ctr_number: { contains: "C-001" } } },
+      { tbl_providers: { prv_name: { contains: "acer" } } },
+      { inv_date: { gte: new Date("2026-03-01T00:00:00Z") } },
+      { inv_approval_date: { lte: new Date("2026-03-31T00:00:00Z") } },
+    ];
+    expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where.AND).toEqual(expected);
+    expect(prismaMock.tbl_invoices.groupBy.mock.calls.at(-1)[0].where.AND).toEqual(expected);
+  });
 });
 
 describe("selectores del formulario", () => {
@@ -634,6 +657,11 @@ describe("alcance por obra (DEC-047)", () => {
   it("el listado y el selector de contratos filtran por la obra del alcance", async () => {
     await service.paginationInvoices({ scope: OWN, rows: 10, first: 0 });
     expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where.wrk_id).toEqual({ in: [8] });
+    // El filtro de obra se suma al alcance y no lo reemplaza.
+    await service.paginationInvoices({ scope: OWN, wrkId: 9, rows: 10, first: 0 });
+    const where = prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where;
+    expect(where.wrk_id).toEqual({ in: [8] });
+    expect(where.AND).toEqual([{ wrk_id: 9 }]);
     await service.selectInvoiceContracts({ type: "ADVANCE", scope: OWN });
     expect(prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0].where.wrk_id).toEqual({ in: [8] });
   });

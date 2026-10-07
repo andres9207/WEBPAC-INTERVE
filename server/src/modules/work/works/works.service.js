@@ -1,6 +1,6 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
-import { paginate, MAX_ROWS, countByStatus } from "../../../common/utils/pagination.utils.js";
+import { paginate, MAX_ROWS, countByStatus, containsFilter, idFilter, filtersWhere } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { toMoney, moneyText, sumMoney } from "../../../common/utils/money.utils.js";
 import {
@@ -152,13 +152,26 @@ const searchWhereOf = (search) => {
   };
 };
 
-/** `scope`: alcance por obra de la petición (DEC-047). */
-export const paginationWorks = async ({ search, staId, rows, first, sortField, sortOrder, scope }) => {
+/**
+ * `scope`: alcance por obra de la petición (DEC-047). `code`, `name`, `cncId`
+ * y `sptId`: filtros por campo del listado (DEC-048), también en los conteos.
+ */
+export const paginationWorks = async ({ search, staId, code, name, cncId, sptId, rows, first, sortField, sortOrder, scope }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
-  const baseWhere = { sta_id: { not: DELETED_STATUS }, ...scopeWhere(scope), ...searchWhereOf(search) };
-  const where = { ...baseWhere, ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}) };
+  const baseWhere = {
+    sta_id: { not: DELETED_STATUS },
+    ...scopeWhere(scope),
+    ...searchWhereOf(search),
+    ...filtersWhere([
+      containsFilter(code, (c) => ({ wrk_code: c })),
+      containsFilter(name, (c) => ({ wrk_name: c })),
+      idFilter(cncId, (id) => ({ cnc_id: id })),
+      idFilter(sptId, (id) => ({ spt_id: id })),
+    ]),
+  };
+  const where = staId ? { ...baseWhere, AND: [...(baseWhere.AND ?? []), { sta_id: Number(staId) }] } : baseWhere;
 
   const [page, statusCounts] = await Promise.all([
     paginate(prisma.tbl_works, { where, select: LIST_SELECT, orderBy }, { first, rows }),

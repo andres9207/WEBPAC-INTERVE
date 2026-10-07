@@ -1,5 +1,5 @@
 import { body, query } from "express-validator";
-import { paginationRules, optionalText, optionalId, requiredId, idempotencyKeyRule, moneyRule } from "../../../common/utils/validation.utils.js";
+import { paginationRules, optionalText, optionalId, optionalDate, requiredId, idempotencyKeyRule, moneyRule } from "../../../common/utils/validation.utils.js";
 import { INVOICE_STATES, INVOICE_TYPES, hasContract } from "./invoiceTerms.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). Las reglas de
@@ -25,6 +25,15 @@ export const paginationInvoicesSchema = [
   optionalId("wrkId"),
   optionalId("prvId"),
   optionalId("ctrId"),
+  // Filtros por campo (DEC-048).
+  optionalText("number", 50),
+  optionalText("voucherNumber", 50),
+  optionalText("contractNumber", 50),
+  optionalText("providerName", 255),
+  optionalDate("dateFrom"),
+  optionalDate("dateTo"),
+  optionalDate("approvalDateFrom"),
+  optionalDate("approvalDateTo"),
 ];
 
 export const getInvoiceSchema = [query("invId").isInt({ min: 1 }).withMessage("invId es obligatorio y debe ser un entero positivo.")];

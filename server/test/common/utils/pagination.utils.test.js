@@ -1,8 +1,7 @@
 import { jest } from "@jest/globals";
 
-const { paginate, resolvePagination, searchWhere, countByStatus, DEFAULT_ROWS, MAX_ROWS } = await import(
-  "../../../src/common/utils/pagination.utils.js"
-);
+const { paginate, resolvePagination, searchWhere, countByStatus, containsFilter, idFilter, dateRangeFilter, filtersWhere, DEFAULT_ROWS, MAX_ROWS } =
+  await import("../../../src/common/utils/pagination.utils.js");
 
 const buildModel = (rows = [], total = 0) => ({
   findMany: jest.fn().mockResolvedValue(rows),
@@ -86,5 +85,31 @@ describe("countByStatus", () => {
 
     await expect(countByStatus(model, { sta_id: { not: 3 } })).resolves.toEqual({ 1: 4, 2: 1 });
     expect(model.groupBy).toHaveBeenCalledWith({ by: ["sta_id"], where: { sta_id: { not: 3 } }, _count: { _all: true } });
+  });
+});
+
+describe("filtros por campo (DEC-048)", () => {
+  it("texto contenido, recortado; vacío no filtra", () => {
+    expect(containsFilter(" torre ", (c) => ({ wrk_name: c }))).toEqual({ wrk_name: { contains: "torre" } });
+    expect(containsFilter("   ", (c) => ({ wrk_name: c }))).toBeNull();
+    expect(containsFilter(undefined, (c) => ({ wrk_name: c }))).toBeNull();
+  });
+
+  it("id exacto solo con un entero positivo", () => {
+    expect(idFilter("4", (id) => ({ cnc_id: id }))).toEqual({ cnc_id: 4 });
+    for (const value of ["", null, 0, "-1", "abc", "1.5"]) expect(idFilter(value, (id) => ({ cnc_id: id }))).toBeNull();
+  });
+
+  it("rango de fechas con uno o los dos extremos, incluidos", () => {
+    expect(dateRangeFilter("inv_date", "2026-01-01", "2026-01-31")).toEqual({
+      inv_date: { gte: new Date("2026-01-01T00:00:00Z"), lte: new Date("2026-01-31T00:00:00Z") },
+    });
+    expect(dateRangeFilter("inv_date", "", "2026-01-31")).toEqual({ inv_date: { lte: new Date("2026-01-31T00:00:00Z") } });
+    expect(dateRangeFilter("inv_date", null, undefined)).toBeNull();
+  });
+
+  it("junta en un AND solo las condiciones no vacías", () => {
+    expect(filtersWhere([null, { a: 1 }, null, { b: 2 }])).toEqual({ AND: [{ a: 1 }, { b: 2 }] });
+    expect(filtersWhere([null, null])).toEqual({});
   });
 });

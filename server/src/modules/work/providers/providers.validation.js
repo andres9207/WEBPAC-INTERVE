@@ -24,7 +24,16 @@ const optionalBodyText = (field, label, max) =>
 
 const assignmentDate = (field) => body(field).matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("La fecha de asignación es requerida (AAAA-MM-DD).");
 
-export const paginationProvidersSchema = [...paginationRules(), optionalText("search", 100), optionalId("staId")];
+export const paginationProvidersSchema = [
+  ...paginationRules(),
+  optionalText("search", 100),
+  optionalId("staId"),
+  // Filtros por campo (DEC-048).
+  optionalText("name", 255),
+  optionalText("identification", 20),
+  optionalId("pvtId"),
+  optionalId("wrkId"),
+];
 
 export const getProviderSchema = [query("prvId").isInt({ min: 1 }).withMessage("prvId es obligatorio y debe ser un entero positivo.")];
 

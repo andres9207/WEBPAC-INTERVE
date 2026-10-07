@@ -42,8 +42,29 @@ const grantedOf = async ({ useId, proId }) => new Set(await getEffectivePermissi
 
 export const paginationInvoicesController = handle(async (req) => {
   const { search, state, type, wrkId, prvId, ctrId, rows, first, sortField, sortOrder } = req.body;
+  const { number, voucherNumber, contractNumber, providerName, dateFrom, dateTo, approvalDateFrom, approvalDateTo } = req.body;
   const scope = await workScopeOf(req);
-  return invoicesService.paginationInvoices({ search, state, type, wrkId, prvId, ctrId, rows, first, sortField, sortOrder, scope });
+  return invoicesService.paginationInvoices({
+    search,
+    state,
+    type,
+    wrkId,
+    prvId,
+    ctrId,
+    number,
+    voucherNumber,
+    contractNumber,
+    providerName,
+    dateFrom,
+    dateTo,
+    approvalDateFrom,
+    approvalDateTo,
+    rows,
+    first,
+    sortField,
+    sortOrder,
+    scope,
+  });
 });
 
 export const getInvoiceController = handle(async (req) => invoicesService.getInvoice({ invId: req.query.invId, scope: await workScopeOf(req) }));

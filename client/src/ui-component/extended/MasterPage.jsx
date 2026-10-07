@@ -12,7 +12,7 @@ import Typography from '@mui/material/Typography';
 import { IconEdit, IconEye, IconTrash, IconPlus, IconToggleLeft, IconToggleRight, IconLayoutGrid, IconList } from '@tabler/icons-react';
 
 import MainCard from 'ui-component/cards/MainCard';
-import SearchInput from 'ui-component/extended/SearchInput';
+import FilterButton from 'ui-component/extended/FilterButton';
 import DataTable from 'ui-component/extended/DataTable';
 import StatusChip from 'ui-component/extended/StatusChip';
 import StatusTabs from 'ui-component/extended/StatusTabs';
@@ -20,12 +20,15 @@ import LastModifiedCell from 'ui-component/extended/LastModifiedCell';
 import MasterDialog from 'ui-component/extended/MasterDialog';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import { useAuth } from 'contexts/AuthContext';
+import useListFilters from 'hooks/useListFilters';
 import { showError, showSuccess } from 'services/ToastService';
 import { STATUS, statusTabsWithCounts } from 'utils/constants';
 import { gridSpacing } from 'store/constant';
 
 const STATUS_NAMES = { [STATUS.ACTIVE]: 'Activo', [STATUS.INACTIVE]: 'Inactivo' };
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 25, 50];
+// Constante: un `[]` nuevo en cada render volvería a pedir el listado sin fin.
+const NO_FIELDS = [];
 
 // La vista elegida (tarjetas o tabla) se recuerda por listado en el navegador.
 // Es una preferencia: si el almacenamiento falla, se usan las tarjetas.
@@ -52,9 +55,10 @@ const saveView = (key, value) => {
  * Un maestro se monta declarando sus columnas, formulario y permisos.
  * Consume la API estándar de `createMasterApi`.
  *
- * - Un solo campo de búsqueda: el servidor busca el texto en todos los campos
- *   `filter` del maestro (parámetro `search`).
- * - Búsqueda, orden, estado y paginación van en la petición, nunca en memoria.
+ * - `filterFields`: botón "Filtros" con el número de filtros activos, que abre
+ *   FilterPopper con un campo por filtro (DEC-048). Se aplican al dejar de
+ *   escribir, vuelven a la primera página y las pestañas cuentan con ellos.
+ * - Filtros, orden, estado y paginación van en la petición, nunca en memoria.
  * - Las acciones se ocultan según los permisos: es experiencia de uso, no
  *   seguridad (FRONTEND_STANDARD, regla 1); el servidor decide.
  * - Los mensajes de error del servidor se muestran tal cual (p. ej. "lo usan
@@ -65,7 +69,7 @@ const saveView = (key, value) => {
  *   colecciones) reutiliza el listado con su diálogo. Recibe por ref
  *   `open(row?)`, y como props `title`, `idField`, `api`, `onSaved` y `feminine`.
  * - Acciones con los tonos del tema de ActionButton, no colores fijos.
- * - Tabla vacía: con búsqueda, lo dice; sin registros, ofrece crear el primero.
+ * - Tabla vacía: con filtros, lo dice; sin registros, ofrece crear el primero.
  * - `navigation`: un agregado con detalle y formulario propios, en un modal
  *   con dirección propia (p. ej. la obra, DEC-034). Crear, ver y editar
  *   navegan en vez de abrir un diálogo, y el listado solo ofrece ver y editar:
@@ -74,7 +78,7 @@ const saveView = (key, value) => {
  *   después de guardar, cambiar el estado o eliminar).
  * - `header`: contenido que va arriba del listado (p. ej. indicadores, DEC-033).
  * - `renderCard(row, actions)`: activa la vista de tarjetas y el selector
- *   Tarjetas | Tabla. Las tarjetas usan la misma búsqueda, pestañas y
+ *   Tarjetas | Tabla. Las tarjetas usan los mismos filtros, pestañas y
  *   paginación; `actions` son las mismas acciones de la fila.
  * - `stateTabs`: pestañas por el estado del ciclo de vida de un workflow (p.
  *   ej. el contrato, DEC-035) en vez de activo/inactivo. `param` es el campo
@@ -82,8 +86,6 @@ const saveView = (key, value) => {
  *   por ese valor, y la columna de estado usa `stateName` de la fila.
  * - `filters`: filtros fijos que viajan en cada petición (p. ej. la obra).
  *   Al cambiar, el listado vuelve a la primera página.
- * - `toolbar`: controles junto a la búsqueda (p. ej. el filtro por tipo de
- *   contrato); quien los da maneja su valor y lo pasa en `filters`.
  * - `extraActions(row)`: acciones propias del maestro, después de Editar (p.
  *   ej. "Configurar campos" del tipo de contrato, DEC-037). Cada una con
  *   `label`, `icon`, `command` y `tone`; las filtra por permiso quien las da.
@@ -94,7 +96,7 @@ export default function MasterPage({
   api,
   permissions,
   columns,
-  searchPlaceholder = 'Buscar…',
+  filterFields = NO_FIELDS,
   formFields,
   defaultSort,
   rowLabel,
@@ -107,7 +109,6 @@ export default function MasterPage({
   reloadKey,
   stateTabs,
   filters,
-  toolbar,
   extraActions
 }) {
   const { hasPermission } = useAuth();
@@ -120,7 +121,6 @@ export default function MasterPage({
     remove: canDo(permissions?.delete)
   };
 
-  const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
 
   const [rows, setRows] = useState([]);
@@ -131,6 +131,9 @@ export default function MasterPage({
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortField, setSortField] = useState(defaultSort);
   const [sortOrder, setSortOrder] = useState(1);
+  const resetPage = useCallback(() => setPage(0), []);
+  // Filtros del popper (DEC-048): se aplican al dejar de escribir y vuelven a la página 0.
+  const fieldFilters = useListFilters(filterFields, resetPage);
 
   const viewKey = `master-view:${idField}`;
   const [view, setView] = useState(() => (renderCard ? readView(viewKey) : 'table'));
@@ -150,7 +153,7 @@ export default function MasterPage({
     setLoading(true);
     try {
       const { data } = await api.pagination({
-        search,
+        ...fieldFilters.params,
         ...filters,
         ...(stateTabs ? { [stateTabs.param]: status === 'all' ? '' : status } : { staId: status === 'all' ? '' : status }),
         rows: rowsPerPage,
@@ -166,7 +169,7 @@ export default function MasterPage({
     } finally {
       setLoading(false);
     }
-  }, [api, search, status, page, rowsPerPage, sortField, sortOrder, lowerTitle, stateTabs, filters]);
+  }, [api, fieldFilters.params, status, page, rowsPerPage, sortField, sortOrder, lowerTitle, stateTabs, filters]);
 
   useEffect(() => {
     fetchRows();
@@ -176,11 +179,6 @@ export default function MasterPage({
   useEffect(() => {
     setPage(0);
   }, [filters]);
-
-  const handleSearch = useCallback((text) => {
-    setSearch(text);
-    setPage(0);
-  }, []);
 
   const handleStatus = (_, value) => {
     setStatus(value);
@@ -275,13 +273,13 @@ export default function MasterPage({
   const openNew = () => (navigation ? navigation.create() : dialogRef.current?.open());
 
   const plural = (pluralTitle ?? `${lowerTitle}s`).toLowerCase();
-  const emptyMessage = search
-    ? `No hay resultados para «${search}».`
+  const emptyMessage = fieldFilters.hasFilters
+    ? 'No hay resultados con los filtros aplicados.'
     : status !== 'all'
       ? `No hay ${plural} en este estado.`
       : `Todavía no hay ${plural}.`;
   const emptyAction =
-    !search && status === 'all' && can.create ? (
+    !fieldFilters.hasFilters && status === 'all' && can.create ? (
       <Button variant="outlined" size="small" startIcon={<IconPlus size={16} />} onClick={openNew}>
         {feminine ? 'Crear la primera' : 'Crear el primero'}
       </Button>
@@ -328,10 +326,14 @@ export default function MasterPage({
       title={
         // flexWrap: en ancho de teléfono los botones bajan de línea en vez de desbordar.
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexWrap: 'wrap', gap: 1.5 }}>
-          <Stack direction="row" alignItems="center" sx={{ flexWrap: 'wrap', gap: 1.5 }}>
-            <SearchInput onSearch={handleSearch} placeholder={searchPlaceholder} />
-            {toolbar}
-          </Stack>
+          {filterFields.length > 0 && (
+            <FilterButton
+              fields={filterFields}
+              values={fieldFilters.values}
+              setValues={fieldFilters.setValues}
+              active={fieldFilters.active}
+            />
+          )}
           <Stack direction="row" alignItems="center" sx={{ flexWrap: 'wrap', gap: 1.5, ml: 'auto' }}>
             <StatusTabs statusTabs={statusTabs} selectedStatus={status} onChange={handleStatus} />
             {renderCard && (
@@ -444,8 +446,11 @@ MasterPage.propTypes = {
   permissions: PropTypes.object,
   /** Columnas propias (DataTable); estado y última modificación se agregan solas. */
   columns: PropTypes.array.isRequired,
-  /** Texto del campo de búsqueda: "Buscar por código o nombre". Busca en los campos `filter` del servidor. */
-  searchPlaceholder: PropTypes.string,
+  /**
+   * Filtros del popper (DEC-048), en el formato de FilterPopper: `{ key, type, label, props?, grid? }`.
+   * `key` es el parámetro de la petición; un rango viaja como `<key>From` y `<key>To`. Debe ser estable.
+   */
+  filterFields: PropTypes.arrayOf(PropTypes.shape({ key: PropTypes.string.isRequired, type: PropTypes.string.isRequired })),
   /** Campos del formulario (GenericFormSection), con `editable: false` para los que no se editan. Sin `dialog`, obligatorio. */
   formFields: PropTypes.array,
   /** Campo de orden inicial (uno `sortable` del servidor). */
@@ -470,8 +475,6 @@ MasterPage.propTypes = {
   stateTabs: PropTypes.shape({ param: PropTypes.string.isRequired, tabs: PropTypes.array.isRequired, colors: PropTypes.object }),
   /** Filtros fijos de la petición, p. ej. `{ wrkId }`. Debe ser estable (useMemo). */
   filters: PropTypes.object,
-  /** Controles junto a la búsqueda, p. ej. un filtro con su valor en `filters`. */
-  toolbar: PropTypes.node,
   /** Acciones propias de una fila, después de Editar: `(row) => [{ label, icon, command, tone }]`. */
   extraActions: PropTypes.func
 };

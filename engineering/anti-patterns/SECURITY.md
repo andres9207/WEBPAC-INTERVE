@@ -252,6 +252,11 @@ Migraciones `0011_fk_audit_columns.sql`, `0012_add_delete_columns.sql`, `0013_cr
 - **Un administrador podía cambiar su propia contraseña desde la edición de usuarios sin dar la actual**, saltándose la regla 11: quien encontrara abierta su sesión se quedaba con la cuenta. Ahora `saveUser` responde 400 si el autor edita su propio usuario con contraseña, y `UserDialog` no ofrece el campo en ese caso. La propia se cambia solo con "Cambiar contraseña"; la de otro usuario se sigue cambiando desde la edición, con cierre de su sesión. Tests en `users.service.test.js`.
 - **La redirección al login armaba `/interve360pages/login`**: Vite entrega `BASE_URL` sin la barra final. `httpCliente.js` la agrega si falta.
 
+## El filtro de obra saltaba el alcance por obra (DEC-047, DEC-048)
+
+- **`paginationContracts` y `paginationInvoices` armaban el `where` con `...scopeWhere(scope)` y después `...{ wrk_id: wrkId }`**: las dos condiciones usan la misma clave, así que el filtro del cliente reemplazaba la del alcance. Un usuario limitado a la obra 8 que enviara `wrkId: 9` veía los contratos y las facturas de la obra 9. Ahora los filtros por campo van en un `AND` (`filtersWhere`, `pagination.utils.js`) y el alcance queda como condición propia: el filtro se suma, nunca la reemplaza. La misma regla vale para el filtro de estado de las pestañas cuando va en `AND`.
+- Tests de regresión en `contracts.service.test.js`, `invoices.service.test.js` y `providers.service.test.js` ("el filtro de obra se suma al alcance").
+
 ## Pendientes
 
 Los hallazgos señalados y todavía no corregidos están en [`debt/TECHNICAL_DEBT.md`](../debt/TECHNICAL_DEBT.md), sección "Seguridad". Este archivo registra solo lo que ya se corrigió.

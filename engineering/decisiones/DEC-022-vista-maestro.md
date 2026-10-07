@@ -4,7 +4,7 @@
 
 Backlog MAE-FE-01. Contraparte en el cliente de [DEC-020](DEC-020-patron-maestro.md).
 
-**La parte de filtros (`FilterPopper`, prop `filters`) está reemplazada por [DEC-024](DEC-024-busqueda-listados.md):** un solo campo de búsqueda.
+**La parte de filtros (`FilterPopper`, prop `filters`) fue reemplazada por [DEC-024](DEC-024-busqueda-listados.md)** (un solo campo de búsqueda), **y esta a su vez por [DEC-048](DEC-048-filtros-listados.md)**: vuelve `FilterPopper`, declarado con la prop `filterFields`.
 
 ## Contexto
 

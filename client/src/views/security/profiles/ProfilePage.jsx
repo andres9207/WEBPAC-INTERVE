@@ -6,7 +6,7 @@ import Stack from '@mui/material/Stack';
 import { IconEdit, IconTrash, IconKey, IconPlus } from '@tabler/icons-react';
 
 import MainCard from 'ui-component/cards/MainCard';
-import SearchInput from 'ui-component/extended/SearchInput';
+import FilterButton from 'ui-component/extended/FilterButton';
 import StatusTabs from 'ui-component/extended/StatusTabs';
 import DataTable from 'ui-component/extended/DataTable';
 import StatusChip from 'ui-component/extended/StatusChip';
@@ -16,7 +16,11 @@ import { statusTabsWithCounts } from 'utils/constants';
 import PermissionsDrawer from './components/PermissionsDrawer';
 import { paginationProfilesAPI, deleteProfileAPI } from 'api/requests/profilesApi';
 import { useAuth } from 'contexts/AuthContext';
+import useListFilters from 'hooks/useListFilters';
 import { showError, showSuccess } from 'services/ToastService';
+
+// Filtros del listado (DEC-048): el nombre, que ya acepta pagination_profiles.
+const FILTER_FIELDS = [{ key: 'name', type: 'input', label: 'Nombre', props: { maxLength: 255 } }];
 
 export default function ProfilesPage() {
   const { hasPermission, permissionsCatalog } = useAuth();
@@ -29,15 +33,11 @@ export default function ProfilesPage() {
   const [sortField, setSortField] = useState('name');
   const [sortOrder, setSortOrder] = useState(1);
 
-  // Búsqueda general y pestañas por estado (DEC-024), como en los maestros.
-  const [search, setSearch] = useState('');
+  // Filtros del popper (DEC-048) y pestañas por estado, como en los maestros.
+  const resetPage = useCallback(() => setPage(0), []);
+  const filters = useListFilters(FILTER_FIELDS, resetPage);
   const [status, setStatus] = useState('all');
   const [statusCounts, setStatusCounts] = useState({});
-
-  const handleSearch = useCallback((text) => {
-    setSearch(text);
-    setPage(0);
-  }, []);
 
   const handleStatus = (_, value) => {
     setStatus(value);
@@ -70,7 +70,7 @@ export default function ProfilesPage() {
     setLoading(true);
     try {
       const { data } = await paginationProfilesAPI({
-        search,
+        ...filters.params,
         staId: status === 'all' ? '' : status,
         rows: rowsPerPage,
         first: page * rowsPerPage,
@@ -85,7 +85,7 @@ export default function ProfilesPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, status, page, rowsPerPage, sortField, sortOrder]);
+  }, [filters.params, status, page, rowsPerPage, sortField, sortOrder]);
 
   useEffect(() => {
     fetchProfiles();
@@ -147,7 +147,7 @@ export default function ProfilesPage() {
       title={
         // flexWrap: en ancho de teléfono los botones bajan de línea en vez de desbordar.
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexWrap: 'wrap', gap: 1.5 }}>
-          <SearchInput onSearch={handleSearch} placeholder="Buscar por nombre" />
+          <FilterButton fields={FILTER_FIELDS} values={filters.values} setValues={filters.setValues} active={filters.active} />
           <Stack direction="row" alignItems="center" sx={{ flexWrap: 'wrap', gap: 1.5, ml: 'auto' }}>
             <StatusTabs statusTabs={statusTabsWithCounts(statusCounts)} selectedStatus={status} onChange={handleStatus} />
             {canCreate && (
@@ -178,7 +178,11 @@ export default function ProfilesPage() {
         cardTitleRender={(row) => row.name}
         actions={actionItems}
         emptyMessage={
-          search ? `No hay resultados para «${search}».` : status !== 'all' ? 'No hay perfiles en este estado.' : 'Todavía no hay perfiles.'
+          filters.hasFilters
+            ? 'No hay resultados con los filtros aplicados.'
+            : status !== 'all'
+              ? 'No hay perfiles en este estado.'
+              : 'Todavía no hay perfiles.'
         }
       />
 

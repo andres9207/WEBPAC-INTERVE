@@ -1,5 +1,5 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
-import { paginate, MAX_ROWS } from "../../../common/utils/pagination.utils.js";
+import { paginate, MAX_ROWS, containsFilter, idFilter, dateRangeFilter, filtersWhere } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { decimal, moneyText, percentText, toMoney, toPercent } from "../../../common/utils/money.utils.js";
 import { dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
@@ -326,19 +326,45 @@ const countByState = async (where) => {
 /**
  * Contratos no eliminados, paginados. `state` filtra por estado del ciclo de
  * vida (las pestañas), `wrkId`, por obra (la pestaña de la obra) y `cttId`,
- * por tipo de contrato. Los conteos de las pestañas respetan obra y tipo.
+ * por tipo de contrato. `number`, `name`, `providerName` (razón social) y el
+ * rango de la fecha fin (`endDateFrom`, `endDateTo`) son filtros por campo
+ * (DEC-048). Los conteos de las pestañas respetan todos los filtros menos el
+ * estado.
+ *
+ * `scope`: alcance por obra de la petición (DEC-047). El filtro de obra va en
+ * el `AND`: se suma al alcance y nunca lo reemplaza.
  */
-/** `scope`: alcance por obra de la petición (DEC-047). */
-export const paginationContracts = async ({ search, state, wrkId, cttId, rows, first, sortField, sortOrder, scope }) => {
+export const paginationContracts = async ({
+  search,
+  state,
+  wrkId,
+  cttId,
+  number,
+  name,
+  providerName,
+  endDateFrom,
+  endDateTo,
+  rows,
+  first,
+  sortField,
+  sortOrder,
+  scope,
+}) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
   const baseWhere = {
     sta_id: { not: DELETED_STATUS },
     ...scopeWhere(scope),
-    ...(Number(wrkId) > 0 ? { wrk_id: Number(wrkId) } : {}),
     ...(Number(cttId) > 0 ? { ctt_id: Number(cttId) } : {}),
     ...searchWhereOf(search),
+    ...filtersWhere([
+      idFilter(wrkId, (id) => ({ wrk_id: id })),
+      containsFilter(providerName, (c) => ({ tbl_providers: { prv_name: c } })),
+      containsFilter(number, (c) => ({ ctr_number: c })),
+      containsFilter(name, (c) => ({ ctr_name: c })),
+      dateRangeFilter("ctr_end_date", endDateFrom, endDateTo),
+    ]),
   };
   const where = { ...baseWhere, ...(state ? { ctr_state: state } : {}) };
 

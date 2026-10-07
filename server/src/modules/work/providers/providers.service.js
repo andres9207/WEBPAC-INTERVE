@@ -1,6 +1,6 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
-import { paginate, MAX_ROWS, countByStatus } from "../../../common/utils/pagination.utils.js";
+import { paginate, MAX_ROWS, countByStatus, containsFilter, idFilter, filtersWhere } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { dateOnlyText, toDateOnly, todayDateOnly } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
@@ -106,13 +106,28 @@ const assertProviderInScope = async (scope, prvId) => {
   if (!found) throw httpError(404, NOT_FOUND);
 };
 
-/** `scope`: alcance por obra de la petición (DEC-047): solo los proveedores de esa obra. */
-export const paginationProviders = async ({ search, staId, rows, first, sortField, sortOrder, scope }) => {
+/**
+ * `scope`: alcance por obra de la petición (DEC-047): solo los proveedores de
+ * esa obra. `name`, `identification`, `pvtId` (uno de sus tipos) y `wrkId`
+ * (asignado a esa obra): filtros por campo (DEC-048), también en los conteos.
+ * El de obra se suma al alcance, nunca lo reemplaza.
+ */
+export const paginationProviders = async ({ search, staId, name, identification, pvtId, wrkId, rows, first, sortField, sortOrder, scope }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
-  const baseWhere = { sta_id: { not: DELETED_STATUS }, ...providerScopeWhere(scope), ...searchWhereOf(search) };
-  const where = { ...baseWhere, ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}) };
+  const baseWhere = {
+    sta_id: { not: DELETED_STATUS },
+    ...providerScopeWhere(scope),
+    ...searchWhereOf(search),
+    ...filtersWhere([
+      containsFilter(name, (c) => ({ prv_name: c })),
+      containsFilter(identification, (c) => ({ prv_identification: c })),
+      idFilter(pvtId, (id) => ({ tbl_provider_classifications: { some: { pvt_id: id } } })),
+      idFilter(wrkId, (id) => ({ tbl_work_providers: { some: { wrk_id: id } } })),
+    ]),
+  };
+  const where = staId ? { ...baseWhere, AND: [...(baseWhere.AND ?? []), { sta_id: Number(staId) }] } : baseWhere;
 
   const [page, statusCounts] = await Promise.all([
     paginate(prisma.tbl_providers, { where, select: LIST_SELECT, orderBy }, { first, rows }),

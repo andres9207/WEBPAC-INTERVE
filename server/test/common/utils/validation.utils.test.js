@@ -1,6 +1,6 @@
 import { validationResult } from "express-validator";
 
-const { idempotencyKeyRule, emailRule, moneyRule } = await import("../../../src/common/utils/validation.utils.js");
+const { idempotencyKeyRule, emailRule, moneyRule, optionalDate } = await import("../../../src/common/utils/validation.utils.js");
 
 const KEY = "0b7a3e0c-8a1f-4c1e-9f5e-2d6b7c8d9e0f";
 
@@ -69,5 +69,19 @@ describe("moneyRule (DEC-028)", () => {
     expect(await errorsFor(required, { body: { value: "" } })).toEqual(["El valor es requerido."]);
     expect(await errorsFor(optional, { body: { value: "" } })).toEqual([]);
     expect(await errorsFor(optional, { body: { value: null } })).toEqual([]);
+  });
+});
+
+describe("optionalDate (DEC-048)", () => {
+  const rule = optionalDate("dateFrom");
+
+  it("acepta una fecha real AAAA-MM-DD, o nada", async () => {
+    for (const dateFrom of ["2026-02-28", "", null, undefined]) expect(await errorsFor(rule, { body: { dateFrom } })).toEqual([]);
+  });
+
+  it("rechaza otro formato o una fecha que no existe", async () => {
+    for (const dateFrom of ["2026-02-30", "28/02/2026", "2026-2-1", "2026-02-28T00:00:00Z"]) {
+      expect(await errorsFor(rule, { body: { dateFrom } })).toEqual(["dateFrom debe ser una fecha AAAA-MM-DD."]);
+    }
   });
 });
