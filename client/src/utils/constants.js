@@ -71,8 +71,22 @@ export const CONTRACT_STATE_COLORS = { IN_PROGRESS: 'success', SUSPENDED: 'lilac
 // REASON_SCOPES en server/src/modules/admin/reasons/reasons.service.js.
 export const REASON_SCOPE_OPTIONS = [
   { value: 'SUSPENSION', label: 'Suspensión de contrato' },
-  { value: 'INVOICE_CANCEL', label: 'Anulación de factura' }
+  { value: 'INVOICE_CANCEL', label: 'Anulación de factura' },
+  { value: 'POLICY_CANCEL', label: 'Anulación de póliza' }
 ];
+
+// Bases de cálculo de una póliza (ADR-0019, DEC-050). Mismo dominio que
+// POLICY_BASES en server/src/modules/admin/policyTypes/policyBases.js. La
+// descripción va en el selector: quien configura un tipo debe ver qué compone
+// cada base.
+export const POLICY_BASE_OPTIONS = [
+  { value: 'DIRECT_COST', label: 'Costo directo', description: 'Solo el costo directo del concepto, sin AIU ni IVA.' },
+  { value: 'TAXABLE_BASE', label: 'Base gravable', description: 'Costo directo + AIU, antes de IVA.' },
+  { value: 'TOTAL_VALUE', label: 'Valor total', description: 'Costo directo + AIU + IVA: el valor del concepto.' },
+  { value: 'VAT_ONLY', label: 'Solo IVA', description: 'Únicamente el IVA del concepto.' }
+];
+
+export const policyBaseName = (base) => POLICY_BASE_OPTIONS.find((o) => o.value === base)?.label ?? base;
 
 // Facturas (DEC-042): estado del ciclo de vida y tipo. Los nombres los manda
 // el servidor (stateName, typeName); aquí solo pestañas, colores y opciones.

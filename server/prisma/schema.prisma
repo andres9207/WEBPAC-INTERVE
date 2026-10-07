@@ -201,6 +201,7 @@ model tbl_status {
   tbl_work_stages            tbl_work_stages[]
   tbl_works                  tbl_works[]
   tbl_invoices               tbl_invoices[]
+  tbl_policy_types           tbl_policy_types[]
 }
 
 model tbl_user_permissions {
@@ -320,6 +321,12 @@ model tbl_users {
   invoice_advance_details_updated     tbl_invoice_advance_details[]      @relation("InvoiceAdvanceDetailUpdatedBy")
   invoice_liquidation_details_created tbl_invoice_liquidation_details[]  @relation("InvoiceLiquidationDetailCreatedBy")
   invoice_liquidation_details_updated tbl_invoice_liquidation_details[]  @relation("InvoiceLiquidationDetailUpdatedBy")
+  policy_types_created                tbl_policy_types[]                 @relation("PolicyTypeCreatedBy")
+  policy_types_deleted                tbl_policy_types[]                 @relation("PolicyTypeDeletedBy")
+  policy_types_updated                tbl_policy_types[]                 @relation("PolicyTypeUpdatedBy")
+  policies_closed                     tbl_policies[]                     @relation("PolicyClosedBy")
+  policies_created                    tbl_policies[]                     @relation("PolicyCreatedBy")
+  policies_updated                    tbl_policies[]                     @relation("PolicyUpdatedBy")
 
   @@index([pro_id], map: "tbl_users_profiles")
   @@index([sta_id], map: "tbl_users_status")
@@ -470,6 +477,7 @@ model tbl_insurers {
   deleted_by_user        tbl_users? @relation("InsurerDeletedBy", fields: [ins_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_insurers_delete_by")
   tbl_status             tbl_status @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_insurers_status")
   updated_by_user        tbl_users? @relation("InsurerUpdatedBy", fields: [ins_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_insurers_update_by")
+  tbl_policies           tbl_policies[]
 
   @@index([ins_create_by], map: "tbl_insurers_create_by")
   @@index([ins_delete_by], map: "tbl_insurers_delete_by")
@@ -838,6 +846,7 @@ model tbl_contracts {
   tbl_work_providers          tbl_work_providers            @relation(fields: [wrk_id, prv_id], references: [wrk_id, prv_id], onUpdate: NoAction, map: "tbl_contracts_work_provider")
   tbl_work_stages             tbl_work_stages?              @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: NoAction, map: "tbl_contracts_work_stage")
   tbl_invoices                tbl_invoices[]
+  tbl_policies                tbl_policies[]
 
   @@unique([ctr_id, wrk_id, prv_id], map: "uq_contracts_id_work_provider")
   @@unique([wrk_id, ctr_number_active], map: "uq_contracts_work_number_active")
@@ -885,11 +894,13 @@ model tbl_contract_concepts {
   tbl_status               tbl_status                @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_contract_concepts_status")
   updated_by_user          tbl_users?                @relation("ContractConceptUpdatedBy", fields: [ccp_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_concepts_update_by")
   tbl_contract_suspensions tbl_contract_suspensions?
+  tbl_policies             tbl_policies[]
 
   @@unique([ctr_id, ccp_number], map: "uq_contract_concepts_number")
   @@index([ccp_create_by], map: "tbl_contract_concepts_create_by")
   @@index([sta_id], map: "tbl_contract_concepts_status")
   @@index([ccp_update_by], map: "tbl_contract_concepts_update_by")
+  @@unique([ccp_id, ctr_id], map: "uq_contract_concepts_id_contract")
 }
 
 /// Historial de estado del contrato (database/migrations/0051_create_contract_status_history.sql). De solo
@@ -997,6 +1008,7 @@ model tbl_reasons {
   tbl_status                  tbl_status                    @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_reasons_status")
   updated_by_user             tbl_users?                    @relation("ReasonUpdatedBy", fields: [rea_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_reasons_update_by")
   tbl_invoice_status_history  tbl_invoice_status_history[]
+  tbl_policies                tbl_policies[]
 
   @@unique([rea_scope, rea_name_active], map: "uq_reasons_name_active")
   @@index([sta_id, rea_scope, rea_name], map: "idx_reasons_status_scope_name")
@@ -1170,4 +1182,84 @@ model tbl_work_contacts {
   @@index([wkc_create_by], map: "tbl_work_contacts_create_by")
   @@index([wrk_id], map: "tbl_work_contacts_work")
   @@index([wkc_update_by], map: "tbl_work_contacts_update_by")
+}
+
+/// Tipos de póliza (ADR-0019, DEC-050). plt_base: DIRECT_COST, TAXABLE_BASE,
+/// TOTAL_VALUE o VAT_ONLY (CHECK en la migración 0078).
+model tbl_policy_types {
+  plt_id               Int            @id @default(autoincrement())
+  plt_key              String         @unique(map: "uq_policy_types_key") @db.VarChar(30)
+  plt_name             String         @db.VarChar(100)
+  plt_base             String         @db.VarChar(20)
+  sta_id               Int            @default(1)
+  plt_create_by        Int?
+  plt_create_at        DateTime?      @default(now()) @db.Timestamp(0)
+  plt_update_by        Int?
+  plt_update_at        DateTime?      @default(now()) @db.Timestamp(0)
+  plt_delete_by        Int?
+  plt_delete_at        DateTime?      @db.Timestamp(0)
+  plt_idempotency_key  String?        @unique(map: "uq_policy_types_idempotency_key") @db.Char(36)
+  plt_idempotency_hash String?        @db.Char(64)
+  plt_name_active      String?        @unique(map: "uq_policy_types_name_active") @db.VarChar(100)
+  tbl_policies         tbl_policies[]
+  created_by_user      tbl_users?     @relation("PolicyTypeCreatedBy", fields: [plt_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_policy_types_create_by")
+  deleted_by_user      tbl_users?     @relation("PolicyTypeDeletedBy", fields: [plt_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_policy_types_delete_by")
+  tbl_status           tbl_status     @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_policy_types_status")
+  updated_by_user      tbl_users?     @relation("PolicyTypeUpdatedBy", fields: [plt_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_policy_types_update_by")
+
+  @@index([sta_id, plt_name], map: "idx_policy_types_status_name")
+  @@index([plt_create_by], map: "tbl_policy_types_create_by")
+  @@index([plt_delete_by], map: "tbl_policy_types_delete_by")
+  @@index([plt_update_by], map: "tbl_policy_types_update_by")
+}
+
+/// Pólizas del contrato con versiones (ADR-0018, DEC-050). pol_root_id agrupa las
+/// versiones de una póliza; una sola vigente (uq_policies_current).
+model tbl_policies {
+  pol_id                 Int                   @id @default(autoincrement())
+  pol_root_id            Int?
+  pol_version            Int                   @default(1)
+  pol_is_current         Boolean               @default(true)
+  ctr_id                 Int
+  ccp_id                 Int
+  plt_id                 Int
+  ins_id                 Int
+  pol_number             String                @db.VarChar(50)
+  pol_base               String                @db.VarChar(20)
+  pol_percentage         Decimal               @db.Decimal(5, 2)
+  pol_start_date         DateTime?             @db.Date
+  pol_end_date           DateTime?             @db.Date
+  pol_observation        String?               @db.VarChar(1000)
+  pol_closed_by          Int?
+  pol_closed_at          DateTime?             @db.Timestamp(0)
+  rea_id                 Int?
+  pol_cancel_observation String?               @db.VarChar(1000)
+  pol_create_by          Int?
+  pol_create_at          DateTime?             @default(now()) @db.Timestamp(0)
+  pol_update_by          Int?
+  pol_update_at          DateTime?             @default(now()) @db.Timestamp(0)
+  pol_idempotency_key    String?               @unique(map: "uq_policies_idempotency_key") @db.Char(36)
+  pol_idempotency_hash   String?               @db.Char(64)
+  pol_current_root       Int?                  @unique(map: "uq_policies_current")
+  closed_by_user         tbl_users?            @relation("PolicyClosedBy", fields: [pol_closed_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_policies_closed_by")
+  tbl_contract_concepts  tbl_contract_concepts @relation(fields: [ccp_id, ctr_id], references: [ccp_id, ctr_id], onUpdate: NoAction, map: "tbl_policies_concept")
+  tbl_contracts          tbl_contracts         @relation(fields: [ctr_id], references: [ctr_id], onUpdate: NoAction, map: "tbl_policies_contract")
+  created_by_user        tbl_users?            @relation("PolicyCreatedBy", fields: [pol_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_policies_create_by")
+  tbl_insurers           tbl_insurers          @relation(fields: [ins_id], references: [ins_id], onUpdate: NoAction, map: "tbl_policies_insurer")
+  tbl_reasons            tbl_reasons?          @relation(fields: [rea_id], references: [rea_id], onDelete: Restrict, onUpdate: NoAction, map: "tbl_policies_reason")
+  root_policy            tbl_policies?         @relation("PolicyVersions", fields: [pol_root_id], references: [pol_id], onDelete: Restrict, onUpdate: NoAction, map: "tbl_policies_root")
+  versions               tbl_policies[]        @relation("PolicyVersions")
+  tbl_policy_types       tbl_policy_types      @relation(fields: [plt_id], references: [plt_id], onUpdate: NoAction, map: "tbl_policies_type")
+  updated_by_user        tbl_users?            @relation("PolicyUpdatedBy", fields: [pol_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_policies_update_by")
+
+  @@index([ctr_id, pol_is_current], map: "idx_policies_contract_current")
+  @@index([pol_end_date], map: "idx_policies_end_date")
+  @@index([pol_root_id, pol_version], map: "idx_policies_root_version")
+  @@index([pol_closed_by], map: "tbl_policies_closed_by")
+  @@index([ccp_id, ctr_id], map: "tbl_policies_concept")
+  @@index([pol_create_by], map: "tbl_policies_create_by")
+  @@index([ins_id], map: "tbl_policies_insurer")
+  @@index([rea_id], map: "tbl_policies_reason")
+  @@index([plt_id], map: "tbl_policies_type")
+  @@index([pol_update_by], map: "tbl_policies_update_by")
 }

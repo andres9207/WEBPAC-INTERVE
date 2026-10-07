@@ -18,6 +18,7 @@ import supervisionTypesRoutes from "./admin/supervisionTypes/supervisionTypes.ro
 import constructionCompaniesRoutes from "./admin/constructionCompanies/constructionCompanies.routes.js";
 import contractTypesRoutes from "./admin/contractTypes/contractTypes.routes.js";
 import reasonsRoutes from "./admin/reasons/reasons.routes.js";
+import policyTypesRoutes from "./admin/policyTypes/policyTypes.routes.js";
 import worksRoutes from "./work/works/works.routes.js";
 import providersRoutes from "./work/providers/providers.routes.js";
 import contractsRoutes from "./work/contracts/contracts.routes.js";
@@ -48,6 +49,7 @@ mainRoutes.use("/admin/supervisionTypes", supervisionTypesRoutes);
 mainRoutes.use("/admin/constructionCompanies", constructionCompaniesRoutes);
 mainRoutes.use("/admin/contractTypes", contractTypesRoutes);
 mainRoutes.use("/admin/reasons", reasonsRoutes);
+mainRoutes.use("/admin/policyTypes", policyTypesRoutes);
 mainRoutes.use("/work/works", worksRoutes);
 mainRoutes.use("/work/providers", providersRoutes);
 mainRoutes.use("/work/contracts", contractsRoutes);

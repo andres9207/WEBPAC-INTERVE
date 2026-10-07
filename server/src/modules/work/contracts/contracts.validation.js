@@ -148,3 +148,33 @@ export const updateConceptSchema = [
 ];
 
 export const deleteContractSchema = [requiredId("ctrId")];
+
+// Pólizas (ADR-0018, DEC-050). La base de cálculo y el valor asegurado no se
+// aceptan: la base sale del tipo y el valor se calcula. Que el concepto sea
+// del contrato y que tipo y aseguradora estén activos lo decide el service.
+const policyRules = () => [
+  requiredId("pltId").withMessage("Selecciona el tipo de póliza."),
+  requiredId("insId").withMessage("Selecciona la aseguradora."),
+  requiredText("number", "número de la póliza", 50),
+  percentRule("percentage", "porcentaje"),
+  optionalDate("startDate"),
+  optionalDate("endDate"),
+  optionalLongText("observation", "La observación", 1000),
+];
+
+export const getContractPoliciesSchema = [query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo.")];
+
+export const createPolicySchema = [
+  idempotencyKeyRule(),
+  requiredId("ctrId"),
+  requiredId("ccpId").withMessage("Selecciona el concepto amparado."),
+  ...policyRules(),
+];
+
+export const createPolicyVersionSchema = [idempotencyKeyRule(), requiredId("polId"), ...policyRules()];
+
+export const cancelPolicySchema = [
+  requiredId("polId"),
+  requiredId("reaId").withMessage("Selecciona el motivo de la anulación."),
+  requiredText("observation", "observación de la anulación", 1000),
+];

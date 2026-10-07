@@ -11,6 +11,8 @@ import { saveProvider, assignProviderToWork } from "../src/modules/work/provider
 import { saveContract } from "../src/modules/work/contracts/contracts.service.js";
 import { createAmendment, createLiquidation } from "../src/modules/work/contracts/contractConcepts.service.js";
 import { suspendContract } from "../src/modules/work/contracts/contractSuspensions.service.js";
+import { createPolicy, createPolicyVersion, cancelPolicy } from "../src/modules/work/contracts/contractPolicies.service.js";
+import { policyTypesService } from "../src/modules/admin/policyTypes/policyTypes.service.js";
 import { CONCEPT_TYPES } from "../src/modules/work/contracts/contractTerms.js";
 
 // Datos de demostración para desarrollo (`yarn db:seed:demo`). No es el seed
@@ -45,6 +47,17 @@ const ACTOR_USER_ID = 1; // Superadmin (ver SUPERADMIN_PROFILE_ID en seed.js)
 const REASONS = ["[DEMO] Temporada de lluvias", "[DEMO] Falta de licencia", "[DEMO] Orden de la interventoría", "[DEMO] Falta de suministro de materiales"];
 // Motivos de anulación de factura (DEC-042).
 const CANCEL_REASONS = ["[DEMO] Error en el registro", "[DEMO] Factura duplicada", "[DEMO] Rechazada por el área contable"];
+// Motivos de anulación de póliza (DEC-050).
+const POLICY_CANCEL_REASONS = ["[DEMO] Póliza reemplazada por la aseguradora"];
+
+// Tipos de póliza de demostración (DEC-050). NO son las semillas reales: qué
+// tipos existen y qué base usa cada uno es DEC-04, pendiente. Por eso llevan
+// [DEMO] en el nombre y DEMO_ en la clave.
+const POLICY_TYPES = [
+  { key: "DEMO_CUMPLIMIENTO", name: "[DEMO] Cumplimiento", base: "TOTAL_VALUE" },
+  { key: "DEMO_ESTABILIDAD", name: "[DEMO] Estabilidad de obra", base: "TAXABLE_BASE" },
+  { key: "DEMO_SALARIOS", name: "[DEMO] Salarios y prestaciones", base: "DIRECT_COST" },
+];
 
 // Campos del catálogo (seed.js, CONTRACT_FIELDS): 1 etapa, 2 observaciones,
 // 3 descripción del otrosí, 4–9 porcentajes (A, I, U, IVA, anticipo, retenido).
@@ -216,6 +229,19 @@ const CONTRACTS = [
     termUnit: "MES",
     initialConcept: concept("850000000.00"),
     amendments: [{ startDate: "2026-06-01", description: "Mayores cantidades de concreto en zapatas", extension: "1", ...concept("120000000.00", { advance: "0" }) }],
+    // Ampara el valor inicial y se renueva; el otrosí N.º 1 queda sin póliza (hallazgo).
+    policies: [
+      {
+        number: "DEMO-POL-0101",
+        concept: { type: "INITIAL" },
+        type: "DEMO_CUMPLIMIENTO",
+        insurer: 0,
+        percentage: "10",
+        startDate: "2026-02-15",
+        endDate: "2026-08-15",
+        renewal: { percentage: "10", startDate: "2026-02-15", endDate: "2027-02-15", observation: "Renovada al ampliar el plazo." },
+      },
+    ],
   },
   {
     number: "DEMO-CTR-02",
@@ -231,6 +257,12 @@ const CONTRACTS = [
     amendments: [
       { startDate: "2026-05-10", description: "Cambio de perfilería en cubierta", ...concept("45000000.00", { advance: "0" }) },
       { startDate: "2026-08-01", description: "Ampliación de plazo por ajuste de diseño", extension: "2", ...concept("0", { advance: "0" }) },
+    ],
+    policies: [
+      { number: "DEMO-POL-0201", concept: { type: "INITIAL" }, type: "DEMO_CUMPLIMIENTO", insurer: 1, percentage: "10", startDate: "2026-03-01", endDate: "2026-10-25" },
+      // Sin fecha de vigencia: categoría explícita (ADR-0002).
+      { number: "DEMO-POL-0202", concept: { type: "INITIAL" }, type: "DEMO_ESTABILIDAD", insurer: 1, percentage: "5" },
+      { number: "DEMO-POL-0203", concept: { type: "AMENDMENT", number: 1 }, type: "DEMO_CUMPLIMIENTO", insurer: 1, percentage: "10", startDate: "2026-05-10", endDate: "2027-01-10" },
     ],
   },
   {
@@ -275,6 +307,10 @@ const CONTRACTS = [
     termUnit: "MES",
     initialConcept: concept("600000000.00"),
     liquidation: { startDate: "2026-03-05", description: "Liquidación por terminación del alcance", ...concept("15000000.00", { advance: "0" }) },
+    // En liquidación solo se ampara el otrosí de liquidación (ADR-0017); el valor inicial queda sin póliza.
+    policies: [
+      { number: "DEMO-POL-0501", concept: { type: "LIQUIDATION" }, type: "DEMO_ESTABILIDAD", insurer: 2, percentage: "20", startDate: "2026-03-05", endDate: "2031-03-05" },
+    ],
   },
   {
     number: "DEMO-CTR-06",
@@ -287,6 +323,22 @@ const CONTRACTS = [
     term: "12",
     termUnit: "MES",
     initialConcept: concept("2100000000.00"),
+    policies: [
+      { number: "DEMO-POL-0601", concept: { type: "INITIAL" }, type: "DEMO_CUMPLIMIENTO", insurer: 0, percentage: "10", startDate: "2026-01-10", endDate: "2027-01-10" },
+      // Vencida.
+      { number: "DEMO-POL-0602", concept: { type: "INITIAL" }, type: "DEMO_SALARIOS", insurer: 0, percentage: "5", startDate: "2026-01-10", endDate: "2026-07-10" },
+      // Anulada: queda en el expediente con su motivo.
+      {
+        number: "DEMO-POL-0603",
+        concept: { type: "INITIAL" },
+        type: "DEMO_SALARIOS",
+        insurer: 2,
+        percentage: "5",
+        startDate: "2026-01-10",
+        endDate: "2027-01-10",
+        cancel: { reason: "[DEMO] Póliza reemplazada por la aseguradora", observation: "Se emitió por error con otra aseguradora." },
+      },
+    ],
   },
   {
     number: "DEMO-CTR-07",
@@ -382,6 +434,32 @@ async function main() {
         (await reasonsService.save({ input: { scope: REASON_SCOPES.INVOICE_CANCEL, name }, useBy, ctx, idempotencyKey: demoKey(`cancel-reason:${name}`) })).reaId,
     });
   }
+
+  console.log("Motivos de anulación de póliza");
+  const policyReasonIds = {};
+  for (const name of POLICY_CANCEL_REASONS) {
+    policyReasonIds[name] = await ensure({
+      entity: "motivo",
+      label: name,
+      find: async () =>
+        (await prisma.tbl_reasons.findFirst({ where: { rea_name: name, rea_scope: REASON_SCOPES.POLICY_CANCEL, ...notDeleted }, select: { rea_id: true } }))?.rea_id,
+      create: async () =>
+        (await reasonsService.save({ input: { scope: REASON_SCOPES.POLICY_CANCEL, name }, useBy, ctx, idempotencyKey: demoKey(`policy-cancel-reason:${name}`) })).reaId,
+    });
+  }
+
+  console.log("Tipos de póliza");
+  const policyTypeIds = {};
+  for (const type of POLICY_TYPES) {
+    policyTypeIds[type.key] = await ensure({
+      entity: "tipo de póliza",
+      label: type.name,
+      find: async () => (await prisma.tbl_policy_types.findFirst({ where: { plt_key: type.key, ...notDeleted }, select: { plt_id: true } }))?.plt_id,
+      create: async () => (await policyTypesService.save({ input: type, useBy, ctx, idempotencyKey: demoKey(`policy-type:${type.key}`) })).pltId,
+    });
+  }
+  const insurers = await prisma.tbl_insurers.findMany({ where: { sta_id: ACTIVE_STATUS }, select: { ins_id: true }, orderBy: { ins_id: "asc" }, take: 3 });
+  if (insurers.length === 0) throw new Error("No hay aseguradoras activas: crea al menos una antes de sembrar pólizas.");
 
   console.log("Tipos de contrato");
   const typeIds = {};
@@ -520,6 +598,58 @@ async function main() {
         find: () => prisma.tbl_contract_concepts.findFirst({ where: { ctr_id: ctrId, ccp_type: CONCEPT_TYPES.LIQUIDATION }, select: { ccp_id: true } }),
         create: () => createLiquidation({ ctrId, input: contract.liquidation, useBy, ctx, idempotencyKey: demoKey(`liquidation:${contract.number}`) }),
       });
+    }
+
+    // Pólizas (DEC-050), después de los actos: amparan conceptos ya creados. Se
+    // buscan por su número en el contrato; la renovación, por su versión 2, y
+    // la anulación, por el motivo en alguna de sus versiones.
+    for (const policy of contract.policies ?? []) {
+      const { concept: ref, type, insurer, renewal, cancel, ...fields } = policy;
+      const target = await prisma.tbl_contract_concepts.findFirst({
+        where: { ctr_id: ctrId, ccp_type: ref.type, ...(ref.number ? { ccp_number: ref.number } : {}) },
+        select: { ccp_id: true },
+      });
+      if (!target) throw new Error(`${contract.number} no tiene el concepto ${ref.type} ${ref.number ?? ""}.`);
+      const values = { ...fields, pltId: policyTypeIds[type], insId: insurers[insurer % insurers.length].ins_id };
+
+      await ensure({
+        entity: "póliza",
+        label: `${contract.number} ${policy.number}`,
+        find: () => prisma.tbl_policies.findFirst({ where: { ctr_id: ctrId, pol_number: policy.number, pol_version: 1 }, select: { pol_id: true } }),
+        create: () =>
+          createPolicy({ ctrId, input: { ...values, ccpId: target.ccp_id }, useBy, ctx, idempotencyKey: demoKey(`policy:${contract.number}:${policy.number}`) }),
+      });
+      const { pol_root_id: rootId } = await prisma.tbl_policies.findFirst({
+        where: { ctr_id: ctrId, pol_number: policy.number, pol_version: 1 },
+        select: { pol_root_id: true },
+      });
+      const currentVersion = async () =>
+        (await prisma.tbl_policies.findFirst({ where: { pol_root_id: rootId, pol_is_current: true }, select: { pol_id: true } })).pol_id;
+
+      if (renewal) {
+        await ensure({
+          entity: "renovación de póliza",
+          label: policy.number,
+          find: () => prisma.tbl_policies.findFirst({ where: { pol_root_id: rootId, pol_version: 2 }, select: { pol_id: true } }),
+          create: async () =>
+            createPolicyVersion({
+              polId: await currentVersion(),
+              input: { ...values, ...renewal },
+              useBy,
+              ctx,
+              idempotencyKey: demoKey(`policy-renewal:${policy.number}`),
+            }),
+        });
+      }
+      if (cancel) {
+        await ensure({
+          entity: "anulación de póliza",
+          label: policy.number,
+          find: () => prisma.tbl_policies.findFirst({ where: { pol_root_id: rootId, rea_id: { not: null } }, select: { pol_id: true } }),
+          create: async () =>
+            cancelPolicy({ polId: await currentVersion(), reaId: policyReasonIds[cancel.reason], observation: cancel.observation, useBy, ctx }),
+        });
+      }
     }
   }
 

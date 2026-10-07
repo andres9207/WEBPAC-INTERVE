@@ -16,6 +16,10 @@ import {
   createLiquidationSchema,
   updateConceptSchema,
   suspendContractSchema,
+  getContractPoliciesSchema,
+  createPolicySchema,
+  createPolicyVersionSchema,
+  cancelPolicySchema,
 } from "./contracts.validation.js";
 import {
   paginationContractsController,
@@ -30,6 +34,10 @@ import {
   createLiquidationController,
   updateConceptController,
   suspendContractController,
+  getContractPoliciesController,
+  createPolicyController,
+  createPolicyVersionController,
+  cancelPolicyController,
 } from "./contracts.controller.js";
 
 // Contratos (DEC-035), montados en /api/work/contracts. Pipeline de
@@ -86,5 +94,13 @@ contractsRoutes.put("/update_concept", verifyToken, requirePermission(can.editCo
 // Suspender (ADR-0017, DEC-039). No hay ruta de levantar: lo hace
 // create_amendment sobre un contrato suspendido, con el permiso liftSuspension.
 contractsRoutes.post("/suspend_contract", verifyToken, requirePermission(can.suspend), suspendContractSchema, validate, suspendContractController);
+
+// Pólizas (ADR-0018, DEC-050): submódulo del contrato, con sus permisos.
+// Modificar emite una versión nueva; anular reemplaza a eliminar.
+const canPolicy = PERMISSIONS.work.policies;
+contractsRoutes.get("/get_contract_policies", verifyToken, requirePermission(canPolicy.view), getContractPoliciesSchema, validate, getContractPoliciesController);
+contractsRoutes.post("/create_policy", verifyToken, requirePermission(canPolicy.create), createPolicySchema, validate, createPolicyController);
+contractsRoutes.post("/create_policy_version", verifyToken, requirePermission(canPolicy.edit), createPolicyVersionSchema, validate, createPolicyVersionController);
+contractsRoutes.put("/cancel_policy", verifyToken, requirePermission(canPolicy.cancel), cancelPolicySchema, validate, cancelPolicyController);
 
 export default contractsRoutes;

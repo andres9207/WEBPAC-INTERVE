@@ -2,9 +2,9 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-10-07, [DEC-050](../decisiones/DEC-050-polizas.md)). Implementado: maestro con clave inmutable, las cuatro bases como dominio cerrado, la base copiada en cada versión de póliza y el cambio de base con permiso propio y bitácora. **Sin semillas:** la ambigüedad semántica sigue sin resolver (backlog DEC-04); los tipos los crea quien tenga el permiso, eligiendo la base.
 
-El maestro de tipos de póliza **no existe** en el código ni en el esquema. Este ADR documenta la decisión arquitectónica recomendada y registra una **ambigüedad semántica sin resolver** en la definición funcional del maestro.
+Abajo, el análisis original. Las tablas "Estado actual" describen el sistema a la fecha del ADR.
 
 ## Fecha
 

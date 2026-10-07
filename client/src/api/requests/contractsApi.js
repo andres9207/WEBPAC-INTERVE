@@ -55,3 +55,19 @@ export const contractConceptsApi = {
  */
 export const suspendContractAPI = (params, idempotencyKey) =>
   httpCliente.post('work/contracts/suspend_contract', params, idempotencyConfig(idempotencyKey));
+
+/**
+ * Pólizas del contrato (ADR-0018, DEC-050). La base y el valor asegurado los
+ * pone el servidor: nunca se envían.
+ */
+export const contractPoliciesApi = {
+  /** Pólizas agrupadas con sus versiones, conceptos sin póliza y umbral de "a vencer". @param {number} ctrId */
+  list: (ctrId) => httpCliente.get('work/contracts/get_contract_policies', { ctrId }),
+  /** @param {{ ctrId, ccpId, pltId, insId, number, percentage, startDate, endDate, observation }} params */
+  create: (params, idempotencyKey) => httpCliente.post('work/contracts/create_policy', params, idempotencyConfig(idempotencyKey)),
+  /** Modificar: emite la versión siguiente. @param {{ polId, pltId, insId, number, percentage, startDate, endDate, observation }} params */
+  createVersion: (params, idempotencyKey) =>
+    httpCliente.post('work/contracts/create_policy_version', params, idempotencyConfig(idempotencyKey)),
+  /** @param {{ polId, reaId, observation }} params */
+  cancel: (params) => httpCliente.put('work/contracts/cancel_policy', params)
+};

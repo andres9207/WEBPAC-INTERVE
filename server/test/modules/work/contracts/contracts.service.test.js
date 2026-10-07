@@ -21,6 +21,7 @@ const prismaMock = {
   tbl_contract_concepts: { create: jest.fn(), findMany: jest.fn(), updateMany: jest.fn(), count: jest.fn(async () => 0) },
   tbl_contract_status_history: { create: jest.fn() },
   tbl_invoices: { count: jest.fn() },
+  tbl_policies: { count: jest.fn(async () => 0) },
   tbl_works: { findUnique: jest.fn() },
   tbl_work_stages: { findUnique: jest.fn() },
   tbl_work_providers: { findUnique: jest.fn() },
@@ -301,6 +302,14 @@ describe("deleteContract", () => {
       message: "No se puede eliminar el contrato: tiene 2 factura(s) registrada(s).",
     });
     expect(prismaMock.tbl_invoices.count).toHaveBeenCalledWith({ where: { ctr_id: 30 } });
+    expect(prismaMock.tbl_contracts.update).not.toHaveBeenCalled();
+  });
+
+  it("con pólizas, aunque estén anuladas, no se elimina (409, DEC-050)", async () => {
+    state.contract = { ...storedContract };
+    prismaMock.tbl_policies.count.mockResolvedValueOnce(3);
+    await expect(service.deleteContract({ ctrId: 30, useBy: 9, ctx })).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.tbl_policies.count).toHaveBeenCalledWith({ where: { ctr_id: 30 } });
     expect(prismaMock.tbl_contracts.update).not.toHaveBeenCalled();
   });
 });

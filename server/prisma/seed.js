@@ -42,6 +42,8 @@ const PAGES = [
   // database/migrations/0069_seed_invoices_pages_permissions.sql
   { pag_id: 18, pag_description: "Facturación", pag_parent: 0, pag_url: null, pag_icon: "receipt", pag_order: 3, pag_name: "Facturación", pag_type: 1 },
   { pag_id: 19, pag_description: "Facturas", pag_parent: 18, pag_url: "billing/invoices", pag_icon: "invoice", pag_order: 1, pag_name: "Facturas", pag_type: 2 },
+  // database/migrations/0082_seed_policies_pages_permissions.sql
+  { pag_id: 20, pag_description: "Tipos de póliza", pag_parent: 5, pag_url: "admin/policyTypes", pag_icon: "shield-check", pag_order: 9, pag_name: "Tipos de póliza", pag_type: 2 },
 ];
 
 const PERMISSIONS = [
@@ -126,6 +128,15 @@ const PERMISSIONS = [
   { per_id: 80, per_name: "Modificar motivo", pag_id: 17, per_order: 2 },
   { per_id: 81, per_name: "Eliminar motivo", pag_id: 17, per_order: 3 },
   { per_id: 82, per_name: "Cambiar estado motivo", pag_id: 17, per_order: 4 },
+  // database/migrations/0082_seed_policies_pages_permissions.sql
+  { per_id: 94, per_name: "Crear tipo de póliza", pag_id: 20, per_order: 1 },
+  { per_id: 95, per_name: "Modificar tipo de póliza", pag_id: 20, per_order: 2 },
+  { per_id: 96, per_name: "Eliminar tipo de póliza", pag_id: 20, per_order: 3 },
+  { per_id: 97, per_name: "Cambiar estado tipo de póliza", pag_id: 20, per_order: 4 },
+  { per_id: 98, per_name: "Configurar base de cálculo de tipo de póliza", pag_id: 20, per_order: 6 },
+  { per_id: 100, per_name: "Registrar póliza", pag_id: 16, per_order: 13 },
+  { per_id: 101, per_name: "Modificar póliza", pag_id: 16, per_order: 14 },
+  { per_id: 102, per_name: "Anular póliza", pag_id: 16, per_order: 15 },
   { per_id: 84, per_name: "Crear factura", pag_id: 19, per_order: 1 },
   { per_id: 85, per_name: "Modificar factura", pag_id: 19, per_order: 2 },
   { per_id: 86, per_name: "Aprobar factura", pag_id: 19, per_order: 3 },
@@ -173,6 +184,8 @@ const VIEW_PERMISSIONS = [
   { per_id: 68, per_name: "Ver contratos", pag_id: 16, per_order: 8 },
   { per_id: 78, per_name: "Ver motivos", pag_id: 17, per_order: 5 },
   { per_id: 83, per_name: "Ver facturas", pag_id: 19, per_order: 7 },
+  { per_id: 93, per_name: "Ver tipos de póliza", pag_id: 20, per_order: 5 },
+  { per_id: 99, per_name: "Ver pólizas", pag_id: 16, per_order: 12 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay

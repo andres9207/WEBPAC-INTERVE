@@ -17,6 +17,7 @@ import { DataList, Figure, Pending } from 'ui-component/extended/DetailBlocks';
 import RouteDialog from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import ConceptsTab from './components/ConceptsTab';
+import PoliciesTab from './components/PoliciesTab';
 import SuspendDialog from './components/SuspendDialog';
 import ContractInvoicesTab from 'views/billing/invoices/components/ContractInvoicesTab';
 import { contractsApi } from 'api/requests/contractsApi';
@@ -146,7 +147,7 @@ export default function ContractDetailPage() {
     value: contract.concepts.length,
     history: contract.history.length,
     suspensions: contract.suspensions.length,
-    policies: 0,
+    policies: contract.currentPolicies,
     documents: 0
   };
   const open = contract.openSuspension;
@@ -335,12 +336,7 @@ export default function ContractDetailPage() {
           </Stack>
         ))}
 
-      {tab === 'policies' && (
-        <Pending
-          title="Todavía no hay pólizas en este contrato."
-          text="Aquí se verán las pólizas que amparan cada concepto, con su vigencia y los conceptos sin amparo. Llega con el módulo de pólizas."
-        />
-      )}
+      {tab === 'policies' && <PoliciesTab contract={contract} onChanged={changed} />}
       {tab === 'invoices' && <ContractInvoicesTab contract={contract} />}
       {tab === 'documents' && (
         <Pending

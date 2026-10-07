@@ -84,10 +84,19 @@ export const assertTransition = (name, fromState = null, { previousState } = {})
  * con INVOICE_ACTIONS.
  */
 export const STATE_ALLOWS = Object.freeze({
-  IN_PROGRESS: Object.freeze(["editContract", "createAmendment", "createLiquidation", "editConcept", "suspend", "invoiceAdvance"]),
+  IN_PROGRESS: Object.freeze(["editContract", "createAmendment", "createLiquidation", "editConcept", "suspend", "invoiceAdvance", "createPolicy", "renewPolicy", "cancelPolicy"]),
   // Suspendido: solo el otrosí que lo reanuda (DEC-039). Ninguna factura.
-  SUSPENDED: Object.freeze(["createAmendment"]),
-  IN_LIQUIDATION: Object.freeze(["editLiquidationConcept", "invoiceLiquidation", "invoiceRetentionRefund"]),
+  // Pólizas (ADR-0017, efectos por estado; DEC-050): en ejecución y suspendido,
+  // todo; en liquidación, renovar las vigentes y amparar el otrosí de
+  // liquidación (nace en ese estado); liquidado, solo consulta.
+  SUSPENDED: Object.freeze(["createAmendment", "createPolicy", "renewPolicy", "cancelPolicy"]),
+  IN_LIQUIDATION: Object.freeze([
+    "editLiquidationConcept",
+    "invoiceLiquidation",
+    "invoiceRetentionRefund",
+    "createLiquidationPolicy",
+    "renewPolicy",
+  ]),
   LIQUIDATED: Object.freeze([]),
 });
 
@@ -108,6 +117,10 @@ const DENIED = {
   invoiceAdvance: "Las facturas de anticipo solo se registran o aprueban con el contrato en ejecución.",
   invoiceLiquidation: "Las facturas de liquidación solo se registran o aprueban con el contrato en liquidación.",
   invoiceRetentionRefund: "Las facturas de devolución de retenido solo se registran o aprueban con el contrato en liquidación.",
+  createPolicy: "Solo se registran pólizas con el contrato en ejecución o suspendido; en liquidación, solo la del otrosí de liquidación.",
+  createLiquidationPolicy: "La póliza del otrosí de liquidación se registra con el contrato en liquidación.",
+  renewPolicy: "Las pólizas de un contrato liquidado solo se consultan.",
+  cancelPolicy: "Solo se anulan pólizas con el contrato en ejecución o suspendido.",
 };
 
 export const stateAllows = (state, action) => (STATE_ALLOWS[state] ?? []).includes(action);

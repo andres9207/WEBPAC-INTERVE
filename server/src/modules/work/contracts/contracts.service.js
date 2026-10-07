@@ -425,6 +425,8 @@ export const getContract = async ({ ctrId, scope }) => {
       tbl_work_stages: { select: { wks_name: true } },
       tbl_contract_types: { select: { ctt_name: true } },
       tbl_contract_concepts: { select: CONCEPT_SELECT },
+      // Pólizas vigentes, para el conteo de la pestaña (DEC-050).
+      _count: { select: { tbl_policies: { where: { pol_is_current: true } } } },
       tbl_contract_status_history: {
         select: {
           csh_id: true,
@@ -490,6 +492,7 @@ export const getContract = async ({ ctrId, scope }) => {
     hasLiquidation: concepts.some((c) => c.ccp_type === CONCEPT_TYPES.LIQUIDATION),
     // Con una factura aprobada, costo y porcentajes de los conceptos no cambian (DOM-07).
     economicsLocked: await hasApprovedInvoices(prisma, row.ctr_id),
+    currentPolicies: row._count?.tbl_policies ?? 0,
     configVersion: row.ctr_config_version,
     observation: row.ctr_observation,
     aiuRequested: row.ctr_aiu_requested,
@@ -941,7 +944,8 @@ export const saveContract = async ({ ctrId, input, useBy, granted, scope, ctx = 
 
 /**
  * Eliminación lógica (ADR-0015, decisión 11). Un contrato con facturas, sea
- * cual sea su estado, no se elimina (409, DEC-042). Conceptos e historial se
+ * cual sea su estado, no se elimina (409, DEC-042); con pólizas, tampoco
+ * (DEC-050). Conceptos e historial se
  * conservan: un contrato eliminado es historial, y su número queda libre en
  * la obra.
  */
@@ -951,6 +955,9 @@ export const deleteContract = async ({ ctrId, useBy, scope, ctx = { useId: useBy
     const before = await findLockedContract(tx, ctrId);
     const invoices = await countInvoices(tx, before.ctr_id);
     if (invoices > 0) throw httpError(409, `No se puede eliminar el contrato: tiene ${invoices} factura(s) registrada(s).`);
+    // Las pólizas son evidencia (ADR-0018): ni las anuladas se pierden con el contrato.
+    const policies = await tx.tbl_policies.count({ where: { ctr_id: before.ctr_id } });
+    if (policies > 0) throw httpError(409, `No se puede eliminar el contrato: tiene ${policies} póliza(s) registrada(s), contando versiones y anuladas.`);
     await tx.tbl_contracts.update({
       where: { ctr_id: before.ctr_id },
       data: { sta_id: DELETED_STATUS, ctr_update_by: Number(useBy), ctr_delete_by: Number(useBy), ctr_delete_at: new Date() },

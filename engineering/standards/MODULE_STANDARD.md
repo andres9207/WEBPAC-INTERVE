@@ -55,6 +55,6 @@ Un módulo puede mezclar niveles: el contrato es nivel 3 y algunas de sus operac
 | `admin/` | Los ocho maestros, con módulo, tabla y prefijo fijados | [DEC-017](../decisiones/DEC-017-area-idioma-maestros.md) |
 | `work/` | Obras y sus partes (responsables, etapas, contactos), en el módulo `works`; proveedores, sus contactos y su asignación a obras, en el módulo `providers` | [DEC-026](../decisiones/DEC-026-area-obras.md), [DEC-031](../decisiones/DEC-031-area-proveedores.md) |
 | `billing/` | Facturas (encabezado común, ciclo de vida), en el módulo `invoices`; después, sus detalles por tipo, anticipo y retenido | [DEC-042](../decisiones/DEC-042-facturas-area-ciclo-vida.md) |
-| *(pendiente)* | Pólizas | **REQUIERE DECISIÓN** (PD-05, parte restante) |
+| `work/` (submódulo de `contracts`) | Pólizas del contrato, con sus versiones; el maestro de tipos de póliza vive en `admin/policyTypes` | [DEC-050](../decisiones/DEC-050-polizas.md) |
 
 Nombres de varias palabras: carpeta, archivos y segmento de URL en camelCase (`contractTypes`); acciones en snake_case (`save_contract_type`). Ver DEC-017.

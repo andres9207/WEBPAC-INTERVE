@@ -6,6 +6,7 @@ import { workScopeOf } from "../../../common/services/workScope.service.js";
 import * as contractsService from "./contracts.service.js";
 import * as conceptsService from "./contractConcepts.service.js";
 import * as suspensionsService from "./contractSuspensions.service.js";
+import * as policiesService from "./contractPolicies.service.js";
 
 // Solo leen la petición y delegan. El autor sale de req.user (DEC-005); la
 // clave de idempotencia, del encabezado (DEC-016). Nada más del body llega al
@@ -149,6 +150,52 @@ export const updateConceptController = handle(async (req) => {
   const result = await conceptsService.updateConcept({
     ccpId: req.body.ccpId,
     input: pick(req.body, [...ACT_FIELDS, "extension"]),
+    useBy: req.user.useId,
+    scope: await workScopeOf(req),
+    ctx: auditContext(req),
+  });
+  notify();
+  return result;
+});
+
+// Pólizas (DEC-050). La base y el valor asegurado nunca se leen del body.
+const POLICY_FIELDS = ["pltId", "insId", "number", "percentage", "startDate", "endDate", "observation"];
+
+export const getContractPoliciesController = handle(async (req) =>
+  policiesService.getContractPolicies({ ctrId: req.query.ctrId, scope: await workScopeOf(req) })
+);
+
+export const createPolicyController = handle(async (req) => {
+  const result = await policiesService.createPolicy({
+    ctrId: req.body.ctrId,
+    input: pick(req.body, ["ccpId", ...POLICY_FIELDS]),
+    useBy: req.user.useId,
+    scope: await workScopeOf(req),
+    ctx: auditContext(req),
+    idempotencyKey: req.get(IDEMPOTENCY_HEADER),
+  });
+  notify();
+  return result;
+});
+
+export const createPolicyVersionController = handle(async (req) => {
+  const result = await policiesService.createPolicyVersion({
+    polId: req.body.polId,
+    input: pick(req.body, POLICY_FIELDS),
+    useBy: req.user.useId,
+    scope: await workScopeOf(req),
+    ctx: auditContext(req),
+    idempotencyKey: req.get(IDEMPOTENCY_HEADER),
+  });
+  notify();
+  return result;
+});
+
+export const cancelPolicyController = handle(async (req) => {
+  const result = await policiesService.cancelPolicy({
+    polId: req.body.polId,
+    reaId: req.body.reaId,
+    observation: req.body.observation,
     useBy: req.user.useId,
     scope: await workScopeOf(req),
     ctx: auditContext(req),

@@ -19,10 +19,9 @@ export const insurersConfig = defineMaster({
   ],
   defaultSort: "description",
   selectOrder: "description",
-  // ADR-0003, decisión 4. tbl_policies todavía no existe: al crearla
-  // (ADR-0018) se agrega aquí { model: "tbl_policies", column: "ins_id",
-  // label: "póliza(s)" }.
-  dependents: [],
+  // ADR-0003, decisión 4. Las pólizas no se eliminan (las anuladas y las
+  // versiones cerradas son evidencia): cuentan todas (DEC-050).
+  dependents: [{ model: "tbl_policies", column: "ins_id", label: "póliza(s)", countDeleted: true }],
   socketEvent: "refresh-insurers",
 });
 

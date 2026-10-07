@@ -21,6 +21,7 @@ const {
   ISOLATION_LEVEL,
   LOCK_WAIT_TIMEOUT_SECONDS,
   MAX_DEADLOCK_RETRIES,
+  LOCK_ORDER,
 } =
   await import("../../../src/common/services/transaction.service.js");
 
@@ -54,10 +55,10 @@ describe("buildLockPlan — orden del protocolo", () => {
     expect(plan[1]).toMatchObject({ table: "tbl_providers", id: "prv_id" });
   });
 
-  it("rechaza entidades fuera del protocolo o sin tabla registrada", () => {
+  it("rechaza entidades fuera del protocolo; toda entidad del orden tiene su tabla", () => {
     expect(() => buildLockPlan({ PROYECTO: [1] })).toThrow(/fuera de LOCK_ORDER/);
-    // POLIZA tiene lugar en el orden, pero su tabla aún no existe.
-    expect(() => buildLockPlan({ POLIZA: [1] })).toThrow(/sin tabla registrada/);
+    // Con la tabla de pólizas (DEC-050), todas las entidades del orden se pueden bloquear.
+    for (const entity of LOCK_ORDER) expect(() => buildLockPlan({ [entity]: [1] })).not.toThrow();
   });
 
   it("rechaza ids inválidos y un bloqueo vacío", () => {
@@ -109,7 +110,7 @@ describe("withLockedTransaction", () => {
   });
 
   it("un plan inválido falla antes de abrir la transacción", () => {
-    expect(() => withLockedTransaction({ POLIZA: 1 }, jest.fn())).toThrow(/sin tabla registrada/);
+    expect(() => withLockedTransaction({ PROYECTO: 1 }, jest.fn())).toThrow(/fuera de LOCK_ORDER/);
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });

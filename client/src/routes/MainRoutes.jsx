@@ -23,6 +23,7 @@ const SupervisionTypePage = Loadable(lazy(() => import('views/admin/supervisionT
 const ConstructionCompanyPage = Loadable(lazy(() => import('views/admin/constructionCompanies/ConstructionCompanyPage')));
 const ContractTypePage = Loadable(lazy(() => import('views/admin/contractTypes/ContractTypePage')));
 const ReasonPage = Loadable(lazy(() => import('views/admin/reasons/ReasonPage')));
+const PolicyTypePage = Loadable(lazy(() => import('views/admin/policyTypes/PolicyTypePage')));
 const WorksPage = Loadable(lazy(() => import('views/work/works/WorksPage')));
 const WorkDetailPage = Loadable(lazy(() => import('views/work/works/WorkDetailPage')));
 const WorkFormPage = Loadable(lazy(() => import('views/work/works/WorkFormPage')));
@@ -68,7 +69,8 @@ const MainRoutes = {
             { path: 'supervisionTypes', element: <SupervisionTypePage /> },
             { path: 'constructionCompanies', element: <ConstructionCompanyPage /> },
             { path: 'contractTypes', element: <ContractTypePage /> },
-            { path: 'reasons', element: <ReasonPage /> }
+            { path: 'reasons', element: <ReasonPage /> },
+            { path: 'policyTypes', element: <PolicyTypePage /> }
           ]
         },
         {

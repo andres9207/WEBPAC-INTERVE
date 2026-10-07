@@ -18,7 +18,7 @@ yarn db:seed:demo   # datos de demostración para desarrollo (ver "Datos de demo
 
 ### Datos de demostración
 
-`prisma/seed.demo.js` (`yarn db:seed:demo`) siembra datos de negocio para probar la aplicación: motivos de suspensión, dos tipos de contrato con su configuración de campos, tres obras con etapas y responsables, seis proveedores con contactos asignados a obras y nueve contratos (en ejecución, con otrosí, uno suspendido y uno en liquidación). Correr antes `yarn db:seed`.
+`prisma/seed.demo.js` (`yarn db:seed:demo`) siembra datos de negocio para probar la aplicación: motivos de suspensión, dos tipos de contrato con su configuración de campos, tres obras con etapas y responsables, seis proveedores con contactos asignados a obras y nueve contratos (en ejecución, con otrosí, uno suspendido y uno en liquidación) y, sobre ellos, tres tipos de póliza `[DEMO]` y nueve pólizas (vigentes, a vencer, vencida, sin fecha, una renovada, una anulada y la del otrosí de liquidación, con conceptos sin póliza). Los tipos `[DEMO]` no son las semillas reales, que esperan DEC-04 (DEC-050). Correr antes `yarn db:seed`.
 
 - **No es el seed de catálogos.** `seed.js` repara catálogos en cualquier ambiente; este crea datos de negocio y se niega a correr con `NODE_ENV=production`.
 - **Pasa por los services reales** como el usuario 1 (Superadmin), no por `prisma.create`: autoría, bitácora, bloqueos, fecha fin derivada, numeración de otrosí y transiciones de estado quedan como si se capturaran en la aplicación. No pasa por express-validator, así que los datos se escriben ya en la forma que deja la validación (fechas `AAAA-MM-DD`, importes y porcentajes como texto).
@@ -93,6 +93,7 @@ Supertest está como devDependency para si en el futuro se agregan tests de inte
 - `MAIL_*` — configuración del mailer (Nodemailer).
 - `CRON_END_DATE_RECONCILIATION` — horario de la conciliación de la fecha fin (expresión de `node-cron`, en UTC); por defecto `0 8 * * *` (03:00 en Colombia).
 - `RECONCILIATION_REPORT_EMAILS` — correos que reciben el informe de la conciliación, separados por coma. Vacía: solo notificación en la aplicación (permiso 92) y log.
+- `POLICY_EXPIRING_DAYS` — días antes del fin de vigencia en que una póliza pasa a "a vencer" (ADR-0002, DEC-050); por defecto 30.
 
 ## Arquitectura: estructura modular por capas
 

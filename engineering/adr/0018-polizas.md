@@ -2,9 +2,9 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-10-07, [DEC-050](../decisiones/DEC-050-polizas.md)). Implementado: póliza ligada a contrato y concepto (FK compuesta), valor asegurado derivado, versiones con una sola vigente, anulación con motivo, conceptos sin póliza, vigencia con la fecha del servidor, permisos propios y bitácora funcional. Falta: pólizas en la creación del contrato, condición C8 (DEC-15) y documentos (fase 6). La decisión 10 se aplica con la tabla de efectos de ADR-0017: en liquidación solo se renueva y se ampara el otrosí de liquidación.
 
-Las pólizas **no existen** en el código ni en el esquema. Este ADR documenta la decisión arquitectónica recomendada.
+Abajo, el análisis original. Las tablas "Estado actual" describen el sistema a la fecha del ADR.
 
 ## Fecha
 

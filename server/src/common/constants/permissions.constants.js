@@ -89,6 +89,17 @@ export const PERMISSIONS = {
       delete: 81,
       changeStatus: 82,
     },
+    // Tipos de póliza (ADR-0019, DEC-050). Configurar la base de cálculo va
+    // aparte de editar: cambia los importes asegurados de todas las pólizas
+    // futuras del tipo.
+    policyTypes: {
+      view: 93, // pagination_policy_types, get_policy_type
+      create: 94,
+      edit: 95,
+      delete: 96,
+      changeStatus: 97,
+      configureBase: 98,
+    },
   },
   // Obras (DEC-026). Asignar y retirar responsables son permisos aparte de
   // editar: deciden quién responde por la obra (ADR-0011, "Autorización").
@@ -141,6 +152,14 @@ export const PERMISSIONS = {
       // No protege un endpoint: decide quién recibe el informe de la
       // conciliación de la fecha fin (PRO-BE-13, FND-BE-36).
       receiveReconciliation: 92,
+    },
+    // Pólizas del contrato (ADR-0018, DEC-050). Modificar emite una versión
+    // nueva; anular reemplaza a eliminar.
+    policies: {
+      view: 99, // get_contract_policies
+      create: 100,
+      edit: 101,
+      cancel: 102,
     },
   },
   // Facturación (DEC-042). Aprobar va separado de crear (segregación de

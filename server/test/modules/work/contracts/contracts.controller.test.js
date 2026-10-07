@@ -16,12 +16,14 @@ const contractsServiceMock = {
 };
 const conceptsServiceMock = { createAmendment: jest.fn(), createLiquidation: jest.fn(), updateConcept: jest.fn() };
 const suspensionsServiceMock = { suspendContract: jest.fn() };
+const policiesServiceMock = { getContractPolicies: jest.fn(), createPolicy: jest.fn(), createPolicyVersion: jest.fn(), cancelPolicy: jest.fn() };
 const getEffectivePermissionIds = jest.fn().mockResolvedValue([72, 77]);
 const emit = jest.fn();
 
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contracts.service.js", () => contractsServiceMock);
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractConcepts.service.js", () => conceptsServiceMock);
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractSuspensions.service.js", () => suspensionsServiceMock);
+jest.unstable_mockModule("../../../../src/modules/work/contracts/contractPolicies.service.js", () => policiesServiceMock);
 jest.unstable_mockModule("../../../../src/common/services/effectivePermissions.service.js", () => ({ getEffectivePermissionIds }));
 // Alcance por obra (DEC-047): el controller lo resuelve y lo pasa al service.
 const SCOPE = Object.freeze({ all: false, wrkId: 8 });

@@ -24,6 +24,8 @@ export const UNIQUE_CONSTRAINT_MESSAGES = Object.freeze({
   uq_construction_companies_description_active: "Ya existe una constructora con esa descripción.",
   uq_contract_types_name_active: "Ya existe un tipo de contrato con ese nombre.",
   uq_reasons_name_active: "Ya existe un motivo con ese nombre para ese acto.",
+  uq_policy_types_key: "Ya existe un tipo de póliza con esa clave.",
+  uq_policy_types_name_active: "Ya existe un tipo de póliza con ese nombre.",
 
   // Obras
   uq_works_code: "Ya existe una obra con ese código.",
@@ -43,6 +45,9 @@ export const UNIQUE_CONSTRAINT_MESSAGES = Object.freeze({
   uq_contract_concepts_liquidation: "El contrato ya tiene un otrosí de liquidación.",
   uq_contract_suspensions_open: "El contrato ya tiene una suspensión abierta.",
   uq_invoices_provider_number: "Ya existe una factura con ese número para el proveedor.",
+
+  // Pólizas
+  uq_policies_current: "La póliza cambió mientras la modificabas. Actualiza la vista e intenta de nuevo.",
 });
 
 /**
@@ -93,6 +98,10 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   "uq_contracts_id_work_provider",
   "uq_invoices_idempotency_key",
   "uq_invoice_status_history_idempotency_key",
+  "uq_policy_types_idempotency_key",
+  "uq_policies_idempotency_key",
+  // Apoyo de la FK compuesta póliza → concepto del contrato (0079)
+  "uq_contract_concepts_id_contract",
 ]);
 
 /** Duplicado de un índice interno o desconocido. No remite a sistemas: suele ser una carrera. */
