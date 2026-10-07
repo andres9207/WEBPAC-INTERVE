@@ -91,6 +91,8 @@ Supertest está como devDependency para si en el futuro se agregan tests de inte
 - `JWT_EXPIRES_IN` — vida del access token (cookie `token`); por defecto y recomendado `15m`. Un valor largo (p. ej. el viejo `5h`) anula buena parte del beneficio del refresh token.
 - `JWT_REFRESH_EXPIRES_IN` — vida del refresh token (cookie `refresh_token`, tabla `tbl_sessions`), con el mismo formato que `JWT_EXPIRES_IN` (`s`, `m`, `h`, `d`; un número solo = segundos); por defecto `7d`. Un valor inválido hace fallar el arranque (`parseDuration` en `session.service.js`).
 - `MAIL_*` — configuración del mailer (Nodemailer).
+- `CRON_END_DATE_RECONCILIATION` — horario de la conciliación de la fecha fin (expresión de `node-cron`, en UTC); por defecto `0 8 * * *` (03:00 en Colombia).
+- `RECONCILIATION_REPORT_EMAILS` — correos que reciben el informe de la conciliación, separados por coma. Vacía: solo notificación en la aplicación (permiso 92) y log.
 
 ## Arquitectura: estructura modular por capas
 
@@ -109,12 +111,13 @@ Solo estas carpetas son parte activa de la arquitectura — cualquier otra que a
   - `common/utils/validation.utils.js`: reglas de `express-validator` que comparten los `*.validation.js` (paginación, ids, arreglos de ids).
   - `common/utils/pagination.utils.js`: `paginate(model, queryArgs, pagination)`, helper único de listados (ver "Listados paginados" en `ENDPOINT_STANDARD.md`).
   - `common/templates/` — plantillas de correo; hoy son las plantillas genéricas heredadas del boilerplate original (`plantilla.template.js`/`plantilla2`/`plantilla3`/`images.js`), **sin ningún caller real** (confirmado por búsqueda completa) — candidatas a limpieza, no un lugar activo para plantillas nuevas hasta que se confirme cuál sigue en uso.
+- **`src/cron/`**: procesos programados con `node-cron` ([DEC-049](../engineering/decisiones/DEC-049-cron-conciliacion-fecha-fin.md)). `server.js` los arranca con `startCronJobs()`, salvo con `NODE_ENV=development`. Cada job vive en `src/cron/jobs/` y se registra en `cronJobs` (`index.js`); `yarn cron:run <nombre>` corre uno a mano (`run.js`). Solo procesos que reportan o mantienen, nunca transiciones de estado. Hoy: `contract-end-date-reconciliation`.
 - **`socket.js`** (raíz de `server/`, **no** `src/socket/`) — inicializa Socket.IO, une cada conexión a la sala `` `user:${useId}` `` para emitir dirigido (ver `app/notifications` y `security/permissions`). Lo arranca `server.js`.
 - **`prisma/`** (raíz de `server/`) — `schema.prisma` (introspectado desde la BD real) y `seed.js` (RBAC idempotente, ver "Seed de páginas y permisos").
 - **`test/`** (raíz de `server/`) — toda la suite de Jest, en un árbol separado de `src/` que la espeja 1:1 (ver "Tests unitarios" más abajo).
 - **`app.js`/`server.js`** (raíz de `server/`) — entrypoints: `app.js` arma el pipeline de middleware de Express, `server.js` crea el server HTTP, inicializa Socket.IO y prueba la conexión a BD al arrancar.
 
-**Carpetas vestigiales conocidas, sin uso real** (no borrar código a ciegas si aparecen en un `find`, pero tampoco agregar nada ahí): `src/cron/` (framework de cron jobs con `node-cron`; `server.js` lo arranca con `startCronJobs()`, pero `cronJobs` está vacío, así que no corre nada), `src/images/` (dos logos del boilerplate original — `logoPavasStay.png`/`logo_doblamos.jpg` — sin ningún caller), `src/socket/`, `src/utils/` y `src/webhooks/` (carpetas vacías, sin un solo archivo). Se eliminaron ya `src/activitySystem/`, `src/features/` y `src/shared/`: eran el esqueleto vacío (cero archivos, nunca trackeado en git) de un intento previo de migrar a una arquitectura feature-based que se revirtió a favor de `modules/`+`common/` — no representaban ningún código ni decisión vigente.
+**Carpetas vestigiales conocidas, sin uso real** (no borrar código a ciegas si aparecen en un `find`, pero tampoco agregar nada ahí): `src/images/` (dos logos del boilerplate original — `logoPavasStay.png`/`logo_doblamos.jpg` — sin ningún caller), `src/socket/`, `src/utils/` y `src/webhooks/` (carpetas vacías, sin un solo archivo). Se eliminaron ya `src/activitySystem/`, `src/features/` y `src/shared/`: eran el esqueleto vacío (cero archivos, nunca trackeado en git) de un intento previo de migrar a una arquitectura feature-based que se revirtió a favor de `modules/`+`common/` — no representaban ningún código ni decisión vigente.
 
 ### Trío routes/controller/service
 

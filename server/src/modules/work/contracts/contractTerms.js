@@ -197,6 +197,14 @@ export const contractEndDate = ({ startDate, term, unit, extensions = 0, suspend
   return addTerm(end, Number(suspendedDays), "DIA");
 };
 
+/**
+ * Mientras el contrato está suspendido, la fecha fin persistida queda
+ * congelada y es provisional (PRO-BE-10, criterio 3): no incluye los días de
+ * la suspensión abierta, que se suman al reanudar. Suspendido ⇔ suspensión
+ * abierta (DEC-039), así que basta el estado.
+ */
+export const isEndDateProvisional = (state) => state === SUSPENDED;
+
 /** Σ prórrogas de los otrosí vigentes (los de otro tipo no tienen). */
 export const totalExtensions = (concepts) =>
   concepts.filter((c) => c.ccp_type === CONCEPT_TYPES.AMENDMENT && c.sta_id !== DELETED_STATUS).reduce((sum, c) => sum + (c.ccp_extension ?? 0), 0);

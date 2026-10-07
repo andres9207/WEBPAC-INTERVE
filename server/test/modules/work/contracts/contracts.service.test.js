@@ -244,6 +244,8 @@ describe("saveContract — editar", () => {
 
   it("si cambia la fecha de inicio, el valor inicial la sigue", async () => {
     await service.saveContract({ ctrId: 30, input: input({ startDate: "2026-02-01" }), useBy: 9, ctx });
+    // 1 feb + 6 meses = 1 ago: el cambio de inicio también recalcula la fecha fin.
+    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data.ctr_end_date.toISOString()).toBe("2026-08-01T00:00:00.000Z");
     expect(prismaMock.tbl_contract_concepts.updateMany.mock.calls[0][0]).toMatchObject({
       where: { ctr_id: 30, ccp_type: "INITIAL" },
       data: { ccp_update_by: 9 },
@@ -341,7 +343,7 @@ describe("paginationContracts", () => {
     });
     expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, AND: [{ wrk_id: 8 }] });
     expect(page.statusCounts).toEqual({ IN_PROGRESS: 4 });
-    expect(page.results[0]).toMatchObject({ ctrId: 30, currentValue: "1190.00", stateName: "En ejecución", endDate: "2026-07-31" });
+    expect(page.results[0]).toMatchObject({ ctrId: 30, currentValue: "1190.00", stateName: "En ejecución", endDate: "2026-07-31", endDateProvisional: false });
   });
 
   it("filtra por tipo de contrato, también en los conteos, y ordena por el nombre del tipo", async () => {

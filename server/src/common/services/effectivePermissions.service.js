@@ -1,4 +1,5 @@
 import { prisma } from "../configs/prismaClient.js";
+import { ACTIVE_STATUS } from "../constants/status.constants.js";
 
 /**
  * El permiso efectivo de un usuario es la UNIÓN de los permisos de la
@@ -54,4 +55,25 @@ export const getEffectivePermissionIds = async ({ useId, proId }) => {
       ...individualPermissions.map((p) => p.per_id),
     ]),
   ];
+};
+
+/**
+ * Usuarios activos que tienen un permiso efectivo (por su perfil o como
+ * excepción individual). Para decidir a quién avisar algo (p. ej. el informe
+ * de una conciliación), nunca para autorizar una petición: eso es
+ * requirePermission.
+ */
+export const findUsersWithPermission = async (perId) => {
+  const perIdNum = Number(perId);
+  return prisma.tbl_users.findMany({
+    where: {
+      sta_id: ACTIVE_STATUS,
+      OR: [
+        { tbl_profiles: { tbl_profile_permissions: { some: { per_id: perIdNum } } } },
+        { tbl_user_permissions: { some: { per_id: perIdNum } } },
+      ],
+    },
+    select: { use_id: true, use_email: true },
+    orderBy: { use_id: "asc" },
+  });
 };

@@ -9,6 +9,7 @@ import {
   contractEndDate,
   contractTotals,
   historyRow,
+  isEndDateProvisional,
   sortConcepts,
   suspendedDaysBetween,
   totalExtensions,
@@ -209,5 +210,12 @@ describe("suspensión (ADR-0017, DEC-039)", () => {
 
   it("los días suspendidos alargan la fecha fin, sumados a las prórrogas", () => {
     expect(contractEndDate({ startDate: "2026-01-01", term: 1, unit: "MES", extensions: 1, suspendedDays: 10 })).toBe("2026-03-11");
+  });
+
+  it("con la suspensión abierta la fecha fin es provisional; en los demás estados, no (PRO-BE-10)", () => {
+    expect(isEndDateProvisional(CONTRACT_STATES.SUSPENDED)).toBe(true);
+    for (const state of [CONTRACT_STATES.IN_PROGRESS, CONTRACT_STATES.IN_LIQUIDATION, CONTRACT_STATES.LIQUIDATED]) {
+      expect(isEndDateProvisional(state)).toBe(false);
+    }
   });
 });

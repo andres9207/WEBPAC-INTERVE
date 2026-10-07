@@ -120,6 +120,8 @@ const PERMISSIONS = [
   { per_id: 77, per_name: "Levantar suspensión de contrato", pag_id: 16, per_order: 9 },
   // database/migrations/0074_seed_contract_aiu_permission.sql
   { per_id: 90, per_name: "Cambiar solicitud de AIU del contrato", pag_id: 16, per_order: 10 },
+  // database/migrations/0077_seed_reconciliation_permission.sql
+  { per_id: 92, per_name: "Recibir conciliación de fechas fin de contratos", pag_id: 16, per_order: 11 },
   { per_id: 79, per_name: "Crear motivo", pag_id: 17, per_order: 1 },
   { per_id: 80, per_name: "Modificar motivo", pag_id: 17, per_order: 2 },
   { per_id: 81, per_name: "Eliminar motivo", pag_id: 17, per_order: 3 },

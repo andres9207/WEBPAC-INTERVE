@@ -138,6 +138,9 @@ export const PERMISSIONS = {
       // Apagar o volver a encender el AIU de un contrato cuyo tipo lo aplica
       // (ADR-0026, P13; DEC-046).
       changeAiu: 90,
+      // No protege un endpoint: decide quién recibe el informe de la
+      // conciliación de la fecha fin (PRO-BE-13, FND-BE-36).
+      receiveReconciliation: 92,
     },
   },
   // Facturación (DEC-042). Aprobar va separado de crear (segregación de

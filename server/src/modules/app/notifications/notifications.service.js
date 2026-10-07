@@ -54,8 +54,6 @@ export const insertNotification = async ({
   if (!userId) return null;
 
   try {
-    const io = getIO();
-
     const notification = await tx.tbl_notifications.create({
       data: {
         use_id: Number(userId),
@@ -69,8 +67,10 @@ export const insertNotification = async ({
       },
     });
 
+    // Sin Socket.IO (un proceso fuera del servidor, p. ej. un job corrido a
+    // mano) la notificación igual queda guardada: el usuario la ve al entrar.
     try {
-      io.to(`user:${String(userId)}`).emit('newNotification', notification);
+      getIO().to(`user:${String(userId)}`).emit('newNotification', notification);
     } catch (socketErr) {
       console.error(`[notifications] Error emitiendo socket a usuario ${userId}:`, socketErr);
     }

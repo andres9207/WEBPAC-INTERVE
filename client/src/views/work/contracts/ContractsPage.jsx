@@ -65,7 +65,20 @@ export const CONTRACT_COLUMNS = [
     align: 'right',
     render: (row) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fMoneyText(row.currentValue)}</span>
   },
-  { id: 'endDate', label: 'Fecha fin', sortable: true, render: (row) => fDateOnly(row.endDate) }
+  {
+    id: 'endDate',
+    label: 'Fecha fin',
+    sortable: true,
+    // Suspendido: la fecha fin no incluye todavía los días de la suspensión (PRO-BE-10).
+    render: (row) =>
+      row.endDateProvisional ? (
+        <span title="Provisional: al reanudar el contrato se suman los días de la suspensión">
+          {fDateOnly(row.endDate)} <Chip label="Provisional" size="small" color="warning" variant="outlined" />
+        </span>
+      ) : (
+        fDateOnly(row.endDate)
+      )
+  }
 ];
 
 export const CONTRACT_STATE_FILTER = { param: 'state', tabs: CONTRACT_STATE_TABS, colors: CONTRACT_STATE_COLORS };

@@ -22,6 +22,7 @@ import {
   contractEndDate,
   contractTotals,
   historyRow,
+  isEndDateProvisional,
   sortConcepts,
   totalExtensions,
 } from "./contractTerms.js";
@@ -292,6 +293,7 @@ const toListDto = (row) => ({
   contractType: row.tbl_contract_types?.ctt_name ?? null,
   startDate: dateOnlyText(row.ctr_start_date),
   endDate: dateOnlyText(row.ctr_end_date),
+  endDateProvisional: isEndDateProvisional(row.ctr_state),
   term: row.ctr_term,
   termUnit: row.ctr_term_unit,
   currentValue: moneyText(contractTotals(row.tbl_contract_concepts ?? []).value),
@@ -479,6 +481,8 @@ export const getContract = async ({ ctrId, scope }) => {
     totalExtensions: extensions,
     suspendedDays: row.ctr_suspended_days,
     endDate: dateOnlyText(row.ctr_end_date),
+    // Suspendido: congelada hasta reanudar (PRO-BE-10).
+    endDateProvisional: isEndDateProvisional(row.ctr_state),
     state: row.ctr_state,
     stateName: STATE_NAMES[row.ctr_state] ?? row.ctr_state,
     // Qué admite el estado actual (ADR-0017): el cliente lo cruza con los permisos.

@@ -123,7 +123,10 @@ export default function ContractDetailPage() {
     {
       label: 'Fecha fin',
       value: fDateOnly(contract.endDate),
-      hint: 'Calculada: inicio + plazo + prórrogas + días suspendidos'
+      // Suspendido: congelada hasta reanudar, cuando se suman los días (PRO-BE-10).
+      hint: contract.endDateProvisional
+        ? 'Provisional: el contrato está suspendido; al reanudarlo se suman los días de la suspensión'
+        : 'Calculada: inicio + plazo + prórrogas + días suspendidos'
     },
     {
       label: 'Plazo',
@@ -252,7 +255,10 @@ export default function ContractDetailPage() {
                       contract.totalExtensions ? fTerm(contract.totalExtensions, contract.termUnit) : 'Sin prórrogas'
                     ],
                     ['Días suspendidos', String(contract.suspendedDays)],
-                    ['Fecha fin', `${fDateOnly(contract.endDate)} (calculada por el sistema)`],
+                    [
+                      'Fecha fin',
+                      `${fDateOnly(contract.endDate)} (${contract.endDateProvisional ? 'provisional hasta reanudar' : 'calculada por el sistema'})`
+                    ],
                     ['Estado', contract.stateName],
                     ['Creado', `${fDateTime(contract.createdAt)} por ${contract.createdByName ?? '—'}`]
                   ]}
