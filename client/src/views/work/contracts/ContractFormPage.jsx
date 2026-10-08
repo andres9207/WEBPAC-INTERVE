@@ -21,6 +21,7 @@ import RouteDialog from 'ui-component/extended/RouteDialog';
 import SearchSelect from 'ui-component/extended/SearchSelect';
 import SelectSocket from 'ui-component/extended/SelectSocket';
 import ConceptFields, { EMPTY_CONCEPT } from './components/ConceptFields';
+import PoliciesDraftEditor from './components/PoliciesDraftEditor';
 import { shownFields, toFormFields, visiblePayload, withContractAiu } from './components/configurableFields';
 import {
   contractsApi,
@@ -41,8 +42,10 @@ import { TERM_UNIT_OPTIONS } from 'utils/constants';
  * listado con dirección propia `/work/contracts/new` y `/:ctrId/edit`
  * (DEC-034).
  *
- * - Crear envía el contrato con su valor inicial en una sola petición: el
- *   servidor los guarda juntos con el historial. Lleva clave de idempotencia.
+ * - Crear envía el contrato con su valor inicial y, si hay, sus pólizas en una
+ *   sola petición: el servidor los guarda juntos con el historial
+ *   (PRO-BE-09). Lleva clave de idempotencia. Las pólizas amparan el valor
+ *   inicial y solo se ofrecen con el permiso de registrar pólizas.
  * - Etapa y proveedor se filtran por la obra elegida (y el servidor lo exige).
  *   La obra no cambia después de crear el contrato.
  * - La fecha fin es solo lectura: la calcula el servidor (inicio + plazo +
@@ -72,7 +75,9 @@ const EMPTY_FORM = {
   observation: '',
   // Solicitud de AIU (DEC-046): al crear, la da el tipo elegido.
   aiuRequested: true,
-  initialConcept: EMPTY_CONCEPT
+  initialConcept: EMPTY_CONCEPT,
+  // Solo al crear (PoliciesDraftEditor).
+  policies: []
 };
 
 const text = (value) => String(value ?? '').trim();
@@ -111,7 +116,18 @@ const toPayload = (ctrId, form, descriptors) => {
           initialConcept: {
             directCost: form.initialConcept.directCost,
             ...visiblePayload(withContractAiu(descriptors, Boolean(form.aiuRequested)), 'CONCEPT', form.initialConcept, NO_DESCRIPTION)
-          }
+          },
+          ...(form.policies.length > 0 && {
+            policies: form.policies.map(({ pltId, insId, number, percentage, startDate, endDate, observation }) => ({
+              pltId,
+              insId,
+              number,
+              percentage,
+              startDate,
+              endDate,
+              observation
+            }))
+          })
         })
   };
 };
@@ -134,6 +150,7 @@ export default function ContractFormPage() {
   // Descriptores de los campos configurables del tipo elegido (`cttId` dice de qué tipo son).
   const [fieldConfig, setFieldConfig] = useState({ cttId: null, fields: [], typeAppliesAiu: false });
   const [loadingFields, setLoadingFields] = useState(false);
+  const [addingPolicy, setAddingPolicy] = useState(false);
 
   const methods = useForm({ defaultValues: EMPTY_FORM });
   const { control, handleSubmit, reset, setValue, getValues, formState } = methods;
@@ -174,6 +191,8 @@ export default function ContractFormPage() {
   const { permissionsCatalog, hasPermission } = useAuth();
   const aiuPermission = permissionsCatalog.work?.contracts?.changeAiu;
   const canChangeAiu = aiuPermission != null && hasPermission(aiuPermission);
+  const policyPermission = permissionsCatalog.work?.policies?.create;
+  const canCreatePolicies = !isEdit && policyPermission != null && hasPermission(policyPermission);
 
   // Configuración del tipo elegido, la vigente (ADR-0006, decisión 5).
   useEffect(() => {
@@ -577,6 +596,28 @@ export default function ContractFormPage() {
                   {cttId ? 'Cargando los campos del tipo de contrato…' : 'Elige el tipo de contrato para capturar el valor inicial.'}
                 </Typography>
               )}
+            </FormSection>
+          )}
+
+          {canCreatePolicies && (
+            <FormSection
+              title="Pólizas"
+              subtitle="Opcionales. Amparan el valor inicial, una por tipo, y se registran con el contrato."
+              onAdd={() => setAddingPolicy(true)}
+              addLabel="Agregar póliza"
+            >
+              <Controller
+                name="policies"
+                control={control}
+                render={({ field }) => (
+                  <PoliciesDraftEditor
+                    value={field.value}
+                    onChange={field.onChange}
+                    adding={addingPolicy}
+                    onAddingChange={setAddingPolicy}
+                  />
+                )}
+              />
             </FormSection>
           )}
         </Stack>

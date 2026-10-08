@@ -28,6 +28,8 @@ Los dos ADR pedían no implementar nada antes de DEC-04: qué base de cálculo u
     - Liquidado: solo consulta.
     - Acciones `createPolicy`, `createLiquidationPolicy`, `renewPolicy` y `cancelPolicy` en `STATE_ALLOWS`.
   - **Vigencia** (`policyTerms.js`): se calcula con la fecha del servidor en cuatro categorías: sin fecha de vigencia, vigente, a vencer y vencida. El umbral de "a vencer" sale de `POLICY_EXPIRING_DAYS` (por defecto 30) y se devuelve con las pólizas. Los conceptos sin póliza vigente se muestran como un hallazgo.
+  - **Una póliza vigente por concepto y tipo** (2026-10-08, lo decidió el usuario). Un concepto admite varias pólizas, de tipos distintos. Registrar una de un tipo que el concepto ya tiene vigente, o cambiar a ese tipo al emitir una versión, responde 409. La verifica el service (`assertTypeFree`) bajo el bloqueo del contrato, que toman todas las operaciones de pólizas; la BD todavía no la garantiza (ver deuda).
+  - **Creación con el contrato** (2026-10-08, PRO-BE-09). Crear el contrato acepta `policies[]`, opcional, hasta 20. Se crean en la misma transacción, sobre el valor inicial, con la misma emisión que el expediente (`insertPolicy`) y el mismo `operationId` del contrato. Sin el permiso 100, si llegan pólizas, responde 403: crear el contrato no da el de registrar pólizas. Dos del mismo tipo en el envío responden 400.
   - **Eliminaciones bloqueadas.** Un contrato con pólizas no se elimina (409). Un tipo, una aseguradora o un motivo con pólizas tampoco: cuentan todas, también las anuladas y las versiones cerradas.
 - **Permisos:** tipos de póliza 93 a 98 (página 20, "Administración > Tipos de póliza"); pólizas 99 (ver), 100 (registrar), 101 (modificar) y 102 (anular), en la página Contratos. Los de ver se dan a todos los perfiles.
 - **Bloqueo:** contrato → póliza → maestros (`TIPO_POLIZA` al final de `LOCK_ORDER`).
@@ -44,8 +46,8 @@ Los dos ADR pedían no implementar nada antes de DEC-04: qué base de cálculo u
 
 - Quien siembre los tipos cuando se resuelva DEC-04 lo hace con una migración y con `seed.js`, sin cambiar código.
 - El tablero (ADR-0002) y la condición C8 deben usar `policyValidity` y `uncoveredConcepts`, no volver a calcular la vigencia.
-- Falta registrar pólizas al crear el contrato (lo que queda de PRO-BE-09). Se hará después, sobre `createPolicy`.
+- Crear el contrato con sus pólizas reutiliza `insertPolicy`: cualquier regla nueva de emisión vale para los dos caminos.
 
 ## Dónde
 
-Migraciones `0078` a `0082` · `server/src/modules/admin/policyTypes/` · `server/src/modules/work/contracts/contractPolicies.service.js` y `policyTerms.js` · `client/src/views/admin/policyTypes/` · `client/src/views/work/contracts/components/` (`PoliciesTab`, `PolicyDialog`, `CancelPolicyDialog`) · tests en `test/modules/admin/policyTypes/` y `test/modules/work/contracts/` (`contractPolicies`, `policyTerms`)
+Migraciones `0078` a `0082` · `server/src/modules/admin/policyTypes/` · `server/src/modules/work/contracts/contractPolicies.service.js` y `policyTerms.js` · `client/src/views/admin/policyTypes/` · `client/src/views/work/contracts/components/` (`PoliciesTab`, `PolicyDialog`, `CancelPolicyDialog`, `PoliciesDraftEditor`) · tests en `test/modules/admin/policyTypes/` y `test/modules/work/contracts/` (`contractPolicies`, `policyTerms`)

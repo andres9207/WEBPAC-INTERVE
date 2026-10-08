@@ -15,6 +15,7 @@ const prismaMock = {
   tbl_reasons: { findUnique: jest.fn(async () => state.reason) },
   tbl_policies: {
     findUnique: jest.fn(async () => state.policy),
+    findFirst: jest.fn(async () => state.taken),
     create: jest.fn(async ({ data }) => ({ pol_id: 500, ...data })),
     update: jest.fn(),
   },
@@ -71,6 +72,7 @@ beforeEach(() => {
   state.insurer = { ins_description: "Seguros SA", sta_id: 1 };
   state.reason = { rea_scope: "POLICY_CANCEL", rea_name: "Error de registro", sta_id: 1 };
   state.policy = null;
+  state.taken = null;
   prismaMock.tbl_policies.findUnique.mockImplementation(async ({ where }) => (where.pol_idempotency_key ? null : state.policy));
 });
 
@@ -131,6 +133,16 @@ describe("createPolicy", () => {
     }
   });
 
+  it("el concepto admite una póliza vigente por tipo (409)", async () => {
+    state.taken = { pol_number: "CU-000" };
+    await expect(service.createPolicy({ ctrId: 30, input: input(), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 409,
+      message: "El concepto ya tiene una póliza vigente de ese tipo (N.º CU-000).",
+    });
+    expect(prismaMock.tbl_policies.findFirst.mock.calls[0][0].where).toEqual({ ccp_id: 300, plt_id: 4, pol_is_current: true });
+    expect(prismaMock.tbl_policies.create).not.toHaveBeenCalled();
+  });
+
   it("la vigencia admite fechas vacías", async () => {
     await service.createPolicy({ ctrId: 30, input: input({ startDate: null, endDate: "" }), useBy: 9, ctx, idempotencyKey: KEY });
     expect(prismaMock.tbl_policies.create.mock.calls[0][0].data).toMatchObject({ pol_start_date: null, pol_end_date: null });
@@ -159,6 +171,17 @@ describe("createPolicyVersion", () => {
     const { data } = prismaMock.tbl_policies.create.mock.calls[0][0];
     expect(data).toMatchObject({ pol_root_id: 500, pol_version: 2, pol_is_current: true, ctr_id: 30, ccp_id: 300, pol_base: "TOTAL_VALUE" });
     expect(auditRows().map((r) => r.aud_field)).toEqual(expect.arrayContaining(["pol_percentage", "pol_base", "pol_version"]));
+  });
+
+  it("cambiar a un tipo que el concepto ya tiene vigente responde 409; mantener el tipo no lo consulta", async () => {
+    await service.createPolicyVersion({ polId: 500, input: input({ percentage: "20" }), useBy: 9, ctx, idempotencyKey: KEY });
+    expect(prismaMock.tbl_policies.findFirst).not.toHaveBeenCalled();
+
+    state.taken = { pol_number: "AN-001" };
+    await expect(
+      service.createPolicyVersion({ polId: 500, input: input({ pltId: 5 }), useBy: 9, ctx, idempotencyKey: KEY })
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.tbl_policies.findFirst.mock.calls[0][0].where).toEqual({ ccp_id: 300, plt_id: 5, pol_is_current: true, pol_root_id: { not: 500 } });
   });
 
   it("el concepto amparado no cambia entre versiones", async () => {

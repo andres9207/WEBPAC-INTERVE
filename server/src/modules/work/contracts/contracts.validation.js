@@ -23,6 +23,9 @@ import { CONTRACT_STATES } from "./contractTerms.js";
 
 const isCreate = (req) => !(Number(req.body.ctrId) > 0);
 
+// Tope de pólizas al crear: más que los tipos de póliza que un contrato usa.
+const MAX_CREATE_POLICIES = 20;
+
 const requiredText = (field, label, max) =>
   body(field).trim().notEmpty().withMessage(`El ${label} es requerido.`).isLength({ max }).withMessage(`El ${label} admite hasta ${max} caracteres.`);
 
@@ -111,6 +114,14 @@ export const saveContractSchema = [
   body("aiuRequested").optional({ values: "null" }).isBoolean({ strict: true }).withMessage("aiuRequested debe ser verdadero o falso."),
   body("initialConcept").if((_value, { req }) => isCreate(req)).isObject().withMessage("Faltan los datos del valor inicial."),
   ...conceptRules("initialConcept.", isCreate),
+  // Pólizas del valor inicial, solo al crear (PRO-BE-09). Opcionales; el
+  // permiso y el tipo repetido los decide el service.
+  body("policies")
+    .if((_value, { req }) => isCreate(req))
+    .optional({ values: "null" })
+    .isArray({ max: MAX_CREATE_POLICIES })
+    .withMessage(`Las pólizas deben ser una lista de hasta ${MAX_CREATE_POLICIES}.`),
+  ...policyRules("policies.*."),
 ];
 
 export const createAmendmentSchema = [
@@ -156,15 +167,17 @@ export const deleteContractSchema = [requiredId("ctrId")];
 // Pólizas (ADR-0018, DEC-050). La base de cálculo y el valor asegurado no se
 // aceptan: la base sale del tipo y el valor se calcula. Que el concepto sea
 // del contrato y que tipo y aseguradora estén activos lo decide el service.
-const policyRules = () => [
-  requiredId("pltId").withMessage("Selecciona el tipo de póliza."),
-  requiredId("insId").withMessage("Selecciona la aseguradora."),
-  requiredText("number", "número de la póliza", 50),
-  percentRule("percentage", "porcentaje"),
-  optionalDate("startDate"),
-  optionalDate("endDate"),
-  optionalLongText("observation", "La observación", 1000),
-];
+function policyRules(prefix = "") {
+  return [
+    requiredId(`${prefix}pltId`).withMessage("Selecciona el tipo de póliza."),
+    requiredId(`${prefix}insId`).withMessage("Selecciona la aseguradora."),
+    requiredText(`${prefix}number`, "número de la póliza", 50),
+    percentRule(`${prefix}percentage`, "porcentaje"),
+    optionalDate(`${prefix}startDate`),
+    optionalDate(`${prefix}endDate`),
+    optionalLongText(`${prefix}observation`, "La observación", 1000),
+  ];
+}
 
 export const getContractPoliciesSchema = [query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo.")];
 

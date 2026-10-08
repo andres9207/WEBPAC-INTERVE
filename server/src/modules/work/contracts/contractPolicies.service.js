@@ -61,7 +61,7 @@ const auditable = (values) =>
 const conceptLabel = (concept) => `${CONCEPT_TYPE_NAMES[concept.ccp_type]}${concept.ccp_number ? ` N.º ${concept.ccp_number}` : ""}`;
 
 /** Datos de una versión que llegan del cliente → columnas. Nunca la base ni el valor asegurado (ADR-0018, "Seguridad"). */
-const policyValuesOf = (input) => {
+export const policyValuesOf = (input) => {
   const values = {
     plt_id: Number(input.pltId),
     ins_id: Number(input.insId),
@@ -106,6 +106,47 @@ const assertMasters = async (tx, values, before = null) => {
 };
 
 /**
+ * Un concepto tiene a lo sumo una póliza vigente de cada tipo (PRO-BE-09).
+ * Todas las operaciones de pólizas bloquean antes el contrato, así que la
+ * lectura no compite con otra escritura del mismo concepto. `exceptRootId`
+ * deja fuera a la póliza que se está modificando.
+ */
+const assertTypeFree = async (tx, { ccpId, pltId, exceptRootId = null }) => {
+  const taken = await tx.tbl_policies.findFirst({
+    where: { ccp_id: ccpId, plt_id: pltId, pol_is_current: true, ...(exceptRootId ? { pol_root_id: { not: exceptRootId } } : {}) },
+    select: { pol_number: true },
+  });
+  if (taken) throw httpError(409, `El concepto ya tiene una póliza vigente de ese tipo (N.º ${taken.pol_number}).`);
+};
+
+/**
+ * Emite la primera versión de una póliza dentro de una transacción que ya
+ * bloqueó el contrato, la aseguradora y el tipo. La usan registrar una póliza
+ * y crear el contrato con sus pólizas (PRO-BE-09). Devuelve el id.
+ */
+export const insertPolicy = async (tx, { ctrId, ccpId, values, useBy, ctx, operationId = newOperationId(), idempotencyData = {} }) => {
+  const base = await assertMasters(tx, values);
+  await assertTypeFree(tx, { ccpId, pltId: values.plt_id });
+
+  const data = { ...values, ctr_id: ctrId, ccp_id: ccpId, pol_base: base, pol_version: 1, pol_is_current: true };
+  const created = await tx.tbl_policies.create({
+    data: { ...data, pol_create_by: Number(useBy), pol_update_by: Number(useBy), ...idempotencyData },
+  });
+  // La primera versión es la raíz de la póliza: sus versiones la referencian.
+  await tx.tbl_policies.update({ where: { pol_id: created.pol_id }, data: { pol_root_id: created.pol_id } });
+
+  await writeAudit(tx, {
+    operationId,
+    entity: AUDIT_ENTITIES.POLICY,
+    recordId: created.pol_id,
+    operation: AUDIT_OPERATIONS.CREATE,
+    ctx,
+    changes: diffFields({}, auditable(data), POLICY_AUDITED),
+  });
+  return created.pol_id;
+};
+
+/**
  * Registrar una póliza sobre un concepto del contrato. Idempotente por clave
  * (DEC-016).
  */
@@ -132,24 +173,9 @@ export const createPolicy = async ({ ctrId, input, useBy, scope, ctx = { useId: 
         // En liquidación solo se ampara el otrosí de liquidación, que nace en ese estado.
         const liquidation = concept.ccp_type === CONCEPT_TYPES.LIQUIDATION && contract.ctr_state === CONTRACT_STATES.IN_LIQUIDATION;
         assertStateAllows(contract.ctr_state, liquidation ? "createLiquidationPolicy" : "createPolicy");
-        const base = await assertMasters(tx, values);
 
-        const data = { ...values, ctr_id: contract.ctr_id, ccp_id: ccpId, pol_base: base, pol_version: 1, pol_is_current: true };
-        const created = await tx.tbl_policies.create({
-          data: { ...data, pol_create_by: Number(useBy), pol_update_by: Number(useBy), ...idempotencyData },
-        });
-        // La primera versión es la raíz de la póliza: sus versiones la referencian.
-        await tx.tbl_policies.update({ where: { pol_id: created.pol_id }, data: { pol_root_id: created.pol_id } });
-
-        await writeAudit(tx, {
-          operationId: newOperationId(),
-          entity: AUDIT_ENTITIES.POLICY,
-          recordId: created.pol_id,
-          operation: AUDIT_OPERATIONS.CREATE,
-          ctx,
-          changes: diffFields({}, auditable(data), POLICY_AUDITED),
-        });
-        return { message: "Póliza registrada correctamente", polId: created.pol_id, rootId: created.pol_id };
+        const polId = await insertPolicy(tx, { ctrId: contract.ctr_id, ccpId, values, useBy, ctx, idempotencyData });
+        return { message: "Póliza registrada correctamente", polId, rootId: polId };
       }),
   });
 };
@@ -210,6 +236,9 @@ export const createPolicyVersion = async ({ polId, input, useBy, scope, ctx = { 
           assertStateAllows(contract.ctr_state, "renewPolicy");
           const before = await findCurrentLocked(tx, polId, contract.ctr_id);
           const base = await assertMasters(tx, values, before);
+          if (values.plt_id !== before.plt_id) {
+            await assertTypeFree(tx, { ccpId: before.ccp_id, pltId: values.plt_id, exceptRootId: before.pol_root_id });
+          }
 
           const next = { ...values, pol_base: base };
           const changes = diffFields(auditable(before), auditable(next), POLICY_AUDITED);

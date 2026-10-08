@@ -28,6 +28,9 @@ import {
 } from "./contractTerms.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { contractPolicyStatusWhere, uncoveredContractsWhere } from "./policyTerms.js";
+// Importación circular a propósito: contractPolicies usa los helpers de este
+// archivo y este, insertPolicy. Ninguno de los dos los usa al cargarse.
+import { insertPolicy, policyValuesOf } from "./contractPolicies.service.js";
 
 /**
  * Contratos (ADR-0015 a ADR-0017, DEC-035). El contrato es la raíz del
@@ -771,94 +774,109 @@ const IDEMPOTENCY_TARGET = {
   toResult: (row) => ({ message: "Contrato creado correctamente", ctrId: row.ctr_id }),
 };
 
-const createContract = ({ wrkId, input, granted, useBy, ctx, idempotencyData }) =>
-  withLockedTransaction({ OBRA: wrkId, PROVEEDOR: Number(input.prvId), TIPO_CONTRATO: Number(input.cttId) }, async (tx) => {
-    const cttId = Number(input.cttId);
-    await contractTypesService.assertAssignable(tx, cttId);
-    // Configuración del tipo, con el tipo bloqueado: la versión que se guarda
-    // es la que se aplicó.
-    const descriptors = await resolveContractFields(tx, cttId);
-    const aiuRequested = await resolveAiuRequested(tx, { input, descriptors, granted });
-    const values = {
-      ...headerValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONTRACT, input })),
-      ctr_aiu_requested: aiuRequested,
-      ctr_config_version: await typeConfigVersion(tx, cttId),
-    };
-    // El valor inicial toma la fecha del contrato y no lleva descripción
-    // propia. Si el contrato no solicita AIU, A, I y U no se aceptan.
-    const { ccp_start_date: _start, ccp_description: _description, ...initialConcept } = conceptValuesOf(
-      enforceFields({
-        descriptors: withContractAiu(descriptors, aiuRequested),
-        group: FIELD_GROUPS.CONCEPT,
-        input: input.initialConcept ?? {},
-        skip: ["CONCEPT_DESCRIPTION"],
-      })
-    );
+const createContract = ({ wrkId, input, policies, granted, useBy, ctx, idempotencyData }) =>
+  withLockedTransaction(
+    {
+      OBRA: wrkId,
+      PROVEEDOR: Number(input.prvId),
+      TIPO_CONTRATO: Number(input.cttId),
+      ...(policies.length > 0 && { ASEGURADORA: policies.map((p) => p.ins_id), TIPO_POLIZA: policies.map((p) => p.plt_id) }),
+    },
+    async (tx) => {
+      const cttId = Number(input.cttId);
+      await contractTypesService.assertAssignable(tx, cttId);
+      // Configuración del tipo, con el tipo bloqueado: la versión que se guarda
+      // es la que se aplicó.
+      const descriptors = await resolveContractFields(tx, cttId);
+      const aiuRequested = await resolveAiuRequested(tx, { input, descriptors, granted });
+      const values = {
+        ...headerValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONTRACT, input })),
+        ctr_aiu_requested: aiuRequested,
+        ctr_config_version: await typeConfigVersion(tx, cttId),
+      };
+      // El valor inicial toma la fecha del contrato y no lleva descripción
+      // propia. Si el contrato no solicita AIU, A, I y U no se aceptan.
+      const { ccp_start_date: _start, ccp_description: _description, ...initialConcept } = conceptValuesOf(
+        enforceFields({
+          descriptors: withContractAiu(descriptors, aiuRequested),
+          group: FIELD_GROUPS.CONCEPT,
+          input: input.initialConcept ?? {},
+          skip: ["CONCEPT_DESCRIPTION"],
+        })
+      );
 
-    await assertWork(tx, wrkId, { isNew: true });
-    await assertStage(tx, { wrkId, wksId: values.wks_id });
-    await assertProviderAssigned(tx, { wrkId, prvId: values.prv_id });
-    await assertUniqueNumber(tx, { wrkId, number: values.ctr_number });
+      await assertWork(tx, wrkId, { isNew: true });
+      await assertStage(tx, { wrkId, wksId: values.wks_id });
+      await assertProviderAssigned(tx, { wrkId, prvId: values.prv_id });
+      await assertUniqueNumber(tx, { wrkId, number: values.ctr_number });
 
-    const { to: initialState } = assertTransition("create");
+      const { to: initialState } = assertTransition("create");
 
-    // Sin otrosí ni suspensiones todavía: inicio + plazo.
-    const endDate = toDateOnly(contractEndDate({ startDate: values.ctr_start_date, term: values.ctr_term, unit: values.ctr_term_unit }));
-    const created = await tx.tbl_contracts.create({
-      data: {
-        wrk_id: wrkId,
-        ...values,
-        ctr_end_date: endDate,
-        ctr_state: initialState,
-        sta_id: ACTIVE_STATUS,
-        ctr_create_by: useBy,
-        ctr_update_by: useBy,
-        ...idempotencyData,
-      },
-    });
-    const ctrId = created.ctr_id;
+      // Sin otrosí ni suspensiones todavía: inicio + plazo.
+      const endDate = toDateOnly(contractEndDate({ startDate: values.ctr_start_date, term: values.ctr_term, unit: values.ctr_term_unit }));
+      const created = await tx.tbl_contracts.create({
+        data: {
+          wrk_id: wrkId,
+          ...values,
+          ctr_end_date: endDate,
+          ctr_state: initialState,
+          sta_id: ACTIVE_STATUS,
+          ctr_create_by: useBy,
+          ctr_update_by: useBy,
+          ...idempotencyData,
+        },
+      });
+      const ctrId = created.ctr_id;
 
-    // El valor inicial nace con el contrato: es lo que garantiza el mínimo de
-    // uno, que el esquema no puede expresar (ADR-0016, decisión 3).
-    const concept = await tx.tbl_contract_concepts.create({
-      data: {
-        ctr_id: ctrId,
-        ccp_type: CONCEPT_TYPES.INITIAL,
-        ...initialConcept,
-        ccp_start_date: values.ctr_start_date,
-        ccp_create_by: useBy,
-        ccp_update_by: useBy,
-      },
-    });
-    await tx.tbl_contract_status_history.create({ data: historyRow({ ctrId, transition: "create", useBy }) });
+      // El valor inicial nace con el contrato: es lo que garantiza el mínimo de
+      // uno, que el esquema no puede expresar (ADR-0016, decisión 3).
+      const concept = await tx.tbl_contract_concepts.create({
+        data: {
+          ctr_id: ctrId,
+          ccp_type: CONCEPT_TYPES.INITIAL,
+          ...initialConcept,
+          ccp_start_date: values.ctr_start_date,
+          ccp_create_by: useBy,
+          ccp_update_by: useBy,
+        },
+      });
+      await tx.tbl_contract_status_history.create({ data: historyRow({ ctrId, transition: "create", useBy }) });
 
-    const operationId = newOperationId();
-    await writeAudit(tx, {
-      operationId,
-      entity: AUDIT_ENTITIES.CONTRACT,
-      recordId: ctrId,
-      operation: AUDIT_OPERATIONS.CREATE,
-      ctx,
-      changes: [
-        ...diffFields({}, auditableContract({ wrk_id: wrkId, ...values, ctr_end_date: endDate }), CONTRACT_AUDITED),
-        { field: "ctr_state", oldValue: null, newValue: initialState },
-      ],
-    });
-    await writeAudit(tx, {
-      operationId,
-      entity: AUDIT_ENTITIES.CONTRACT_CONCEPT,
-      recordId: concept.ccp_id,
-      operation: AUDIT_OPERATIONS.CREATE,
-      ctx,
-      changes: diffFields(
-        {},
-        auditableConcept({ ccp_type: CONCEPT_TYPES.INITIAL, ...initialConcept, ccp_start_date: values.ctr_start_date }),
-        CONCEPT_AUDITED
-      ),
-    });
+      const operationId = newOperationId();
+      await writeAudit(tx, {
+        operationId,
+        entity: AUDIT_ENTITIES.CONTRACT,
+        recordId: ctrId,
+        operation: AUDIT_OPERATIONS.CREATE,
+        ctx,
+        changes: [
+          ...diffFields({}, auditableContract({ wrk_id: wrkId, ...values, ctr_end_date: endDate }), CONTRACT_AUDITED),
+          { field: "ctr_state", oldValue: null, newValue: initialState },
+        ],
+      });
+      await writeAudit(tx, {
+        operationId,
+        entity: AUDIT_ENTITIES.CONTRACT_CONCEPT,
+        recordId: concept.ccp_id,
+        operation: AUDIT_OPERATIONS.CREATE,
+        ctx,
+        changes: diffFields(
+          {},
+          auditableConcept({ ccp_type: CONCEPT_TYPES.INITIAL, ...initialConcept, ccp_start_date: values.ctr_start_date }),
+          CONCEPT_AUDITED
+        ),
+      });
 
-    return { message: "Contrato creado correctamente", ctrId };
-  });
+      // Las pólizas de la creación amparan el valor inicial, el único concepto
+      // que existe todavía (ADR-0018, "Transacciones"; PRO-BE-09).
+      if (policies.length > 0) assertStateAllows(initialState, "createPolicy");
+      for (const values of policies) {
+        await insertPolicy(tx, { ctrId, ccpId: concept.ccp_id, values, useBy, ctx, operationId });
+      }
+
+      return { message: "Contrato creado correctamente", ctrId };
+    }
+  );
 
 // Editar fija la cabecera: repetirlo deja lo mismo, así que se puede
 // reintentar ante un interbloqueo. La obra no cambia.
@@ -940,6 +958,7 @@ export const saveContract = async ({ ctrId, input, useBy, granted, scope, ctx = 
   // La huella de idempotencia es de lo que pidió el cliente; la
   // configuración del tipo se aplica dentro de la transacción.
   const { ccp_start_date: _start, ccp_description: _description, ...initialConcept } = conceptValuesOf(input.initialConcept ?? {});
+  const policies = policiesOf(input, granted);
 
   // La clave se busca antes que el número repetido: el reintento de una
   // creación exitosa devuelve el contrato creado y no "ya existe".
@@ -947,9 +966,33 @@ export const saveContract = async ({ ctrId, input, useBy, granted, scope, ctx = 
     target: IDEMPOTENCY_TARGET,
     key: idempotencyKey,
     ownerId: useBy,
-    payload: { wrkId, ...auditableContract(values), aiuRequested: input.aiuRequested ?? null, initialConcept: auditableConcept(initialConcept) },
-    execute: (idempotencyData) => createContract({ wrkId, input, granted, useBy: Number(useBy), ctx, idempotencyData }),
+    payload: {
+      wrkId,
+      ...auditableContract(values),
+      aiuRequested: input.aiuRequested ?? null,
+      initialConcept: auditableConcept(initialConcept),
+      policies: policies.map((p) => ({ ...p, pol_percentage: percentText(p.pol_percentage), pol_start_date: dateOnlyText(p.pol_start_date), pol_end_date: dateOnlyText(p.pol_end_date) })),
+    },
+    execute: (idempotencyData) => createContract({ wrkId, input, policies, granted, useBy: Number(useBy), ctx, idempotencyData }),
   });
+};
+
+/**
+ * Pólizas que llegan con la creación (PRO-BE-09). Son opcionales; si llegan,
+ * exigen el permiso de registrar pólizas: crear el contrato no lo da (403).
+ * Un concepto admite una póliza vigente por tipo, así que el envío no repite
+ * tipo (400); contra las ya guardadas lo verifica insertPolicy.
+ */
+const policiesOf = (input, granted) => {
+  const policies = (input.policies ?? []).map(policyValuesOf);
+  if (policies.length === 0) return policies;
+  if (!granted?.has(PERMISSIONS.work.policies.create)) {
+    throw httpError(403, "No tienes permiso para registrar pólizas. Crea el contrato sin ellas.");
+  }
+  if (new Set(policies.map((p) => p.plt_id)).size !== policies.length) {
+    throw httpError(400, "Hay dos pólizas del mismo tipo: el valor inicial admite una por tipo.");
+  }
+  return policies;
 };
 
 // ─── Eliminación ─────────────────────────────────────────────────────────────

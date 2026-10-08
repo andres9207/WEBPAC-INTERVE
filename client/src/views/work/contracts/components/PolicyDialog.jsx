@@ -24,6 +24,12 @@ import { fMoneyText } from 'utils/formatNumber';
  * cambia. La base de cálculo la toma el servidor del tipo y el valor
  * asegurado lo calcula él: aquí solo se muestra qué base aplica el tipo
  * elegido. Las dos operaciones crean una fila: llevan clave de idempotencia.
+ *
+ * Borrador (`onDraft`): al crear el contrato (PRO-BE-09) la póliza no se
+ * guarda aquí. El diálogo devuelve los valores al formulario del contrato,
+ * que las envía con él; ampara el valor inicial, así que no pide concepto.
+ * `draft` es la fila que se edita y `takenTypes`, los tipos que ya usan las
+ * demás: un concepto admite una póliza vigente por tipo.
  */
 
 const EMPTY = { ccpId: '', pltId: '', insId: '', number: '', percentage: '', startDate: '', endDate: '', observation: '' };
@@ -39,8 +45,9 @@ const fromPolicy = (policy) => ({
   observation: policy.observation ?? ''
 });
 
-export default function PolicyDialog({ open, contract, concepts, policy, onClose, onSaved }) {
+export default function PolicyDialog({ open, contract, concepts = [], policy, draft, takenTypes = [], onClose, onSaved, onDraft }) {
   const isVersion = Boolean(policy);
+  const isDraft = Boolean(onDraft);
   const [saving, setSaving] = useState(false);
   const [types, setTypes] = useState(null);
   const [insurers, setInsurers] = useState(null);
@@ -51,7 +58,7 @@ export default function PolicyDialog({ open, contract, concepts, policy, onClose
   useEffect(() => {
     if (!open) return;
     setIdempotencyKey(newIdempotencyKey());
-    reset(policy ? fromPolicy(policy) : EMPTY);
+    reset(policy || draft ? { ...EMPTY, ...fromPolicy(policy ?? draft) } : EMPTY);
     setTypes(null);
     setInsurers(null);
     // La versión vigente conserva su tipo y su aseguradora aunque se hayan desactivado.
@@ -64,7 +71,7 @@ export default function PolicyDialog({ open, contract, concepts, policy, onClose
         showError(err.response?.data?.message || 'Error al cargar los tipos de póliza y las aseguradoras');
         onClose();
       });
-  }, [open, policy, reset, onClose]);
+  }, [open, policy, draft, reset, onClose]);
 
   const selectedType = useMemo(() => (types ?? []).find((t) => String(t.value) === String(pltId)), [types, pltId]);
 
@@ -78,6 +85,11 @@ export default function PolicyDialog({ open, contract, concepts, policy, onClose
       endDate: form.endDate || null,
       observation: form.observation.trim() || null
     };
+    if (isDraft) {
+      const label = (options, value) => (options ?? []).find((o) => String(o.value) === String(value))?.label ?? '';
+      onDraft({ ...params, typeName: label(types, form.pltId), insurerName: label(insurers, form.insId) });
+      return;
+    }
     setSaving(true);
     try {
       const { data } = isVersion
@@ -125,7 +137,15 @@ export default function PolicyDialog({ open, contract, concepts, policy, onClose
     <BaseDialog
       open={open}
       onClose={onClose}
-      title={isVersion ? `Modificar póliza ${policy?.number ?? ''}` : `Registrar póliza · contrato ${contract?.number ?? ''}`}
+      title={
+        isDraft
+          ? draft
+            ? 'Editar póliza'
+            : 'Agregar póliza'
+          : isVersion
+            ? `Modificar póliza ${policy?.number ?? ''}`
+            : `Registrar póliza · contrato ${contract?.number ?? ''}`
+      }
       maxWidth="sm"
       fullScreenOnMobile
       actions={
@@ -134,7 +154,7 @@ export default function PolicyDialog({ open, contract, concepts, policy, onClose
             Cancelar
           </Button>
           <Button variant="contained" onClick={handleSubmit(save)} disabled={saving || !types || !insurers || noTypes || noInsurers}>
-            {saving ? 'Guardando…' : isVersion ? 'Emitir versión' : 'Registrar'}
+            {saving ? 'Guardando…' : isDraft ? (draft ? 'Guardar' : 'Agregar') : isVersion ? 'Emitir versión' : 'Registrar'}
           </Button>
         </>
       }
@@ -155,21 +175,31 @@ export default function PolicyDialog({ open, contract, concepts, policy, onClose
             </Alert>
           </Grid>
         )}
-        <Grid size={12}>
-          {select(
-            'ccpId',
-            'Concepto amparado',
-            concepts.map((c) => ({ value: c.ccpId, label: `${c.label} · ${fMoneyText(c.value)}` })),
-            { required: 'Selecciona el concepto amparado.' },
-            { disabled: isVersion, helperText: isVersion ? 'El concepto amparado no cambia entre versiones.' : undefined }
-          )}
-        </Grid>
+        {isDraft ? (
+          <Grid size={12}>
+            <Alert severity="info">Ampara el valor inicial. Se registra al guardar el contrato.</Alert>
+          </Grid>
+        ) : (
+          <Grid size={12}>
+            {select(
+              'ccpId',
+              'Concepto amparado',
+              concepts.map((c) => ({ value: c.ccpId, label: `${c.label} · ${fMoneyText(c.value)}` })),
+              { required: 'Selecciona el concepto amparado.' },
+              { disabled: isVersion, helperText: isVersion ? 'El concepto amparado no cambia entre versiones.' : undefined }
+            )}
+          </Grid>
+        )}
         <Grid size={{ xs: 12, sm: 6 }}>
           {select(
             'pltId',
             'Tipo de póliza',
             types,
-            { required: 'Selecciona el tipo de póliza.' },
+            {
+              required: 'Selecciona el tipo de póliza.',
+              validate: (value) =>
+                !takenTypes.some((t) => String(t) === String(value)) || 'Ya hay una póliza de este tipo para el valor inicial.'
+            },
             {
               helperText: selectedType ? `Base de cálculo: ${selectedType.baseName}` : undefined
             }
@@ -273,10 +303,16 @@ PolicyDialog.propTypes = {
   open: PropTypes.bool.isRequired,
   /** `{ ctrId, number }` del contrato. */
   contract: PropTypes.object,
-  /** Conceptos del contrato (`{ ccpId, label, value }`), del listado de pólizas. */
-  concepts: PropTypes.array.isRequired,
+  /** Conceptos del contrato (`{ ccpId, label, value }`), del listado de pólizas. En borrador no se usan. */
+  concepts: PropTypes.array,
   /** Versión vigente al modificar; sin ella, registra una póliza nueva. */
   policy: PropTypes.object,
+  /** Borrador: la fila que se edita, con los campos del formulario. */
+  draft: PropTypes.object,
+  /** Borrador: tipos (`pltId`) que ya usan las demás pólizas del envío. */
+  takenTypes: PropTypes.array,
   onClose: PropTypes.func.isRequired,
-  onSaved: PropTypes.func.isRequired
+  onSaved: PropTypes.func,
+  /** Modo borrador: recibe los valores en vez de guardarlos. */
+  onDraft: PropTypes.func
 };

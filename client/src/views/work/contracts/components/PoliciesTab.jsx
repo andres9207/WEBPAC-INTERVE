@@ -37,7 +37,7 @@ const VALIDITY_COLORS = { NO_DATE: 'default', ACTIVE: 'success', EXPIRING: 'warn
 
 const money = (value) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fMoneyText(value)}</span>;
 
-const validityText = (row) => {
+export const validityText = (row) => {
   if (!row.startDate && !row.endDate) return 'Sin fechas';
   return `${row.startDate ? fDateOnly(row.startDate) : '…'} – ${row.endDate ? fDateOnly(row.endDate) : '…'}`;
 };

@@ -50,6 +50,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 - **I15:** `CHECK ck_contracts_end_date`; la fecha fin la calcula solo `contractEndDate`.
 - **I9** (2026-10-05, [DEC-039](../decisiones/DEC-039-suspension-contratos.md)): `UNIQUE uq_contract_suspensions_open` sobre la columna generada `csp_open_contract`; el service responde 409 antes, bajo el bloqueo del contrato. Probado contra la BD de desarrollo.
 - **I10** (2026-10-07, [DEC-050](../decisiones/DEC-050-polizas.md)): `UNIQUE uq_policies_current` sobre la columna generada `pol_current_root`; modificar cierra la vigente antes de crear la siguiente, bajo el bloqueo del contrato y de la póliza. Probado contra la BD de desarrollo: una segunda versión vigente es rechazada.
+  Relacionada (2026-10-08): un concepto tiene a lo sumo una póliza vigente de cada tipo. Hoy solo la verifica el service, bajo el bloqueo del contrato; falta el `UNIQUE` en la BD (ver [deuda](../debt/TECHNICAL_DEBT.md)).
 
 **Aplicadas (2026-10-05), con facturas ([DEC-042](../decisiones/DEC-042-facturas-area-ciclo-vida.md)), probadas contra la BD de desarrollo:**
 

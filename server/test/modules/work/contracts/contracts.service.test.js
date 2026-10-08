@@ -21,7 +21,14 @@ const prismaMock = {
   tbl_contract_concepts: { create: jest.fn(), findMany: jest.fn(), updateMany: jest.fn(), count: jest.fn(async () => 0) },
   tbl_contract_status_history: { create: jest.fn() },
   tbl_invoices: { count: jest.fn() },
-  tbl_policies: { count: jest.fn(async () => 0) },
+  tbl_policies: {
+    count: jest.fn(async () => 0),
+    findFirst: jest.fn(async () => null),
+    create: jest.fn(async ({ data }) => ({ pol_id: 500 + prismaMock.tbl_policies.create.mock.calls.length, ...data })),
+    update: jest.fn(),
+  },
+  tbl_policy_types: { findUnique: jest.fn() },
+  tbl_insurers: { findUnique: jest.fn() },
   tbl_works: { findUnique: jest.fn() },
   tbl_work_stages: { findUnique: jest.fn() },
   tbl_work_providers: { findUnique: jest.fn() },
@@ -100,6 +107,8 @@ beforeEach(() => {
   prismaMock.tbl_work_stages.findUnique.mockResolvedValue({ wrk_id: 8, sta_id: 1, wks_name: "Estructura" });
   prismaMock.tbl_work_providers.findUnique.mockResolvedValue({ sta_id: 1, tbl_providers: { prv_name: "Aceros SA", sta_id: 1 } });
   prismaMock.tbl_contract_types.findUnique.mockResolvedValue({ ctt_id: 2, ctt_name: "Suministro", ctt_config_version: 3, sta_id: 1 });
+  prismaMock.tbl_policy_types.findUnique.mockImplementation(async ({ where }) => ({ plt_name: `Tipo ${where.plt_id}`, plt_base: "TOTAL_VALUE", sta_id: 1 }));
+  prismaMock.tbl_insurers.findUnique.mockResolvedValue({ ins_description: "Seguros SA", sta_id: 1 });
 });
 
 describe("saveContract — crear", () => {
@@ -211,6 +220,67 @@ describe("saveContract — crear", () => {
     const { data } = prismaMock.tbl_contracts.create.mock.calls[0][0];
     expect(data.ctr_end_date.toISOString()).toBe("2026-07-31T00:00:00.000Z");
     expect(data.ctr_state).toBe("IN_PROGRESS");
+  });
+});
+
+describe("saveContract — crear con pólizas (PRO-BE-09)", () => {
+  const CAN_POLICIES = new Set([100]);
+  const policy = (overrides = {}) => ({ pltId: 4, insId: 6, number: "CU-001", percentage: "10", startDate: "2026-01-31", endDate: "2026-12-31", ...overrides });
+  const create = (policies, granted = CAN_POLICIES) =>
+    service.saveContract({ ctrId: 0, input: input({ policies }), useBy: 9, granted, ctx, idempotencyKey: KEY });
+
+  it("crea las pólizas sobre el valor inicial, en la misma transacción y con el mismo operationId", async () => {
+    await expect(create([policy(), policy({ pltId: 5, number: "AN-001" })])).resolves.toEqual({ message: "Contrato creado correctamente", ctrId: 30 });
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    const rows = prismaMock.tbl_policies.create.mock.calls.map((c) => c[0].data);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ ctr_id: 30, ccp_id: 300, plt_id: 4, pol_base: "TOTAL_VALUE", pol_version: 1, pol_is_current: true, pol_create_by: 9 });
+    expect(rows[1]).toMatchObject({ ccp_id: 300, plt_id: 5, pol_number: "AN-001" });
+    // Sin clave propia: la del contrato cubre todo el envío.
+    expect(rows[0]).not.toHaveProperty("pol_idempotency_key");
+    expect(prismaMock.tbl_policies.create.mock.invocationCallOrder[0]).toBeGreaterThan(prismaMock.tbl_contract_concepts.create.mock.invocationCallOrder[0]);
+
+    const audit = auditRows();
+    expect(audit.filter((r) => r.aud_entity === "POLIZA" && r.aud_field === "plt_id")).toHaveLength(2);
+    expect(new Set(audit.map((r) => r.aud_operation_id)).size).toBe(1);
+  });
+
+  it("bloquea también aseguradoras y tipos de póliza, en el orden fijo", async () => {
+    await create([policy({ pltId: 5 }), policy({ pltId: 4, insId: 7 })]);
+    expect(lockedTables()).toEqual([
+      expect.stringMatching(/tbl_works/),
+      expect.stringMatching(/tbl_providers/),
+      expect.stringMatching(/tbl_insurers/),
+      expect.stringMatching(/tbl_contract_types/),
+      expect.stringMatching(/tbl_policy_types/),
+    ]);
+  });
+
+  it("sin pólizas no las pide ni bloquea sus maestros", async () => {
+    await create([], new Set());
+    expect(prismaMock.tbl_policies.create).not.toHaveBeenCalled();
+    expect(lockedTables()).toHaveLength(3);
+  });
+
+  it("sin el permiso de registrar pólizas responde 403 y no abre la transacción", async () => {
+    await expect(create([policy()], new Set())).rejects.toMatchObject({ statusCode: 403 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("dos pólizas del mismo tipo en el envío responden 400", async () => {
+    await expect(create([policy(), policy({ number: "CU-002" })])).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("una póliza inválida aborta toda la creación", async () => {
+    prismaMock.tbl_insurers.findUnique.mockResolvedValue({ ins_description: "Seguros SA", sta_id: 2 });
+    await expect(create([policy()])).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.tbl_policies.create).not.toHaveBeenCalled();
+    // Todo ocurrió dentro de la única transacción: el rollback descarta el contrato.
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+
+    await expect(create([policy({ percentage: "0" })])).rejects.toMatchObject({ statusCode: 400 });
   });
 });
 
