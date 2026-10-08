@@ -3,8 +3,8 @@ import { join, relative } from "path";
 import { fileURLToPath } from "url";
 
 // Regla de revisión de DEC-047: todo controller de las áreas `work/` y
-// `billing/` resuelve el alcance por obra (workScopeOf) y se lo pasa al
-// service. Un controller nuevo que lo olvide dejaría ver o tocar otras obras.
+// `billing/`, y el del tablero (`app/dashboard`, que agrega sobre ellas),
+// resuelve el alcance por obra (workScopeOf) y se lo pasa al service. Un controller nuevo que lo olvide dejaría ver o tocar otras obras.
 // Las excepciones van en EXEMPT con su motivo.
 
 const MODULES = fileURLToPath(new URL("../../src/modules/", import.meta.url));
@@ -17,7 +17,7 @@ const EXEMPT = {
   selectProvidersController: "catálogo de proveedores para asignar a la obra, para no crear duplicados (DEC-047)",
 };
 
-const controllers = ["work", "billing"].flatMap((area) => {
+const controllers = ["work", "billing", "app/dashboard"].flatMap((area) => {
   const walk = (dir) =>
     readdirSync(dir).flatMap((name) => {
       const path = join(dir, name);

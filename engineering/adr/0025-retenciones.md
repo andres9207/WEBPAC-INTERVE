@@ -2,9 +2,22 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-10-08, [DEC-051](../decisiones/DEC-051-retenido-contractual.md)). Existen:
 
-El retenido contractual y su devolución **no existen** en el código ni en el esquema. Este ADR documenta la decisión arquitectónica recomendada.
+- las magnitudes del retenido (RP, R, D, por retener y saldo), calculadas y no guardadas;
+- el retenido en el detalle de la factura de liquidación, guardado como valor con su evidencia, y el detalle de la devolución;
+- I3 e I4 al registrar, aprobar y anular, bajo el bloqueo del contrato;
+- el porcentaje efectivo RP / B como valor por defecto;
+- el permiso `AJUSTAR RETENIDO` (103), con observación obligatoria;
+- varias devoluciones mientras quede saldo, aprobadas con el permiso normal de aprobar facturas.
+
+Se validaron las decisiones 4, 5 (I4 adoptada), 6 y 7: base antes de IVA, tope, ajuste con permiso y varias devoluciones. Faltan:
+
+- la conciliación periódica (decisión 12);
+- la condición C3 en la liquidación del contrato;
+- si la devolución lleva impuestos o retenciones tributarias, que llega con la fase B (DEC-07).
+
+Al escribirse este ADR (2026-09-10), el retenido contractual y su devolución no existían en el código ni en el esquema; las secciones "Estado actual" y "Brechas" describen ese momento.
 
 ## Fecha
 

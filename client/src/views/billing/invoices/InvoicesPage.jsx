@@ -3,6 +3,8 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import Typography from '@mui/material/Typography';
 
 import MasterPage from 'ui-component/extended/MasterPage';
+import LinkedFilterNotice from 'ui-component/extended/LinkedFilterNotice';
+import useLinkedFilters from 'hooks/useLinkedFilters';
 import { invoicesApi } from 'api/requests/invoicesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField } from 'contexts/WorkScopeContext';
@@ -69,6 +71,11 @@ const FILTER_FIELDS = [
 
 const rowLabel = (row) => `${row.typeName} ${row.number} — ${row.providerName ?? ''}`;
 
+// Desde el tablero (DEC-052): las facturas de una obra; `label` es el código
+// de la obra, solo para el aviso (el filtro es `wrkId`).
+const LINKED_KEYS = ['wrkId'];
+const describeLinked = (filters) => `facturas de la obra ${filters.label ?? filters.wrkId}`;
+
 export default function InvoicesPage() {
   const { permissionsCatalog } = useAuth();
   const navigate = useNavigate();
@@ -76,6 +83,7 @@ export default function InvoicesPage() {
   const outletContext = useMemo(() => ({ refresh: () => setReloadKey((k) => k + 1) }), []);
   const workFilter = useWorkFilterField();
   const filterFields = useMemo(() => (workFilter ? [...FILTER_FIELDS, workFilter] : FILTER_FIELDS), [workFilter]);
+  const linked = useLinkedFilters(LINKED_KEYS, describeLinked);
 
   const navigation = useMemo(
     () => ({
@@ -101,6 +109,9 @@ export default function InvoicesPage() {
         rowLabel={rowLabel}
         navigation={navigation}
         stateTabs={INVOICE_STATE_FILTER}
+        filters={linked.filters}
+        initialStatus={linked.initialStatus}
+        header={<LinkedFilterNotice label={linked.label} onClear={linked.clear} />}
         reloadKey={reloadKey}
       />
       <Outlet context={outletContext} />

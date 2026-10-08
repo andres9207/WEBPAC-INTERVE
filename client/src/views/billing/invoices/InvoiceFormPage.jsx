@@ -41,8 +41,9 @@ import { INVOICE_TYPE_OPTIONS } from 'utils/constants';
  *   `?type=SIMPLE&wrkId=…`.
  * - Contratos y obras se buscan en el servidor (los selectores tienen tope,
  *   DEC-018): por número, nombre, proveedor u obra.
- * - Anticipo y liquidación llevan sus importes (DEC-044, AdvanceAmountsSection).
- *   Los de una aprobada no se envían: no cambian.
+ * - Anticipo, liquidación y devolución de retenido llevan sus importes
+ *   (DEC-044, DEC-051, AdvanceAmountsSection). Los de una aprobada no se
+ *   envían: no cambian.
  */
 
 const EMPTY_FORM = {
@@ -56,11 +57,14 @@ const EMPTY_FORM = {
   voucherNumber: '',
   statement: '',
   description: '',
-  // Importes del anticipo y de la liquidación (DEC-044).
+  // Importes del anticipo, la liquidación y la devolución (DEC-044, DEC-051).
   value: '',
   amortization: '',
   adjustAmortization: false,
-  amortizationObservation: ''
+  amortizationObservation: '',
+  retention: '',
+  adjustRetention: false,
+  retentionObservation: ''
 };
 
 const DOCUMENT_FIELDS = ['type', 'ctrId', 'wrkId', 'prvId', 'wksId', 'number', 'date', 'voucherNumber', 'statement', 'description'];
@@ -68,7 +72,7 @@ const DOCUMENT_FIELDS = ['type', 'ctrId', 'wrkId', 'prvId', 'wksId', 'number', '
 const text = (value) => String(value ?? '').trim();
 const today = () => format(new Date(), 'yyyy-MM-dd');
 const isSimple = (type) => type === 'SIMPLE';
-const hasAmounts = (type) => type === 'ADVANCE' || type === 'LIQUIDATION';
+const hasAmounts = (type) => type === 'ADVANCE' || type === 'LIQUIDATION' || type === 'RETENTION_REFUND';
 
 const toForm = (invoice) => ({
   ...EMPTY_FORM,
@@ -76,14 +80,21 @@ const toForm = (invoice) => ({
   value: invoice.amounts?.value ?? '',
   amortization: invoice.amounts?.amortization ?? '',
   adjustAmortization: Boolean(invoice.amounts?.adjustmentObservation),
-  amortizationObservation: invoice.amounts?.adjustmentObservation ?? ''
+  amortizationObservation: invoice.amounts?.adjustmentObservation ?? '',
+  retention: invoice.amounts?.retention ?? '',
+  adjustRetention: Boolean(invoice.amounts?.retentionObservation),
+  retentionObservation: invoice.amounts?.retentionObservation ?? ''
 });
 
-// Sin ajuste, la amortización no se envía: el servidor usa la de por defecto.
+// Sin ajuste, la amortización y el retenido no se envían: el servidor usa
+// los de por defecto.
 const amountsPayload = (form) => ({
   value: form.value,
   ...(form.type === 'LIQUIDATION' && form.adjustAmortization
     ? { amortization: form.amortization, amortizationObservation: text(form.amortizationObservation) }
+    : {}),
+  ...(form.type === 'LIQUIDATION' && form.adjustRetention
+    ? { retention: form.retention, retentionObservation: text(form.retentionObservation) }
     : {})
 });
 
@@ -149,6 +160,8 @@ export default function InvoiceFormPage() {
   const { permissionsCatalog, hasPermission } = useAuth();
   const adjustPermission = permissionsCatalog.billing?.invoices?.adjustAmortization;
   const canAdjust = adjustPermission != null && hasPermission(adjustPermission);
+  const adjustRetentionPermission = permissionsCatalog.billing?.invoices?.adjustRetention;
+  const canAdjustRetention = adjustRetentionPermission != null && hasPermission(adjustRetentionPermission);
   const [searchParams] = useSearchParams();
   const presetType = INVOICE_TYPE_OPTIONS.some((o) => o.value === searchParams.get('type')) ? searchParams.get('type') : '';
   const presetCtrId = Number(searchParams.get('ctrId')) || '';
@@ -238,10 +251,21 @@ export default function InvoiceFormPage() {
 
   const changeType = (value) => {
     setValue('type', value ?? '', { shouldDirty: true });
-    for (const field of ['ctrId', 'wrkId', 'prvId', 'wksId', 'value', 'amortization', 'amortizationObservation']) {
+    for (const field of [
+      'ctrId',
+      'wrkId',
+      'prvId',
+      'wksId',
+      'value',
+      'amortization',
+      'amortizationObservation',
+      'retention',
+      'retentionObservation'
+    ]) {
       setValue(field, '', { shouldDirty: true });
     }
     setValue('adjustAmortization', false, { shouldDirty: true });
+    setValue('adjustRetention', false, { shouldDirty: true });
     contractOptions.setSearch('');
     workOptions.setSearch('');
   };
@@ -327,7 +351,7 @@ export default function InvoiceFormPage() {
         )}
         <Alert severity="info" variant="outlined">
           {hasAmounts(type)
-            ? 'IVA, retenciones y retenido todavía no se registran: llegan cuando se defina la composición de cada tipo de factura.'
+            ? 'IVA y retenciones tributarias todavía no se registran: llegan cuando se defina la composición de cada tipo de factura.'
             : 'Los importes de este tipo de factura todavía no se registran: llegan cuando se defina su composición.'}
         </Alert>
 
@@ -587,6 +611,7 @@ export default function InvoiceFormPage() {
             ctrId={ctrId}
             readOnly={lockDocument || blocked}
             canAdjust={canAdjust}
+            canAdjustRetention={canAdjustRetention}
             onError={showError}
           />
         )}

@@ -24,7 +24,9 @@ Todos salen del tema (`client/src/themes/`, `client/src/config.js`). **Nunca un 
 | Grises | `grey.50` … `grey.900` | `#f8fafc` … `#121926` | Fondos de sección (`grey.50`), bordes (`divider` = `grey.200`), texto secundario (`grey.500`) |
 | Texto | `text.primary` / `text.secondary` | `#364152` / `#697586` | Contraste sobre blanco: 10,4:1 y 4,7:1 |
 
-**Modo oscuro: no existe.** El tema solo define el esquema claro (`themes/index.jsx`, `colorSchemes.light`). PRO-FE-16 pide gráficos "legibles en ambos temas": **REQUIERE DECISIÓN** si se agrega antes del dashboard. Mientras tanto, usar claves de paleta (y no hex) deja la puerta abierta sin costo.
+**Modo oscuro: no existe.** El tema solo define el esquema claro (`themes/index.jsx`, `colorSchemes.light`). Decidido en [DEC-052](../decisiones/DEC-052-tablero.md): el tablero se verifica solo en el tema claro; el oscuro queda como deuda. Usar claves de paleta (y no hex) deja la puerta abierta sin costo.
+
+**Gráficos** (`react-apexcharts`, [DEC-052](../decisiones/DEC-052-tablero.md)): colores por clave de la paleta leídos con `useTheme`, nunca hex. Una sola serie va en un solo color (`primary.800`), con el nombre en cada barra. Varias series llevan leyenda y colores validados contra el fondo (contraste ≥ 3:1 y separables con daltonismo): registradas y aprobadas, `orange.dark` y `primary.800`. Los tonos claros de éxito y advertencia (`success.dark`, `warning.dark`) no sirven como color de marca de un gráfico: no llegan a 3:1. Cada gráfico tiene al lado su vista en texto (lista o tabla) o una descripción accesible.
 
 ### Tipografía
 

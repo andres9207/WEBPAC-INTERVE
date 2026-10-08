@@ -88,10 +88,13 @@ export const saveInvoiceSchema = [
   optionalLongText("voucherNumber", "El número de comprobante", 50),
   optionalLongText("statement", "El extracto", 100),
   optionalLongText("description", "La descripción", 500),
-  // Anticipo: valor. Liquidación: VALOR y amortización (DEC-044).
+  // Anticipo y devolución de retenido: valor. Liquidación: VALOR,
+  // amortización (DEC-044) y retenido (DEC-051).
   moneyRule("value", "valor de la factura", { optional: true }),
   moneyRule("amortization", "valor de la amortización", { optional: true }),
   optionalLongText("amortizationObservation", "La observación del ajuste", 1000),
+  moneyRule("retention", "valor del retenido", { optional: true }),
+  optionalLongText("retentionObservation", "La observación del ajuste del retenido", 1000),
 ];
 
 export const approveInvoiceSchema = [

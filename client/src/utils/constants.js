@@ -5,7 +5,7 @@ export const STATUS = Object.freeze({ ACTIVE: 1, INACTIVE: 2, DELETED: 3 });
 
 export const STATUS_OPTIONS = [
   { value: STATUS.ACTIVE, label: 'Activo' },
-  { value: STATUS.INACTIVE, label: 'Inactivo' },
+  { value: STATUS.INACTIVE, label: 'Inactivo' }
 ];
 
 // Pestañas por estado de los listados (StatusTabs): activo e inactivo; eliminado nunca se lista.
@@ -19,32 +19,25 @@ export const statusTabsWithCounts = (statusCounts = {}) => STATUS_TABS.map((s) =
 
 const dev = import.meta.env.DEV;
 
-export const urlSocket = import.meta.env.VITE_SOCKET_URL || (
-  dev ? "http://localhost:4000" : "https://pavastecnologia.com"
-);
+export const urlSocket = import.meta.env.VITE_SOCKET_URL || (dev ? 'http://localhost:4000' : 'https://pavastecnologia.com');
 
-export const pathSocket = import.meta.env.VITE_SOCKET_PATH || (
-  dev ? "/socket.io" : "/template/socket.io"
-);
+export const pathSocket = import.meta.env.VITE_SOCKET_PATH || (dev ? '/socket.io' : '/template/socket.io');
 
 export const toBr = (str) => {
-  const replaceStr = "<br />";
-  return str !== null && str !== undefined && str !== ""
-      ? str.replace(/<\s*\/?br\s*\/?>/gi, replaceStr)
-      : "";
+  const replaceStr = '<br />';
+  return str !== null && str !== undefined && str !== '' ? str.replace(/<\s*\/?br\s*\/?>/gi, replaceStr) : '';
 };
 
 export const toNlBr = (str, replaceMode, isXhtml) => {
-  const breakTag = isXhtml ? "<br />" : "<br>";
-  const replaceStr = replaceMode ? "$1" + breakTag : "$1" + breakTag + "$2";
-  return (str + "").replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g, replaceStr);
+  const breakTag = isXhtml ? '<br />' : '<br>';
+  const replaceStr = replaceMode ? '$1' + breakTag : '$1' + breakTag + '$2';
+  return (str + '').replace(/([^>\r\n]?)(\r\n|\n\r|\r|\n)/g, replaceStr);
 };
 
-
 export const truncateText = (text, maxLength = 100) => {
-  if (!text) return "";
+  if (!text) return '';
   if (text.length > maxLength) {
-    return toNlBr(text?.substring(0, maxLength)) + "...";
+    return toNlBr(text?.substring(0, maxLength)) + '...';
   }
   return toNlBr(text);
 };
@@ -66,6 +59,16 @@ export const CONTRACT_STATE_TABS = [
 ];
 
 export const CONTRACT_STATE_COLORS = { IN_PROGRESS: 'success', SUSPENDED: 'lilac', IN_LIQUIDATION: 'info', LIQUIDATED: 'default' };
+
+// Estado de pólizas del contrato (DEC-052): los mismos de
+// CONTRACT_POLICY_STATUS_NAMES en server/src/modules/work/contracts/policyTerms.js.
+export const CONTRACT_POLICY_STATUS_LABELS = {
+  EXPIRED: 'Con póliza vencida',
+  EXPIRING: 'Con póliza a vencer',
+  ACTIVE: 'Pólizas vigentes',
+  NO_DATE: 'Pólizas sin fecha de vigencia',
+  NONE: 'Sin póliza'
+};
 
 // Actos a los que aplica un motivo (rea_scope, DEC-039): los mismos de
 // REASON_SCOPES en server/src/modules/admin/reasons/reasons.service.js.
@@ -106,7 +109,7 @@ export const INVOICE_TYPE_OPTIONS = [
 ];
 export const reasonScopeName = (scope) => REASON_SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? scope;
 
-const TERM_UNIT_NAMES ={ DIA: ['día', 'días'], MES: ['mes', 'meses'], ANIO: ['año', 'años'] };
+const TERM_UNIT_NAMES = { DIA: ['día', 'días'], MES: ['mes', 'meses'], ANIO: ['año', 'años'] };
 
 /** Plazo para mostrar: "14 meses", "1 año". */
 export const fTerm = (amount, unit) => {

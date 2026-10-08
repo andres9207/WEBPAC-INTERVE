@@ -47,6 +47,14 @@ import {
   balancesDto,
   defaultAmortization,
 } from "./advanceTerms.js";
+import {
+  assertLiquidationCancellable,
+  assertRefundFits,
+  assertRetentionFits,
+  defaultRetention,
+  retentionBalances,
+  retentionDto,
+} from "./retentionTerms.js";
 
 /**
  * Facturas, fase A (ADR-0020, DEC-042): encabezado común, ciclo de vida y
@@ -63,11 +71,13 @@ import {
  *   historial y bitácora en la misma transacción. Estado y fecha de
  *   aprobación nunca vienen del formulario.
  * - Una factura no se elimina: se anula (ADR-0020, decisión 12).
- * - Anticipo y liquidación llevan su detalle con importes (DEC-044): el
- *   valor del anticipo, y el VALOR y la amortización de la liquidación. Los
- *   saldos (ADR-0024) se calculan bajo el bloqueo del contrato al registrar,
- *   editar, aprobar y anular, nunca se reciben ni se guardan. IVA,
- *   retenciones y retenido siguen pendientes (backlog DEC-03, DEC-07).
+ * - Anticipo, liquidación y devolución de retenido llevan su detalle con
+ *   importes: el valor del anticipo (DEC-044); el VALOR, la amortización y
+ *   el retenido de la liquidación (DEC-044, DEC-051), y el valor devuelto
+ *   (DEC-051). Los saldos de anticipo (ADR-0024) y de retenido (ADR-0025)
+ *   se calculan bajo el bloqueo del contrato al registrar, editar, aprobar y
+ *   anular, nunca se reciben ni se guardan. IVA y retenciones tributarias
+ *   siguen pendientes (backlog DEC-03, DEC-07).
  */
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
@@ -130,8 +140,14 @@ const LOCKED_SELECT = {
       ild_default_pct: true,
       ild_applied_pct: true,
       ild_adjustment_observation: true,
+      ild_retention: true,
+      ild_default_retention: true,
+      ild_retention_default_pct: true,
+      ild_retention_applied_pct: true,
+      ild_retention_observation: true,
     },
   },
+  tbl_invoice_retention_refund_details: { select: { irr_value: true } },
 };
 
 const NOT_FOUND = "No se encontró la factura.";
@@ -171,36 +187,52 @@ const findImmutable = async (invId) => {
 const locksOf = (known, invId, prvId = known.prv_id) =>
   known.ctr_id ? { CONTRATO: known.ctr_id, FACTURA: Number(invId) } : { OBRA: known.wrk_id, PROVEEDOR: prvId, FACTURA: Number(invId) };
 
-// ─── Anticipo y amortización (ADR-0024, DEC-044) ────────────────────────────
+// ─── Saldos de anticipo y de retenido (ADR-0024, ADR-0025) ──────────────────
 
 /**
- * Saldos de anticipo del contrato con lo que ve `db`. Dentro de una
- * escritura, `db` es el tx con el contrato ya bloqueado (primera sentencia):
- * las sumas ven las aprobaciones confirmadas por otras transacciones. Solo
- * cuentan las facturas aprobadas; las registradas no reservan saldo.
+ * Saldos de anticipo (DEC-044) y de retenido (DEC-051) del contrato con lo
+ * que ve `db`. Dentro de una escritura, `db` es el tx con el contrato ya
+ * bloqueado (primera sentencia): las sumas ven las aprobaciones confirmadas
+ * por otras transacciones. Solo cuentan las facturas aprobadas; las
+ * registradas no reservan saldo. Una liquidación aprobada sin retenido
+ * (registrada antes de DEC-051) suma cero.
  */
-export const contractAdvanceBalances = async (db, ctrId) => {
+export const contractBalances = async (db, ctrId) => {
   const id = Number(ctrId);
   const approved = (type) => ({ tbl_invoices: { ctr_id: id, inv_type: type, inv_state: INVOICE_STATES.APPROVED } });
   const concepts = await db.tbl_contract_concepts.findMany({ where: { ctr_id: id }, select: CONCEPT_SELECT });
   const advance = await db.tbl_invoice_advance_details.aggregate({ where: approved(INVOICE_TYPES.ADVANCE), _sum: { iad_value: true } });
   const liquidation = await db.tbl_invoice_liquidation_details.aggregate({
     where: approved(INVOICE_TYPES.LIQUIDATION),
-    _sum: { ild_amortization: true },
+    _sum: { ild_amortization: true, ild_retention: true },
+  });
+  const refund = await db.tbl_invoice_retention_refund_details.aggregate({
+    where: approved(INVOICE_TYPES.RETENTION_REFUND),
+    _sum: { irr_value: true },
   });
   const totals = contractTotals(concepts);
-  return advanceBalances({
-    base: totals.base,
-    agreed: totals.advance,
-    invoiced: advance._sum.iad_value,
-    amortized: liquidation._sum.ild_amortization,
-  });
+  return {
+    advance: advanceBalances({
+      base: totals.base,
+      agreed: totals.advance,
+      invoiced: advance._sum.iad_value,
+      amortized: liquidation._sum.ild_amortization,
+    }),
+    retention: retentionBalances({
+      base: totals.base,
+      agreed: totals.retention,
+      retained: liquidation._sum.ild_retention,
+      refunded: refund._sum.irr_value,
+    }),
+  };
 };
 
 /**
- * Información de anticipo del contrato para el formulario (PRO-BE-28): los
- * saldos y, si llega `value`, la amortización por defecto de una
- * liquidación por ese VALOR. Solo lectura: al guardar se recalcula todo.
+ * Saldos del contrato para el formulario (PRO-BE-28, PRO-BE-31): los de
+ * anticipo y, aparte, los de retenido, que es una garantía contractual y no
+ * una retención tributaria. Si llega `value`, también la amortización y el
+ * retenido por defecto de una liquidación por ese VALOR. Solo lectura: al
+ * guardar se recalcula todo.
  */
 export const getContractAdvance = async ({ ctrId, value, scope }) => {
   await assertContractInScope(scope, ctrId);
@@ -209,16 +241,28 @@ export const getContractAdvance = async ({ ctrId, value, scope }) => {
     select: { ctr_id: true },
   });
   if (!contract) throw httpError(404, "No se encontró el contrato.");
-  const balances = await contractAdvanceBalances(prisma, contract.ctr_id);
+  const balances = await contractBalances(prisma, contract.ctr_id);
   const amount = toMoney(value);
   return {
-    ...balancesDto(balances),
-    defaultAmortization: amount ? moneyText(defaultAmortization(amount, balances)) : null,
+    ...balancesDto(balances.advance),
+    defaultAmortization: amount ? moneyText(defaultAmortization(amount, balances.advance)) : null,
+    retention: {
+      ...retentionDto(balances.retention),
+      defaultRetention: amount ? moneyText(defaultRetention(amount, balances.retention)) : null,
+    },
   };
 };
 
-/** Tipos con detalle de importes en esta fase. */
-const hasDetail = (type) => type === INVOICE_TYPES.ADVANCE || type === INVOICE_TYPES.LIQUIDATION;
+/** Tipos con detalle de importes: todos los de contrato (la simple espera DEC-02). */
+const hasDetail = (type) =>
+  type === INVOICE_TYPES.ADVANCE || type === INVOICE_TYPES.LIQUIDATION || type === INVOICE_TYPES.RETENTION_REFUND;
+
+/** Columna del valor capturado de cada tipo de detalle. */
+const VALUE_COLUMN = Object.freeze({
+  [INVOICE_TYPES.ADVANCE]: "iad_value",
+  [INVOICE_TYPES.LIQUIDATION]: "ild_value",
+  [INVOICE_TYPES.RETENTION_REFUND]: "irr_value",
+});
 
 const positiveMoney = (value, label) => {
   const amount = toMoney(value);
@@ -227,61 +271,111 @@ const positiveMoney = (value, label) => {
 };
 
 /**
+ * Importe con valor por defecto que el usuario puede ajustar (amortización y
+ * retenido de la liquidación): sin importe en la petición se usa el de por
+ * defecto; uno distinto exige `permission` en los permisos efectivos
+ * (`granted`) y una observación.
+ */
+const adjustableAmount = ({ requested, byDefault, observation, granted, permission, forbidden, missingObservation }) => {
+  const amount = toMoney(requested) ?? byDefault;
+  const adjusted = !amount.eq(byDefault);
+  const note = optionalText(observation);
+  if (adjusted) {
+    if (!granted?.has(permission)) throw httpError(403, forbidden);
+    if (!note) throw httpError(400, missingObservation);
+  }
+  return { amount, observation: adjusted ? note : null };
+};
+
+/**
  * Importes del detalle según el tipo, validados contra los saldos del
  * contrato bloqueado (al registrar y al editar una registrada).
  *
  * - Anticipo: valor ≤ anticipo por facturar (I1).
- * - Liquidación: amortización ≤ mín(pendiente por amortizar, VALOR) (I2).
- *   Sin amortización en la petición se usa la de por defecto; una distinta
- *   exige el permiso de ajustar y una observación (`granted`, como anular
- *   una aprobada).
+ * - Liquidación: amortización ≤ mín(pendiente por amortizar, VALOR) (I2) y
+ *   retenido ≤ mín(por retener, VALOR) (I4). Cada uno se aparta del valor
+ *   por defecto solo con su permiso de ajuste y una observación.
+ * - Devolución de retenido: valor ≤ saldo de retenido (I3).
  */
 const resolveDetail = async (tx, { type, ctrId, input, granted }) => {
+  if (!hasDetail(type)) return {};
+  const balances = await contractBalances(tx, ctrId);
   if (type === INVOICE_TYPES.ADVANCE) {
     const value = positiveMoney(input.value, "valor del anticipo");
-    assertAdvanceFits(value, await contractAdvanceBalances(tx, ctrId));
+    assertAdvanceFits(value, balances.advance);
     return { advance: { iad_value: value } };
   }
-  if (type === INVOICE_TYPES.LIQUIDATION) {
-    const value = positiveMoney(input.value, "valor de la factura");
-    const balances = await contractAdvanceBalances(tx, ctrId);
-    const byDefault = defaultAmortization(value, balances);
-    const amortization = toMoney(input.amortization) ?? byDefault;
-    const adjusted = !amortization.eq(byDefault);
-    const observation = optionalText(input.amortizationObservation);
-    if (adjusted) {
-      if (!granted?.has(can.adjustAmortization)) {
-        throw httpError(403, `La amortización por defecto es ${moneyText(byDefault)}. Cambiarla exige el permiso de ajustar la amortización.`);
-      }
-      if (!observation) throw httpError(400, "Explica por qué la amortización se aparta del valor por defecto.");
-    }
-    assertAmortizationFits(amortization, value, balances);
-    return {
-      liquidation: {
-        ild_value: value,
-        ild_amortization: amortization,
-        ild_default_amortization: byDefault,
-        ild_default_pct: balances.effectivePct,
-        ild_applied_pct: appliedPct(amortization, value),
-        ild_adjustment_observation: adjusted ? observation : null,
-      },
-    };
+  if (type === INVOICE_TYPES.RETENTION_REFUND) {
+    const value = positiveMoney(input.value, "valor de la devolución");
+    assertRefundFits(value, balances.retention);
+    return { refund: { irr_value: value } };
   }
-  return {};
+  const value = positiveMoney(input.value, "valor de la factura");
+  const amortizationDefault = defaultAmortization(value, balances.advance);
+  const amortization = adjustableAmount({
+    requested: input.amortization,
+    byDefault: amortizationDefault,
+    observation: input.amortizationObservation,
+    granted,
+    permission: can.adjustAmortization,
+    forbidden: `La amortización por defecto es ${moneyText(amortizationDefault)}. Cambiarla exige el permiso de ajustar la amortización.`,
+    missingObservation: "Explica por qué la amortización se aparta del valor por defecto.",
+  });
+  const retentionDefault = defaultRetention(value, balances.retention);
+  const retention = adjustableAmount({
+    requested: input.retention,
+    byDefault: retentionDefault,
+    observation: input.retentionObservation,
+    granted,
+    permission: can.adjustRetention,
+    forbidden: `El retenido por defecto es ${moneyText(retentionDefault)}. Cambiarlo exige el permiso de ajustar el retenido.`,
+    missingObservation: "Explica por qué el retenido se aparta del valor por defecto.",
+  });
+  assertAmortizationFits(amortization.amount, value, balances.advance);
+  assertRetentionFits(retention.amount, value, balances.retention);
+  return {
+    liquidation: {
+      ild_value: value,
+      ild_amortization: amortization.amount,
+      ild_default_amortization: amortizationDefault,
+      ild_default_pct: balances.advance.effectivePct,
+      ild_applied_pct: appliedPct(amortization.amount, value),
+      ild_adjustment_observation: amortization.observation,
+      ild_retention: retention.amount,
+      ild_default_retention: retentionDefault,
+      ild_retention_default_pct: balances.retention.effectivePct,
+      ild_retention_applied_pct: appliedPct(retention.amount, value),
+      ild_retention_observation: retention.observation,
+    },
+  };
 };
 
 // Bitácora del detalle: importes como texto con dos decimales.
-const DETAIL_AUDITED = ["iad_value", "ild_value", "ild_amortization", "ild_default_amortization", "ild_adjustment_observation"];
-const MONEY_COLUMNS = new Set(["iad_value", "ild_value", "ild_amortization", "ild_default_amortization"]);
+const DETAIL_AUDITED = [
+  "iad_value",
+  "ild_value",
+  "ild_amortization",
+  "ild_default_amortization",
+  "ild_adjustment_observation",
+  "ild_retention",
+  "ild_default_retention",
+  "ild_retention_observation",
+  "irr_value",
+];
+const MONEY_COLUMNS = new Set(["iad_value", "ild_value", "ild_amortization", "ild_default_amortization", "ild_retention", "ild_default_retention", "irr_value"]);
 
 const detailText = (row) =>
   Object.fromEntries(Object.entries(row ?? {}).map(([column, value]) => [column, MONEY_COLUMNS.has(column) ? moneyText(value) : value]));
 
 /** Detalle guardado de una factura (de LOCKED_SELECT) como fila plana. */
-const storedDetail = (invoice) => ({ ...(invoice.tbl_invoice_advance_details ?? {}), ...(invoice.tbl_invoice_liquidation_details ?? {}) });
+const storedDetail = (invoice) => ({
+  ...(invoice.tbl_invoice_advance_details ?? {}),
+  ...(invoice.tbl_invoice_liquidation_details ?? {}),
+  ...(invoice.tbl_invoice_retention_refund_details ?? {}),
+});
 
 const detailChanges = (before, detail) =>
-  diffFields(detailText(storedDetail(before)), detailText({ ...detail.advance, ...detail.liquidation }), DETAIL_AUDITED);
+  diffFields(detailText(storedDetail(before)), detailText({ ...detail.advance, ...detail.liquidation, ...detail.refund }), DETAIL_AUDITED);
 
 /**
  * Importes que llegan para una factura que ya no admite cambios (aprobada):
@@ -291,9 +385,13 @@ const detailChanges = (before, detail) =>
 const requestedDetailChanges = (before, input) => {
   const requested = {};
   const value = toMoney(input.value);
-  const amortization = toMoney(input.amortization);
-  if (value) requested[before.inv_type === INVOICE_TYPES.ADVANCE ? "iad_value" : "ild_value"] = value;
-  if (amortization && before.inv_type === INVOICE_TYPES.LIQUIDATION) requested.ild_amortization = amortization;
+  if (value) requested[VALUE_COLUMN[before.inv_type]] = value;
+  if (before.inv_type === INVOICE_TYPES.LIQUIDATION) {
+    const amortization = toMoney(input.amortization);
+    const retention = toMoney(input.retention);
+    if (amortization) requested.ild_amortization = amortization;
+    if (retention) requested.ild_retention = retention;
+  }
   return diffFields(detailText(storedDetail(before)), detailText(requested), DETAIL_AUDITED);
 };
 
@@ -313,53 +411,82 @@ const writeDetail = async (tx, { invId, detail, useBy }) => {
       update: { ...detail.liquidation, ild_update_by: useBy },
     });
   }
+  if (detail.refund) {
+    await tx.tbl_invoice_retention_refund_details.upsert({
+      where: { inv_id: invId },
+      create: { inv_id: invId, ...detail.refund, irr_create_by: useBy, irr_update_by: useBy },
+      update: { ...detail.refund, irr_update_by: useBy },
+    });
+  }
 };
 
-/** Importe guardado del detalle, o null si la factura no lo tiene (registrada en la fase A). */
+/** Importe guardado del detalle, o null si la factura no lo tiene (registrada sin él). */
 const storedAmount = (invoice, column) => storedDetail(invoice)[column] ?? null;
 
+const balanceChange = (field, before, after) => ({ field, oldValue: moneyText(before), newValue: moneyText(after) });
+
 /**
- * Aprobar un anticipo o una liquidación revalida su detalle contra los
- * saldos bajo bloqueo: es la validación definitiva (ADR-0024, decisión 8).
- * Devuelve los cambios de saldo para la bitácora. 409 si la factura no
- * tiene importes.
+ * Aprobar una factura con detalle revalida sus importes contra los saldos
+ * bajo bloqueo: es la validación definitiva (ADR-0024, decisión 8; ADR-0025,
+ * decisión 5). Devuelve los cambios de saldo para la bitácora. 409 si la
+ * factura no tiene sus importes, también una liquidación sin retenido.
  */
 const revalidateOnApprove = async (tx, invoice) => {
   if (!hasDetail(invoice.inv_type)) return [];
-  const isAdvance = invoice.inv_type === INVOICE_TYPES.ADVANCE;
-  const value = storedAmount(invoice, isAdvance ? "iad_value" : "ild_value");
+  const value = storedAmount(invoice, VALUE_COLUMN[invoice.inv_type]);
   if (value === null) {
     throw httpError(409, "La factura no tiene su valor registrado. Edítala y registra los importes antes de aprobarla.");
   }
-  const balances = await contractAdvanceBalances(tx, invoice.ctr_id);
-  if (isAdvance) {
-    assertAdvanceFits(value, balances);
-    return [{ field: "advance_invoiced", oldValue: moneyText(balances.invoiced), newValue: moneyText(balances.invoiced.plus(value)) }];
+  const balances = await contractBalances(tx, invoice.ctr_id);
+  if (invoice.inv_type === INVOICE_TYPES.ADVANCE) {
+    assertAdvanceFits(value, balances.advance);
+    return [balanceChange("advance_invoiced", balances.advance.invoiced, balances.advance.invoiced.plus(value))];
+  }
+  if (invoice.inv_type === INVOICE_TYPES.RETENTION_REFUND) {
+    assertRefundFits(value, balances.retention);
+    return [balanceChange("retention_refunded", balances.retention.refunded, balances.retention.refunded.plus(value))];
   }
   const amortization = storedAmount(invoice, "ild_amortization");
-  assertAmortizationFits(amortization, value, balances);
+  const retention = storedAmount(invoice, "ild_retention");
+  if (retention === null) {
+    throw httpError(409, "La factura no tiene su retenido registrado. Edítala para calcularlo antes de aprobarla.");
+  }
+  assertAmortizationFits(amortization, value, balances.advance);
+  assertRetentionFits(retention, value, balances.retention);
   return [
-    { field: "advance_amortized", oldValue: moneyText(balances.amortized), newValue: moneyText(balances.amortized.plus(amortization)) },
-    { field: "advance_effective_pct", oldValue: null, newValue: ratioText(balances.effectivePct) },
+    balanceChange("advance_amortized", balances.advance.amortized, balances.advance.amortized.plus(amortization)),
+    { field: "advance_effective_pct", oldValue: null, newValue: ratioText(balances.advance.effectivePct) },
+    balanceChange("retention_retained", balances.retention.retained, balances.retention.retained.plus(retention)),
+    { field: "retention_effective_pct", oldValue: null, newValue: ratioText(balances.retention.effectivePct) },
   ];
 };
 
 /**
- * Anular un anticipo aprobado no puede dejar el amortizado por encima del
- * facturado (I2). Anular una liquidación aprobada reduce el amortizado:
- * siempre cumple. Devuelve los cambios de saldo para la bitácora.
+ * Anular una factura aprobada no puede romper los saldos:
+ * - Un anticipo no deja el amortizado por encima del facturado (I2).
+ * - Una liquidación no deja el devuelto por encima del retenido (I3). Su
+ *   amortización solo reduce el amortizado: siempre cumple I2.
+ * - Una devolución reduce el devuelto: siempre cumple I3.
+ * Devuelve los cambios de saldo para la bitácora.
  */
 const revalidateOnCancel = async (tx, invoice) => {
   if (invoice.inv_state !== INVOICE_STATES.APPROVED || !hasDetail(invoice.inv_type)) return [];
-  const isAdvance = invoice.inv_type === INVOICE_TYPES.ADVANCE;
-  const amount = storedAmount(invoice, isAdvance ? "iad_value" : "ild_amortization");
-  if (amount === null) return [];
-  const balances = await contractAdvanceBalances(tx, invoice.ctr_id);
-  if (isAdvance) {
-    assertAdvanceCancellable(amount, balances);
-    return [{ field: "advance_invoiced", oldValue: moneyText(balances.invoiced), newValue: moneyText(balances.invoiced.minus(amount)) }];
+  const value = storedAmount(invoice, VALUE_COLUMN[invoice.inv_type]);
+  if (value === null) return [];
+  const balances = await contractBalances(tx, invoice.ctr_id);
+  if (invoice.inv_type === INVOICE_TYPES.ADVANCE) {
+    assertAdvanceCancellable(value, balances.advance);
+    return [balanceChange("advance_invoiced", balances.advance.invoiced, balances.advance.invoiced.minus(value))];
   }
-  return [{ field: "advance_amortized", oldValue: moneyText(balances.amortized), newValue: moneyText(balances.amortized.minus(amount)) }];
+  if (invoice.inv_type === INVOICE_TYPES.RETENTION_REFUND) {
+    return [balanceChange("retention_refunded", balances.retention.refunded, balances.retention.refunded.minus(value))];
+  }
+  const amortization = storedAmount(invoice, "ild_amortization");
+  const retention = storedAmount(invoice, "ild_retention");
+  const changes = [balanceChange("advance_amortized", balances.advance.amortized, balances.advance.amortized.minus(amortization))];
+  if (retention === null) return changes;
+  assertLiquidationCancellable(retention, balances.retention);
+  return [...changes, balanceChange("retention_retained", balances.retention.retained, balances.retention.retained.minus(retention))];
 };
 
 // ─── Listado ─────────────────────────────────────────────────────────────────
@@ -500,7 +627,9 @@ export const paginationInvoices = async ({
 const amountsDto = (row) => {
   const advance = row.tbl_invoice_advance_details;
   const liquidation = row.tbl_invoice_liquidation_details;
+  const refund = row.tbl_invoice_retention_refund_details;
   if (advance) return { value: moneyText(advance.iad_value) };
+  if (refund) return { value: moneyText(refund.irr_value) };
   if (liquidation) {
     return {
       value: moneyText(liquidation.ild_value),
@@ -509,6 +638,12 @@ const amountsDto = (row) => {
       defaultPct: ratioText(liquidation.ild_default_pct),
       appliedPct: ratioText(liquidation.ild_applied_pct),
       adjustmentObservation: liquidation.ild_adjustment_observation,
+      // Retenido contractual (DEC-051): null si se registró antes de él.
+      retention: moneyText(liquidation.ild_retention),
+      defaultRetention: moneyText(liquidation.ild_default_retention),
+      retentionDefaultPct: ratioText(liquidation.ild_retention_default_pct),
+      retentionAppliedPct: ratioText(liquidation.ild_retention_applied_pct),
+      retentionObservation: liquidation.ild_retention_observation,
     };
   }
   return null;
@@ -775,7 +910,8 @@ const createSimpleInvoice = ({ input, document, useBy, ctx, idempotencyData }) =
  * Factura de contrato: obra y proveedor salen del contrato bloqueado, y su
  * estado debe admitir el tipo (ADR-0017, "Efectos de cada estado"). Bloquea
  * el contrato: serializa con el otrosí de liquidación y la suspensión, que
- * cambian ese estado, y con las facturas que mueven los saldos de anticipo.
+ * cambian ese estado, y con las facturas que mueven los saldos de anticipo
+ * y de retenido.
  */
 const createContractInvoice = ({ input, document, granted, useBy, ctx, idempotencyData }) =>
   withLockedTransaction({ CONTRATO: Number(input.ctrId) }, async (tx) => {
@@ -858,7 +994,7 @@ const updateInvoice = async ({ invId, input, document, granted, useBy, ctx }) =>
 /**
  * Registrar (invId vacío o 0) o editar. Crear exige `Idempotency-Key`: el
  * reintento devuelve la factura creada y no "ya existe". `granted`: permisos
- * efectivos, para ajustar la amortización de una liquidación.
+ * efectivos, para ajustar la amortización y el retenido de una liquidación.
  */
 export const saveInvoice = async ({ invId, input, useBy, granted, scope, ctx = { useId: useBy }, idempotencyKey }) => {
   // Alcance por obra (DEC-047): se registra y se edita solo en la obra del alcance.
@@ -887,6 +1023,8 @@ export const saveInvoice = async ({ invId, input, useBy, granted, scope, ctx = {
       value: moneyText(toMoney(input.value)),
       amortization: moneyText(toMoney(input.amortization)),
       amortizationObservation: optionalText(input.amortizationObservation),
+      retention: moneyText(toMoney(input.retention)),
+      retentionObservation: optionalText(input.retentionObservation),
     },
     execute: (idempotencyData) => create({ input, document, granted, useBy: Number(useBy), ctx, idempotencyData }),
   });
@@ -915,9 +1053,9 @@ const assertContractStillAdmits = async (tx, invoice) => {
 /**
  * Aprobar (ADR-0020, decisión 7): la factura empieza a contar. Bloquea
  * contrato → factura y revalida bajo bloqueo el estado de los dos. La fecha
- * de aprobación no es futura ni anterior a la factura. Anticipo y
- * liquidación revalidan aquí I1 e I2 con carácter definitivo (DEC-044). Falta
- * evaluar C1–C8 (ADR-0017).
+ * de aprobación no es futura ni anterior a la factura. Anticipo,
+ * liquidación y devolución revalidan aquí I1 a I4 con carácter definitivo
+ * (DEC-044, DEC-051). Falta evaluar C1–C8 (ADR-0017).
  */
 export const approveInvoice = async ({ invId, input, useBy, scope, ctx = { useId: useBy }, idempotencyKey }) => {
   await assertInvoiceInScope(scope, invId);
@@ -973,8 +1111,9 @@ export const approveInvoice = async ({ invId, input, useBy, scope, ctx = { useId
  * catálogo y observación. Una registrada exige el permiso de anular (la
  * ruta); una aprobada, además el reforzado, que el service verifica con el
  * estado bajo bloqueo (`granted`, como levantar una suspensión). Anular un
- * anticipo aprobado ya amortizado responde 409 (I2, DEC-044). Bloquea
- * contrato → factura → motivo.
+ * anticipo aprobado ya amortizado responde 409 (I2, DEC-044), y una
+ * liquidación aprobada cuyo retenido ya se devolvió, también (I3, DEC-051).
+ * Bloquea contrato → factura → motivo.
  */
 export const cancelInvoice = async ({ invId, input, useBy, granted, scope, ctx = { useId: useBy }, idempotencyKey }) => {
   await assertInvoiceInScope(scope, invId);

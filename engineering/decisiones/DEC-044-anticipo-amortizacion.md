@@ -26,7 +26,7 @@ En la fase A, las facturas no tenían importes. El contrato ya calculaba, sin gu
   - **`tbl_invoice_liquidation_details`** (`ild_`) guarda el VALOR (mayor que 0) y la amortización (entre 0 y el VALOR, con `CHECK`).
   - El detalle de liquidación guarda además, como evidencia: la amortización por defecto, el porcentaje efectivo y el porcentaje aplicado al guardar, y la observación del ajuste.
   - IVA, retenciones y retenido se agregarán como columnas del mismo detalle cuando se resuelvan DEC-03 y DEC-07.
-- **Las cinco magnitudes se calculan, nunca se guardan** (`advanceTerms.js`, `contractAdvanceBalances`):
+- **Las cinco magnitudes se calculan, nunca se guardan** (`advanceTerms.js`, `contractAdvanceBalances`, hoy `contractBalances` desde [DEC-051](DEC-051-retenido-contractual.md)):
   - **B**, base vigente: la suma de las bases de los conceptos.
   - **A**, anticipo pactado: la suma de base × porcentaje de anticipo de cada concepto (`contractTotals`).
   - **AF**, anticipo facturado: la suma de las facturas de anticipo **aprobadas**.

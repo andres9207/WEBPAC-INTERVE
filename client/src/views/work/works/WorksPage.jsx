@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import Typography from '@mui/material/Typography';
 
 import MasterPage from 'ui-component/extended/MasterPage';
+import useLinkedFilters from 'hooks/useLinkedFilters';
 import { worksApi } from 'api/requests/worksApi';
 import { getConstructionCompaniesSelectAPI } from 'api/requests/constructionCompaniesApi';
 import { getSupervisionTypesSelectAPI } from 'api/requests/supervisionTypesApi';
@@ -68,11 +69,16 @@ const FILTER_FIELDS = [
 
 const rowLabel = (row) => `${row.code} — ${row.name}`;
 
+// Desde el tablero (DEC-052) llega solo con la pestaña inicial (`?status=1`).
+const NO_LINKED_KEYS = [];
+const describeNothing = () => null;
+
 export default function WorksPage() {
   const { permissionsCatalog } = useAuth();
   const navigate = useNavigate();
   const [reloadKey, setReloadKey] = useState(0);
   const outletContext = useMemo(() => ({ refresh: () => setReloadKey((k) => k + 1) }), []);
+  const linked = useLinkedFilters(NO_LINKED_KEYS, describeNothing);
 
   const navigation = useMemo(
     () => ({
@@ -103,6 +109,7 @@ export default function WorksPage() {
         navigation={navigation}
         header={<WorksSummary reloadKey={reloadKey} />}
         renderCard={renderCard}
+        initialStatus={linked.initialStatus}
         reloadKey={reloadKey}
       />
       <Outlet context={outletContext} />

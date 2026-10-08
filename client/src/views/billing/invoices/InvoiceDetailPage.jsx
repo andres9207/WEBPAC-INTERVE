@@ -31,17 +31,65 @@ import { INVOICE_STATE_COLORS } from 'utils/constants';
  * dirección propia `/billing/invoices/:invId` (DEC-034): identidad, estado,
  * datos del documento e historial de estado. El estado no se edita: lo
  * cambian Aprobar y Anular, cada una con su diálogo y su permiso, ofrecidas
- * según `allowedActions` del servidor. Importes: los del anticipo y la
- * liquidación (DEC-044); IVA, retenciones y retenido llegan con la fase B.
+ * según `allowedActions` del servidor. Importes: los del anticipo, la
+ * liquidación (DEC-044) y el retenido (DEC-051); IVA y retenciones
+ * tributarias llegan con la fase B.
  */
 
 const pct = fPercentText;
 
-/** Importes del anticipo o de la liquidación, como los guardó el servidor. */
+const CONTRACT_TYPES = ['ADVANCE', 'LIQUIDATION', 'RETENTION_REFUND'];
+
+function FigureRow({ figures }) {
+  return (
+    <Grid container spacing={2}>
+      {figures.map((figure) => (
+        <Grid key={figure.label} size={{ xs: 12, sm: 6, md: 4 }}>
+          <Figure {...figure} />
+        </Grid>
+      ))}
+    </Grid>
+  );
+}
+
+FigureRow.propTypes = { figures: PropTypes.array.isRequired };
+
+/**
+ * Retenido contractual de una liquidación (DEC-051), aparte de los demás
+ * importes: es una garantía, no una retención tributaria. Una liquidación
+ * registrada antes del retenido no lo tiene.
+ */
+function LiquidationRetention({ amounts, approved }) {
+  if (amounts.retention == null) {
+    return (
+      <Alert severity="info" variant="outlined">
+        {approved
+          ? 'Esta liquidación se aprobó antes de que existiera el retenido: no retuvo nada.'
+          : 'Esta liquidación no tiene su retenido calculado. Edítala para calcularlo: sin él no se puede aprobar.'}
+      </Alert>
+    );
+  }
+  return (
+    <FigureRow
+      figures={[
+        { label: 'Retenido', value: fMoneyText(amounts.retention), hint: `${pct(amounts.retentionAppliedPct)} del VALOR` },
+        {
+          label: 'Retenido por defecto',
+          value: fMoneyText(amounts.defaultRetention),
+          hint: `% efectivo del contrato: ${pct(amounts.retentionDefaultPct)}`
+        }
+      ]}
+    />
+  );
+}
+
+LiquidationRetention.propTypes = { amounts: PropTypes.object.isRequired, approved: PropTypes.bool };
+
+/** Importes de una factura de contrato, como los guardó el servidor. */
 function InvoiceAmounts({ invoice }) {
   const { amounts, type } = invoice;
   if (!amounts) {
-    return type === 'ADVANCE' || type === 'LIQUIDATION' ? (
+    return CONTRACT_TYPES.includes(type) ? (
       <Pending
         title="La factura no tiene sus importes registrados."
         text="Se registró antes de que existieran los importes. Edítala para registrar el valor: sin él no se puede aprobar."
@@ -53,34 +101,41 @@ function InvoiceAmounts({ invoice }) {
       />
     );
   }
-  const adjusted = Boolean(amounts.adjustmentObservation);
-  const figures =
-    type === 'ADVANCE'
-      ? [{ label: 'Valor del anticipo', value: fMoneyText(amounts.value) }]
-      : [
-          { label: 'VALOR', value: fMoneyText(amounts.value), hint: 'Antes de IVA, con AIU' },
-          { label: 'Amortización del anticipo', value: fMoneyText(amounts.amortization), hint: `${pct(amounts.appliedPct)} del VALOR` },
-          {
-            label: 'Amortización por defecto',
-            value: fMoneyText(amounts.defaultAmortization),
-            hint: `% efectivo del contrato: ${pct(amounts.defaultPct)}`
-          }
-        ];
+  const approved = invoice.state === 'APPROVED';
+  const isLiquidation = type === 'LIQUIDATION';
+  const figures = {
+    ADVANCE: [{ label: 'Valor del anticipo', value: fMoneyText(amounts.value) }],
+    RETENTION_REFUND: [{ label: 'Valor devuelto', value: fMoneyText(amounts.value), hint: 'Devolución del retenido contractual' }],
+    LIQUIDATION: [
+      { label: 'VALOR', value: fMoneyText(amounts.value), hint: 'Antes de IVA, con AIU' },
+      { label: 'Amortización del anticipo', value: fMoneyText(amounts.amortization), hint: `${pct(amounts.appliedPct)} del VALOR` },
+      {
+        label: 'Amortización por defecto',
+        value: fMoneyText(amounts.defaultAmortization),
+        hint: `% efectivo del contrato: ${pct(amounts.defaultPct)}`
+      }
+    ]
+  }[type];
   return (
     <Stack spacing={2}>
-      <Grid container spacing={2}>
-        {figures.map((figure) => (
-          <Grid key={figure.label} size={{ xs: 12, sm: 6, md: 4 }}>
-            <Figure {...figure} />
-          </Grid>
-        ))}
-      </Grid>
-      {adjusted && <Alert severity="warning">Amortización ajustada respecto del valor por defecto: {amounts.adjustmentObservation}</Alert>}
+      <FigureRow figures={figures} />
+      {amounts.adjustmentObservation && (
+        <Alert severity="warning">Amortización ajustada respecto del valor por defecto: {amounts.adjustmentObservation}</Alert>
+      )}
+      {isLiquidation && (
+        <>
+          <Typography variant="subtitle2">Retenido contractual</Typography>
+          <LiquidationRetention amounts={amounts} approved={approved} />
+          {amounts.retentionObservation && (
+            <Alert severity="warning">Retenido ajustado respecto del valor por defecto: {amounts.retentionObservation}</Alert>
+          )}
+        </>
+      )}
       <Typography variant="caption" color="text.secondary">
-        {invoice.state === 'APPROVED'
-          ? 'Aprobada: estos importes cuentan en los saldos de anticipo del contrato.'
-          : 'Solo las facturas aprobadas cuentan en los saldos de anticipo del contrato. Al aprobar se revalidan contra los saldos vigentes.'}
-        {' IVA, retenciones y retenido llegan con las decisiones contables pendientes.'}
+        {approved
+          ? 'Aprobada: estos importes cuentan en los saldos del contrato.'
+          : 'Solo las facturas aprobadas cuentan en los saldos del contrato. Al aprobar se revalidan contra los saldos vigentes.'}
+        {' IVA y retenciones tributarias llegan con las decisiones contables pendientes.'}
       </Typography>
     </Stack>
   );

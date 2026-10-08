@@ -10,6 +10,7 @@ import {
   percentRule,
 } from "../../../common/utils/validation.utils.js";
 import { TERM_UNITS } from "../../../common/utils/term.utils.js";
+import { CONTRACT_POLICY_STATUS } from "./policyTerms.js";
 import { CONTRACT_STATES } from "./contractTerms.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). Las reglas de
@@ -62,6 +63,9 @@ export const paginationContractsSchema = [
   optionalText("providerName", 255),
   optionalDate("endDateFrom"),
   optionalDate("endDateTo"),
+  // Filtros del tablero (DEC-052): el mismo predicado que la cifra.
+  body("policyStatus").optional({ values: "falsy" }).isIn(Object.values(CONTRACT_POLICY_STATUS)).withMessage("El estado de pólizas no es válido."),
+  body("uncovered").optional({ values: "falsy" }).isBoolean().withMessage("uncovered debe ser verdadero o falso."),
 ];
 
 export const getContractSchema = [query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo.")];

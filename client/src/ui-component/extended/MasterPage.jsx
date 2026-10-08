@@ -86,6 +86,8 @@ const saveView = (key, value) => {
  *   por ese valor, y la columna de estado usa `stateName` de la fila.
  * - `filters`: filtros fijos que viajan en cada petición (p. ej. la obra).
  *   Al cambiar, el listado vuelve a la primera página.
+ * - `initialStatus`: pestaña con la que abre (p. ej. "Registradas" al llegar
+ *   desde el tablero, DEC-052). Sin ella, "Todos".
  * - `extraActions(row)`: acciones propias del maestro, después de Editar (p.
  *   ej. "Configurar campos" del tipo de contrato, DEC-037). Cada una con
  *   `label`, `icon`, `command` y `tone`; las filtra por permiso quien las da.
@@ -109,6 +111,7 @@ export default function MasterPage({
   reloadKey,
   stateTabs,
   filters,
+  initialStatus,
   extraActions
 }) {
   const { hasPermission } = useAuth();
@@ -121,7 +124,8 @@ export default function MasterPage({
     remove: canDo(permissions?.delete)
   };
 
-  const [status, setStatus] = useState('all');
+  // Pestañas de workflow: la clave del estado; de activo/inactivo: el sta_id numérico.
+  const [status, setStatus] = useState(() => (initialStatus ? (stateTabs ? initialStatus : Number(initialStatus)) : 'all'));
 
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -467,6 +471,7 @@ MasterPage.propTypes = {
   navigation: PropTypes.shape({ create: PropTypes.func.isRequired, view: PropTypes.func.isRequired, edit: PropTypes.func.isRequired }),
   /** Contenido arriba del listado: indicadores, avisos. */
   header: PropTypes.node,
+  initialStatus: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   /** Tarjeta de una fila: `(row, actions) => node`. Activa la vista de tarjetas (DEC-033). */
   renderCard: PropTypes.func,
   /** Cambia para recargar el listado (DEC-034). */

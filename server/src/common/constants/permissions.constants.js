@@ -176,6 +176,9 @@ export const PERMISSIONS = {
       // Registrar una liquidación con una amortización distinta del valor
       // por defecto (ADR-0024, DEC-044). Aceptar el valor por defecto no lo exige.
       adjustAmortization: 89,
+      // Registrar una liquidación con un retenido distinto del valor por
+      // defecto (ADR-0025, DEC-051). Aceptar el valor por defecto no lo exige.
+      adjustRetention: 103,
     },
   },
 };

@@ -64,7 +64,7 @@ Por eso casi todos los ADR están en estado `Propuesto`:
 | ID | Decisión | Módulo | Estado | Dependencias |
 | --- | --- | --- | --- | --- |
 | [0001](0001-seguridad.md) | JWT corto + sesión en BD con refresh token rotado y sesión única; `httpOnly`, secretos fuera del código, bloqueo de login, código de recuperación con HMAC | Seguridad | Aceptado (abierto: MFA) | 0013, 0014 |
-| [0002](0002-dashboard.md) | Indicadores por agregación SQL en backend; filtrado con el mismo criterio | Dashboard | Propuesto | 0011, 0015, 0017, 0018, 0020, 0014 |
+| [0002](0002-dashboard.md) | Indicadores por agregación SQL en backend; filtrado con el mismo criterio | Dashboard | Aceptado parcial ([DEC-052](../decisiones/DEC-052-tablero.md)) | 0011, 0015, 0017, 0018, 0020, 0014 |
 | [0003](0003-aseguradoras.md) | Maestro con eliminación lógica bloqueada por uso | Configuración | Aceptado parcial | 0013, 0014 |
 | [0004](0004-constructoras.md) | Maestro; obras nunca ocultas por el estado del maestro | Configuración | Aceptado parcial | 0011, 0013, 0014 |
 | [0005](0005-estados-contrato.md) | Estados de contrato (versión inicial) | Contratos | **Reemplazado por ADR-0017** | — |
@@ -87,7 +87,7 @@ Por eso casi todos los ADR están en estado `Propuesto`:
 | [0022](0022-facturacion-subcontratista.md) | Mismo modelo que 0021; sin reglas diferenciadas halladas | Facturación | Propuesto | 0010, 0021 |
 | [0023](0023-facturacion-simple.md) | Tipo `SIMPLE` sin contrato; total facturado y neto a pagar | Facturación | Propuesto | 0011, 0012, 0020, 0026, 0027 |
 | [0024](0024-amortizacion-anticipo.md) | Saldo único por contrato, calculado; amortiza contra lo facturado | Facturación | Aceptado parcial ([DEC-044](../decisiones/DEC-044-anticipo-amortizacion.md)) | 0016, 0021, 0027 |
-| [0025](0025-retenciones.md) | Retenido simétrico al anticipo; distinto de retenciones tributarias | Facturación | Propuesto | 0016, 0021, 0024, 0027 |
+| [0025](0025-retenciones.md) | Retenido simétrico al anticipo; distinto de retenciones tributarias | Facturación | Aceptado parcial ([DEC-051](../decisiones/DEC-051-retenido-contractual.md)) | 0016, 0021, 0024, 0027 |
 | [0026](0026-calculos-facturacion.md) | Módulo de cálculo único, versionado, con aritmética exacta | **Transversal del CORE** | Propuesto | 0006, 0016, 0019, 0020 |
 | [0027](0027-integridad-transaccional.md) | Transacción por operación, bloqueo del contrato, idempotencia | **Transversal del CORE** | **Aceptado — estándar obligatorio** para todo service (utilidad de transacción, `REPEATABLE READ`, protocolo de bloqueo); idempotencia e invariantes se aplican al construir el CORE | 0013, 0014 |
 

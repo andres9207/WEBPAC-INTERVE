@@ -2,11 +2,21 @@
 
 ## Estado
 
-**Propuesto.**
+**Aceptado parcial** (2026-10-08, [DEC-052](../decisiones/DEC-052-tablero.md)). Existen:
 
-El dashboard existe como pantalla pero **no consume datos reales**. Los indicadores descritos en el alcance funcional —costo de obra ejecutado por tipo de factura, estado de costos, estados de póliza— no están implementados, y las entidades que alimentarían esos cálculos (contratos, facturas, pólizas) no existen en el esquema.
+- el módulo `app/dashboard` con un endpoint de lectura, agregación en la base de datos y fecha del servidor;
+- el estado de pólizas por contrato, excluyente y exhaustivo, con el mismo predicado para la cifra y el listado (decisiones 2, 4 a 7);
+- cada bloque solo con el permiso de ver su módulo, dentro del alcance por obra (decisión 8);
+- la vista con datos reales, gráficos de `react-apexcharts` y clic al listado filtrado en la petición.
 
-Este ADR documenta la decisión arquitectónica recomendada, no una implementación existente.
+Se validaron B5 (manda el peor estado), B6 (umbral `POLICY_EXPIRING_DAYS`) y B7 (cuentan las facturas registradas y aprobadas). Faltan:
+
+- el costo de obra ejecutado y el estado de costos: esperan los importes de la factura simple y la composición (DEC-01 a DEC-03);
+- medir con un volumen representativo (fase 5);
+- **el logo de la marca**: el área usuaria lo va a entregar; mientras tanto se mantiene el de Berry;
+- el tema oscuro: no existe en el proyecto, y el tablero se verificó solo en el claro.
+
+Al escribirse este ADR (2026-09-10) el dashboard mostraba datos ficticios y no existían contratos, facturas ni pólizas; las secciones "Estado actual" y "Brechas" describen ese momento.
 
 ## Fecha
 

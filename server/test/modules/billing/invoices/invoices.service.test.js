@@ -7,6 +7,8 @@ import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
 // e idempotencia, y el estado del contrato decidiendo qué tipo se admite.
 // Anticipo y amortización (DEC-044): I1 e I2 contra los saldos calculados
 // bajo el bloqueo del contrato, y el permiso de ajustar la amortización.
+// Retenido contractual (DEC-051): I3 e I4 contra los mismos saldos, el
+// permiso de ajustar el retenido y la devolución de retenido.
 
 const state = {
   invoice: null,
@@ -18,11 +20,14 @@ const state = {
   concepts: [],
   advanceSum: null,
   amortizedSum: null,
+  retainedSum: null,
+  refundedSum: null,
 };
 
 const D = (value) => new Prisma.Decimal(value);
 
-// Ejemplo de ADR-0024: B = 120.000.000, A = 32.000.000 (≈ 26,67 %).
+// Ejemplo de ADR-0024: B = 120.000.000, A = 32.000.000 (≈ 26,67 %). Retenido
+// del 5 % en los dos conceptos: RP = 6.000.000.
 const concept = (directCost, advancePct) => ({
   ccp_direct_cost: D(directCost),
   ccp_admin_pct: D(0),
@@ -30,7 +35,7 @@ const concept = (directCost, advancePct) => ({
   ccp_profit_pct: D(0),
   ccp_vat_pct: D(19),
   ccp_advance_pct: D(advancePct),
-  ccp_retention_pct: D(0),
+  ccp_retention_pct: D(5),
   sta_id: 1,
 });
 const CONCEPTS = [concept("100000000", 30), concept("20000000", 10)];
@@ -57,7 +62,11 @@ const prismaMock = {
     upsert: jest.fn(),
   },
   tbl_invoice_liquidation_details: {
-    aggregate: jest.fn(async () => ({ _sum: { ild_amortization: state.amortizedSum } })),
+    aggregate: jest.fn(async () => ({ _sum: { ild_amortization: state.amortizedSum, ild_retention: state.retainedSum } })),
+    upsert: jest.fn(),
+  },
+  tbl_invoice_retention_refund_details: {
+    aggregate: jest.fn(async () => ({ _sum: { irr_value: state.refundedSum } })),
     upsert: jest.fn(),
   },
   tbl_audit_log: { createMany: jest.fn() },
@@ -74,6 +83,7 @@ const ctx = { useId: 9, ip: "1.1.1.1" };
 const CAN_CANCEL = 87;
 const CAN_CANCEL_APPROVED = 88;
 const CAN_ADJUST = 89;
+const CAN_ADJUST_RETENTION = 103;
 const auditRows = () => prismaMock.tbl_audit_log.createMany.mock.calls.flatMap((c) => c[0].data);
 const lockedTables = () => prismaMock.$queryRaw.mock.calls.map((call) => call.slice(1).map((v) => v?.strings?.join("") ?? "").join(" "));
 
@@ -118,7 +128,20 @@ const storedLiquidation = (overrides = {}) =>
       ild_default_pct: D("26.666667"),
       ild_applied_pct: D("26.666667"),
       ild_adjustment_observation: null,
+      ild_retention: D("4500000"),
+      ild_default_retention: D("4500000"),
+      ild_retention_default_pct: D("5"),
+      ild_retention_applied_pct: D("5"),
+      ild_retention_observation: null,
     },
+    ...overrides,
+  });
+
+const storedRefund = (overrides = {}) =>
+  storedInvoice({
+    inv_type: "RETENTION_REFUND",
+    tbl_invoice_advance_details: null,
+    tbl_invoice_retention_refund_details: { irr_value: D("3000000") },
     ...overrides,
   });
 
@@ -137,6 +160,7 @@ const simpleInput = (overrides = {}) => ({
 
 const contractInput = (overrides = {}) => ({ type: "ADVANCE", ctrId: 30, number: "F-100", date: "2026-03-01", value: "10000000", ...overrides });
 const liquidationInput = (overrides = {}) => contractInput({ type: "LIQUIDATION", value: "90000000", ...overrides });
+const refundInput = (overrides = {}) => contractInput({ type: "RETENTION_REFUND", value: "3500000", ...overrides });
 
 const save = (input, invId = 0, granted = []) =>
   service.saveInvoice({ invId, input, useBy: 9, granted: new Set(granted), ctx, idempotencyKey: KEY });
@@ -155,6 +179,8 @@ beforeEach(() => {
   state.concepts = CONCEPTS;
   state.advanceSum = null;
   state.amortizedSum = null;
+  state.retainedSum = null;
+  state.refundedSum = null;
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
   prismaMock.tbl_works.findUnique.mockResolvedValue({ sta_id: 1, wrk_code: "OB-1" });
   prismaMock.tbl_work_stages.findUnique.mockResolvedValue({ wrk_id: 8, sta_id: 1, wks_name: "Estructura" });
@@ -211,7 +237,8 @@ describe("registrar", () => {
     state.contract = contract({ ctr_state: "IN_LIQUIDATION" });
     await expect(save(contractInput())).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/anticipo/) });
     await expect(save(liquidationInput())).resolves.toMatchObject({ invId: 70 });
-    await expect(save(contractInput({ type: "RETENTION_REFUND" }))).resolves.toMatchObject({ invId: 70 });
+    state.retainedSum = D("6000000");
+    await expect(save(refundInput())).resolves.toMatchObject({ invId: 70 });
 
     state.contract = contract({ ctr_state: "SUSPENDED" });
     await expect(save(contractInput())).rejects.toMatchObject({ statusCode: 409 });
@@ -608,6 +635,7 @@ describe("anticipo y amortización (DEC-044)", () => {
 
     state.invoice = storedLiquidation(approved);
     state.amortizedSum = D("32000000");
+    state.retainedSum = D("4500000");
     await expect(cancel([CAN_CANCEL, CAN_CANCEL_APPROVED])).resolves.toMatchObject({ invId: 70 });
   });
 
@@ -640,10 +668,204 @@ describe("anticipo y amortización (DEC-044)", () => {
       toAmortize: "8000000.00",
       effectivePct: "26.666667",
       defaultAmortization: "8000000.00",
+      retention: {
+        agreed: "6000000.00",
+        retained: "0.00",
+        refunded: "0.00",
+        toRetain: "6000000.00",
+        balance: "0.00",
+        effectivePct: "5.000000",
+        defaultRetention: "4500000.00",
+      },
     });
 
     prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce(null);
     await expect(service.getContractAdvance({ ctrId: "31" })).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe("retenido contractual (DEC-051)", () => {
+  const liquidationUpsert = () => prismaMock.tbl_invoice_liquidation_details.upsert.mock.calls[0][0];
+  const refundUpsert = () => prismaMock.tbl_invoice_retention_refund_details.upsert.mock.calls[0][0];
+  const approved = { inv_state: "APPROVED", inv_approval_date: new Date("2026-03-05T00:00:00Z") };
+
+  beforeEach(() => {
+    state.contract = contract({ ctr_state: "IN_LIQUIDATION" });
+    state.advanceSum = D("32000000");
+  });
+
+  it("los saldos suman el retenido de liquidaciones y las devoluciones aprobadas del contrato", async () => {
+    await save(liquidationInput());
+    expect(prismaMock.tbl_invoice_liquidation_details.aggregate.mock.calls[0][0]).toEqual({
+      where: { tbl_invoices: { ctr_id: 30, inv_type: "LIQUIDATION", inv_state: "APPROVED" } },
+      _sum: { ild_amortization: true, ild_retention: true },
+    });
+    expect(prismaMock.tbl_invoice_retention_refund_details.aggregate.mock.calls[0][0].where).toEqual({
+      tbl_invoices: { ctr_id: 30, inv_type: "RETENTION_REFUND", inv_state: "APPROVED" },
+    });
+  });
+
+  it("liquidación sin retenido: usa el de por defecto, mín(VALOR × RP / B, por retener), y cierra en RP", async () => {
+    await save(liquidationInput());
+    const first = liquidationUpsert().create;
+    expect(first.ild_retention.toFixed(2)).toBe("4500000.00");
+    expect(first.ild_default_retention.toFixed(2)).toBe("4500000.00");
+    expect(first.ild_retention_default_pct.toFixed(6)).toBe("5.000000");
+    expect(first.ild_retention_applied_pct.toFixed(6)).toBe("5.000000");
+    expect(first.ild_retention_observation).toBeNull();
+    expect(auditRows().find((r) => r.aud_field === "ild_retention")).toMatchObject({ aud_new_value: "4500000.00" });
+
+    prismaMock.tbl_invoice_liquidation_details.upsert.mockClear();
+    state.retainedSum = D("4500000");
+    await save(liquidationInput({ value: "30000000" }));
+    expect(liquidationUpsert().create.ild_retention.toFixed(2)).toBe("1500000.00");
+  });
+
+  it("el valor por defecto nunca supera lo que queda por retener", async () => {
+    state.retainedSum = D("5000000");
+    await save(liquidationInput());
+    expect(liquidationUpsert().create.ild_retention.toFixed(2)).toBe("1000000.00");
+  });
+
+  it("ajustar el retenido exige su propio permiso (403) y una observación (400)", async () => {
+    await expect(save(liquidationInput({ retention: "3000000" }), 0, [CAN_ADJUST])).rejects.toMatchObject({
+      statusCode: 403,
+      message: expect.stringContaining("retenido por defecto es 4500000.00"),
+    });
+    await expect(save(liquidationInput({ retention: "3000000" }), 0, [CAN_ADJUST_RETENTION])).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
+
+    // Ajustar solo el retenido no exige el permiso de la amortización.
+    await expect(
+      save(liquidationInput({ retention: "3000000", retentionObservation: " Garantía bancaria " }), 0, [CAN_ADJUST_RETENTION])
+    ).resolves.toMatchObject({ invId: 70 });
+    expect(liquidationUpsert().create).toMatchObject({ ild_retention_observation: "Garantía bancaria", ild_adjustment_observation: null });
+    expect(liquidationUpsert().create.ild_retention_applied_pct.toFixed(6)).toBe("3.333333");
+    expect(liquidationUpsert().create.ild_default_retention.toFixed(2)).toBe("4500000.00");
+  });
+
+  it("enviar el retenido por defecto no exige el permiso", async () => {
+    await expect(save(liquidationInput({ retention: "4500000.00" }))).resolves.toMatchObject({ invId: 70 });
+  });
+
+  it("I4 al registrar: el retenido no supera lo que queda por retener (409) ni el VALOR (400)", async () => {
+    state.retainedSum = D("5000000");
+    await expect(save(liquidationInput({ retention: "1000000.01", retentionObservation: "x" }), 0, [CAN_ADJUST_RETENTION])).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringContaining("por retener (1000000.00)"),
+    });
+    state.retainedSum = null;
+    await expect(save(liquidationInput({ value: "100", retention: "101", retentionObservation: "x" }), 0, [CAN_ADJUST_RETENTION])).rejects.toMatchObject({
+      statusCode: 400,
+    });
+  });
+
+  it("I4 al aprobar: revalida el retenido guardado contra lo que queda por retener (409)", async () => {
+    state.invoice = storedLiquidation();
+    state.retainedSum = D("2000000");
+    await expect(approve()).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("por retener (4000000.00)") });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+
+    state.retainedSum = D("1500000");
+    await expect(approve()).resolves.toMatchObject({ invId: 70 });
+    expect(auditRows().find((r) => r.aud_field === "retention_retained")).toMatchObject({ aud_old_value: "1500000.00", aud_new_value: "6000000.00" });
+    expect(auditRows().find((r) => r.aud_field === "retention_effective_pct")).toMatchObject({ aud_new_value: "5.000000" });
+  });
+
+  it("una liquidación registrada sin retenido (antes de DEC-051) no se aprueba hasta editarla (409)", async () => {
+    state.invoice = storedLiquidation();
+    state.invoice.tbl_invoice_liquidation_details = {
+      ...state.invoice.tbl_invoice_liquidation_details,
+      ild_retention: null,
+      ild_default_retention: null,
+      ild_retention_default_pct: null,
+      ild_retention_applied_pct: null,
+    };
+    await expect(approve()).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("no tiene su retenido registrado") });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+  });
+
+  it("una aprobada no cambia su retenido (409)", async () => {
+    state.invoice = storedLiquidation(approved);
+    await expect(save(liquidationInput({ retention: "1000000" }), 70)).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringContaining("extracto y la descripción"),
+    });
+    await expect(save(liquidationInput({ retention: "4500000.00", description: "Nota" }), 70)).resolves.toMatchObject({ invId: 70 });
+  });
+
+  it("devolución: guarda el valor en su detalle, con bitácora", async () => {
+    state.retainedSum = D("4500000");
+    await expect(save(refundInput())).resolves.toMatchObject({ invId: 70 });
+    expect(refundUpsert().create).toMatchObject({ inv_id: 70, irr_create_by: 9 });
+    expect(refundUpsert().create.irr_value.toFixed(2)).toBe("3500000.00");
+    expect(auditRows().find((r) => r.aud_field === "irr_value")).toMatchObject({ aud_new_value: "3500000.00" });
+  });
+
+  it("devolución: el valor es obligatorio y mayor que cero (400)", async () => {
+    state.retainedSum = D("4500000");
+    await expect(save(refundInput({ value: "" }))).rejects.toMatchObject({ statusCode: 400 });
+    await expect(save(refundInput({ value: "0" }))).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
+  });
+
+  it("I3 al registrar: varias devoluciones mientras quede saldo, nunca por encima (409)", async () => {
+    state.retainedSum = D("4500000");
+    state.refundedSum = D("1000000");
+    await expect(save(refundInput({ value: "3500000.01" }))).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringContaining("saldo de retenido (3500000.00)"),
+    });
+    await expect(save(refundInput({ value: "3500000" }))).resolves.toMatchObject({ invId: 70 });
+  });
+
+  it("la devolución solo se admite con el contrato en liquidación (409)", async () => {
+    state.contract = contract({ ctr_state: "IN_PROGRESS" });
+    state.retainedSum = D("4500000");
+    await expect(save(refundInput())).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
+  });
+
+  it("I3 al aprobar: revalida la devolución contra el saldo vigente (409)", async () => {
+    state.invoice = storedRefund();
+    state.retainedSum = D("4500000");
+    state.refundedSum = D("2000000");
+    await expect(approve()).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("saldo de retenido (2500000.00)") });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+
+    state.refundedSum = D("1500000");
+    await expect(approve()).resolves.toMatchObject({ invId: 70 });
+    expect(auditRows().find((r) => r.aud_field === "retention_refunded")).toMatchObject({ aud_old_value: "1500000.00", aud_new_value: "4500000.00" });
+  });
+
+  it("I3 al anular: una liquidación aprobada cuyo retenido ya se devolvió no se anula (409)", async () => {
+    state.invoice = storedLiquidation(approved);
+    state.amortizedSum = D("24000000");
+    state.retainedSum = D("6000000");
+    state.refundedSum = D("1500000.01");
+    await expect(cancel([CAN_CANCEL, CAN_CANCEL_APPROVED])).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("ya fue devuelto") });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+
+    state.refundedSum = D("1500000");
+    await expect(cancel([CAN_CANCEL, CAN_CANCEL_APPROVED])).resolves.toMatchObject({ invId: 70 });
+    expect(auditRows().find((r) => r.aud_field === "retention_retained")).toMatchObject({ aud_old_value: "6000000.00", aud_new_value: "1500000.00" });
+  });
+
+  it("anular una devolución aprobada siempre se admite y reduce el devuelto", async () => {
+    state.invoice = storedRefund(approved);
+    state.retainedSum = D("4500000");
+    state.refundedSum = D("3000000");
+    await expect(cancel([CAN_CANCEL, CAN_CANCEL_APPROVED])).resolves.toMatchObject({ invId: 70 });
+    expect(auditRows().find((r) => r.aud_field === "retention_refunded")).toMatchObject({ aud_old_value: "3000000.00", aud_new_value: "0.00" });
+  });
+
+  it("el detalle de una devolución expone su valor", async () => {
+    prismaMock.tbl_invoices.findFirst.mockResolvedValueOnce({
+      ...storedRefund(approved),
+      tbl_contracts: { ctr_number: "C-1", ctr_name: "Suministro", ctr_state: "IN_LIQUIDATION", tbl_work_stages: null },
+      tbl_invoice_status_history: [],
+    });
+    await expect(service.getInvoice({ invId: 70 })).resolves.toMatchObject({ amounts: { value: "3000000.00" } });
   });
 });
 

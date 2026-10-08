@@ -27,6 +27,7 @@ import {
   totalExtensions,
 } from "./contractTerms.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
+import { contractPolicyStatusWhere, uncoveredContractsWhere } from "./policyTerms.js";
 
 /**
  * Contratos (ADR-0015 a ADR-0017, DEC-035). El contrato es la raíz del
@@ -335,9 +336,17 @@ const countByState = async (where) => {
  *
  * `scope`: alcance por obra de la petición (DEC-047). El filtro de obra va en
  * el `AND`: se suma al alcance y nunca lo reemplaza.
+ *
+ * `policyStatus` (categoría de pólizas del contrato) y `uncovered` (con algún
+ * concepto sin póliza vigente) son los filtros del tablero: el mismo
+ * predicado que produjo la cifra (ADR-0002, decisión 2; DEC-052). Revelan
+ * datos de pólizas, así que exigen poder verlas (`canViewPolicies`).
  */
 export const paginationContracts = async ({
   search,
+  policyStatus,
+  uncovered,
+  canViewPolicies = false,
   state,
   wrkId,
   cttId,
@@ -354,6 +363,8 @@ export const paginationContracts = async ({
 }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
+  const policyFilters = [...(policyStatus ? [contractPolicyStatusWhere(policyStatus)] : []), ...(uncovered ? [uncoveredContractsWhere()] : [])];
+  if (policyFilters.length > 0 && !canViewPolicies) throw httpError(403, "Filtrar por el estado de las pólizas exige el permiso de ver pólizas.");
 
   const baseWhere = {
     sta_id: { not: DELETED_STATUS },
@@ -366,6 +377,7 @@ export const paginationContracts = async ({
       containsFilter(number, (c) => ({ ctr_number: c })),
       containsFilter(name, (c) => ({ ctr_name: c })),
       dateRangeFilter("ctr_end_date", endDateFrom, endDateTo),
+      ...policyFilters,
     ]),
   };
   const where = { ...baseWhere, ...(state ? { ctr_state: state } : {}) };

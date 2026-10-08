@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import Typography from '@mui/material/Typography';
 
 import MasterPage from 'ui-component/extended/MasterPage';
+import useLinkedFilters from 'hooks/useLinkedFilters';
 import { providersApi } from 'api/requests/providersApi';
 import { getProviderTypesSelectAPI } from 'api/requests/providerTypesApi';
 import { useAuth } from 'contexts/AuthContext';
@@ -52,6 +53,10 @@ const FILTER_FIELDS = [
 
 const rowLabel = (row) => `${row.name} (${row.identityCode ?? ''} ${row.identification})`;
 
+// Desde el tablero (DEC-052) llega solo con la pestaña inicial (`?status=1`).
+const NO_LINKED_KEYS = [];
+const describeNothing = () => null;
+
 export default function ProvidersPage() {
   const { permissionsCatalog } = useAuth();
   const navigate = useNavigate();
@@ -59,6 +64,7 @@ export default function ProvidersPage() {
   const outletContext = useMemo(() => ({ refresh: () => setReloadKey((k) => k + 1) }), []);
   const workFilter = useWorkFilterField();
   const filterFields = useMemo(() => (workFilter ? [...FILTER_FIELDS, workFilter] : FILTER_FIELDS), [workFilter]);
+  const linked = useLinkedFilters(NO_LINKED_KEYS, describeNothing);
 
   const navigation = useMemo(
     () => ({
@@ -82,6 +88,7 @@ export default function ProvidersPage() {
         defaultSort="name"
         rowLabel={rowLabel}
         navigation={navigation}
+        initialStatus={linked.initialStatus}
         reloadKey={reloadKey}
       />
       <Outlet context={outletContext} />

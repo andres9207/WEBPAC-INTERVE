@@ -11,14 +11,20 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | I1 | Anticipo facturado (aprobado) ≤ anticipo pactado | Bloqueo + revalidación | ADR-0024 |
 | I2 | Amortizado ≤ anticipo facturado | Bloqueo + revalidación | ADR-0024 |
 | I3 | Retenido devuelto ≤ retenido acumulado | Bloqueo + revalidación | ADR-0025 |
-| I4 | Retenido acumulado ≤ retenido pactado — *pendiente: backlog DEC-11* | Bloqueo + revalidación | ADR-0025 |
+| I4 | Retenido acumulado ≤ retenido pactado (adoptada en [DEC-051](../decisiones/DEC-051-retenido-contractual.md), resuelve el backlog DEC-11) | Bloqueo + revalidación | ADR-0025 |
 | I5 | Σ facturas de liquidación ≤ base vigente — *pendiente: backlog DEC-08* | Bloqueo + revalidación | ADR-0021 |
 
 **Aplicadas (2026-10-06), con anticipo y amortización ([DEC-044](../decisiones/DEC-044-anticipo-amortizacion.md)):**
 
 - **I1:** el valor de una factura de anticipo no supera el anticipo por facturar, máx(0, A − AF). Se verifica al registrar y al editar una registrada, y con carácter definitivo al aprobar. No se aplica hacia atrás: un otrosí que baje A por debajo de AF deja el saldo por facturar en cero.
 - **I2:** la amortización de una liquidación no supera el pendiente por amortizar (AF − AM) ni su VALOR. Se verifica al registrar, al editar y al aprobar. Anular un anticipo aprobado exige AF − valor ≥ AM; si no, responde 409.
-- Mecanismo de las dos: `contractAdvanceBalances` suma bajo el bloqueo del contrato, que es la primera sentencia de la transacción, y `advanceTerms.js` compara. Las registradas no reservan saldo. Falta la conciliación periódica (ADR-0024, decisión 12).
+- Mecanismo de las dos: `contractBalances` suma bajo el bloqueo del contrato, que es la primera sentencia de la transacción, y `advanceTerms.js` compara. Las registradas no reservan saldo. Falta la conciliación periódica (ADR-0024, decisión 12).
+
+**Aplicadas (2026-10-08), con el retenido contractual ([DEC-051](../decisiones/DEC-051-retenido-contractual.md)):**
+
+- **I3:** el valor de una devolución de retenido no supera el saldo de retenido, R − D. Se verifica al registrar y al editar una registrada, y con carácter definitivo al aprobar. Anular una liquidación aprobada exige R − su retenido ≥ D; si no, responde 409.
+- **I4:** el retenido de una liquidación no supera lo que queda por retener, máx(0, RP − R), ni su VALOR. Se verifica al registrar, al editar y al aprobar. No se aplica hacia atrás: un otrosí que baje RP por debajo de R deja lo que queda por retener en cero.
+- Mecanismo de las dos: el mismo `contractBalances`, y `retentionTerms.js` compara. Falta la conciliación periódica (ADR-0025, decisión 12).
 
 ## Estructura (ADR-0027, catálogo I6–I15)
 

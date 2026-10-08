@@ -3,6 +3,7 @@ import { auditContext } from "../../../common/services/audit.service.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
 import { workScopeOf } from "../../../common/services/workScope.service.js";
+import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import * as contractsService from "./contracts.service.js";
 import * as conceptsService from "./contractConcepts.service.js";
 import * as suspensionsService from "./contractSuspensions.service.js";
@@ -30,8 +31,15 @@ const ACT_FIELDS = ["startDate", "description", ...CONCEPT_FIELDS];
 
 export const paginationContractsController = handle(async (req) => {
   const { search, state, wrkId, cttId, number, name, providerName, endDateFrom, endDateTo, rows, first, sortField, sortOrder } = req.body;
+  const { policyStatus, uncovered } = req.body;
+  // Los filtros del tablero por pólizas exigen poder verlas (DEC-052).
+  const canViewPolicies =
+    Boolean(policyStatus || uncovered) && (await getEffectivePermissionIds(req.user)).includes(PERMISSIONS.work.policies.view);
   return contractsService.paginationContracts({
     search,
+    policyStatus,
+    uncovered: uncovered === true || uncovered === "true",
+    canViewPolicies,
     state,
     wrkId,
     cttId,

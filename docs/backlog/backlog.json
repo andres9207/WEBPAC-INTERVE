@@ -4428,7 +4428,8 @@
         "La suma de las categorías es igual al total de contratos del universo consultado",
         "Sin fecha de vigencia y sin póliza son categorías explícitas, no exclusiones silenciosas",
         "La fecha de referencia proviene del servidor con zona horaria explícita",
-        "El umbral de por vencer es configuración consultable, no una constante en el código"
+        "El umbral de por vencer es configuración consultable, no una constante en el código",
+        "Obligatorio, cierra PRO-BE-22: la vigencia y los conceptos sin póliza salen de la misma regla que el expediente (`policyValidity`, `uncoveredConcepts` y `POLICY_EXPIRING_DAYS` de `policyTerms.js`), sin reimplementarla. Si el tablero agrega en SQL, la regla se lleva a un solo lugar que usen los dos, y un test cruza el conteo del tablero con lo que muestra el expediente"
       ],
       "prioridad": "Alta",
       "responsable": "Dev Backend",
