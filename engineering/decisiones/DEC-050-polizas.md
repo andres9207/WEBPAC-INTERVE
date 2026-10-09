@@ -14,6 +14,7 @@ Los dos ADR pedían no implementar nada antes de DEC-04: qué base de cálculo u
   - Las cuatro bases del ADR-0019 se declaran como un dominio cerrado (`CHECK`): `DIRECT_COST` (costo directo), `TAXABLE_BASE` (costo directo + AIU), `TOTAL_VALUE` (más IVA) y `VAT_ONLY` (solo IVA).
   - No se siembra ningún tipo. Los crea quien tenga el permiso y elige la base al crearlo; el selector muestra qué compone cada una. El sistema no supone ninguna lectura de "subtotal" ni de "IVA".
   - Sembrar los tipos confirmados (MAE-BD-14) sigue esperando a DEC-04.
+  - **Actualización 2026-10-09** (lo decidió el usuario, sin la lista confirmada): se siembran seis tipos **provisionales**, por clave y sin ids fijos (migración `0088` y `seed.js`): `CUMPLIMIENTO`, `SALARIOS`, `ESTABILIDAD`, `CALIDAD_BIENES` y `RCE` sobre `TOTAL_VALUE`, y `ANTICIPO` sobre `TAXABLE_BASE`, porque el anticipo se calcula antes de IVA (DEC-044). DEC-04 sigue abierta: al resolverla, los nombres se corrigen desde el maestro, la base con el permiso 98 (sin recalcular pólizas emitidas) y un tipo que sobre se inactiva. La clave no cambia.
 - **Tipos de póliza:** maestro `admin/policyTypes` (`tbl_policy_types`, `plt_`, DEC-017).
   - La clave simbólica se fija al crear y no se edita.
   - Cambiar la base después exige el permiso 98, separado de modificar (95). Queda en la bitácora con la base anterior y cuántas pólizas vigentes tenía el tipo. No recalcula nada.
@@ -44,7 +45,7 @@ Los dos ADR pedían no implementar nada antes de DEC-04: qué base de cálculo u
 
 ## Qué implica
 
-- Quien siembre los tipos cuando se resuelva DEC-04 lo hace con una migración y con `seed.js`, sin cambiar código.
+- Quien siembre los tipos cuando se resuelva DEC-04 lo hace con una migración y con `seed.js`, sin cambiar código. Los provisionales de la `0088` se corrigen desde el maestro, no con otra semilla.
 - El tablero (ADR-0002) y la condición C8 deben usar `policyValidity` y `uncoveredConcepts`, no volver a calcular la vigencia.
 - Crear el contrato con sus pólizas reutiliza `insertPolicy`: cualquier regla nueva de emisión vale para los dos caminos.
 

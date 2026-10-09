@@ -241,6 +241,19 @@ const SUPERVISION_TYPES = [
   { spt_id: 4, spt_name: "Integral", sta_id: 1 },
 ];
 
+// Tipos de póliza iniciales, PROVISIONALES (database/migrations/0088_seed_policy_types.sql):
+// DEC-04 sigue abierta. Sin ids fijos: la identidad es la clave. No se crea un
+// tipo cuya clave ya exista ni uno cuyo nombre use otro tipo no eliminado, y
+// los existentes no se modifican.
+const POLICY_TYPES = [
+  { plt_key: "CUMPLIMIENTO", plt_name: "Cumplimiento", plt_base: "TOTAL_VALUE" },
+  { plt_key: "ANTICIPO", plt_name: "Buen manejo y correcta inversión del anticipo", plt_base: "TAXABLE_BASE" },
+  { plt_key: "SALARIOS", plt_name: "Pago de salarios y prestaciones sociales", plt_base: "TOTAL_VALUE" },
+  { plt_key: "ESTABILIDAD", plt_name: "Estabilidad y calidad de la obra", plt_base: "TOTAL_VALUE" },
+  { plt_key: "CALIDAD_BIENES", plt_name: "Calidad y correcto funcionamiento de los bienes", plt_base: "TOTAL_VALUE" },
+  { plt_key: "RCE", plt_name: "Responsabilidad civil extracontractual", plt_base: "TOTAL_VALUE" },
+];
+
 // Catálogo cerrado de campos configurables del contrato
 // (database/migrations/0053_create_contract_fields.sql, DEC-053). Versionado
 // con el código: cada clave tiene su columna en
@@ -302,6 +315,17 @@ async function main() {
     });
   }
   console.log(`tbl_supervision_types: ${SUPERVISION_TYPES.length} tipos sembrados (los existentes no se modifican).`);
+
+  let createdPolicyTypes = 0;
+  for (const policyType of POLICY_TYPES) {
+    const taken = await prisma.tbl_policy_types.count({
+      where: { OR: [{ plt_key: policyType.plt_key }, { plt_name_active: policyType.plt_name }] },
+    });
+    if (taken > 0) continue;
+    await prisma.tbl_policy_types.create({ data: { ...policyType, sta_id: 1 } });
+    createdPolicyTypes += 1;
+  }
+  console.log(`tbl_policy_types: ${createdPolicyTypes} de ${POLICY_TYPES.length} tipos provisionales creados (los existentes no se modifican).`);
 
   for (const field of CONTRACT_FIELDS) {
     await prisma.tbl_contract_fields.upsert({ where: { cfd_id: field.cfd_id }, update: field, create: field });

@@ -2,7 +2,7 @@
 
 ## Estado
 
-**Aceptado parcial** (2026-10-07, [DEC-050](../decisiones/DEC-050-polizas.md)). Implementado: maestro con clave inmutable, las cuatro bases como dominio cerrado, la base copiada en cada versión de póliza y el cambio de base con permiso propio y bitácora. **Sin semillas:** la ambigüedad semántica sigue sin resolver (backlog DEC-04); los tipos los crea quien tenga el permiso, eligiendo la base.
+**Aceptado parcial** (2026-10-07, [DEC-050](../decisiones/DEC-050-polizas.md)). Implementado: maestro con clave inmutable, las cuatro bases como dominio cerrado, la base copiada en cada versión de póliza y el cambio de base con permiso propio y bitácora. **Semillas provisionales** (2026-10-09, migración `0088`): seis amparos habituales, sin confirmar. La ambigüedad semántica sigue sin resolver (backlog DEC-04); al resolverla, nombres y bases se corrigen desde el maestro.
 
 Abajo, el análisis original. Las tablas "Estado actual" describen el sistema a la fecha del ADR.
 
