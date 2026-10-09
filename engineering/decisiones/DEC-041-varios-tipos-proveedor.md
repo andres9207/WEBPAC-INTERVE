@@ -4,6 +4,8 @@
 
 Reemplaza a [DEC-023](DEC-023-tipo-proveedor-clasificacion.md) solo en la cantidad de tipos: el tipo sigue siendo una clasificación de la empresa, sin campos ni reglas por tipo. Cierra el pendiente de ADR-0012: *"si un proveedor puede tener varios tipos de proveedor"*.
 
+> Con [DEC-053](DEC-053-campos-contrato-por-tipo-proveedor.md) (2026-10-08), los tipos del proveedor configuran los campos de sus contratos: con varios tipos, la unión.
+
 ## Contexto
 
 `tbl_providers.pvt_id` admitía un solo tipo, y los formularios usaban un selector simple. El negocio confirmó que una empresa puede ser, a la vez, por ejemplo, subcontratista y proveedor simple.

@@ -16,7 +16,7 @@ import { toFormFields } from './configurableFields';
  * regla 9).
  *
  * El costo directo aplica siempre. Los porcentajes son campos configurables
- * del tipo de contrato (DEC-037): llegan en `fields` (ver `shownFields`) y se
+ * de los tipos del proveedor (DEC-053): llegan en `fields` (ver `shownFields`) y se
  * dibujan con GenericFormSection, que necesita un FormProvider arriba.
  *
  * `prefix` anida los campos en el formulario (p. ej. "initialConcept.").
@@ -76,7 +76,7 @@ export default function ConceptFields({ control, prefix = '', fields, disabled =
           <GenericFormSection fields={toFormFields(percents, { prefix, grid: PERCENT_GRID, disabled })} />
         ) : (
           <Typography variant="caption" color="text.secondary">
-            El tipo de contrato no pide porcentajes: el valor es el costo directo.
+            Los tipos del proveedor no piden porcentajes: el valor es el costo directo.
           </Typography>
         )}
       </Grid>

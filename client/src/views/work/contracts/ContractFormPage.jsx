@@ -54,9 +54,9 @@ import { TERM_UNIT_OPTIONS } from 'utils/constants';
  *   (useEndDatePreview); se guarda con el contrato.
  * - Editar solo cambia la cabecera; el valor inicial y los otrosí se
  *   modifican en la pestaña "Valor" del detalle, con su permiso.
- * - Campos configurables (ADR-0006, DEC-037): etapa, observaciones y los
- *   porcentajes del valor inicial dependen del tipo de contrato. Sus
- *   descriptores los entrega el servidor al elegir el tipo y los dibuja
+ * - Campos configurables (ADR-0006, DEC-053): etapa, observaciones y los
+ *   porcentajes del valor inicial dependen de los tipos del proveedor. Sus
+ *   descriptores los entrega el servidor al elegir el proveedor y los dibuja
  *   GenericFormSection. Al editar, un valor guardado en un campo que dejó de
  *   aplicar se muestra en solo lectura, marcado como heredado. Se envían
  *   solo los campos visibles: el resto lo resuelve el servidor.
@@ -147,8 +147,8 @@ export default function ContractFormPage() {
   const [options, setOptions] = useState({ stages: [], providers: [] });
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
-  // Descriptores de los campos configurables del tipo elegido (`cttId` dice de qué tipo son).
-  const [fieldConfig, setFieldConfig] = useState({ cttId: null, fields: [], typeAppliesAiu: false });
+  // Descriptores de los campos configurables del proveedor elegido (`prvId` dice de cuál son).
+  const [fieldConfig, setFieldConfig] = useState({ prvId: null, fields: [], typeAppliesAiu: false });
   const [loadingFields, setLoadingFields] = useState(false);
   const [addingPolicy, setAddingPolicy] = useState(false);
 
@@ -187,34 +187,35 @@ export default function ContractFormPage() {
     load();
   }, [isEdit, ctrId, reset, resetEndDate, navigate]);
 
-  const [wrkId, cttId, aiuRequested] = useWatch({ control, name: ['wrkId', 'cttId', 'aiuRequested'] });
+  const [wrkId, prvId, aiuRequested] = useWatch({ control, name: ['wrkId', 'prvId', 'aiuRequested'] });
   const { permissionsCatalog, hasPermission } = useAuth();
   const aiuPermission = permissionsCatalog.work?.contracts?.changeAiu;
   const canChangeAiu = aiuPermission != null && hasPermission(aiuPermission);
   const policyPermission = permissionsCatalog.work?.policies?.create;
   const canCreatePolicies = !isEdit && policyPermission != null && hasPermission(policyPermission);
 
-  // Configuración del tipo elegido, la vigente (ADR-0006, decisión 5).
+  // Configuración vigente de los tipos del proveedor elegido (ADR-0006
+  // decisión 5, DEC-053). Cambiar de proveedor la vuelve a pedir.
   useEffect(() => {
-    if (!cttId) {
-      setFieldConfig({ cttId: null, fields: [], typeAppliesAiu: false });
+    if (!prvId) {
+      setFieldConfig({ prvId: null, fields: [], typeAppliesAiu: false });
       return;
     }
     let cancelled = false;
     setLoadingFields(true);
-    getContractFieldsAPI({ cttId })
+    getContractFieldsAPI({ prvId })
       .then(({ data }) => {
         if (cancelled) return;
-        setFieldConfig({ cttId: data.cttId, fields: data.fields, typeAppliesAiu: data.typeAppliesAiu });
-        // Al crear, la solicitud de AIU la da el tipo (DEC-046).
+        setFieldConfig({ prvId: data.prvId, fields: data.fields, typeAppliesAiu: data.typeAppliesAiu });
+        // Al crear, la solicitud de AIU la dan los tipos del proveedor (DEC-046).
         if (!isEdit) setValue('aiuRequested', data.typeAppliesAiu);
       })
-      .catch((err) => showError(err.response?.data?.message || 'Error al cargar los campos del tipo de contrato'))
+      .catch((err) => showError(err.response?.data?.message || 'Error al cargar los campos del proveedor'))
       .finally(() => !cancelled && setLoadingFields(false));
     return () => {
       cancelled = true;
     };
-  }, [cttId, isEdit, setValue]);
+  }, [prvId, isEdit, setValue]);
 
   // Etapas y proveedores de la obra elegida; al editar, también los actuales aunque estén inactivos.
   useEffect(() => {
@@ -266,7 +267,7 @@ export default function ContractFormPage() {
   const hasErrors = Object.keys(errors).length > 0;
   const noOptions = wrkId && !loadingOptions;
 
-  const fieldsReady = Boolean(cttId) && Number(fieldConfig.cttId) === Number(cttId) && !loadingFields;
+  const fieldsReady = Boolean(prvId) && Number(fieldConfig.prvId) === Number(prvId) && !loadingFields;
   const descriptors = fieldsReady ? fieldConfig.fields : [];
   const stored = loaded ? { wksId: loaded.wksId, observation: loaded.observation } : null;
   const contractFields = shownFields(descriptors, 'CONTRACT', stored);
@@ -283,7 +284,7 @@ export default function ContractFormPage() {
   );
   const otherContractFields = toFormFields(contractFields.filter((field) => field.key !== 'STAGE'));
   const conceptFields = shownFields(withContractAiu(descriptors, Boolean(aiuRequested)), 'CONCEPT', null, NO_DESCRIPTION);
-  // Cambiar la solicitud de AIU respecto de la del tipo (al crear) o la guardada (al editar) exige permiso.
+  // Cambiar la solicitud de AIU respecto de la de los tipos del proveedor (al crear) o la guardada (al editar) exige permiso.
   const aiuDefault = isEdit ? loaded?.aiuRequested !== false : fieldConfig.typeAppliesAiu;
   const showAiu = fieldsReady && (fieldConfig.typeAppliesAiu || (isEdit && loaded?.aiuRequested !== false));
   const inherited = contractFields.filter((field) => field.inherited);
@@ -328,15 +329,15 @@ export default function ContractFormPage() {
               Revisa los campos marcados antes de guardar.
             </Alert>
           )}
-          {!cttId && (
+          {!prvId && (
             <Alert severity="info">
-              Elige el tipo de contrato: la etapa, las observaciones y los porcentajes del valor dependen de su configuración.
+              Elige el proveedor: la etapa, las observaciones y los porcentajes del valor dependen de la configuración de sus tipos.
             </Alert>
           )}
           {inherited.length > 0 && (
             <Alert severity="warning">
-              {inherited.map((field) => field.label).join(', ')}: ya no aplica para este tipo de contrato. Se muestra en solo lectura con el
-              valor que se capturó con una configuración anterior, y se conserva al guardar.
+              {inherited.map((field) => field.label).join(', ')}: ya no aplica para los tipos del proveedor. Se muestra en solo lectura con
+              el valor que se capturó con una configuración anterior, y se conserva al guardar.
             </Alert>
           )}
 
@@ -593,7 +594,7 @@ export default function ContractFormPage() {
                 <ConceptFields control={control} prefix="initialConcept." fields={conceptFields} />
               ) : (
                 <Typography variant="body2" color="text.secondary">
-                  {cttId ? 'Cargando los campos del tipo de contrato…' : 'Elige el tipo de contrato para capturar el valor inicial.'}
+                  {prvId ? 'Cargando los campos del proveedor…' : 'Elige el proveedor para capturar el valor inicial.'}
                 </Typography>
               )}
             </FormSection>

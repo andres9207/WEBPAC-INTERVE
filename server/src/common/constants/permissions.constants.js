@@ -42,6 +42,9 @@ export const PERMISSIONS = {
       edit: 24,
       delete: 25,
       changeStatus: 26,
+      // Aparte de editar: la configuración decide los campos de los contratos
+      // de todos los proveedores del tipo, también de los vigentes (DEC-053).
+      configureFields: 104,
     },
     addressTypes: {
       view: 27, // pagination_address_types
@@ -77,9 +80,8 @@ export const PERMISSIONS = {
       edit: 49,
       delete: 50,
       changeStatus: 51,
-      // Aparte de editar: la configuración de campos afecta a todos los
-      // contratos futuros del tipo (ADR-0006, "Autorización"; DEC-037).
-      configureFields: 75,
+      // 75 ("Configurar campos del tipo de contrato") se retiró: la
+      // configuración pasó al tipo de proveedor (DEC-053). No se reutiliza.
     },
     // Motivos de las transiciones manuales (DEC-039). Hoy solo de suspensión.
     reasons: {

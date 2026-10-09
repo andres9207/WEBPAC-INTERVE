@@ -4,6 +4,8 @@
 
 > **Reemplazada en parte por [DEC-041](DEC-041-varios-tipos-proveedor.md)** (2026-10-05): un proveedor tiene uno o varios tipos, en `tbl_provider_classifications`, y `tbl_providers.pvt_id` ya no existe. Lo demás sigue vigente: el tipo es una clasificación, sin campos ni reglas por tipo.
 
+> **Reemplazada en parte por [DEC-053](DEC-053-campos-contrato-por-tipo-proveedor.md)** (2026-10-08): el tipo de proveedor configura los campos de los contratos de sus proveedores, con el modelo de ADR-0006, como preveía la sección "Descartado". Sigue sin condicionar los campos de la ficha del proveedor.
+
 Resuelve la decisión de negocio DEC-10 del backlog (`docs/backlog/BACKLOG.md`).
 
 ## Contexto

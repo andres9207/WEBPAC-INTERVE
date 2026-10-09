@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-10-02 · **Tipo:** Obligatoria · **ADR:** [0006](../adr/0006-tipos-contrato.md), [0013](../adr/0013-auditoria-trazabilidad.md), [0027](../adr/0027-integridad-transaccional.md)
 
+> **Reemplazada por [DEC-053](DEC-053-campos-contrato-por-tipo-proveedor.md)** (2026-10-08): la configuración pasó al tipo de proveedor, con la unión de sus tipos. Se retiraron `tbl_contract_type_fields`, `tbl_contract_type_field_versions`, `ctt_config_version`, `ctr_config_version` y el permiso 75. El modelo de abajo (catálogo cerrado, jerarquía, ausencia = no aplica, heredados) sigue vigente sobre el tipo de proveedor.
+
 Implementa ADR-0006 (decisiones 1 a 10) y el backlog MAE-BD-07 a MAE-BD-09, MAE-BE-08 y MAE-FE-08. Decidido por el usuario el 2026-10-02.
 
 ## Decisión

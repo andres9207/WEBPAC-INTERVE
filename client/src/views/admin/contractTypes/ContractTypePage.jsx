@@ -1,15 +1,10 @@
-import { useCallback, useState } from 'react';
-import { IconListCheck } from '@tabler/icons-react';
-
 import MasterPage from 'ui-component/extended/MasterPage';
-import ContractTypeFieldsDialog from './components/ContractTypeFieldsDialog';
 import { contractTypesApi } from 'api/requests/contractTypesApi';
 import { useAuth } from 'contexts/AuthContext';
 
 // Maestro de tipos de contrato (ADR-0006) sobre la vista reutilizable de
-// maestro (MAE-FE-01): el nombre, y desde cada fila la configuración de
-// campos del tipo (MAE-FE-08, DEC-037). Configurarla exige su permiso
-// propio; sin él, la matriz se ve en solo lectura.
+// maestro (MAE-FE-01): solo el nombre. La configuración de los campos del
+// contrato es del tipo de proveedor (DEC-053).
 
 const COLUMNS = [{ id: 'name', label: 'Nombre', sortable: true }];
 
@@ -30,45 +25,20 @@ const FILTER_FIELDS = [{ key: 'name', type: 'input', label: 'Nombre', props: { m
 const rowLabel = (row) => row.name;
 
 export default function ContractTypePage() {
-  const { permissionsCatalog, hasPermission } = useAuth();
-  const permissions = permissionsCatalog.admin?.contractTypes;
-  const canConfigure = permissions?.configureFields != null && hasPermission(permissions.configureFields);
-  const [configuring, setConfiguring] = useState(null);
-
-  const extraActions = useCallback(
-    (row) => [
-      {
-        label: canConfigure ? 'Configurar campos' : 'Ver campos',
-        icon: <IconListCheck size={16} />,
-        command: () => setConfiguring(row),
-        tone: 'info'
-      }
-    ],
-    [canConfigure]
-  );
-  const closeConfiguring = useCallback(() => setConfiguring(null), []);
+  const { permissionsCatalog } = useAuth();
 
   return (
-    <>
-      <MasterPage
-        title="Tipo de contrato"
-        pluralTitle="Tipos de contrato"
-        idField="cttId"
-        api={contractTypesApi}
-        permissions={permissions}
-        columns={COLUMNS}
-        filterFields={FILTER_FIELDS}
-        formFields={FORM_FIELDS}
-        defaultSort="name"
-        rowLabel={rowLabel}
-        extraActions={extraActions}
-      />
-      <ContractTypeFieldsDialog
-        open={Boolean(configuring)}
-        contractType={configuring}
-        readOnly={!canConfigure}
-        onClose={closeConfiguring}
-      />
-    </>
+    <MasterPage
+      title="Tipo de contrato"
+      pluralTitle="Tipos de contrato"
+      idField="cttId"
+      api={contractTypesApi}
+      permissions={permissionsCatalog.admin?.contractTypes}
+      columns={COLUMNS}
+      filterFields={FILTER_FIELDS}
+      formFields={FORM_FIELDS}
+      defaultSort="name"
+      rowLabel={rowLabel}
+    />
   );
 }

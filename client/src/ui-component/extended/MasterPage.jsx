@@ -89,7 +89,7 @@ const saveView = (key, value) => {
  * - `initialStatus`: pestaña con la que abre (p. ej. "Registradas" al llegar
  *   desde el tablero, DEC-052). Sin ella, "Todos".
  * - `extraActions(row)`: acciones propias del maestro, después de Editar (p.
- *   ej. "Configurar campos" del tipo de contrato, DEC-037). Cada una con
+ *   ej. "Configurar campos" del tipo de proveedor, DEC-053). Cada una con
  *   `label`, `icon`, `command` y `tone`; las filtra por permiso quien las da.
  */
 export default function MasterPage({

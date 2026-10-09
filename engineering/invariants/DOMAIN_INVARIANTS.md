@@ -129,10 +129,10 @@ Tests en `server/test/modules/work/providers/`.
 
 Tests en `server/test/modules/work/contracts/`.
 
-**Aplicadas (2026-10-02), con la configuración de campos por tipo de contrato ([DEC-037](../decisiones/DEC-037-configuracion-campos-tipo-contrato.md)):**
+**Aplicadas (2026-10-02), con la configuración de campos por tipo de contrato ([DEC-037](../decisiones/DEC-037-configuracion-campos-tipo-contrato.md)); desde el 2026-10-08, por tipo de proveedor ([DEC-053](../decisiones/DEC-053-campos-contrato-por-tipo-proveedor.md)), con la unión de los tipos del proveedor:**
 
 - **DOM-27:**
-  - `CHECK ck_contract_type_fields_hierarchy` en la configuración y en el historial de versiones;
+  - `CHECK ck_provider_type_fields_hierarchy` en la configuración y en el historial de versiones (antes, `ck_contract_type_fields_hierarchy`);
   - validación en el service (400);
   - el editor no deja romper la jerarquía.
 

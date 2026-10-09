@@ -5,7 +5,8 @@ const { UNIQUE_CONSTRAINT_MESSAGES, INTERNAL_UNIQUE_CONSTRAINTS } = await import
 );
 
 // Los índices UNIQUE vigentes según database/: el schema base y todas las
-// migraciones, menos los que alguna migración elimina.
+// migraciones, menos los que alguna migración elimina, solos (DROP INDEX) o
+// con su tabla (DROP TABLE).
 const DATABASE = new URL("../../../../database/", import.meta.url);
 const MIGRATIONS = new URL("migrations/", DATABASE);
 const sql = [
@@ -16,9 +17,17 @@ const sql = [
     .map((f) => readFileSync(new URL(f, MIGRATIONS), "utf8")),
 ].join("\n");
 
-const names = (regex) => new Set([...sql.matchAll(regex)].map((m) => m[1]));
-const created = names(/UNIQUE\s+(?:INDEX|KEY)\s+`?(\w+)`?/gi);
-const dropped = names(/DROP\s+(?:INDEX|KEY)\s+`?(\w+)`?/gi);
+const names = (text, regex) => new Set([...text.matchAll(regex)].map((m) => m[1]));
+const droppedTables = names(sql, /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?`?(\w+)`?/gi);
+// Cada sentencia con la tabla que crea o altera: un UNIQUE de una tabla eliminada no cuenta.
+const statementTable = (statement) => statement.match(/(?:CREATE|ALTER)\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?/i)?.[1];
+const created = new Set(
+  sql
+    .split(";")
+    .filter((statement) => !droppedTables.has(statementTable(statement)))
+    .flatMap((statement) => [...names(statement, /UNIQUE\s+(?:INDEX|KEY)\s+`?(\w+)`?/gi)])
+);
+const dropped = names(sql, /DROP\s+(?:INDEX|KEY)\s+`?(\w+)`?/gi);
 const inDatabase = [...created].filter((n) => !dropped.has(n)).sort();
 
 const withMessage = Object.keys(UNIQUE_CONSTRAINT_MESSAGES);

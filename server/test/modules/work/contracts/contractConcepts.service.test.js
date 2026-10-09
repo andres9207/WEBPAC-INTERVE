@@ -19,7 +19,8 @@ const prismaMock = {
   tbl_contract_status_history: { create: jest.fn() },
   tbl_invoices: { count: jest.fn(async () => state.approvedInvoices) },
   tbl_contract_fields: { findMany: jest.fn(async () => CONTRACT_FIELDS_CATALOG) },
-  tbl_contract_type_fields: { findMany: jest.fn(async () => state.typeFields) },
+  tbl_provider_classifications: { findMany: jest.fn(async () => [{ pvt_id: 1 }]) },
+  tbl_provider_type_fields: { findMany: jest.fn(async () => state.typeFields) },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
@@ -217,24 +218,24 @@ describe("updateConcept", () => {
   });
 });
 
-describe("campos configurables del tipo de contrato (DEC-037)", () => {
+describe("campos configurables de los tipos del proveedor (DEC-053)", () => {
   it("un otrosí con valor en un campo que no aplica se rechaza", async () => {
-    state.typeFields = typeFieldRows({ RETENTION_PCT: { ctf_applies: null } });
+    state.typeFields = typeFieldRows({ RETENTION_PCT: { ptf_applies: null } });
     await expect(service.createAmendment({ ctrId: 30, input: act(), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
       statusCode: 400,
-      message: "Retenido: no aplica para este tipo de contrato.",
+      message: "Retenido: no aplica para los tipos del proveedor.",
     });
     expect(prismaMock.tbl_contract_concepts.create).not.toHaveBeenCalled();
   });
 
   it("la liquidación toma el valor por defecto de un campo oculto", async () => {
-    state.typeFields = typeFieldRows({ VAT_PCT: { ctf_visible: false } });
+    state.typeFields = typeFieldRows({ VAT_PCT: { ptf_visible: false } });
     await service.createLiquidation({ ctrId: 30, input: act({ startDate: "2026-04-01", vatPct: "5" }), useBy: 9, ctx, idempotencyKey: KEY });
     expect(prismaMock.tbl_contract_concepts.create.mock.calls[0][0].data.ccp_vat_pct.toFixed(2)).toBe("19.00");
   });
 
   it("modificar un concepto conserva el porcentaje heredado de un campo que dejó de aplicar", async () => {
-    state.typeFields = typeFieldRows({ VAT_PCT: { ctf_applies: null } });
+    state.typeFields = typeFieldRows({ VAT_PCT: { ptf_applies: null } });
     await service.updateConcept({ ccpId: 300, input: act({ vatPct: "" }), useBy: 9, ctx });
     expect(prismaMock.tbl_contract_concepts.update.mock.calls[0][0].data.ccp_vat_pct.toFixed(2)).toBe("19.00");
   });

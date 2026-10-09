@@ -38,10 +38,10 @@ import { TERM_UNIT_OPTIONS } from 'utils/constants';
  * fecha de reanudación, y el servidor cierra la suspensión, suma los días
  * suspendidos y recalcula la fecha fin.
  *
- * Descripción y porcentajes son campos configurables del tipo de contrato
- * (DEC-037): se piden al abrir y se dibujan con GenericFormSection. Al
- * modificar un concepto, un valor en un campo que dejó de aplicar se muestra
- * en solo lectura, marcado como heredado.
+ * Descripción y porcentajes son campos configurables de los tipos del
+ * proveedor del contrato (DEC-053): se piden al abrir y se dibujan con
+ * GenericFormSection. Al modificar un concepto, un valor en un campo que dejó
+ * de aplicar se muestra en solo lectura, marcado como heredado.
  *
  * Si el contrato ya tiene facturas aprobadas (`economicsLocked`), al
  * modificar un concepto el costo y los porcentajes van en solo lectura
@@ -69,20 +69,20 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
   const { control, handleSubmit, reset } = methods;
 
   useEffect(() => {
-    if (!open || !contract?.cttId) return;
+    if (!open || !contract?.ctrId) return;
     let cancelled = false;
     setDescriptors(null);
     // Con el contrato: si no solicita AIU, A, I y U no aplican (DEC-046).
-    getContractFieldsAPI({ cttId: contract.cttId, ctrId: contract.ctrId })
+    getContractFieldsAPI({ ctrId: contract.ctrId })
       .then(({ data }) => !cancelled && setDescriptors(data.fields))
       .catch((err) => {
-        showError(err.response?.data?.message || 'Error al cargar los campos del tipo de contrato');
+        showError(err.response?.data?.message || 'Error al cargar los campos del contrato');
         onClose();
       });
     return () => {
       cancelled = true;
     };
-  }, [open, contract?.cttId, contract?.ctrId, onClose]);
+  }, [open, contract?.ctrId, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -185,8 +185,8 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
           )}
           {inherited.length > 0 && (
             <Alert severity="warning">
-              {inherited.map((field) => field.label).join(', ')}: ya no aplica para este tipo de contrato. Se muestra en solo lectura con el
-              valor pactado con una configuración anterior, y se conserva al guardar.
+              {inherited.map((field) => field.label).join(', ')}: ya no aplica para los tipos del proveedor. Se muestra en solo lectura con
+              el valor pactado con una configuración anterior, y se conserva al guardar.
             </Alert>
           )}
           <Grid container spacing={2}>
@@ -272,7 +272,7 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
             <ConceptFields control={control} fields={fields} disabled={economicsLocked} />
           ) : (
             <Typography variant="body2" color="text.secondary">
-              Cargando los campos del tipo de contrato…
+              Cargando los campos del contrato…
             </Typography>
           )}
 

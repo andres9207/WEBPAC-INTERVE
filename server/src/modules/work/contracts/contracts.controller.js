@@ -74,8 +74,7 @@ export const previewContractEndDateController = handle(async (req) => {
 
 export const getContractFieldsController = handle(async (req) =>
   contractsService.getContractFields({
-    cttId: req.query.cttId,
-    version: req.query.version,
+    prvId: req.query.prvId,
     ctrId: req.query.ctrId,
     scope: await workScopeOf(req),
   })

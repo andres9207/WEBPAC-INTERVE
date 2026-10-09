@@ -153,7 +153,7 @@ export default function PermissionsDrawer({ visible, setVisible, title, prfId, o
       setVisible(false);
     } catch (err) {
       console.error('Error saving permissions:', err);
-      showError('Error al guardar los permisos');
+      showError(err.response?.data?.message || 'Error al guardar los permisos');
     } finally {
       setLoading(false);
     }

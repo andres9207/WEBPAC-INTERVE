@@ -1,6 +1,6 @@
 // Catálogo de campos configurables (migración 0053) y configuración "todo
-// aplica y se ve; obligatoria solo la etapa" (la de la migración 0057), como
-// los devuelve Prisma. Para los tests de contratos y de tipos de contrato.
+// aplica y se ve; obligatoria solo la etapa" (la inicial de seed.js, DEC-053),
+// como los devuelve Prisma. Para los tests de contratos y de tipos de proveedor.
 
 export const CONTRACT_FIELDS_CATALOG = [
   { cfd_id: 1, cfd_key: "STAGE", cfd_label: "Etapa", cfd_data_type: "SELECT", cfd_group: "CONTRACT", cfd_order: 1 },
@@ -16,15 +16,15 @@ export const CONTRACT_FIELDS_CATALOG = [
 
 const KEY_TO_ID = Object.fromEntries(CONTRACT_FIELDS_CATALOG.map((f) => [f.cfd_key, f.cfd_id]));
 
-/** Filas de tbl_contract_type_fields: todo aplica y se ve; `overrides` por clave, p. ej. { VAT_PCT: { ctf_applies: false, ctf_visible: false } }. */
+/** Filas de tbl_provider_type_fields: todo aplica y se ve; `overrides` por clave, p. ej. { VAT_PCT: { ptf_applies: false, ptf_visible: false } }. */
 export const typeFieldRows = (overrides = {}) =>
   CONTRACT_FIELDS_CATALOG.map((f) => ({
     cfd_id: f.cfd_id,
-    ctf_applies: true,
-    ctf_visible: true,
-    ctf_required: f.cfd_key === "STAGE",
-    ctf_order: f.cfd_order,
+    ptf_applies: true,
+    ptf_visible: true,
+    ptf_required: f.cfd_key === "STAGE",
+    ptf_order: f.cfd_order,
     ...overrides[f.cfd_key],
-  })).filter((row) => row.ctf_applies !== null);
+  })).filter((row) => row.ptf_applies !== null);
 
 export const fieldId = (key) => KEY_TO_ID[key];

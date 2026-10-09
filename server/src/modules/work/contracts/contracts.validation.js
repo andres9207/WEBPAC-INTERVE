@@ -90,10 +90,14 @@ export const previewContractEndDateSchema = [
   query("termUnit").isIn(TERM_UNITS).withMessage("La unidad del plazo debe ser días, meses o años."),
 ];
 
+// Los campos son los de los tipos del proveedor (DEC-053): el proveedor
+// elegido, o el del contrato.
 export const getContractFieldsSchema = [
-  query("cttId").isInt({ min: 1 }).withMessage("cttId es obligatorio y debe ser un entero positivo."),
-  query("version").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("version debe ser un entero positivo."),
+  query("prvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("prvId debe ser un entero positivo."),
   query("ctrId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("ctrId debe ser un entero positivo."),
+  query("prvId")
+    .custom((prvId, { req }) => Number(prvId) > 0 || Number(req.query.ctrId) > 0)
+    .withMessage("Indica el proveedor (prvId) o el contrato (ctrId)."),
 ];
 
 export const saveContractSchema = [

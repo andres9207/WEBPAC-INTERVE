@@ -2,10 +2,11 @@ import { PERMISSIONS } from "../../../common/constants/permissions.constants.js"
 import { defineMaster, createMasterService } from "../../../common/services/master.service.js";
 import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
-// Maestro de tipos de proveedor (ADR-0010, DEC-017). DEC-10 del backlog,
-// resuelta: el tipo es una clasificación de la empresa, sin reglas ni campos
-// propios. Si algún día condiciona campos, se modela con la configuración
-// de campos de ADR-0006, no con condicionales. Nivel 1: auditoría técnica.
+// Maestro de tipos de proveedor (ADR-0010, DEC-017). Clasifica a la empresa
+// (DEC-023) y, además, configura los campos de los contratos de sus
+// proveedores (DEC-053): esa configuración, su versión (pvt_config_version)
+// y su permiso viven en providerTypeFields.service.js; este maestro no las
+// toca. Nivel 1: auditoría técnica.
 export const providerTypesConfig = defineMaster({
   model: "tbl_provider_types",
   prefix: "pvt",

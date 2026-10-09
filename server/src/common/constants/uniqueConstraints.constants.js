@@ -87,8 +87,8 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   // Catálogos sembrados y configuración guardada por diferencial
   "uq_status_key",
   "uq_contract_fields_key",
-  "uq_contract_type_fields_type_field",
-  "uq_contract_type_field_versions",
+  "uq_provider_type_fields_type_field",
+  "uq_provider_type_field_versions",
   // Tipos de un proveedor (DEC-041): el service quita repetidos
   "uq_provider_classifications_provider_type",
   // Apoyo de la FK compuesta contrato → etapa de la obra

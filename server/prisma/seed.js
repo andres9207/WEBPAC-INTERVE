@@ -65,6 +65,8 @@ const PERMISSIONS = [
   { per_id: 24, per_name: "Modificar tipo de proveedor", pag_id: 7, per_order: 2 },
   { per_id: 25, per_name: "Eliminar tipo de proveedor", pag_id: 7, per_order: 3 },
   { per_id: 26, per_name: "Cambiar estado tipo de proveedor", pag_id: 7, per_order: 4 },
+  // database/migrations/0087_seed_provider_type_fields_permission.sql (retira el 75)
+  { per_id: 104, per_name: "Configurar campos del tipo de proveedor", pag_id: 7, per_order: 6 },
   // database/migrations/0027_seed_address_types_pages_permissions.sql
   { per_id: 28, per_name: "Crear tipo de dirección", pag_id: 8, per_order: 1 },
   { per_id: 29, per_name: "Modificar tipo de dirección", pag_id: 8, per_order: 2 },
@@ -90,8 +92,6 @@ const PERMISSIONS = [
   { per_id: 49, per_name: "Modificar tipo de contrato", pag_id: 12, per_order: 2 },
   { per_id: 50, per_name: "Eliminar tipo de contrato", pag_id: 12, per_order: 3 },
   { per_id: 51, per_name: "Cambiar estado tipo de contrato", pag_id: 12, per_order: 4 },
-  // database/migrations/0057_seed_contract_type_fields_permissions.sql
-  { per_id: 75, per_name: "Configurar campos del tipo de contrato", pag_id: 12, per_order: 6 },
   // database/migrations/0041_seed_works_pages_permissions.sql
   { per_id: 53, per_name: "Crear obra", pag_id: 14, per_order: 1 },
   { per_id: 54, per_name: "Modificar obra", pag_id: 14, per_order: 2 },
@@ -242,9 +242,9 @@ const SUPERVISION_TYPES = [
 ];
 
 // Catálogo cerrado de campos configurables del contrato
-// (database/migrations/0053_create_contract_fields.sql, DEC-037). Versionado
+// (database/migrations/0053_create_contract_fields.sql, DEC-053). Versionado
 // con el código: cada clave tiene su columna en
-// src/modules/admin/contractTypes/contractFields.js. Se actualiza siempre.
+// src/modules/admin/providerTypes/contractFields.js. Se actualiza siempre.
 const CONTRACT_FIELDS = [
   { cfd_id: 1, cfd_key: "STAGE", cfd_label: "Etapa", cfd_data_type: "SELECT", cfd_group: "CONTRACT", cfd_order: 1 },
   { cfd_id: 2, cfd_key: "OBSERVATION", cfd_label: "Observaciones", cfd_data_type: "TEXTAREA", cfd_group: "CONTRACT", cfd_order: 2 },
@@ -307,6 +307,43 @@ async function main() {
     await prisma.tbl_contract_fields.upsert({ where: { cfd_id: field.cfd_id }, update: field, create: field });
   }
   console.log(`tbl_contract_fields: ${CONTRACT_FIELDS.length} campos configurables sembrados/actualizados.`);
+
+  // Configuración inicial de los campos del contrato en los tipos de
+  // proveedor de este seed (DEC-053): todos aplican y se ven; obligatoria solo
+  // la etapa. Es su versión 1, también en el historial. Solo a un tipo que
+  // nunca se configuró (sin historial): una configuración guardada desde la
+  // aplicación, aunque deje todo sin aplicar, no se pisa. Los tipos creados
+  // después nacen sin configuración.
+  let configuredTypes = 0;
+  for (const { pvt_id } of PROVIDER_TYPES) {
+    const configured = await prisma.tbl_provider_type_field_versions.count({ where: { pvt_id } });
+    if (configured > 0) continue;
+    const type = await prisma.tbl_provider_types.findUnique({ where: { pvt_id }, select: { pvt_config_version: true } });
+    const rows = CONTRACT_FIELDS.map((field) => ({
+      cfd_id: field.cfd_id,
+      applies: true,
+      visible: true,
+      required: field.cfd_key === "STAGE",
+      order: field.cfd_order,
+    }));
+    await prisma.tbl_provider_type_fields.deleteMany({ where: { pvt_id } });
+    await prisma.tbl_provider_type_fields.createMany({
+      data: rows.map((r) => ({ pvt_id, cfd_id: r.cfd_id, ptf_applies: r.applies, ptf_visible: r.visible, ptf_required: r.required, ptf_order: r.order })),
+    });
+    await prisma.tbl_provider_type_field_versions.createMany({
+      data: rows.map((r) => ({
+        pvt_id,
+        pfv_version: type.pvt_config_version,
+        cfd_id: r.cfd_id,
+        pfv_applies: r.applies,
+        pfv_visible: r.visible,
+        pfv_required: r.required,
+        pfv_order: r.order,
+      })),
+    });
+    configuredTypes += 1;
+  }
+  console.log(`tbl_provider_type_fields: ${configuredTypes} tipo(s) de proveedor con su configuración inicial (los ya configurados no se modifican).`);
 
   for (const page of PAGES) {
     await prisma.tbl_pages.upsert({

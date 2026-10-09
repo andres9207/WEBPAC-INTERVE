@@ -4,8 +4,8 @@ import { dateOnlyText } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
-import { resolveContractFields } from "../../admin/contractTypes/contractTypeFields.service.js";
-import { FIELD_GROUPS, enforceFields, withContractAiu } from "../../admin/contractTypes/contractFields.js";
+import { resolveProviderFields } from "../../admin/providerTypes/providerTypeFields.service.js";
+import { FIELD_GROUPS, enforceFields, withContractAiu } from "../../admin/providerTypes/contractFields.js";
 import { CONCEPT_TYPES, assertStateAllows, assertTransition, chronologyError, contractTotals, historyRow, sortConcepts } from "./contractTerms.js";
 import {
   CONCEPT_AUDITED,
@@ -35,9 +35,11 @@ import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.
  *   no se guarde (ADR-0016, "Auditoría").
  * - Inmutabilidad tras la primera factura aprobada (PRO-BE-16): llega con
  *   facturación; hoy no hay facturas que la activen.
- * - Descripción y porcentajes son campos configurables (DEC-037): se aplican
- *   con la configuración actual del tipo del contrato, resuelta en la
- *   transacción por la misma función que alimenta el formulario.
+ * - Descripción y porcentajes son campos configurables (DEC-053): se aplican
+ *   con la configuración actual de los tipos del proveedor del contrato,
+ *   resuelta en la transacción por la misma función que alimenta el
+ *   formulario. El proveedor no cambia con el contrato bloqueado: cambiarlo
+ *   es editar el contrato, que también lo bloquea.
  */
 
 const optionalInt = (value) => (value === null || value === undefined || String(value).trim() === "" ? null : Number(value));
@@ -49,12 +51,12 @@ const activeSequence = (concepts) => sortConcepts(concepts.filter((c) => c.sta_i
 const valueText = (concepts) => moneyText(contractTotals(concepts).value);
 
 /**
- * Datos del acto con la configuración del tipo del contrato aplicada (ADR-0006,
- * decisión 6) y la solicitud de AIU del contrato (DEC-046): sin AIU, A, I y U
- * no se aceptan.
+ * Datos del acto con la configuración de los tipos del proveedor del contrato
+ * aplicada (ADR-0006 decisión 6, DEC-053) y la solicitud de AIU del contrato
+ * (DEC-046): sin AIU, A, I y U no se aceptan.
  */
 const configuredConcept = async (tx, contract, input, { before = null, skip = [] } = {}) => {
-  const descriptors = withContractAiu(await resolveContractFields(tx, contract.ctt_id), contract.ctr_aiu_requested);
+  const descriptors = withContractAiu(await resolveProviderFields(tx, contract.prv_id), contract.ctr_aiu_requested);
   return conceptValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONCEPT, input, before, skip }));
 };
 

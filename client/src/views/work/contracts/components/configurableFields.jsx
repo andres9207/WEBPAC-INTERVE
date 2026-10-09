@@ -4,7 +4,7 @@ import PercentField from 'ui-component/extended/PercentField';
 import SearchSelect from 'ui-component/extended/SearchSelect';
 
 /**
- * Campos configurables del contrato en el cliente (ADR-0006, DEC-037). El
+ * Campos configurables del contrato en el cliente (ADR-0006, DEC-053). El
  * servidor entrega los descriptores (`get_contract_fields`) y estas funciones
  * los traducen a campos de GenericFormSection. El cliente no deduce la
  * configuración: solo decide cómo se ve.

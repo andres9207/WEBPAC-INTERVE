@@ -8,6 +8,8 @@ La decisión 2 se resolvió: el tipo es una **clasificación** de la empresa ([D
 
 La columna `pvt_id` (obligatoria, FK `RESTRICT`) llegó con `tbl_providers` (migración `0044`, [DEC-031](../decisiones/DEC-031-area-proveedores.md)), y el maestro cuenta los proveedores al eliminar. `tbl_providers` se creó sin `dot_id`, `are_id` ni `cos_id`, así que MAE-BD-11 quedó cubierta. El texto de abajo es el análisis original.
 
+Desde [DEC-041](../decisiones/DEC-041-varios-tipos-proveedor.md), un proveedor tiene uno o varios tipos. Desde [DEC-053](../decisiones/DEC-053-campos-contrato-por-tipo-proveedor.md) (2026-10-08), el tipo configura los campos de los contratos de sus proveedores con el modelo de [ADR-0006](0006-tipos-contrato.md): la decisión 2 pasa de clasificación pura a clasificación con configuración de campos (alternativa de comportamiento, sin condicionales en código).
+
 ## Fecha
 
 2026-09-10 — versión inicial.

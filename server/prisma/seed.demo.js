@@ -5,7 +5,7 @@ import { DELETED_STATUS, ACTIVE_STATUS } from "../src/common/constants/status.co
 import { nitCheckDigit } from "../src/modules/admin/identityDocuments/identityDocuments.formats.js";
 import { reasonsService, REASON_SCOPES } from "../src/modules/admin/reasons/reasons.service.js";
 import { contractTypesService } from "../src/modules/admin/contractTypes/contractTypes.service.js";
-import { saveContractTypeFields } from "../src/modules/admin/contractTypes/contractTypeFields.service.js";
+import { saveProviderTypeFields } from "../src/modules/admin/providerTypes/providerTypeFields.service.js";
 import { saveWork } from "../src/modules/work/works/works.service.js";
 import { saveProvider, assignProviderToWork } from "../src/modules/work/providers/providers.service.js";
 import { saveContract } from "../src/modules/work/contracts/contracts.service.js";
@@ -59,29 +59,27 @@ const POLICY_TYPES = [
   { key: "DEMO_SALARIOS", name: "[DEMO] Salarios y prestaciones", base: "DIRECT_COST" },
 ];
 
-// Campos del catálogo (seed.js, CONTRACT_FIELDS): 1 etapa, 2 observaciones,
-// 3 descripción del otrosí, 4–9 porcentajes (A, I, U, IVA, anticipo, retenido).
-const field = (cfdId, order, { required = false } = {}) => ({ cfdId, applies: true, visible: true, required, order });
-
 const CONTRACT_TYPES = [
-  {
-    key: "civil",
-    name: "[DEMO] Obra civil",
-    fields: [field(1, 1, { required: true }), field(2, 2), field(3, 1), field(4, 2), field(5, 3), field(6, 4), field(7, 5), field(8, 6), field(9, 7)],
-  },
-  {
-    // Suministro: sin etapa ni AIU.
-    key: "supply",
-    name: "[DEMO] Suministro",
-    fields: [field(2, 1), field(3, 1), field(7, 2), field(8, 3), field(9, 4)],
-  },
+  { key: "civil", name: "[DEMO] Obra civil" },
+  { key: "supply", name: "[DEMO] Suministro" },
 ];
 
 // Ids fijos de los maestros que siembra seed.js (tipos de identificación,
 // proveedor, dirección e interventoría). Constructoras: las primeras activas.
 const ID_DOC = { CC: 1, NIT: 3 };
 const PROVIDER_TYPE = { SIMPLE: 1, SUBCONTRACTOR: 2, MAJOR: 3 };
-const ADDRESS_TYPE = { OFFICE: 1, BRANCH: 2, BILLING: 4, WAREHOUSE: 5 };
+
+// Campos del catálogo (seed.js, CONTRACT_FIELDS): 1 etapa, 2 observaciones,
+// 3 descripción del otrosí, 4–9 porcentajes (A, I, U, IVA, anticipo, retenido).
+const field = (cfdId, order, { required = false } = {}) => ({ cfdId, applies: true, visible: true, required, order });
+
+// Configuración de los campos del contrato por tipo de proveedor (DEC-053).
+// Subcontratista y Contrato mayor quedan como los deja seed.js (todo, con la
+// etapa obligatoria). Simple pasa a suministro: sin etapa ni AIU. Un
+// proveedor Contrato mayor + Simple toma la unión: todo.
+const PROVIDER_TYPE_FIELDS = [
+  { pvtId: PROVIDER_TYPE.SIMPLE, fields: [field(2, 1), field(3, 1), field(7, 2), field(8, 3), field(9, 4)] },
+];const ADDRESS_TYPE = { OFFICE: 1, BRANCH: 2, BILLING: 4, WAREHOUSE: 5 };
 const SUPERVISION_TYPE = { TECHNICAL: 1, INTEGRAL: 4 };
 
 const WORKS = [
@@ -461,6 +459,19 @@ async function main() {
   const insurers = await prisma.tbl_insurers.findMany({ where: { sta_id: ACTIVE_STATUS }, select: { ins_id: true }, orderBy: { ins_id: "asc" }, take: 3 });
   if (insurers.length === 0) throw new Error("No hay aseguradoras activas: crea al menos una antes de sembrar pólizas.");
 
+  console.log("Campos del contrato por tipo de proveedor");
+  for (const { pvtId, fields } of PROVIDER_TYPE_FIELDS) {
+    const type = await prisma.tbl_provider_types.findUnique({ where: { pvt_id: pvtId }, select: { pvt_name: true, pvt_config_version: true } });
+    if (!type) throw new Error(`No existe el tipo de proveedor ${pvtId}: corre antes yarn db:seed.`);
+    // Solo sobre la versión 1 de seed.js: una configuración ya editada desde el maestro no se pisa.
+    if (type.pvt_config_version > 1) {
+      log("configuración", type.pvt_name, false);
+      continue;
+    }
+    await saveProviderTypeFields({ pvtId, fields, useBy, ctx });
+    log("configuración", type.pvt_name, true);
+  }
+
   console.log("Tipos de contrato");
   const typeIds = {};
   for (const type of CONTRACT_TYPES) {
@@ -468,12 +479,8 @@ async function main() {
       entity: "tipo de contrato",
       label: type.name,
       find: async () => (await prisma.tbl_contract_types.findFirst({ where: { ctt_name: type.name, ...notDeleted }, select: { ctt_id: true } }))?.ctt_id,
-      create: async () => {
-        const { cttId } = await contractTypesService.save({ input: { name: type.name }, useBy, ctx, idempotencyKey: demoKey(`contract-type:${type.name}`) });
-        // La configuración solo se fija al crearlo: una ya editada desde el maestro no se pisa.
-        await saveContractTypeFields({ cttId, fields: type.fields, useBy, ctx });
-        return cttId;
-      },
+      create: async () =>
+        (await contractTypesService.save({ input: { name: type.name }, useBy, ctx, idempotencyKey: demoKey(`contract-type:${type.name}`) })).cttId,
     });
   }
 

@@ -5,10 +5,10 @@ import { requiredId } from "../../../common/utils/validation.utils.js";
 // no se repita y la jerarquía aplica ⇒ visible ⇒ obligatorio los valida el
 // service (y la jerarquía, además, un CHECK de la BD).
 
-export const getContractTypeFieldsSchema = [query("cttId").isInt({ min: 1 }).withMessage("cttId es obligatorio y debe ser un entero positivo.")];
+export const getProviderTypeFieldsSchema = [query("pvtId").isInt({ min: 1 }).withMessage("pvtId es obligatorio y debe ser un entero positivo.")];
 
-export const saveContractTypeFieldsSchema = [
-  requiredId("cttId"),
+export const saveProviderTypeFieldsSchema = [
+  requiredId("pvtId"),
   body("fields").isArray({ max: 100 }).withMessage("fields debe ser un arreglo."),
   body("fields.*.cfdId").isInt({ min: 1 }).withMessage("Cada campo debe traer su cfdId."),
   body("fields.*.applies").isBoolean({ strict: true }).withMessage("applies debe ser verdadero o falso."),

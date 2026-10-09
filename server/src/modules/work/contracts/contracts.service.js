@@ -8,8 +8,9 @@ import { assertInScope, inScope, scopeWhere } from "../../../common/services/wor
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
-import { resolveContractFields } from "../../admin/contractTypes/contractTypeFields.service.js";
-import { FIELD_GROUPS, enforceFields, typeAppliesAiu, withContractAiu } from "../../admin/contractTypes/contractFields.js";
+import { assertProviderInScope } from "../providers/providers.service.js";
+import { resolveProviderFields } from "../../admin/providerTypes/providerTypeFields.service.js";
+import { FIELD_GROUPS, enforceFields, typeAppliesAiu, withContractAiu } from "../../admin/providerTypes/contractFields.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import {
   CONCEPT_TYPES,
@@ -46,12 +47,13 @@ import { insertPolicy, policyValuesOf } from "./contractPolicies.service.js";
  * - Fecha fin: la calcula contractEndDate, nunca el cliente.
  * - Estado: solo cambia por las transiciones de contractTerms.js, con
  *   historial. Editar exige que el estado lo admita (409 si no).
- * - Campos configurables (etapa, observaciones, porcentajes; DEC-037): se
- *   aplican con la configuración actual del tipo, resuelta dentro de la
- *   transacción por la misma función que entrega los descriptores al
- *   formulario. El contrato guarda la versión con que se capturó.
- * - AIU en cadena (ADR-0026, P13; DEC-046): el tipo declara si aplica, el
- *   contrato lo solicita (`ctr_aiu_requested`) y el concepto pacta A, I y U.
+ * - Campos configurables (etapa, observaciones, porcentajes; DEC-053): se
+ *   aplican con la configuración actual de los tipos del proveedor (su
+ *   unión), resuelta dentro de la transacción, con el proveedor bloqueado,
+ *   por la misma función que entrega los descriptores al formulario.
+ * - AIU en cadena (ADR-0026, P13; DEC-046): los tipos del proveedor declaran
+ *   si aplica, el contrato lo solicita (`ctr_aiu_requested`) y el concepto
+ *   pacta A, I y U.
  *   Apagarlo o encenderlo exige el permiso propio.
  */
 
@@ -427,7 +429,6 @@ export const getContract = async ({ ctrId, scope }) => {
       ctr_end_date: true,
       ctr_suspended_days: true,
       ctr_state: true,
-      ctr_config_version: true,
       ctr_observation: true,
       ctr_aiu_requested: true,
       sta_id: true,
@@ -508,7 +509,6 @@ export const getContract = async ({ ctrId, scope }) => {
     // Con una factura aprobada, costo y porcentajes de los conceptos no cambian (DOM-07).
     economicsLocked: await hasApprovedInvoices(prisma, row.ctr_id),
     currentPolicies: row._count?.tbl_policies ?? 0,
-    configVersion: row.ctr_config_version,
     observation: row.ctr_observation,
     aiuRequested: row.ctr_aiu_requested,
     staId: row.sta_id,
@@ -603,27 +603,31 @@ export const getContractFormOptions = async ({ wrkId, includeWksId, includePrvId
 };
 
 /**
- * Descriptores de campo de un tipo de contrato para el formulario (ADR-0006,
- * decisión 5): la configuración actual o, con `version`, la de esa versión.
- * El cliente no deduce la configuración: la recibe.
+ * Descriptores de los campos configurables del contrato para el formulario
+ * (ADR-0006, decisión 5): la configuración vigente de los tipos del
+ * proveedor, unidos (DEC-053). El cliente no deduce la configuración: la recibe.
+ *
+ * - `prvId`: el proveedor elegido en el formulario (crear, o editar cambiando
+ *   de proveedor). Debe estar en el alcance por obra (DEC-047).
+ * - `ctrId`: los campos de ese contrato; sin `prvId`, con su proveedor. Si no
+ *   solicita AIU, A, I y U no aplican (DEC-046).
  */
-export const getContractFields = async ({ cttId, version, ctrId, scope }) => {
-  if (Number(ctrId) > 0) await assertContractInScope(scope, ctrId);
-  const type = await prisma.tbl_contract_types.findUnique({
-    where: { ctt_id: Number(cttId) },
-    select: { ctt_id: true, ctt_config_version: true, sta_id: true },
-  });
-  if (!type || type.sta_id === DELETED_STATUS) throw httpError(404, "No se encontró el tipo de contrato.");
-  const byVersion = Number(version) > 0;
-  const configVersion = byVersion ? Number(version) : type.ctt_config_version;
-  const fields = await resolveContractFields(prisma, type.ctt_id, byVersion ? { version: configVersion } : {});
-  // Con `ctrId`, los campos de ese contrato: si no solicita AIU, A, I y U no aplican (DEC-046).
-  const contract =
-    Number(ctrId) > 0 ? await prisma.tbl_contracts.findUnique({ where: { ctr_id: Number(ctrId) }, select: { ctr_aiu_requested: true } }) : null;
+export const getContractFields = async ({ prvId, ctrId, scope }) => {
+  let contract = null;
+  if (Number(ctrId) > 0) {
+    await assertContractInScope(scope, ctrId);
+    contract = await prisma.tbl_contracts.findUnique({ where: { ctr_id: Number(ctrId) }, select: { prv_id: true, ctr_aiu_requested: true } });
+  }
+  const providerId = Number(prvId) > 0 ? Number(prvId) : contract?.prv_id;
+  if (Number(prvId) > 0 && providerId !== contract?.prv_id) await assertProviderInScope(scope, providerId);
+  const provider = providerId
+    ? await prisma.tbl_providers.findUnique({ where: { prv_id: providerId }, select: { prv_id: true, sta_id: true } })
+    : null;
+  if (!provider || provider.sta_id === DELETED_STATUS) throw httpError(404, "No se encontró el proveedor.");
+
+  const fields = await resolveProviderFields(prisma, provider.prv_id);
   return {
-    cttId: type.ctt_id,
-    configVersion,
-    currentVersion: type.ctt_config_version,
+    prvId: provider.prv_id,
     typeAppliesAiu: typeAppliesAiu(fields),
     ...(contract ? { aiuRequested: contract.ctr_aiu_requested } : {}),
     fields: contract ? withContractAiu(fields, contract.ctr_aiu_requested) : fields,
@@ -729,13 +733,13 @@ const hasAgreedAiu = async (tx, ctrId) =>
 
 /**
  * Solicitud de AIU del contrato (ADR-0026, P13; DEC-046), con la
- * configuración del tipo ya resuelta bajo bloqueo:
+ * configuración de los tipos del proveedor ya resuelta bajo bloqueo (DEC-053):
  *
- * - Valor por defecto: al crear, el del tipo (solicita AIU si el tipo lo
+ * - Valor por defecto: al crear, el de los tipos (solicita AIU si alguno lo
  *   aplica); al editar, el guardado. Sin `aiuRequested` en la petición se
  *   conserva el valor por defecto.
  * - Apartarse de él (apagarlo o encenderlo) exige el permiso propio.
- * - No se enciende si el tipo no aplica AIU (400).
+ * - No se enciende si los tipos del proveedor no aplican AIU (400).
  * - No se apaga si algún concepto vigente ya pactó A, I o U (409): se
  *   corrigen antes los conceptos, con su propio permiso.
  */
@@ -748,7 +752,7 @@ const resolveAiuRequested = async (tx, { input, descriptors, before = null, gran
   if (!granted?.has(PERMISSIONS.work.contracts.changeAiu)) {
     throw httpError(403, `${requested ? "Solicitar" : "Apagar"} el AIU del contrato exige el permiso de cambiar la solicitud de AIU.`);
   }
-  if (requested && !typeApplies) throw httpError(400, "El tipo de contrato no aplica AIU: el contrato no puede solicitarlo.");
+  if (requested && !typeApplies) throw httpError(400, "Los tipos del proveedor no aplican AIU: el contrato no puede solicitarlo.");
   if (!requested && before && (await hasAgreedAiu(tx, before.ctr_id))) {
     throw httpError(409, "Algún concepto del contrato ya pactó porcentajes de AIU. Llévalos a 0 en cada concepto antes de apagar el AIU.");
   }
@@ -757,12 +761,6 @@ const resolveAiuRequested = async (tx, { input, descriptors, before = null, gran
 
 const assertHeader = (values) => {
   if (!values.ctr_start_date) throw httpError(400, "La fecha de inicio no es una fecha válida.");
-};
-
-/** Versión vigente de la configuración del tipo (bloqueado por quien llama). */
-const typeConfigVersion = async (tx, cttId) => {
-  const type = await tx.tbl_contract_types.findUnique({ where: { ctt_id: cttId }, select: { ctt_config_version: true } });
-  return type.ctt_config_version;
 };
 
 const IDEMPOTENCY_TARGET = {
@@ -783,16 +781,15 @@ const createContract = ({ wrkId, input, policies, granted, useBy, ctx, idempoten
       ...(policies.length > 0 && { ASEGURADORA: policies.map((p) => p.ins_id), TIPO_POLIZA: policies.map((p) => p.plt_id) }),
     },
     async (tx) => {
-      const cttId = Number(input.cttId);
-      await contractTypesService.assertAssignable(tx, cttId);
-      // Configuración del tipo, con el tipo bloqueado: la versión que se guarda
-      // es la que se aplicó.
-      const descriptors = await resolveContractFields(tx, cttId);
+      await contractTypesService.assertAssignable(tx, Number(input.cttId));
+      await assertProviderAssigned(tx, { wrkId, prvId: Number(input.prvId) });
+      // Configuración de los tipos del proveedor (DEC-053), con el proveedor
+      // bloqueado: sus tipos no cambian en medio.
+      const descriptors = await resolveProviderFields(tx, Number(input.prvId));
       const aiuRequested = await resolveAiuRequested(tx, { input, descriptors, granted });
       const values = {
         ...headerValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONTRACT, input })),
         ctr_aiu_requested: aiuRequested,
-        ctr_config_version: await typeConfigVersion(tx, cttId),
       };
       // El valor inicial toma la fecha del contrato y no lleva descripción
       // propia. Si el contrato no solicita AIU, A, I y U no se aceptan.
@@ -807,7 +804,6 @@ const createContract = ({ wrkId, input, policies, granted, useBy, ctx, idempoten
 
       await assertWork(tx, wrkId, { isNew: true });
       await assertStage(tx, { wrkId, wksId: values.wks_id });
-      await assertProviderAssigned(tx, { wrkId, prvId: values.prv_id });
       await assertUniqueNumber(tx, { wrkId, number: values.ctr_number });
 
       const { to: initialState } = assertTransition("create");
@@ -893,22 +889,20 @@ const updateContract = async ({ ctrId, input, granted, useBy, ctx }) => {
       const before = await findLockedContract(tx, ctrId);
       assertStateAllows(before.ctr_state, "editContract");
       const wrkId = before.wrk_id;
-      const cttId = Number(input.cttId);
-      await contractTypesService.assertAssignable(tx, cttId, before.ctt_id);
+      await contractTypesService.assertAssignable(tx, Number(input.cttId), before.ctt_id);
+      await assertProviderAssigned(tx, { wrkId, prvId: Number(input.prvId), currentPrvId: before.prv_id });
 
-      // Configuración actual del tipo. Un valor guardado en un campo que dejó
-      // de aplicar se conserva como heredado (ADR-0006, decisiones 7 y 8).
-      const descriptors = await resolveContractFields(tx, cttId);
+      // Configuración actual de los tipos del proveedor elegido (DEC-053). Un
+      // valor guardado en un campo que dejó de aplicar se conserva como
+      // heredado (ADR-0006, decisiones 7 y 8).
+      const descriptors = await resolveProviderFields(tx, Number(input.prvId));
       const values = {
         ...headerValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONTRACT, input, before })),
         ctr_aiu_requested: await resolveAiuRequested(tx, { input, descriptors, before, granted }),
       };
-      // Si cambia el tipo, el contrato pasa a registrar la versión del nuevo.
-      if (cttId !== before.ctt_id) values.ctr_config_version = await typeConfigVersion(tx, cttId);
 
       await assertWork(tx, wrkId, { isNew: false });
       await assertStage(tx, { wrkId, wksId: values.wks_id, currentWksId: before.wks_id });
-      await assertProviderAssigned(tx, { wrkId, prvId: values.prv_id, currentPrvId: before.prv_id });
       await assertUniqueNumber(tx, { wrkId, number: values.ctr_number, excludeId: before.ctr_id });
       // Las facturas son del proveedor del contrato: con facturas, no cambia
       // (lo garantiza también la FK compuesta de tbl_invoices, DEC-042).
@@ -956,7 +950,7 @@ export const saveContract = async ({ ctrId, input, useBy, granted, scope, ctx = 
 
   const wrkId = Number(input.wrkId);
   // La huella de idempotencia es de lo que pidió el cliente; la
-  // configuración del tipo se aplica dentro de la transacción.
+  // configuración de los tipos del proveedor se aplica dentro de la transacción.
   const { ccp_start_date: _start, ccp_description: _description, ...initialConcept } = conceptValuesOf(input.initialConcept ?? {});
   const policies = policiesOf(input, granted);
 

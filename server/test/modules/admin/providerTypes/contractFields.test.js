@@ -1,9 +1,9 @@
 import { readFileSync } from "fs";
-import { CONFIGURABLE_FIELDS, enforceFields, resolveFields, typeAppliesAiu, withContractAiu } from "../../../../src/modules/admin/contractTypes/contractFields.js";
+import { CONFIGURABLE_FIELDS, enforceFields, mergeTypeRows, resolveFields, typeAppliesAiu, withContractAiu } from "../../../../src/modules/admin/providerTypes/contractFields.js";
 import { CONTRACT_FIELDS_CATALOG, fieldId } from "../../../helpers/contractFields.fixtures.js";
 
-// Campos configurables (ADR-0006, DEC-037): resolución única de la
-// configuración y su aplicación al guardado.
+// Campos configurables (ADR-0006, DEC-053): unión de los tipos del proveedor,
+// resolución única de la configuración y su aplicación al guardado.
 
 const row = (key, attrs) => ({ cfd_id: fieldId(key), applies: true, visible: true, required: false, order: 1, ...attrs });
 
@@ -17,6 +17,30 @@ describe("catálogo cerrado", () => {
 
     expect(keysIn("../../../../../database/migrations/0053_create_contract_fields.sql").sort()).toEqual(codeKeys);
     expect(seedKeys.sort()).toEqual(codeKeys);
+  });
+});
+
+describe("mergeTypeRows (unión de los tipos del proveedor)", () => {
+  it("un campo aplica, se ve o es obligatorio si lo es en alguno de los tipos; el orden es el menor", () => {
+    const merged = mergeTypeRows([
+      row("VAT_PCT", { visible: false, order: 5 }),
+      row("VAT_PCT", { required: true, order: 2 }),
+      row("STAGE", { visible: false, order: 1 }),
+    ]);
+
+    expect(merged).toHaveLength(2);
+    expect(merged.find((r) => r.cfd_id === fieldId("VAT_PCT"))).toEqual({ cfd_id: fieldId("VAT_PCT"), applies: true, visible: true, required: true, order: 2 });
+    expect(merged.find((r) => r.cfd_id === fieldId("STAGE"))).toMatchObject({ applies: true, visible: false, required: false });
+  });
+
+  it("un solo tipo queda igual, y sin filas no hay nada", () => {
+    expect(mergeTypeRows([row("OBSERVATION", { order: 3 })])).toEqual([row("OBSERVATION", { order: 3 })]);
+    expect(mergeTypeRows([])).toEqual([]);
+  });
+
+  it("la unión resuelta conserva la jerarquía", () => {
+    const descriptors = resolveFields(CONTRACT_FIELDS_CATALOG, mergeTypeRows([row("VAT_PCT", { visible: false }), row("VAT_PCT", { required: true })]));
+    expect(descriptor(descriptors, "VAT_PCT")).toMatchObject({ applies: true, visible: true, required: true });
   });
 });
 
@@ -60,7 +84,7 @@ describe("enforceFields", () => {
   it("rechaza un valor en un campo que no aplica, en vez de ignorarlo", () => {
     const descriptors = all({ VAT_PCT: { applies: false } });
     expect(() => enforceFields({ descriptors, group: "CONCEPT", input: { vatPct: "19" } })).toThrow(
-      expect.objectContaining({ statusCode: 400, message: "IVA: no aplica para este tipo de contrato." })
+      expect.objectContaining({ statusCode: 400, message: "IVA: no aplica para los tipos del proveedor." })
     );
   });
 
@@ -89,7 +113,7 @@ describe("enforceFields", () => {
   it("exige los obligatorios; en un porcentaje, 0 es un valor", () => {
     const descriptors = all({ STAGE: { required: true }, RETENTION_PCT: { required: true } });
     expect(() => enforceFields({ descriptors, group: "CONTRACT", input: { wksId: null } })).toThrow(
-      expect.objectContaining({ statusCode: 400, message: "Etapa: es obligatorio para este tipo de contrato." })
+      expect.objectContaining({ statusCode: 400, message: "Etapa: es obligatorio para los tipos del proveedor." })
     );
     expect(() => enforceFields({ descriptors, group: "CONCEPT", input: {} })).toThrow(expect.objectContaining({ statusCode: 400 }));
     expect(enforceFields({ descriptors, group: "CONCEPT", input: { retentionPct: "0" } }).retentionPct).toBe("0");

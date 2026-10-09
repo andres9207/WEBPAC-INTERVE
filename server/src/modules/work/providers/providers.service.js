@@ -99,7 +99,7 @@ const NOT_FOUND = "No se encontró el proveedor.";
 const providerScopeWhere = (scope) => scopeWhere(scope, (ids) => ({ tbl_work_providers: { some: { wrk_id: { in: ids } } } }));
 
 /** 404 si el proveedor no está asignado a la obra del alcance: no revela que exista. */
-const assertProviderInScope = async (scope, prvId) => {
+export const assertProviderInScope = async (scope, prvId) => {
   const where = providerScopeWhere(scope);
   if (Object.keys(where).length === 0) return;
   const found = await prisma.tbl_providers.findFirst({ where: { prv_id: Number(prvId), ...where }, select: { prv_id: true } });

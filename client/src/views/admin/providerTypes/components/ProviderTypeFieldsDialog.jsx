@@ -15,13 +15,15 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
 import BaseDialog from 'ui-component/extended/BaseDialog';
-import { getContractTypeFieldsAPI, saveContractTypeFieldsAPI } from 'api/requests/contractTypesApi';
+import { getProviderTypeFieldsAPI, saveProviderTypeFieldsAPI } from 'api/requests/providerTypesApi';
 import { showError, showSuccess } from 'services/ToastService';
 
 /**
- * Editor de la configuración de campos de un tipo de contrato (ADR-0006,
- * MAE-FE-08, DEC-037): una matriz con los campos del catálogo que entrega el
- * servidor, con tres casillas por fila y el orden.
+ * Editor de la configuración de los campos del contrato de un tipo de
+ * proveedor (ADR-0006, DEC-053): una matriz con los campos del catálogo que
+ * entrega el servidor, con tres casillas por fila y el orden. Un proveedor
+ * con varios tipos toma la unión: un campo aplica, se ve o es obligatorio si
+ * lo es en alguno de ellos.
  *
  * - Jerarquía estricta: sin "Aplica" no se puede marcar "Visible", y sin
  *   "Visible" no se puede marcar "Obligatorio". Desmarcar una casilla
@@ -29,7 +31,9 @@ import { showError, showSuccess } from 'services/ToastService';
  * - Sin el permiso "Configurar campos" (`readOnly`), la matriz se ve pero no
  *   se edita.
  * - Guardar envía la configuración completa; si algo cambió, el servidor sube
- *   la versión. Los contratos existentes no cambian.
+ *   la versión. Vale para los contratos nuevos y las ediciones de los
+ *   proveedores del tipo; un valor ya guardado que deja de aplicar se conserva
+ *   como heredado.
  */
 
 const GROUP_NAMES = { CONTRACT: 'Datos del contrato', CONCEPT: 'Valor (valor inicial, otrosí y liquidación)' };
@@ -46,17 +50,17 @@ const toggle = (row, attribute, checked) => {
 
 const validOrder = (value) => /^\d{1,3}$/.test(value);
 
-export default function ContractTypeFieldsDialog({ open, contractType, readOnly, onClose }) {
+export default function ProviderTypeFieldsDialog({ open, providerType, readOnly, onClose }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState(null);
   const [rows, setRows] = useState([]);
 
   useEffect(() => {
-    if (!open || !contractType) return;
+    if (!open || !providerType) return;
     let cancelled = false;
     setLoading(true);
-    getContractTypeFieldsAPI(contractType.cttId)
+    getProviderTypeFieldsAPI(providerType.pvtId)
       .then(({ data }) => {
         if (cancelled) return;
         setConfig(data);
@@ -70,7 +74,7 @@ export default function ContractTypeFieldsDialog({ open, contractType, readOnly,
     return () => {
       cancelled = true;
     };
-  }, [open, contractType, onClose]);
+  }, [open, providerType, onClose]);
 
   const change = (cfdId, attribute, value) =>
     setRows((current) =>
@@ -86,8 +90,8 @@ export default function ContractTypeFieldsDialog({ open, contractType, readOnly,
   const save = async () => {
     setSaving(true);
     try {
-      const { data } = await saveContractTypeFieldsAPI({
-        cttId: contractType.cttId,
+      const { data } = await saveProviderTypeFieldsAPI({
+        pvtId: providerType.pvtId,
         fields: rows.map(({ cfdId, applies, visible, required, order }) => ({ cfdId, applies, visible, required, order: Number(order) }))
       });
       showSuccess(data.message);
@@ -105,7 +109,7 @@ export default function ContractTypeFieldsDialog({ open, contractType, readOnly,
     <BaseDialog
       open={open}
       onClose={onClose}
-      title={`Campos del tipo «${contractType?.name ?? ''}»`}
+      title={`Campos del contrato del tipo «${providerType?.name ?? ''}»`}
       maxWidth="md"
       fullScreenOnMobile
       loading={loading || !config}
@@ -131,14 +135,9 @@ export default function ContractTypeFieldsDialog({ open, contractType, readOnly,
         </Typography>
         {!readOnly && (
           <Alert severity="info">
-            Los cambios valen para los contratos nuevos y las ediciones. Los contratos existentes conservan sus valores: un campo que deja
-            de aplicar se sigue mostrando en solo lectura, marcado como heredado.
-          </Alert>
-        )}
-        {applying === 0 && (
-          <Alert severity="warning">
-            Ningún campo configurable aplica: el formulario de contrato de este tipo solo tendrá los datos fijos y todos los porcentajes en
-            0.
+            Los cambios valen para los contratos nuevos y las ediciones de todos los proveedores de este tipo, también los vigentes. Un
+            proveedor con varios tipos toma la unión. Los valores ya guardados se conservan: un campo que deja de aplicar se sigue mostrando
+            en solo lectura, marcado como heredado.
           </Alert>
         )}
         <TableContainer sx={{ overflowX: 'auto' }}>
@@ -220,19 +219,19 @@ export default function ContractTypeFieldsDialog({ open, contractType, readOnly,
           </Table>
         </TableContainer>
         <Typography variant="caption" color="text.secondary">
-          Aplica: el campo tiene sentido para el tipo; si no aplica, no se muestra ni se acepta valor. Visible: se muestra en el formulario;
-          un campo que aplica y no se ve toma el valor por defecto (IVA 19 %, anticipo 15 %, el resto 0). Obligatorio: debe tener valor para
-          guardar.
+          Aplica: el campo tiene sentido para los contratos de los proveedores del tipo; si no aplica, no se muestra ni se acepta valor.
+          Visible: se muestra en el formulario; un campo que aplica y no se ve toma el valor por defecto (IVA 19 %, anticipo 15 %, el resto
+          0). Obligatorio: debe tener valor para guardar.
         </Typography>
       </Stack>
     </BaseDialog>
   );
 }
 
-ContractTypeFieldsDialog.propTypes = {
+ProviderTypeFieldsDialog.propTypes = {
   open: PropTypes.bool.isRequired,
-  /** Fila del listado: `{ cttId, name }`. */
-  contractType: PropTypes.object,
+  /** Fila del listado: `{ pvtId, name }`. */
+  providerType: PropTypes.object,
   /** Sin el permiso "Configurar campos": solo ver. */
   readOnly: PropTypes.bool,
   onClose: PropTypes.func.isRequired

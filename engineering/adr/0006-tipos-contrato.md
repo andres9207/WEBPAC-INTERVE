@@ -2,7 +2,7 @@
 
 ## Estado
 
-**Aceptado parcial** (2026-10-02).
+**Aceptado parcial** (2026-10-02). **La configuración de campos pasó al tipo de proveedor** el 2026-10-08 ([DEC-053](../decisiones/DEC-053-campos-contrato-por-tipo-proveedor.md)). El modelo de este ADR (catálogo cerrado, jerarquía, ausencia = no aplica, resolución única, heredados, versión con historial, permiso propio) se aplica igual, sobre `tbl_provider_type_fields`; un proveedor con varios tipos toma la unión. El tipo de contrato queda como maestro simple. Lo que sigue describe la implementación anterior.
 
 Implementado:
 - El maestro (2026-09-30): migraciones `0036`–`0037`, módulo `admin/contractTypes` sobre el patrón de maestro ([DEC-020](../decisiones/DEC-020-patron-maestro.md), [DEC-022](../decisiones/DEC-022-vista-maestro.md)), entidad de bloqueo `TIPO_CONTRATO`; obras y contratos como dependientes (regla 13).

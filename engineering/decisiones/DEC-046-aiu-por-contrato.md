@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-10-06 · **Tipo:** Obligatoria · **ADR:** [0026](../adr/0026-calculos-facturacion.md), [0006](../adr/0006-tipos-contrato.md), [0016](../adr/0016-conceptos-contractuales.md)
 
+> Desde [DEC-053](DEC-053-campos-contrato-por-tipo-proveedor.md) (2026-10-08), "el tipo" es el conjunto de tipos del proveedor del contrato: aplica AIU si alguno de ellos aplica A, I o U. Lo demás no cambia.
+
 Resuelve el punto abierto P13 de ADR-0026 ("dónde se apaga el AIU") con la opción **por contrato**, y cierra la tarea PRO-BD-23 del backlog. El usuario lo decidió el 2026-10-06.
 
 ## Contexto
