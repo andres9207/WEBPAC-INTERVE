@@ -2238,9 +2238,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/providers/ProviderDetailPage.jsx": {
-    "mtime": 1791922081.3472788,
-    "seen": 1791922722.6221707,
-    "ast_hash": "49c681bf05e89016f24b4077824ca75d",
+    "mtime": 1791929013.9031153,
+    "seen": 1791929213.1424549,
+    "ast_hash": "cfa49669a2928fe8b004b27b5c44f9f1",
     "semantic_hash": ""
   },
   "client/src/views/work/providers/ProvidersPage.jsx": {
