@@ -2184,9 +2184,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/works/WorkFormPage.jsx": {
-    "mtime": 1791297841.4338791,
-    "seen": 1791298128.5536857,
-    "ast_hash": "d15713ad5ba76015ff7c6a2c6e02c6e2",
+    "mtime": 1791918041.5166068,
+    "seen": 1791918950.8643339,
+    "ast_hash": "0744b318db8099d2f89f6570f04d371c",
     "semantic_hash": ""
   },
   "client/src/views/work/works/components/ManagerDialog.jsx": {
@@ -2910,9 +2910,9 @@
     "semantic_hash": ""
   },
   "client/src/contexts/WorkScopeContext.jsx": {
-    "mtime": 1791377606.836884,
-    "seen": 1791385610.8422496,
-    "ast_hash": "9d734d61b9dd9e19f929dea718498f72",
+    "mtime": 1791918026.4370475,
+    "seen": 1791918950.8636672,
+    "ast_hash": "fd8d295a3e7ff8581514f61a477b2aeb",
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/Header/WorkSection/index.jsx": {
