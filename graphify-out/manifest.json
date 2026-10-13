@@ -2382,9 +2382,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractFormPage.jsx": {
-    "mtime": 1791912965.6910567,
-    "seen": 1791916678.0131304,
-    "ast_hash": "a988f65bfa0264defbaa1d6c7c722e82",
+    "mtime": 1791920046.608813,
+    "seen": 1791920330.0488698,
+    "ast_hash": "fd85d79fd1710aec58018200f99ac000",
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractsPage.jsx": {
