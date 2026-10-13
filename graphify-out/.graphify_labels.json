@@ -165,6 +165,7 @@
   "163": "contractEndDateReconciliation.service.test.js",
   "164": "0073_add_contracts_aiu_requested.sql",
   "165": "0074_seed_contract_aiu_permission.sql",
+  "166": "0093_billing_menu_collapsible.sql",
   "167": "0078_create_policy_types.sql",
   "168": "0079_index_contract_concepts_id_contract.sql",
   "169": "`tbl_contract_concepts`",

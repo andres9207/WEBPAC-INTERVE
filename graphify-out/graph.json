@@ -3553,7 +3553,7 @@
       "file_type": "code",
       "norm_label": "getmenu()",
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L35"
+      "source_location": "L38"
     },
     {
       "id": "server_src_modules_app_general_app_service_getprofiles",
@@ -3565,7 +3565,7 @@
       "file_type": "code",
       "norm_label": "getprofiles()",
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L88"
+      "source_location": "L91"
     },
     {
       "id": "server_src_modules_app_general_app_service_getsessioninfo",
@@ -3577,7 +3577,7 @@
       "file_type": "code",
       "norm_label": "getsessioninfo()",
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L102"
+      "source_location": "L105"
     },
     {
       "id": "server_src_modules_app_general_app_service_getstatusesbyscope",
@@ -3589,7 +3589,7 @@
       "file_type": "code",
       "norm_label": "getstatusesbyscope()",
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L157"
+      "source_location": "L160"
     },
     {
       "id": "server_src_modules_app_general_app_service_getuserpermissions",
@@ -3601,7 +3601,7 @@
       "file_type": "code",
       "norm_label": "getuserpermissions()",
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L139"
+      "source_location": "L142"
     },
     {
       "id": "server_src_modules_app_general_app_service_tochild",
@@ -3613,7 +3613,7 @@
       "file_type": "code",
       "norm_label": "tochild()",
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L25"
+      "source_location": "L28"
     },
     {
       "id": "server_src_modules_app_general_app_service_toparent",
@@ -3625,7 +3625,7 @@
       "file_type": "code",
       "norm_label": "toparent()",
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L16"
+      "source_location": "L17"
     },
     {
       "id": "server_src_modules_app_notifications_notifications_service_insertnotification",
@@ -6841,7 +6841,7 @@
       "file_type": "code",
       "norm_label": "main()",
       "source_file": "server/prisma/seed.js",
-      "source_location": "L281"
+      "source_location": "L282"
     },
     {
       "id": "client_src_api_firebase_handlefirebase_deletefile",
@@ -20762,6 +20762,17 @@
       "source_location": null
     },
     {
+      "id": "database_migrations_0093_billing_menu_collapsible",
+      "label": "0093_billing_menu_collapsible.sql",
+      "_origin": "ast",
+      "community": 166,
+      "community_name": "0093_billing_menu_collapsible.sql",
+      "file_type": "code",
+      "norm_label": "0093_billing_menu_collapsible.sql",
+      "source_file": "database/migrations/0093_billing_menu_collapsible.sql",
+      "source_location": null
+    },
+    {
       "id": "database_migrations_0078_create_policy_types",
       "label": "0078_create_policy_types.sql",
       "_origin": "ast",
@@ -25225,7 +25236,7 @@
       "file_type": "code",
       "norm_label": "address_types",
       "source_file": "server/prisma/seed.js",
-      "source_location": "L236"
+      "source_location": "L237"
     },
     {
       "id": "server_prisma_seed_contract_fields",
@@ -25236,7 +25247,7 @@
       "file_type": "code",
       "norm_label": "contract_fields",
       "source_file": "server/prisma/seed.js",
-      "source_location": "L269"
+      "source_location": "L270"
     },
     {
       "id": "server_prisma_seed_identity_documents",
@@ -25247,7 +25258,7 @@
       "file_type": "code",
       "norm_label": "identity_documents",
       "source_file": "server/prisma/seed.js",
-      "source_location": "L219"
+      "source_location": "L220"
     },
     {
       "id": "server_prisma_seed_pages",
@@ -25258,7 +25269,7 @@
       "file_type": "code",
       "norm_label": "pages",
       "source_file": "server/prisma/seed.js",
-      "source_location": "L13"
+      "source_location": "L14"
     },
     {
       "id": "server_prisma_seed_permissions",
@@ -25269,7 +25280,7 @@
       "file_type": "code",
       "norm_label": "permissions",
       "source_file": "server/prisma/seed.js",
-      "source_location": "L52"
+      "source_location": "L53"
     },
     {
       "id": "server_prisma_seed_permissions_no_page",
@@ -25280,7 +25291,7 @@
       "file_type": "code",
       "norm_label": "permissions_no_page",
       "source_file": "server/prisma/seed.js",
-      "source_location": "L160"
+      "source_location": "L161"
     },
     {
       "id": "server_prisma_seed_policy_types",
@@ -25291,7 +25302,7 @@
       "file_type": "code",
       "norm_label": "policy_types",
       "source_file": "server/prisma/seed.js",
-      "source_location": "L256"
+      "source_location": "L257"
     },
     {
       "id": "server_prisma_seed_provider_types",
@@ -25302,7 +25313,7 @@
       "file_type": "code",
       "norm_label": "provider_types",
       "source_file": "server/prisma/seed.js",
-      "source_location": "L229"
+      "source_location": "L230"
     },
     {
       "id": "server_prisma_seed_statuses",
@@ -25313,7 +25324,7 @@
       "file_type": "code",
       "norm_label": "statuses",
       "source_file": "server/prisma/seed.js",
-      "source_location": "L211"
+      "source_location": "L212"
     },
     {
       "id": "server_prisma_seed_supervision_types",
@@ -25324,7 +25335,7 @@
       "file_type": "code",
       "norm_label": "supervision_types",
       "source_file": "server/prisma/seed.js",
-      "source_location": "L245"
+      "source_location": "L246"
     },
     {
       "id": "server_prisma_seed_view_permissions",
@@ -25335,7 +25346,7 @@
       "file_type": "code",
       "norm_label": "view_permissions",
       "source_file": "server/prisma/seed.js",
-      "source_location": "L176"
+      "source_location": "L177"
     },
     {
       "id": "database_migrations_0049_create_contracts",
@@ -35961,7 +35972,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/layout/MainLayout/MenuList/index.jsx",
-      "source_location": "L105",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -35973,7 +35984,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/layout/MainLayout/MenuList/index.jsx",
-      "source_location": "L155",
+      "source_location": "L173",
       "weight": 1.0
     },
     {
@@ -46905,7 +46916,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L122",
+      "source_location": "L125",
       "weight": 1.0
     },
     {
@@ -46917,7 +46928,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L126",
+      "source_location": "L129",
       "weight": 1.0
     },
     {
@@ -115742,7 +115753,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/prisma/seed.js",
-      "source_location": "L13",
+      "source_location": "L14",
       "weight": 1.0
     },
     {
@@ -115753,7 +115764,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/prisma/seed.js",
-      "source_location": "L160",
+      "source_location": "L161",
       "weight": 1.0
     },
     {
@@ -115764,7 +115775,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/prisma/seed.js",
-      "source_location": "L176",
+      "source_location": "L177",
       "weight": 1.0
     },
     {
@@ -115775,7 +115786,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/prisma/seed.js",
-      "source_location": "L211",
+      "source_location": "L212",
       "weight": 1.0
     },
     {
@@ -115786,7 +115797,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/prisma/seed.js",
-      "source_location": "L219",
+      "source_location": "L220",
       "weight": 1.0
     },
     {
@@ -115797,7 +115808,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/prisma/seed.js",
-      "source_location": "L229",
+      "source_location": "L230",
       "weight": 1.0
     },
     {
@@ -115808,7 +115819,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/prisma/seed.js",
-      "source_location": "L236",
+      "source_location": "L237",
       "weight": 1.0
     },
     {
@@ -115819,7 +115830,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/prisma/seed.js",
-      "source_location": "L245",
+      "source_location": "L246",
       "weight": 1.0
     },
     {
@@ -115830,7 +115841,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/prisma/seed.js",
-      "source_location": "L256",
+      "source_location": "L257",
       "weight": 1.0
     },
     {
@@ -115841,7 +115852,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/prisma/seed.js",
-      "source_location": "L269",
+      "source_location": "L270",
       "weight": 1.0
     },
     {
@@ -115852,7 +115863,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/prisma/seed.js",
-      "source_location": "L281",
+      "source_location": "L282",
       "weight": 1.0
     },
     {
@@ -115863,7 +115874,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/prisma/seed.js",
-      "source_location": "L52",
+      "source_location": "L53",
       "weight": 1.0
     },
     {
@@ -119812,7 +119823,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L102",
+      "source_location": "L105",
       "weight": 1.0
     },
     {
@@ -119823,7 +119834,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L139",
+      "source_location": "L142",
       "weight": 1.0
     },
     {
@@ -119834,7 +119845,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L157",
+      "source_location": "L160",
       "weight": 1.0
     },
     {
@@ -119845,7 +119856,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L16",
+      "source_location": "L17",
       "weight": 1.0
     },
     {
@@ -119856,7 +119867,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L25",
+      "source_location": "L28",
       "weight": 1.0
     },
     {
@@ -119867,7 +119878,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L35",
+      "source_location": "L38",
       "weight": 1.0
     },
     {
@@ -119889,7 +119900,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L88",
+      "source_location": "L91",
       "weight": 1.0
     },
     {
@@ -130586,7 +130597,7 @@
       "confidence_score": 0.85,
       "context": "argument",
       "source_file": "client/src/layout/MainLayout/MenuList/index.jsx",
-      "source_location": "L174",
+      "source_location": "L192",
       "weight": 1.0
     },
     {
@@ -131018,7 +131029,7 @@
       "confidence_score": 0.85,
       "context": "argument",
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L55",
+      "source_location": "L58",
       "weight": 1.0
     },
     {
@@ -131030,7 +131041,7 @@
       "confidence_score": 0.85,
       "context": "argument",
       "source_file": "server/src/modules/app/general/app.service.js",
-      "source_location": "L63",
+      "source_location": "L66",
       "weight": 1.0
     },
     {
@@ -131959,5 +131970,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "2347f6744bfa953df935624432706cfc8e1627b1"
+  "built_at_commit": "43fbc9a7af823d998f54142b53f13b41d0113428"
 }

@@ -228,9 +228,9 @@
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/MenuList/index.jsx": {
-    "mtime": 1791235249.965191,
-    "seen": 1791238933.085383,
-    "ast_hash": "d0a508488d58704ff9c340f7097cc3f9",
+    "mtime": 1791924104.4812038,
+    "seen": 1791928261.4415147,
+    "ast_hash": "ef4a2da56d9ca70bb0cba24e9c97c2b2",
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/Sidebar/MiniDrawerStyled.jsx": {
@@ -954,9 +954,9 @@
     "semantic_hash": ""
   },
   "server/prisma/seed.js": {
-    "mtime": 1791912408.8601265,
-    "seen": 1791916678.0132625,
-    "ast_hash": "f834b98c5ffa5a2bebe100dd7447a73f",
+    "mtime": 1791924096.1705914,
+    "seen": 1791928261.4418373,
+    "ast_hash": "5a78ad37770cda4534ed8ddd093a535c",
     "semantic_hash": ""
   },
   "server/server.js": {
@@ -1212,9 +1212,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/app/general/app.service.js": {
-    "mtime": 1790976431.6898718,
-    "seen": 1790976704.6149883,
-    "ast_hash": "3e6d406da4825407a85e57798200b36a",
+    "mtime": 1791924096.1711223,
+    "seen": 1791928261.4419248,
+    "ast_hash": "805b1973594bfd2676fadcc76939b6e4",
     "semantic_hash": ""
   },
   "server/src/modules/app/general/app.validation.js": {
@@ -2370,9 +2370,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractFormPage.jsx": {
-    "mtime": 1791920046.608813,
-    "seen": 1791920330.0488698,
-    "ast_hash": "fd85d79fd1710aec58018200f99ac000",
+    "mtime": 1791923531.5952742,
+    "seen": 1791928261.441683,
+    "ast_hash": "0b74f34aba858ee8183c21d82e471345",
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractsPage.jsx": {
@@ -3345,6 +3345,12 @@
     "mtime": 1791921768.107861,
     "seen": 1791922722.6221876,
     "ast_hash": "bfd5b71b809691e25d2c370b70369aef",
+    "semantic_hash": ""
+  },
+  "database/migrations/0093_billing_menu_collapsible.sql": {
+    "mtime": 1791924085.0359182,
+    "seen": 1791928261.4418285,
+    "ast_hash": "833a686f215502eae89320c1f7b59d4c",
     "semantic_hash": ""
   }
 }

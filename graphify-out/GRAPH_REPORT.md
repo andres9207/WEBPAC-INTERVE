@@ -1,17 +1,17 @@
 # Graph Report - WEBPAC-INTERVE  (2026-10-13)
 
 ## Corpus Check
-- 554 files · ~258,018 words
+- 555 files · ~258,260 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 10 file(s) not represented in the graph (top: (none) 6, .template 1, .css 1)
 
 ## Summary
-- 3073 nodes · 8302 edges · 186 communities (109 shown, 77 thin omitted)
+- 3074 nodes · 8302 edges · 187 communities (109 shown, 78 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 116 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `2347f674`
+- Built from commit: `43fbc9a7`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -146,26 +146,26 @@
 5. `writeAudit()` - 59 edges
 6. `withLockedTransaction()` - 56 edges
 7. `showSuccess()` - 53 edges
-8. `auditContext()` - 48 edges
-9. `workScopeOf()` - 48 edges
+8. `workScopeOf()` - 48 edges
+9. `auditContext()` - 48 edges
 10. `@tabler/icons-react` - 48 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `saveModuleDoc()` --calls--> `runIdempotent()`  [EXTRACTED]
-  server/src/modules/app/documents/document.service.js → server/src/common/services/idempotency.service.js
 - `MainLayoutContent()` --calls--> `MainContentStyled`  [EXTRACTED]
   client/src/layout/MainLayout/index.jsx → client/src/layout/MainLayout/MainContentStyled.js
 - `policiesOf()` --indirect_call--> `policyValuesOf()`  [INFERRED]
   server/src/modules/work/contracts/contracts.service.js → server/src/modules/work/contracts/contractPolicies.service.js
-- `getContractFormOptions()` --calls--> `assertInScope()`  [EXTRACTED]
-  server/src/modules/work/contracts/contracts.service.js → server/src/common/services/workScope.service.js
+- `PrivateRoute()` --calls--> `useAuth()`  [EXTRACTED]
+  client/src/routes/PrivateRoute.jsx → client/src/contexts/authContext.jsx
+- `UserDialog` --indirect_call--> `ChipMultiSelect()`  [INFERRED]
+  client/src/views/security/users/components/UserDialog.jsx → client/src/ui-component/extended/ChipMultiSelect.jsx
 - `deleteModuleDoc()` --calls--> `withLockedTransaction()`  [EXTRACTED]
   server/src/modules/app/documents/document.service.js → server/src/common/services/transaction.service.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (186 total, 77 thin omitted)
+## Communities (187 total, 78 thin omitted)
 
 ### Community 0 - "overrides/index.js"
 Cohesion: 0.09
@@ -604,20 +604,20 @@ Cohesion: 0.20
 Nodes (5): ctx, ADR-0018, ADR-0019, prismaMock, state
 
 ## Knowledge Gaps
-- **876 isolated node(s):** `TABS`, `ADR-0012`, `ADR-0012`, `ADR-0012`, `TABS` (+871 more)
-  These have ≤1 connection - possible missing edges. (Counts symbols only; 1202 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **77 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **876 isolated node(s):** `EMPTY_FORM`, `NO_DESCRIPTION`, `ADR-0015`, `ADR-0006`, `PAGES` (+871 more)
+  These have ≤1 connection - possible missing edges. (Counts symbols only; 1203 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **78 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `ADR-0003` connect `permissions.constants.js` to `useAuth`, `users.service.js`?**
   _High betweenness centrality (0.142) - this node is a cross-community bridge._
-- **Why does `lodash` connect `DebouncedInput.jsx` to `server/package.json`, `providers.service.js`?**
-  _High betweenness centrality (0.131) - this node is a cross-community bridge._
 - **Why does `@mui/material` connect `@mui/material` to `WorksPage.jsx`, `formatTime.js`, `withAlpha`, `react-router-dom`, `client/package.json`, `AuthForgotPassword.jsx`, `themes/index.jsx`, `DebouncedInput.jsx`, `InvoiceFormPage.jsx`, `Default/index.jsx`, `constant.js`, `NotificationSection/index.jsx`, `constants.js`, `EasyCrop.jsx`, `ProviderTypePage.jsx`, `ContractFormPage.jsx`, `showError`, `useConfig`, `WorkDetailPage.jsx`, `NewProviderDialog.jsx`, `useAuth`, `PoliciesTab.jsx`, `AuthenticationRoutes.jsx`, `AppBar.jsx`, `MainLayout/index.jsx`?**
-  _High betweenness centrality (0.123) - this node is a cross-community bridge._
-- **What connects `TABS`, `ADR-0012`, `ADR-0012` to the rest of the system?**
+  _High betweenness centrality (0.141) - this node is a cross-community bridge._
+- **Why does `lodash` connect `DebouncedInput.jsx` to `server/package.json`, `providers.service.js`?**
+  _High betweenness centrality (0.139) - this node is a cross-community bridge._
+- **What connects `EMPTY_FORM`, `NO_DESCRIPTION`, `ADR-0015` to the rest of the system?**
   _876 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `overrides/index.js` be split into smaller, more focused modules?**
   _Cohesion score 0.08599033816425121 - nodes in this community are weakly interconnected._
