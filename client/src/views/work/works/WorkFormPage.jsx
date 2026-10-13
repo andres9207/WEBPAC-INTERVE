@@ -23,12 +23,13 @@ import SelectSocket from 'ui-component/extended/SelectSocket';
 import ManagerDialog from './components/ManagerDialog';
 import ManagersTable from './components/ManagersTable';
 import { useAuth } from 'contexts/AuthContext';
+import { useWorkScope } from 'contexts/WorkScopeContext';
 import { getConstructionCompaniesSelectAPI } from 'api/requests/constructionCompaniesApi';
 import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import { getSupervisionTypesSelectAPI } from 'api/requests/supervisionTypesApi';
 import { getWorkManagersSelectAPI, previewWorkEndDateAPI, worksApi } from 'api/requests/worksApi';
 import useEndDatePreview from 'hooks/useEndDatePreview';
-import { showError, showSuccess } from 'services/ToastService';
+import { showError, showInfo, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
 import { contactsToForm, contactsToPayload } from 'utils/contacts';
 import { STATUS, STATUS_OPTIONS, TERM_UNIT_OPTIONS } from 'utils/constants';
@@ -145,6 +146,7 @@ export default function WorkFormPage() {
   const isEdit = wrkId > 0;
   const navigate = useNavigate();
   const { refresh } = useOutletContext() ?? {};
+  const { focusWork } = useWorkScope();
 
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
@@ -240,7 +242,17 @@ export default function WorkFormPage() {
       const { data } = await worksApi.save(toPayload(wrkId, form), isEdit ? undefined : idempotencyKey);
       showSuccess(data.message || 'Guardado correctamente.');
       refresh?.();
-      navigate(`/work/works/${data.wrkId ?? wrkId}`);
+      if (isEdit) {
+        navigate(`/work/works/${wrkId}`);
+        return;
+      }
+      // La obra nueva queda fuera de la obra elegida en el encabezado: se
+      // cambia a ella antes de abrir su detalle (DEC-047).
+      const focused = await focusWork(data.wrkId, () => navigate(`/work/works/${data.wrkId}`)).catch(() => false);
+      if (!focused) {
+        showInfo('La obra se creó, pero no está en tu selector de obras: solo la ven sus responsables.');
+        leave();
+      }
     } catch (err) {
       showError(err.response?.data?.message || 'Error al guardar la obra');
     } finally {

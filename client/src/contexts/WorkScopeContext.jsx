@@ -76,9 +76,34 @@ export function WorkScopeProvider({ children }) {
     [useId]
   );
 
+  /**
+   * Lleva el encabezado a una obra recién creada y luego ejecuta `go` (la
+   * navegación a su detalle), antes de volver a montar el contenido: el
+   * detalle se pide ya con la obra nueva. Con "Ver todo" no hace falta
+   * cambiar. Pide la lista otra vez porque la obra todavía no está en ella;
+   * false si el usuario no la puede elegir (no es responsable ni ve todas).
+   */
+  const focusWork = useCallback(
+    async (wrkId, go) => {
+      if (state.activeWork === ALL_WORKS) {
+        go();
+        return true;
+      }
+      const { data } = await getMyWorksSelectAPI();
+      const next = Number(wrkId);
+      if (!data.works.some((w) => w.value === next)) return false;
+      setActiveWorkHeader(next);
+      storeWork(useId, next);
+      go();
+      setState((current) => ({ ...current, viewAll: data.viewAll, works: data.works, activeWork: next }));
+      return true;
+    },
+    [useId, state.activeWork]
+  );
+
   const value = useMemo(
-    () => ({ ...state, selectWork, scopeKey: String(state.activeWork ?? 'none') }),
-    [state, selectWork]
+    () => ({ ...state, selectWork, focusWork, scopeKey: String(state.activeWork ?? 'none') }),
+    [state, selectWork, focusWork]
   );
 
   if (!state.loaded) return <Loader />;
