@@ -4,12 +4,25 @@ import PropTypes from 'prop-types';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import LinearProgress from '@mui/material/LinearProgress';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TablePagination from '@mui/material/TablePagination';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
-import { IconEdit, IconEye, IconTrash, IconPlus, IconToggleLeft, IconToggleRight, IconLayoutGrid, IconList } from '@tabler/icons-react';
+import {
+  IconEdit,
+  IconEye,
+  IconTrash,
+  IconPlus,
+  IconToggleLeft,
+  IconToggleRight,
+  IconLayoutGrid,
+  IconList,
+  IconChevronDown
+} from '@tabler/icons-react';
 
 import MainCard from 'ui-component/cards/MainCard';
 import FilterButton from 'ui-component/extended/FilterButton';
@@ -91,6 +104,10 @@ const saveView = (key, value) => {
  * - `extraActions(row)`: acciones propias del maestro, después de Editar (p.
  *   ej. "Configurar campos" del tipo de proveedor, DEC-053). Cada una con
  *   `label`, `icon`, `command` y `tone`; las filtra por permiso quien las da.
+ * - `createOptions`: formas de crear (p. ej. proveedor nuevo o existente).
+ *   Con ellas, "Nuevo" despliega un menú; cada una con `label`, `icon` y
+ *   `command`, y las filtra por permiso quien las da. Sin ellas, "Nuevo"
+ *   abre el alta con el permiso de crear.
  */
 export default function MasterPage({
   title,
@@ -112,7 +129,8 @@ export default function MasterPage({
   stateTabs,
   filters,
   initialStatus,
-  extraActions
+  extraActions,
+  createOptions
 }) {
   const { hasPermission } = useAuth();
   // perId != null: con el catálogo cargando, hasPermission(undefined) es true (FRONTEND_STANDARD, regla 5).
@@ -127,6 +145,7 @@ export default function MasterPage({
   // Pestañas de workflow: la clave del estado; de activo/inactivo: el sta_id numérico.
   const [status, setStatus] = useState(() => (initialStatus ? (stateTabs ? initialStatus : Number(initialStatus)) : 'all'));
 
+  const [createAnchor, setCreateAnchor] = useState(null);
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [statusCounts, setStatusCounts] = useState({});
@@ -282,9 +301,19 @@ export default function MasterPage({
     : status !== 'all'
       ? `No hay ${plural} en este estado.`
       : `Todavía no hay ${plural}.`;
+  // Con `createOptions`, "Nuevo" abre el menú; sin ellas, el alta.
+  const hasCreateMenu = Boolean(createOptions?.length);
+  const canCreate = hasCreateMenu || can.create;
+  const handleCreate = (event) => (hasCreateMenu ? setCreateAnchor(event.currentTarget) : openNew());
   const emptyAction =
-    !fieldFilters.hasFilters && status === 'all' && can.create ? (
-      <Button variant="outlined" size="small" startIcon={<IconPlus size={16} />} onClick={openNew}>
+    !fieldFilters.hasFilters && status === 'all' && canCreate ? (
+      <Button
+        variant="outlined"
+        size="small"
+        startIcon={<IconPlus size={16} />}
+        endIcon={hasCreateMenu ? <IconChevronDown size={14} /> : null}
+        onClick={handleCreate}
+      >
         {feminine ? 'Crear la primera' : 'Crear el primero'}
       </Button>
     ) : null;
@@ -352,10 +381,39 @@ export default function MasterPage({
                 </ToggleButton>
               </ToggleButtonGroup>
             )}
-            {can.create && (
-              <Button variant="contained" size="small" startIcon={<IconPlus size={16} />} onClick={openNew}>
+            {canCreate && (
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<IconPlus size={16} />}
+                endIcon={hasCreateMenu ? <IconChevronDown size={14} /> : null}
+                onClick={handleCreate}
+                aria-haspopup={hasCreateMenu ? 'menu' : undefined}
+              >
                 Nuevo
               </Button>
+            )}
+            {hasCreateMenu && (
+              <Menu
+                anchorEl={createAnchor}
+                open={Boolean(createAnchor)}
+                onClose={() => setCreateAnchor(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+              >
+                {createOptions.map((option) => (
+                  <MenuItem
+                    key={option.label}
+                    onClick={() => {
+                      setCreateAnchor(null);
+                      option.command();
+                    }}
+                  >
+                    {option.icon && <ListItemIcon>{option.icon}</ListItemIcon>}
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Menu>
             )}
           </Stack>
         </Stack>
@@ -481,5 +539,9 @@ MasterPage.propTypes = {
   /** Filtros fijos de la petición, p. ej. `{ wrkId }`. Debe ser estable (useMemo). */
   filters: PropTypes.object,
   /** Acciones propias de una fila, después de Editar: `(row) => [{ label, icon, command, tone }]`. */
-  extraActions: PropTypes.func
+  extraActions: PropTypes.func,
+  /** Formas de crear, en un menú bajo "Nuevo": `[{ label, icon?, command }]`. */
+  createOptions: PropTypes.arrayOf(
+    PropTypes.shape({ label: PropTypes.string.isRequired, icon: PropTypes.node, command: PropTypes.func.isRequired })
+  )
 };

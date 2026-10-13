@@ -1,18 +1,26 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import Typography from '@mui/material/Typography';
+import { IconPlus, IconSearch } from '@tabler/icons-react';
 
 import MasterPage from 'ui-component/extended/MasterPage';
+import WorkProviderDialog from './components/WorkProviderDialog';
 import useLinkedFilters from 'hooks/useLinkedFilters';
 import { providersApi } from 'api/requests/providersApi';
 import { getProviderTypesSelectAPI } from 'api/requests/providerTypesApi';
 import { useAuth } from 'contexts/AuthContext';
-import { useWorkFilterField } from 'contexts/WorkScopeContext';
+import { useWorkFilterField, useWorkScope } from 'contexts/WorkScopeContext';
+import { ALL_WORKS } from 'utils/workScope';
 
 // Proveedores (ADR-0012, DEC-031). Reutiliza el listado de MasterPage
 // (filtros, pestañas por estado). Detalle, alta y edición son rutas hijas
 // que se abren en un modal sobre el listado, como obras (DEC-034). Un proveedor es una sola fila por empresa,
 // reutilizada en todas sus obras.
+//
+// Con una obra elegida en el encabezado, "Nuevo" ofrece dos caminos: crear un
+// proveedor (queda asignado a esa obra, lo hace el servidor) o agregar uno que
+// ya existe a la obra (WorkProviderDialog, el mismo de la pestaña Proveedores
+// de la obra). Con "Ver todo" no hay obra a la que asignar: solo crear.
 
 const COLUMNS = [
   {
@@ -58,7 +66,12 @@ const NO_LINKED_KEYS = [];
 const describeNothing = () => null;
 
 export default function ProvidersPage() {
-  const { permissionsCatalog } = useAuth();
+  const { permissionsCatalog, hasPermission } = useAuth();
+  const perms = permissionsCatalog.work?.providers;
+  const canDo = (perId) => perId != null && hasPermission(perId);
+  const { activeWork } = useWorkScope();
+  const workId = activeWork !== null && activeWork !== ALL_WORKS ? activeWork : null;
+  const [assignOpen, setAssignOpen] = useState(false);
   const navigate = useNavigate();
   const [reloadKey, setReloadKey] = useState(0);
   const outletContext = useMemo(() => ({ refresh: () => setReloadKey((k) => k + 1) }), []);
@@ -75,6 +88,15 @@ export default function ProvidersPage() {
     [navigate]
   );
 
+  const canAssign = workId !== null && canDo(perms?.assignWork);
+  const canCreate = canDo(perms?.create);
+  const createOptions = canAssign
+    ? [
+        ...(canCreate ? [{ label: 'Crear proveedor nuevo', icon: <IconPlus size={16} />, command: navigation.create }] : []),
+        { label: 'Agregar proveedor existente', icon: <IconSearch size={16} />, command: () => setAssignOpen(true) }
+      ]
+    : undefined;
+
   return (
     <>
       <MasterPage
@@ -82,7 +104,7 @@ export default function ProvidersPage() {
         pluralTitle="proveedores"
         idField="prvId"
         api={providersApi}
-        permissions={permissionsCatalog.work?.providers}
+        permissions={perms}
         columns={COLUMNS}
         filterFields={filterFields}
         defaultSort="name"
@@ -90,8 +112,20 @@ export default function ProvidersPage() {
         navigation={navigation}
         initialStatus={linked.initialStatus}
         reloadKey={reloadKey}
+        createOptions={createOptions}
       />
       <Outlet context={outletContext} />
+      {workId !== null && (
+        <WorkProviderDialog
+          open={assignOpen}
+          wrkId={workId}
+          onClose={() => setAssignOpen(false)}
+          onSaved={() => {
+            setAssignOpen(false);
+            outletContext.refresh();
+          }}
+        />
+      )}
     </>
   );
 }
