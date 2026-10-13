@@ -554,6 +554,7 @@ model tbl_construction_companies {
 model tbl_contract_types {
   ctt_id               Int             @id @default(autoincrement())
   ctt_name             String          @db.VarChar(100)
+  ctt_invoice_view     String?         @db.VarChar(20)
   sta_id               Int             @default(1)
   ctt_create_by        Int?
   ctt_create_at        DateTime?       @default(now()) @db.Timestamp(0)
@@ -802,7 +803,6 @@ model tbl_contracts {
   prv_id                      Int
   wks_id                      Int?
   ctt_id                      Int
-  ctr_billing_class           String                        @db.VarChar(20)
   ctr_number                  String                        @db.VarChar(50)
   ctr_name                    String                        @db.VarChar(200)
   ctr_start_date              DateTime                      @db.Date
@@ -849,7 +849,6 @@ model tbl_contracts {
   @@index([ctr_update_by], map: "tbl_contracts_update_by")
   @@index([wrk_id, prv_id], map: "tbl_contracts_work_provider")
   @@index([wks_id, wrk_id], map: "tbl_contracts_work_stage")
-  @@index([ctr_billing_class], map: "idx_contracts_billing_class")
 }
 
 /// Conceptos contractuales (database/migrations/0050_create_contract_concepts.sql, DEC-036): valor inicial,

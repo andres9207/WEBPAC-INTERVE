@@ -128,11 +128,14 @@ export const INVOICE_VIEWS = {
 export const invoicePath = (view, invId, suffix) =>
   ['/billing/invoices', INVOICE_VIEWS[view]?.path ?? INVOICE_VIEWS.SIMPLE.path, invId, suffix].filter(Boolean).join('/');
 
-// Clase de facturación del contrato (DEC-054): decide la vista de sus facturas.
-export const BILLING_CLASS_OPTIONS = [
-  { value: 'MAJOR', label: 'Contrato mayor' },
-  { value: 'SUBCONTRACTOR', label: 'Subcontratista' }
+// Menú de facturas de un tipo de contrato (DEC-054): la vista de las facturas
+// de sus contratos. Sin valor, sus contratos no admiten facturas.
+export const CONTRACT_INVOICE_VIEW_OPTIONS = [
+  { value: 'MAJOR', label: INVOICE_VIEWS.MAJOR.title },
+  { value: 'SUBCONTRACTOR', label: INVOICE_VIEWS.SUBCONTRACTOR.title }
 ];
+
+export const contractInvoiceViewName = (view) => CONTRACT_INVOICE_VIEW_OPTIONS.find((o) => o.value === view)?.label ?? 'Sin definir';
 export const reasonScopeName = (scope) => REASON_SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? scope;
 
 const TERM_UNIT_NAMES = { DIA: ['día', 'días'], MES: ['mes', 'meses'], ANIO: ['año', 'años'] };

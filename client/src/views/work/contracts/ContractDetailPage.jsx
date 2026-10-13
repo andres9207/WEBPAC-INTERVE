@@ -26,7 +26,7 @@ import { useSocket } from 'socket/SocketProvider';
 import { showError, showSuccess } from 'services/ToastService';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
-import { CONTRACT_STATE_COLORS, fTerm } from 'utils/constants';
+import { CONTRACT_STATE_COLORS, contractInvoiceViewName, fTerm } from 'utils/constants';
 
 /**
  * Expediente de un contrato (PRO-FE-05), en un modal sobre el listado con
@@ -164,7 +164,6 @@ export default function ContractDetailPage() {
             </Typography>
             <StatusChip staId={contract.state} label={contract.stateName} scope={null} colorMap={CONTRACT_STATE_COLORS} />
             {contract.contractType && <Chip label={contract.contractType} size="small" color="primary" variant="outlined" />}
-            {contract.billingClassName && <Chip label={contract.billingClassName} size="small" variant="outlined" />}
           </Stack>
           <Typography variant="body2" color="text.secondary">
             {contract.workCode} {contract.workName} · {contract.providerName}
@@ -240,7 +239,7 @@ export default function ContractDetailPage() {
                     ['Etapa', contract.stageName],
                     ['Proveedor', `${contract.providerName} · ${contract.providerIdentification}`],
                     ['Tipo de contrato', contract.contractType],
-                    ['Clase de facturación', contract.billingClassName],
+                    ['Menú de facturas', contractInvoiceViewName(contract.invoiceView)],
                     ['AIU', contract.aiuRequested === false ? 'No solicitado' : 'Solicitado'],
                     ['Observaciones', contract.observation]
                   ]}

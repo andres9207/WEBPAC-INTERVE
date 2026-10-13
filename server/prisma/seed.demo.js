@@ -564,8 +564,6 @@ async function main() {
           prvId: providerIds[contract.provider],
           wksId,
           cttId: typeIds[contract.type],
-          // Clase de facturación (DEC-054): subcontratista si el proveedor lo es.
-          billingClass: PROVIDERS.find((p) => p.key === contract.provider).pvtIds.includes(PROVIDER_TYPE.SUBCONTRACTOR) ? "SUBCONTRACTOR" : "MAJOR",
           number: contract.number,
           name: contract.name,
           startDate: contract.startDate,

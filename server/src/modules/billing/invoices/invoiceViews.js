@@ -1,5 +1,5 @@
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
-import { BILLING_CLASSES } from "../../work/contracts/contractTerms.js";
+import { CONTRACT_INVOICE_VIEWS } from "../../admin/contractTypes/contractTypes.service.js";
 import { INVOICE_TYPES } from "./invoiceTerms.js";
 
 /**
@@ -7,11 +7,12 @@ import { INVOICE_TYPES } from "./invoiceTerms.js";
  * una sola, y cada vista tiene su permiso de ver.
  *
  *   SIMPLE          la factura simple (sin contrato)
- *   MAJOR           las de un contrato de clase contrato mayor
- *   SUBCONTRACTOR   las de un contrato de clase subcontratista
+ *   MAJOR           las de un contrato cuyo tipo va al menú contrato mayor
+ *   SUBCONTRACTOR   las de un contrato cuyo tipo va al menú subcontratistas
  *
- * La vista no se guarda en la factura: sale del tipo y de la clase del
- * contrato (ADR-0022, alternativa C descartada). Las acciones (crear,
+ * La vista no se guarda en la factura: sale de su tipo y del menú de
+ * facturas del tipo de su contrato (`ctt_invoice_view`; ADR-0022,
+ * alternativa C descartada). Las acciones (crear,
  * aprobar, anular…) son comunes; operar sobre una factura exige además ver
  * su vista. Una factura de una vista que el usuario no ve responde 404, como
  * una fuera del alcance por obra.
@@ -19,8 +20,8 @@ import { INVOICE_TYPES } from "./invoiceTerms.js";
 
 export const INVOICE_VIEWS = Object.freeze({
   SIMPLE: "SIMPLE",
-  MAJOR: BILLING_CLASSES.MAJOR,
-  SUBCONTRACTOR: BILLING_CLASSES.SUBCONTRACTOR,
+  MAJOR: CONTRACT_INVOICE_VIEWS.MAJOR,
+  SUBCONTRACTOR: CONTRACT_INVOICE_VIEWS.SUBCONTRACTOR,
 });
 
 const can = PERMISSIONS.billing.invoices;
@@ -31,7 +32,7 @@ export const VIEW_PERMISSIONS = Object.freeze({
   [INVOICE_VIEWS.SUBCONTRACTOR]: can.viewSubcontractor,
 });
 
-/** Vistas de facturas de contrato: las que tienen clase. */
+/** Vistas de facturas de contrato: los menús de facturas de los tipos de contrato. */
 export const CONTRACT_VIEWS = Object.freeze([INVOICE_VIEWS.MAJOR, INVOICE_VIEWS.SUBCONTRACTOR]);
 
 /** Los tres permisos de ver: cualquiera abre los endpoints comunes (el service filtra). */
@@ -40,8 +41,14 @@ export const ANY_VIEW_PERMISSION = Object.freeze(Object.values(VIEW_PERMISSIONS)
 /** Los de las vistas de contrato: saldos de un contrato y selector de contratos. */
 export const ANY_CONTRACT_VIEW_PERMISSION = Object.freeze(CONTRACT_VIEWS.map((view) => VIEW_PERMISSIONS[view]));
 
-/** Vista de una factura: la simple, o la clase de su contrato. */
-export const viewOf = (type, billingClass) => (type === INVOICE_TYPES.SIMPLE ? INVOICE_VIEWS.SIMPLE : billingClass);
+/** Vista de una factura: la simple, o el menú de facturas del tipo de su contrato. */
+export const viewOf = (type, contractInvoiceView) => (type === INVOICE_TYPES.SIMPLE ? INVOICE_VIEWS.SIMPLE : contractInvoiceView);
+
+/** Prisma: el menú de facturas del tipo de un contrato, para leer la vista de una factura. */
+export const CONTRACT_VIEW_SELECT = Object.freeze({ tbl_contract_types: { select: { ctt_invoice_view: true } } });
+
+/** Vista de una fila de factura leída con `tbl_contracts: { select: CONTRACT_VIEW_SELECT… }`. */
+export const viewOfRow = (row) => viewOf(row.inv_type, row.tbl_contracts?.tbl_contract_types?.ctt_invoice_view);
 
 /** Vistas que el usuario ve, según sus permisos efectivos (`granted`, un Set de per_id). */
 export const grantedViews = (granted) => Object.keys(VIEW_PERMISSIONS).filter((view) => granted?.has(VIEW_PERMISSIONS[view]));
@@ -61,7 +68,7 @@ export const viewsWhere = (views) => {
   if (list.length === Object.keys(VIEW_PERMISSIONS).length) return {};
   return {
     OR: list.map((view) =>
-      view === INVOICE_VIEWS.SIMPLE ? { inv_type: INVOICE_TYPES.SIMPLE } : { tbl_contracts: { ctr_billing_class: view } }
+      view === INVOICE_VIEWS.SIMPLE ? { inv_type: INVOICE_TYPES.SIMPLE } : { tbl_contracts: { tbl_contract_types: { ctt_invoice_view: view } } }
     ),
   };
 };

@@ -93,7 +93,7 @@ describe("getDashboardSummary", () => {
     expect(where.inv_state).toEqual({ in: ["REGISTERED", "APPROVED"] });
     // Solo las de contrato tienen obra (DEC-054).
     expect(where.wrk_id).toEqual({ not: null });
-    expect(JSON.stringify(where.AND)).toContain('"ctr_billing_class":"MAJOR"');
+    expect(JSON.stringify(where.AND)).toContain('"ctt_invoice_view":"MAJOR"');
     expect(invoices.byWork).toEqual([
       { wrkId: 8, registered: 2, approved: 3, workCode: "OB-8", workName: "Vía" },
       { wrkId: 3, registered: 1, approved: 0, workCode: "OB-3", workName: "Puente" },
@@ -108,7 +108,7 @@ describe("getDashboardSummary", () => {
     expect(invoices.pendingApproval).toBe(4);
     const latestWhere = JSON.stringify(prismaMock.tbl_invoices.findMany.mock.calls[0][0].where);
     expect(latestWhere).toContain('"inv_type":"SIMPLE"');
-    expect(latestWhere).not.toContain("ctr_billing_class");
+    expect(latestWhere).not.toContain("ctt_invoice_view");
     // Sin vistas de contrato, el ranking por obra no devuelve nada.
     expect(JSON.stringify(prismaMock.tbl_invoices.groupBy.mock.calls[0][0].where)).toContain('"inv_id":{"in":[]}');
 

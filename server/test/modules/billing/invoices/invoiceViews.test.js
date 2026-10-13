@@ -1,5 +1,5 @@
 import { PERMISSIONS } from "../../../../src/common/constants/permissions.constants.js";
-import { BILLING_CLASSES } from "../../../../src/modules/work/contracts/contractTerms.js";
+import { CONTRACT_INVOICE_VIEWS } from "../../../../src/modules/admin/contractTypes/contractTypes.service.js";
 import {
   ANY_CONTRACT_VIEW_PERMISSION,
   ANY_VIEW_PERMISSION,
@@ -13,14 +13,14 @@ import {
 } from "../../../../src/modules/billing/invoices/invoiceViews.js";
 
 // Vistas de facturas (DEC-054): cada factura en una sola, cada vista con su
-// permiso de ver, y la vista derivada del tipo y la clase del contrato.
+// permiso de ver, y la vista derivada del menú de facturas del tipo de contrato.
 
 const can = PERMISSIONS.billing.invoices;
 
 describe("vistas y permisos", () => {
-  it("cada vista tiene su permiso de ver, y las de contrato son las clases del contrato", () => {
+  it("cada vista tiene su permiso de ver, y las de contrato son los menús de los tipos de contrato", () => {
     expect(VIEW_PERMISSIONS).toEqual({ SIMPLE: can.viewSimple, MAJOR: can.viewMajor, SUBCONTRACTOR: can.viewSubcontractor });
-    expect([INVOICE_VIEWS.MAJOR, INVOICE_VIEWS.SUBCONTRACTOR]).toEqual(Object.values(BILLING_CLASSES));
+    expect([INVOICE_VIEWS.MAJOR, INVOICE_VIEWS.SUBCONTRACTOR]).toEqual(Object.values(CONTRACT_INVOICE_VIEWS));
     expect(ANY_VIEW_PERMISSION).toEqual([105, 106, 107]);
     expect(ANY_CONTRACT_VIEW_PERMISSION).toEqual([106, 107]);
   });
@@ -33,7 +33,7 @@ describe("vistas y permisos", () => {
 });
 
 describe("vista de una factura", () => {
-  it("la simple es la suya; la de contrato, la clase de su contrato", () => {
+  it("la simple es la suya; la de contrato, el menú del tipo de su contrato", () => {
     expect(viewOf("SIMPLE", undefined)).toBe("SIMPLE");
     expect(viewOf("ADVANCE", "MAJOR")).toBe("MAJOR");
     expect(viewOf("LIQUIDATION", "SUBCONTRACTOR")).toBe("SUBCONTRACTOR");
@@ -47,9 +47,9 @@ describe("filtro por vistas", () => {
     expect(viewsWhere(undefined)).toEqual({});
   });
 
-  it("la simple por tipo; las de contrato, por la clase del contrato", () => {
+  it("la simple por tipo; las de contrato, por el menú del tipo de contrato", () => {
     expect(viewsWhere(["SIMPLE", "SUBCONTRACTOR"])).toEqual({
-      OR: [{ inv_type: "SIMPLE" }, { tbl_contracts: { ctr_billing_class: "SUBCONTRACTOR" } }],
+      OR: [{ inv_type: "SIMPLE" }, { tbl_contracts: { tbl_contract_types: { ctt_invoice_view: "SUBCONTRACTOR" } } }],
     });
   });
 

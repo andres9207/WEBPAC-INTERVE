@@ -60,6 +60,9 @@ const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
  *   eliminadas lógicamente, para dependientes que son historial (obras de una constructora, ADR-0004).
  *   `where` reemplaza ese filtro, para una tabla de unión sin `sta_id` que se filtra por su padre
  *   (tipos de un proveedor, DEC-041).
+ * @param {(tx, { id, before, values }) => Promise<void>} [config.beforeUpdate] Regla propia al
+ *   editar, con el registro ya bloqueado (`before`) y los valores pedidos: lanza para rechazar
+ *   (el menú de facturas de un tipo de contrato con facturas, DEC-054).
  * @param {string} [config.socketEvent] Evento que recarga los selectores.
  * @param {{ entity: string }} [config.audit] Bitácora funcional (AUDIT_ENTITIES).
  */
@@ -144,10 +147,12 @@ export const createMasterService = (config) => {
     updated_by_user: USER_NAME_SELECT,
   };
 
-  // Texto: sin espacios de borde y, si el campo lo pide, en mayúsculas.
+  // Texto: sin espacios de borde y, si el campo lo pide, en mayúsculas. Una
+  // lista cerrada opcional sin valor se guarda como NULL: su CHECK no admite "".
   const normalize = (field, value) => {
     if (value == null) return null;
     const text = String(value).trim();
+    if (field.options && !field.required && text === "") return null;
     return field.uppercase ? text.toUpperCase() : text;
   };
 
@@ -291,6 +296,7 @@ export const createMasterService = (config) => {
         const before = await findLocked(tx, id);
         // El ámbito no es editable: se toma del registro.
         await assertUnique(tx, values, id, scope && before[scope.column]);
+        if (config.beforeUpdate) await config.beforeUpdate(tx, { id: Number(id), before, values });
         await tx[model].update({ where: { [ID]: Number(id) }, data: { ...values, [col("update_by")]: Number(useBy) } });
         await audit(tx, { operation: AUDIT_OPERATIONS.UPDATE, recordId: Number(id), ctx, before, after: values });
         return { message: `${Label} modificad${a} correctamente` };

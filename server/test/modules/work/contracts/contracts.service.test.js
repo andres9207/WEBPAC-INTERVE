@@ -57,7 +57,6 @@ const input = (overrides = {}) => ({
   prvId: 77,
   wksId: 11,
   cttId: 2,
-  billingClass: "MAJOR",
   number: " C-001 ",
   name: "Suministro de acero",
   startDate: "2026-01-31",
@@ -82,7 +81,6 @@ const storedContract = {
   prv_id: 77,
   wks_id: 11,
   ctt_id: 2,
-  ctr_billing_class: "MAJOR",
   ctr_number: "C-001",
   ctr_name: "Suministro de acero",
   ctr_start_date: new Date("2026-01-31T00:00:00Z"),
@@ -356,28 +354,17 @@ describe("saveContract — editar", () => {
     await expect(service.saveContract({ ctrId: 30, input: input({ term: 8 }), useBy: 9, ctx })).resolves.toMatchObject({ ctrId: 30 });
   });
 
-  it("con facturas no cambia entre contrato mayor y subcontratista (409, DEC-054); sin facturas, sí y queda en la bitácora", async () => {
+  it("con facturas no cambia el tipo de contrato (409, DEC-054): decide la vista de sus facturas; sin facturas, sí", async () => {
     prismaMock.tbl_invoices.count.mockResolvedValue(1);
-    await expect(service.saveContract({ ctrId: 30, input: input({ billingClass: "SUBCONTRACTOR" }), useBy: 9, ctx })).rejects.toMatchObject({
+    await expect(service.saveContract({ ctrId: 30, input: input({ cttId: 3 }), useBy: 9, ctx })).rejects.toMatchObject({
       statusCode: 409,
-      message: "El contrato tiene facturas registradas: no se puede cambiar entre contrato mayor y subcontratista.",
+      message: "El contrato tiene facturas registradas: no se puede cambiar su tipo de contrato.",
     });
     expect(prismaMock.tbl_contracts.update).not.toHaveBeenCalled();
 
     prismaMock.tbl_invoices.count.mockResolvedValue(0);
-    await service.saveContract({ ctrId: 30, input: input({ billingClass: "SUBCONTRACTOR" }), useBy: 9, ctx });
-    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ ctr_billing_class: "SUBCONTRACTOR" });
-    expect(auditRows()).toEqual(
-      expect.arrayContaining([expect.objectContaining({ aud_field: "ctr_billing_class", aud_old_value: "MAJOR", aud_new_value: "SUBCONTRACTOR" })])
-    );
-  });
-
-  it("sin clase de facturación válida responde 400 (DEC-054)", async () => {
-    await expect(service.saveContract({ ctrId: 0, input: input({ billingClass: "OTRA" }), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
-      statusCode: 400,
-      message: "Indica si el contrato es de contrato mayor o de subcontratista.",
-    });
-    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    await service.saveContract({ ctrId: 30, input: input({ cttId: 3 }), useBy: 9, ctx });
+    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ ctt_id: 3 });
   });
 });
 

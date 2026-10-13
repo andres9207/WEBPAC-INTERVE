@@ -50,7 +50,7 @@ import {
   retentionBalances,
   retentionDto,
 } from "./retentionTerms.js";
-import { INVOICE_VIEWS, assertViewGranted, seesView, viewOf, viewsWhere } from "./invoiceViews.js";
+import { CONTRACT_VIEW_SELECT, INVOICE_VIEWS, assertViewGranted, seesView, viewOfRow, viewsWhere } from "./invoiceViews.js";
 
 /**
  * Facturas, fase A (ADR-0020, DEC-042): encabezado común, ciclo de vida y
@@ -163,8 +163,8 @@ export const invoiceScopeWhere = (scope) =>
 /**
  * 404 si la factura está fuera del alcance por obra o de las vistas que ve
  * el usuario (`access`: `{ scope, views }`). Obra, tipo y contrato no
- * cambian nunca, y la clase del contrato tampoco una vez que tiene facturas:
- * se lee fuera de la transacción. Una factura inexistente da el mismo 404.
+ * cambian nunca, y el tipo del contrato y su menú de facturas tampoco una vez
+ * que hay facturas: se lee fuera de la transacción. Una factura inexistente da el mismo 404.
  */
 const assertInvoiceVisible = async ({ scope, views }, invId) => {
   // Sin alcance ni vistas (llamadas internas): nada que restringir; el
@@ -251,16 +251,16 @@ export const contractBalances = async (db, ctrId) => {
  * anticipo y, aparte, los de retenido, que es una garantía contractual y no
  * una retención tributaria. Si llega `value`, también la amortización y el
  * retenido por defecto de una liquidación por ese VALOR. Solo lectura: al
- * guardar se recalcula todo. Exige ver la vista de la clase del contrato.
+ * guardar se recalcula todo. Exige ver la vista del tipo del contrato.
  */
 export const getContractAdvance = async ({ ctrId, value, scope, views }) => {
   await assertContractInScope(scope, ctrId);
   const contract = await prisma.tbl_contracts.findFirst({
     where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS } },
-    select: { ctr_id: true, ctr_billing_class: true },
+    select: { ctr_id: true, ...CONTRACT_VIEW_SELECT },
   });
   if (!contract) throw httpError(404, "No se encontró el contrato.");
-  assertViewGranted(views, contract.ctr_billing_class, "No se encontró el contrato.");
+  assertViewGranted(views, contract.tbl_contract_types?.ctt_invoice_view, "No se encontró el contrato.");
   const balances = await contractBalances(prisma, contract.ctr_id);
   const amount = toMoney(value);
   return {
@@ -536,7 +536,7 @@ const LIST_SELECT = {
   updated_by_user: USER_NAME_SELECT,
   tbl_providers: { select: { prv_name: true } },
   tbl_works: { select: { wrk_code: true, wrk_name: true } },
-  tbl_contracts: { select: { ctr_number: true, ctr_billing_class: true, tbl_work_stages: { select: { wks_name: true } } } },
+  tbl_contracts: { select: { ctr_number: true, ...CONTRACT_VIEW_SELECT, tbl_work_stages: { select: { wks_name: true } } } },
 };
 
 const toListDto = (row) => ({
@@ -544,7 +544,7 @@ const toListDto = (row) => ({
   type: row.inv_type,
   typeName: TYPE_NAMES[row.inv_type] ?? row.inv_type,
   // Vista a la que pertenece (DEC-054): el cliente arma con ella la dirección de la factura.
-  view: viewOf(row.inv_type, row.tbl_contracts?.ctr_billing_class),
+  view: viewOfRow(row),
   number: row.inv_number,
   date: dateOnlyText(row.inv_date),
   approvalDate: dateOnlyText(row.inv_approval_date),
@@ -692,7 +692,7 @@ export const getInvoice = async ({ invId, scope, views }) => {
       tbl_providers: { select: { prv_name: true, prv_identification: true, tbl_identity_documents: { select: { idd_code: true } } } },
       tbl_works: { select: { wrk_code: true, wrk_name: true } },
       tbl_contracts: {
-        select: { ctr_number: true, ctr_name: true, ctr_state: true, ctr_billing_class: true, tbl_work_stages: { select: { wks_name: true } } },
+        select: { ctr_number: true, ctr_name: true, ctr_state: true, ...CONTRACT_VIEW_SELECT, tbl_work_stages: { select: { wks_name: true } } },
       },
       tbl_invoice_status_history: {
         select: {
@@ -717,7 +717,7 @@ export const getInvoice = async ({ invId, scope, views }) => {
     invId: row.inv_id,
     type: row.inv_type,
     typeName: TYPE_NAMES[row.inv_type] ?? row.inv_type,
-    view: viewOf(row.inv_type, contract?.ctr_billing_class),
+    view: viewOfRow(row),
     prvId: row.prv_id,
     wrkId: row.wrk_id,
     ctrId: row.ctr_id,
@@ -802,7 +802,7 @@ export const selectInvoiceProviders = async ({ search, includePrvId, scope } = {
 };
 
 /**
- * Contratos de la clase `view` (DEC-054) que hoy admiten el tipo de factura
+ * Contratos cuyo tipo va al menú `view` (DEC-054) y que hoy admiten el tipo de factura
  * pedido (ADR-0017, "Efectos de cada estado"): el anticipo, en ejecución;
  * liquidación y devolución, en liquidación. Con tope fijo, como un selector
  * (DEC-018); busca por número, nombre, proveedor y obra. `includeCtrId`: el
@@ -816,7 +816,12 @@ export const selectInvoiceContracts = async ({ type, view, search, includeCtrId,
   const states = Object.entries(CONTRACT_STATE_ALLOWS)
     .filter(([, actions]) => actions.includes(action))
     .map(([state]) => state);
-  const admitted = { sta_id: { not: DELETED_STATUS }, ctr_billing_class: view, ctr_state: { in: states }, ...scopeWhere(scope) };
+  const admitted = {
+    sta_id: { not: DELETED_STATUS },
+    ...(view ? { tbl_contract_types: { ctt_invoice_view: view } } : {}),
+    ctr_state: { in: states },
+    ...scopeWhere(scope),
+  };
   const select = {
     ctr_id: true,
     ctr_number: true,
@@ -949,13 +954,22 @@ const createSimpleInvoice = ({ input, document, useBy, ctx, idempotencyData }) =
  * estado debe admitir el tipo (ADR-0017, "Efectos de cada estado"). Bloquea
  * el contrato: serializa con el otrosí de liquidación y la suspensión, que
  * cambian ese estado, y con las facturas que mueven los saldos de anticipo
- * y de retenido, y con el cambio de su clase: la de facturación (DEC-054)
- * se lee aquí, bajo bloqueo, y debe ser una vista que el usuario ve.
+ * y de retenido. Bloquea también su tipo de contrato (al final, como los
+ * maestros): el menú de facturas del tipo (DEC-054) se lee bajo bloqueo, no
+ * se cruza con un cambio del menú, y debe ser una vista que el usuario ve.
+ * Un tipo sin menú definido no admite facturas (409).
  */
-const createContractInvoice = ({ input, document, granted, views, useBy, ctx, idempotencyData }) =>
-  withLockedTransaction({ CONTRATO: Number(input.ctrId) }, async (tx) => {
+const createContractInvoice = async ({ input, document, granted, views, useBy, ctx, idempotencyData }) => {
+  const known = await prisma.tbl_contracts.findUnique({ where: { ctr_id: Number(input.ctrId) }, select: { ctt_id: true } });
+  if (!known) throw httpError(404, "No se encontró el contrato.");
+  return withLockedTransaction({ CONTRATO: Number(input.ctrId), TIPO_CONTRATO: known.ctt_id }, async (tx) => {
     const contract = await findLockedContract(tx, input.ctrId);
-    assertViewGranted(views, contract.ctr_billing_class, "No se encontró el contrato.");
+    if (contract.ctt_id !== known.ctt_id) throw httpError(409, "El contrato cambió de tipo mientras se registraba la factura. Vuelve a intentarlo.");
+    const contractType = await tx.tbl_contract_types.findUnique({ where: { ctt_id: contract.ctt_id }, select: { ctt_name: true, ctt_invoice_view: true } });
+    if (!contractType?.ctt_invoice_view) {
+      throw httpError(409, `El tipo de contrato "${contractType?.ctt_name ?? ""}" no tiene definido su menú de facturas: defínelo en el maestro antes de facturar.`);
+    }
+    assertViewGranted(views, contractType.ctt_invoice_view, "No se encontró el contrato.");
     assertContractAllows(contract.ctr_state, INVOICE_ACTIONS[input.type]);
     if (document.inv_date.getTime() < new Date(dateOnlyText(contract.ctr_start_date)).getTime()) {
       throw httpError(400, `La fecha de la factura no puede ser anterior al inicio del contrato (${dateOnlyText(contract.ctr_start_date)}).`);
@@ -964,6 +978,7 @@ const createContractInvoice = ({ input, document, granted, views, useBy, ctx, id
     const detail = await resolveDetail(tx, { type: input.type, ctrId: contract.ctr_id, input, granted });
     return insertInvoice(tx, { values, detail, useBy, ctx, idempotencyData });
   });
+};
 
 // ─── Editar ──────────────────────────────────────────────────────────────────
 

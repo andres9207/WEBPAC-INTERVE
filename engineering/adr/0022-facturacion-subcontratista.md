@@ -63,7 +63,7 @@ Es una regla de **configuración del contrato**, que vive en el tipo de contrato
 
 2. **La distinción entre contratista mayor y subcontratista es un atributo del proveedor del contrato**, no de la factura. Se deriva de `factura → contrato → proveedor → tipo de proveedor`. **No se copia en la factura.**
 
-   **Actualización 2026-10-13 ([DEC-054](../decisiones/DEC-054-vistas-facturas-simple-sin-obra.md)):** la distinción sigue fuera de la factura, pero vive en el **contrato** (`ctr_billing_class`: contrato mayor o subcontratista), elegida al crearlo y fija una vez que tiene facturas. No se deduce de los tipos del proveedor, porque un proveedor puede tener varios ([DEC-041](../decisiones/DEC-041-varios-tipos-proveedor.md)). Resuelve H7. Las facturas se consultan en una vista por clase, cada una con su permiso de ver.
+   **Actualización 2026-10-13 ([DEC-054](../decisiones/DEC-054-vistas-facturas-simple-sin-obra.md)):** la distinción sigue fuera de la factura, pero la decide el **tipo de contrato**: cada tipo declara su menú de facturas (`ctt_invoice_view`: contrato mayor o subcontratista; sin definir, sus contratos no admiten facturas). No se deduce de los tipos del proveedor, porque un proveedor puede tener varios ([DEC-041](../decisiones/DEC-041-varios-tipos-proveedor.md)). Resuelve H7: "mayor" es tipo de contrato. Las facturas se consultan en una vista por menú, cada una con su permiso de ver.
 
 3. **No se implementa ninguna regla diferenciada sin validación previa.**
 

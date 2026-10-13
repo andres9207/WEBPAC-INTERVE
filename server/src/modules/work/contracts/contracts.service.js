@@ -13,8 +13,6 @@ import { resolveProviderFields } from "../../admin/providerTypes/providerTypeFie
 import { FIELD_GROUPS, enforceFields, typeAppliesAiu, withContractAiu } from "../../admin/providerTypes/contractFields.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import {
-  BILLING_CLASSES,
-  BILLING_CLASS_NAMES,
   CONCEPT_TYPES,
   CONCEPT_TYPE_NAMES,
   STATE_ALLOWS,
@@ -57,8 +55,8 @@ import { insertPolicy, policyValuesOf } from "./contractPolicies.service.js";
  *   si aplica, el contrato lo solicita (`ctr_aiu_requested`) y el concepto
  *   pacta A, I y U.
  *   Apagarlo o encenderlo exige el permiso propio.
- * - Clase de facturación (DEC-054): contrato mayor o subcontratista, elegida
- *   al crear. Decide la vista de sus facturas, así que con facturas no cambia.
+ * - El tipo de contrato decide la vista de sus facturas (su menú de
+ *   facturas, DEC-054): con facturas, el contrato no cambia de tipo.
  */
 
 export const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
@@ -191,7 +189,6 @@ export const findLockedContract = async (tx, ctrId) => {
       prv_id: true,
       wks_id: true,
       ctt_id: true,
-      ctr_billing_class: true,
       ctr_number: true,
       ctr_name: true,
       ctr_start_date: true,
@@ -274,7 +271,6 @@ const SORT_FIELDS = {
 const LIST_SELECT = {
   ctr_id: true,
   wrk_id: true,
-  ctr_billing_class: true,
   ctr_number: true,
   ctr_name: true,
   ctr_start_date: true,
@@ -303,8 +299,6 @@ const toListDto = (row) => ({
   providerName: row.tbl_providers?.prv_name ?? null,
   stageName: row.tbl_work_stages?.wks_name ?? null,
   contractType: row.tbl_contract_types?.ctt_name ?? null,
-  billingClass: row.ctr_billing_class,
-  billingClassName: BILLING_CLASS_NAMES[row.ctr_billing_class] ?? row.ctr_billing_class,
   startDate: dateOnlyText(row.ctr_start_date),
   endDate: dateOnlyText(row.ctr_end_date),
   endDateProvisional: isEndDateProvisional(row.ctr_state),
@@ -429,7 +423,6 @@ export const getContract = async ({ ctrId, scope }) => {
       prv_id: true,
       wks_id: true,
       ctt_id: true,
-      ctr_billing_class: true,
       ctr_number: true,
       ctr_name: true,
       ctr_start_date: true,
@@ -448,7 +441,7 @@ export const getContract = async ({ ctrId, scope }) => {
       tbl_works: { select: { wrk_code: true, wrk_name: true } },
       tbl_providers: { select: { prv_name: true, prv_identification: true, tbl_identity_documents: { select: { idd_code: true } } } },
       tbl_work_stages: { select: { wks_name: true } },
-      tbl_contract_types: { select: { ctt_name: true } },
+      tbl_contract_types: { select: { ctt_name: true, ctt_invoice_view: true } },
       tbl_contract_concepts: { select: CONCEPT_SELECT },
       // Pólizas vigentes, para el conteo de la pestaña (DEC-050).
       _count: { select: { tbl_policies: { where: { pol_is_current: true } } } },
@@ -502,8 +495,8 @@ export const getContract = async ({ ctrId, scope }) => {
     providerIdentification: [row.tbl_providers?.tbl_identity_documents?.idd_code, row.tbl_providers?.prv_identification].filter(Boolean).join(" "),
     stageName: row.tbl_work_stages?.wks_name ?? null,
     contractType: row.tbl_contract_types?.ctt_name ?? null,
-    billingClass: row.ctr_billing_class,
-    billingClassName: BILLING_CLASS_NAMES[row.ctr_billing_class] ?? row.ctr_billing_class,
+    // Vista de sus facturas (DEC-054): el menú de facturas de su tipo; null si está sin definir.
+    invoiceView: row.tbl_contract_types?.ctt_invoice_view ?? null,
     startDate: dateOnlyText(row.ctr_start_date),
     term: row.ctr_term,
     termUnit: row.ctr_term_unit,
@@ -652,7 +645,6 @@ const headerValuesOf = (input) => ({
   prv_id: Number(input.prvId),
   wks_id: Number(input.wksId) > 0 ? Number(input.wksId) : null,
   ctt_id: Number(input.cttId),
-  ctr_billing_class: input.billingClass,
   ctr_number: text(input.number),
   ctr_name: text(input.name),
   ctr_start_date: toDateOnly(input.startDate),
@@ -667,7 +659,6 @@ const CONTRACT_AUDITED = [
   "prv_id",
   "wks_id",
   "ctt_id",
-  "ctr_billing_class",
   "ctr_number",
   "ctr_start_date",
   "ctr_term",
@@ -774,9 +765,6 @@ const resolveAiuRequested = async (tx, { input, descriptors, before = null, gran
 
 const assertHeader = (values) => {
   if (!values.ctr_start_date) throw httpError(400, "La fecha de inicio no es una fecha válida.");
-  if (!Object.values(BILLING_CLASSES).includes(values.ctr_billing_class)) {
-    throw httpError(400, "Indica si el contrato es de contrato mayor o de subcontratista.");
-  }
 };
 
 const IDEMPOTENCY_TARGET = {
@@ -921,16 +909,16 @@ const updateContract = async ({ ctrId, input, granted, useBy, ctx }) => {
       await assertStage(tx, { wrkId, wksId: values.wks_id, currentWksId: before.wks_id });
       await assertUniqueNumber(tx, { wrkId, number: values.ctr_number, excludeId: before.ctr_id });
       // Las facturas son del proveedor del contrato: con facturas, no cambia
-      // (lo garantiza también la FK compuesta de tbl_invoices, DEC-042). La
-      // clase decide la vista de sus facturas (DEC-054): tampoco cambia.
+      // (lo garantiza también la FK compuesta de tbl_invoices, DEC-042). El
+      // tipo decide la vista de sus facturas (DEC-054): tampoco cambia.
       const providerChanged = values.prv_id !== before.prv_id;
-      const classChanged = values.ctr_billing_class !== before.ctr_billing_class;
-      if ((providerChanged || classChanged) && (await countInvoices(tx, before.ctr_id)) > 0) {
+      const typeChanged = values.ctt_id !== before.ctt_id;
+      if ((providerChanged || typeChanged) && (await countInvoices(tx, before.ctr_id)) > 0) {
         throw httpError(
           409,
           providerChanged
             ? "El contrato tiene facturas registradas: no se puede cambiar su proveedor."
-            : "El contrato tiene facturas registradas: no se puede cambiar entre contrato mayor y subcontratista."
+            : "El contrato tiene facturas registradas: no se puede cambiar su tipo de contrato."
         );
       }
 

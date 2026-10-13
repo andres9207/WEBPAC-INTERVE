@@ -57,7 +57,7 @@ invoicesRoutes.get(
   validate,
   selectInvoiceProvidersController
 );
-// Contratos de la clase de la vista cuyo estado admite el tipo de factura (ADR-0017).
+// Contratos cuyo tipo va al menú de la vista y cuyo estado admite el tipo de factura (ADR-0017).
 invoicesRoutes.get(
   "/select_invoice_contracts",
   verifyToken,
