@@ -60,9 +60,13 @@ const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
  *   eliminadas lógicamente, para dependientes que son historial (obras de una constructora, ADR-0004).
  *   `where` reemplaza ese filtro, para una tabla de unión sin `sta_id` que se filtra por su padre
  *   (tipos de un proveedor, DEC-041).
- * @param {(tx, { id, before, values }) => Promise<void>} [config.beforeUpdate] Regla propia al
- *   editar, con el registro ya bloqueado (`before`) y los valores pedidos: lanza para rechazar
- *   (el menú de facturas de un tipo de contrato con facturas, DEC-054).
+ * @param {(tx, { id, before, values, options, ctx }) => Promise<void>} [config.beforeUpdate] Regla
+ *   propia al editar, con el registro ya bloqueado (`before`) y los valores pedidos: lanza para
+ *   rechazar, o aplica efectos en la misma transacción (el menú de facturas de un tipo de
+ *   proveedor, DEC-056).
+ * @param {Array<{ name: string, values: string[] }>} [config.updateOptions] Decisiones opcionales
+ *   que acompañan una edición sin ser columnas (qué hacer con las facturas si cambia el menú,
+ *   DEC-056): se validan contra `values` y llegan a `beforeUpdate` en `options`.
  * @param {string} [config.socketEvent] Evento que recarga los selectores.
  * @param {{ entity: string }} [config.audit] Bitácora funcional (AUDIT_ENTITIES).
  */
@@ -289,14 +293,14 @@ export const createMasterService = (config) => {
     });
 
   // Editar fija los campos editables: se puede reintentar ante un interbloqueo.
-  const update = ({ id, values, useBy, ctx }) =>
+  const update = ({ id, values, options = {}, useBy, ctx }) =>
     withLockedTransaction(
       { [lockEntity]: id },
       async (tx) => {
         const before = await findLocked(tx, id);
         // El ámbito no es editable: se toma del registro.
         await assertUnique(tx, values, id, scope && before[scope.column]);
-        if (config.beforeUpdate) await config.beforeUpdate(tx, { id: Number(id), before, values });
+        if (config.beforeUpdate) await config.beforeUpdate(tx, { id: Number(id), before, values, options, ctx });
         await tx[model].update({ where: { [ID]: Number(id) }, data: { ...values, [col("update_by")]: Number(useBy) } });
         await audit(tx, { operation: AUDIT_OPERATIONS.UPDATE, recordId: Number(id), ctx, before, after: values });
         return { message: `${Label} modificad${a} correctamente` };
@@ -317,10 +321,10 @@ export const createMasterService = (config) => {
    * Crear (id vacío o 0) o editar. En la edición se ignoran los campos no
    * editables. El estado no se toca: ver changeStatus.
    */
-  const save = ({ id, input, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
+  const save = ({ id, input, options, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
     const isEdit = Number(id) > 0;
     const values = valuesOf(input, { isEdit });
-    if (isEdit) return update({ id, values, useBy, ctx });
+    if (isEdit) return update({ id, values, options, useBy, ctx });
 
     // La clave se busca antes que el duplicado: el reintento de una creación
     // exitosa devuelve lo creado y no "ya existe".

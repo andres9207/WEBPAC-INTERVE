@@ -354,15 +354,8 @@ describe("saveContract — editar", () => {
     await expect(service.saveContract({ ctrId: 30, input: input({ term: 8 }), useBy: 9, ctx })).resolves.toMatchObject({ ctrId: 30 });
   });
 
-  it("con facturas no cambia el tipo de contrato (409, DEC-054): decide la vista de sus facturas; sin facturas, sí", async () => {
+  it("con facturas el tipo de contrato sí cambia: el menú de sus facturas es del proveedor (DEC-056)", async () => {
     prismaMock.tbl_invoices.count.mockResolvedValue(1);
-    await expect(service.saveContract({ ctrId: 30, input: input({ cttId: 3 }), useBy: 9, ctx })).rejects.toMatchObject({
-      statusCode: 409,
-      message: "El contrato tiene facturas registradas: no se puede cambiar su tipo de contrato.",
-    });
-    expect(prismaMock.tbl_contracts.update).not.toHaveBeenCalled();
-
-    prismaMock.tbl_invoices.count.mockResolvedValue(0);
     await service.saveContract({ ctrId: 30, input: input({ cttId: 3 }), useBy: 9, ctx });
     expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ ctt_id: 3 });
   });

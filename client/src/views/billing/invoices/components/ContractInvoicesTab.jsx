@@ -14,9 +14,10 @@ import { INVOICE_TYPE_OPTIONS, invoicePath } from 'utils/constants';
 /**
  * Facturas de un contrato, en su expediente (DEC-042). Registrar ofrece solo
  * los tipos que el estado del contrato admite hoy (`allowedActions` del
- * contrato, ADR-0017), y abre el formulario del menú de facturas de su tipo
- * de contrato (DEC-054) con el tipo y el contrato ya elegidos. Exige ver ese
- * menú. Un tipo sin menú definido no admite facturas: la pestaña lo avisa.
+ * contrato, ADR-0017), y abre el formulario del menú de facturas de los tipos
+ * de su proveedor (DEC-056) con el tipo y el contrato ya elegidos. Exige ver
+ * ese menú. Un proveedor sin tipo con menú no admite facturas nuevas: la
+ * pestaña lo avisa y sigue mostrando las que ya tiene (cada una, en su menú).
  */
 
 // Acción del contrato (STATE_ALLOWS) que habilita cada tipo de factura.
@@ -49,16 +50,7 @@ export default function ContractInvoicesTab({ contract }) {
     </Stack>
   );
 
-  if (!view) {
-    return (
-      <Alert severity="warning">
-        El tipo de contrato «{contract.contractType}» no tiene definido su menú de facturas: este contrato no admite facturas hasta que se
-        defina en el maestro de tipos de contrato.
-      </Alert>
-    );
-  }
-
-  return (
+  const list = (
     <InvoicesTab
       filter={{ ctrId: contract.ctrId }}
       hideColumns={['work', 'provider']}
@@ -67,9 +59,20 @@ export default function ContractInvoicesTab({ contract }) {
       emptyText="En ejecución se registran facturas de anticipo; en liquidación, de liquidación y de devolución de retenido. Un contrato con facturas no se puede eliminar ni cambiar de proveedor."
     />
   );
+  if (view) return list;
+
+  return (
+    <Stack spacing={2}>
+      <Alert severity="warning">
+        El proveedor «{contract.providerName}» no tiene un tipo de proveedor con menú de facturas: este contrato no admite facturas nuevas
+        hasta que se defina en el maestro de tipos de proveedor.
+      </Alert>
+      {list}
+    </Stack>
+  );
 }
 
 ContractInvoicesTab.propTypes = {
-  /** Contrato del expediente: `{ ctrId, contractType, invoiceView, allowedActions }`. */
+  /** Contrato del expediente: `{ ctrId, providerName, invoiceView, allowedActions }`. */
   contract: PropTypes.object.isRequired
 };

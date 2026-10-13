@@ -93,7 +93,7 @@ describe("getDashboardSummary", () => {
     expect(where.inv_state).toEqual({ in: ["REGISTERED", "APPROVED"] });
     // Solo las de contrato tienen obra (DEC-054).
     expect(where.wrk_id).toEqual({ not: null });
-    expect(JSON.stringify(where.AND)).toContain('"ctt_invoice_view":"MAJOR"');
+    expect(JSON.stringify(where.AND)).toContain('"inv_view":{"in":["MAJOR"');
     expect(invoices.byWork).toEqual([
       { wrkId: 8, registered: 2, approved: 3, workCode: "OB-8", workName: "Vía" },
       { wrkId: 3, registered: 1, approved: 0, workCode: "OB-3", workName: "Puente" },

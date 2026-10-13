@@ -44,6 +44,9 @@ export const createMasterSchemas = (config) => {
       idempotencyKeyRule(isCreate),
       body(idField).optional({ values: "falsy" }).isInt({ min: 0 }).withMessage(`${idField} debe ser un entero.`),
       ...fields.map(fieldRule),
+      ...(config.updateOptions ?? []).map((o) =>
+        body(o.name).optional({ values: "falsy" }).isIn(o.values).withMessage(`${o.name} no es válido.`)
+      ),
     ],
     changeStatus: [
       requiredId(idField),

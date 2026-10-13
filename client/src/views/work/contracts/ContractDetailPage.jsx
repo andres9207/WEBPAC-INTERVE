@@ -26,7 +26,7 @@ import { useSocket } from 'socket/SocketProvider';
 import { showError, showSuccess } from 'services/ToastService';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
-import { CONTRACT_STATE_COLORS, contractInvoiceViewName, fTerm } from 'utils/constants';
+import { CONTRACT_STATE_COLORS, fTerm, providerInvoiceViewName } from 'utils/constants';
 
 /**
  * Expediente de un contrato (PRO-FE-05), en un modal sobre el listado con
@@ -239,7 +239,7 @@ export default function ContractDetailPage() {
                     ['Etapa', contract.stageName],
                     ['Proveedor', `${contract.providerName} · ${contract.providerIdentification}`],
                     ['Tipo de contrato', contract.contractType],
-                    ['Menú de facturas', contractInvoiceViewName(contract.invoiceView)],
+                    ['Menú de facturas (del proveedor)', providerInvoiceViewName(contract.invoiceView)],
                     ['AIU', contract.aiuRequested === false ? 'No solicitado' : 'Solicitado'],
                     ['Observaciones', contract.observation]
                   ]}

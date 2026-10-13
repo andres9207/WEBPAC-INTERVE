@@ -128,14 +128,15 @@ export const INVOICE_VIEWS = {
 export const invoicePath = (view, invId, suffix) =>
   ['/billing/invoices', INVOICE_VIEWS[view]?.path ?? INVOICE_VIEWS.SIMPLE.path, invId, suffix].filter(Boolean).join('/');
 
-// Menú de facturas de un tipo de contrato (DEC-054): la vista de las facturas
-// de sus contratos. Sin valor, sus contratos no admiten facturas.
-export const CONTRACT_INVOICE_VIEW_OPTIONS = [
+// Menú de facturas de un tipo de proveedor (DEC-056): la vista de las facturas
+// de contrato de sus proveedores. Sin valor, el tipo no da menú; un proveedor
+// sin ningún tipo con menú no admite facturas de contrato.
+export const PROVIDER_INVOICE_VIEW_OPTIONS = [
   { value: 'MAJOR', label: INVOICE_VIEWS.MAJOR.title },
   { value: 'SUBCONTRACTOR', label: INVOICE_VIEWS.SUBCONTRACTOR.title }
 ];
 
-export const contractInvoiceViewName = (view) => CONTRACT_INVOICE_VIEW_OPTIONS.find((o) => o.value === view)?.label ?? 'Sin definir';
+export const providerInvoiceViewName = (view) => PROVIDER_INVOICE_VIEW_OPTIONS.find((o) => o.value === view)?.label ?? 'Sin menú';
 export const reasonScopeName = (scope) => REASON_SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? scope;
 
 const TERM_UNIT_NAMES = { DIA: ['día', 'días'], MES: ['mes', 'meses'], ANIO: ['año', 'años'] };

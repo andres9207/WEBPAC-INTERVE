@@ -25,7 +25,7 @@ import { useAuth } from 'contexts/AuthContext';
 import useInvoiceViews from 'hooks/useInvoiceViews';
 import { showError, showSuccess } from 'services/ToastService';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
-import { STATUS, invoicePath } from 'utils/constants';
+import { STATUS, invoicePath, providerInvoiceViewName } from 'utils/constants';
 
 /**
  * Detalle de un proveedor (ADR-0012, DEC-031), en un modal sobre el listado
@@ -172,7 +172,11 @@ export default function ProviderDetailPage() {
 
   const figures = [
     { label: 'Documento', value: documentText, hint: provider.identityName },
-    { label: provider.providerTypes.length === 1 ? 'Tipo de proveedor' : 'Tipos de proveedor', value: typesText },
+    {
+      label: provider.providerTypes.length === 1 ? 'Tipo de proveedor' : 'Tipos de proveedor',
+      value: typesText,
+      hint: `Menú de facturas: ${providerInvoiceViewName(provider.invoiceView)}`
+    },
     { label: 'Obras', value: String(provider.worksCount), hint: `${activeWorks} con asignación activa` },
     {
       label: 'Contactos',

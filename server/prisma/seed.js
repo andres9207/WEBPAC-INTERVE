@@ -224,11 +224,12 @@ const IDENTITY_DOCUMENTS = [
   { idd_id: 5, idd_code: "PPT", idd_name: "Permiso por protección temporal", sta_id: 1 },
 ];
 
-// Tipos de proveedor iniciales (database/migrations/0023_seed_provider_types.sql).
+// Tipos de proveedor iniciales (database/migrations/0023_seed_provider_types.sql),
+// con su menú de facturas (0092, DEC-056): Simple no tiene.
 const PROVIDER_TYPES = [
-  { pvt_id: 1, pvt_name: "Simple", sta_id: 1 },
-  { pvt_id: 2, pvt_name: "Subcontratista", sta_id: 1 },
-  { pvt_id: 3, pvt_name: "Contrato mayor", sta_id: 1 },
+  { pvt_id: 1, pvt_name: "Simple", pvt_invoice_view: null, sta_id: 1 },
+  { pvt_id: 2, pvt_name: "Subcontratista", pvt_invoice_view: "SUBCONTRACTOR", sta_id: 1 },
+  { pvt_id: 3, pvt_name: "Contrato mayor", pvt_invoice_view: "MAJOR", sta_id: 1 },
 ];
 
 // Tipos de dirección iniciales (database/migrations/0026_seed_address_types.sql).

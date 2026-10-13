@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
+import { lockedIdsOf, transactionRawMocks } from "../../../helpers/transaction.mock.js";
 
 // Proveedores (ADR-0012, DEC-031, DEC-032, DEC-041): identidad única con 409
 // que devuelve el proveedor existente, tipos y contactos por diferencial, permiso propio
@@ -7,6 +7,10 @@ import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
 // bitácora.
 
 const state = { provider: null, assignment: null };
+
+// Menú de facturas de cada tipo de proveedor (DEC-056): 1 Simple (sin menú),
+// 2 Subcontratista, 3 Contrato mayor.
+const TYPE_MENUS = { 1: null, 2: "SUBCONTRACTOR", 3: "MAJOR" };
 
 const prismaMock = {
   tbl_providers: {
@@ -23,7 +27,7 @@ const prismaMock = {
   tbl_provider_contacts: { findMany: jest.fn(), deleteMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
   tbl_provider_classifications: { findMany: jest.fn(), deleteMany: jest.fn(), createMany: jest.fn() },
   tbl_contracts: { count: jest.fn() },
-  tbl_invoices: { count: jest.fn() },
+  tbl_invoices: { count: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
   tbl_work_providers: {
     findMany: jest.fn(),
     count: jest.fn(),
@@ -34,7 +38,7 @@ const prismaMock = {
   },
   tbl_works: { findUnique: jest.fn(), findMany: jest.fn() },
   tbl_identity_documents: { findUnique: jest.fn() },
-  tbl_provider_types: { findUnique: jest.fn() },
+  tbl_provider_types: { findUnique: jest.fn(), findMany: jest.fn() },
   tbl_address_types: { findUnique: jest.fn() },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
@@ -115,6 +119,10 @@ beforeEach(() => {
   prismaMock.tbl_work_providers.count.mockResolvedValue(0);
   prismaMock.tbl_contracts.count.mockResolvedValue(0);
   prismaMock.tbl_invoices.count.mockResolvedValue(0);
+  prismaMock.tbl_invoices.findMany.mockResolvedValue([]);
+  prismaMock.tbl_provider_types.findMany.mockImplementation(async ({ where }) =>
+    where.pvt_id.in.map((id) => ({ pvt_invoice_view: TYPE_MENUS[id] ?? null }))
+  );
   prismaMock.tbl_works.findUnique.mockResolvedValue({ sta_id: 1 });
   prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ idd_code: "CC", idd_name: "Cédula de ciudadanía", sta_id: 1 });
   prismaMock.tbl_provider_types.findUnique.mockResolvedValue({ pvt_name: "Simple", sta_id: 1 });
@@ -152,10 +160,10 @@ describe("saveProvider — crear", () => {
   });
 
   it("con varios tipos guarda cada uno una sola vez y los bloquea (DEC-041)", async () => {
-    await service.saveProvider({ prvId: 0, input: input({ pvtIds: [3, "2", 3] }), useBy: 9, granted: ALL, ctx, idempotencyKey: KEY });
+    await service.saveProvider({ prvId: 0, input: input({ pvtIds: [3, "1", 3] }), useBy: 9, granted: ALL, ctx, idempotencyKey: KEY });
 
     expect(prismaMock.tbl_provider_classifications.createMany.mock.calls[0][0].data).toEqual([
-      { prv_id: 50, pvt_id: 2 },
+      { prv_id: 50, pvt_id: 1 },
       { prv_id: 50, pvt_id: 3 },
     ]);
     expect(prismaMock.tbl_provider_types.findUnique).toHaveBeenCalledTimes(2);
@@ -384,6 +392,90 @@ describe("saveProvider — editar", () => {
     state.provider = { ...storedProvider, sta_id: 3 };
 
     await expect(service.saveProvider({ prvId: 77, input: input(), useBy: 9, granted: ALL, ctx })).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe("menú de facturas del proveedor (DEC-056)", () => {
+  const edit = (overrides = {}) =>
+    service.saveProvider({ prvId: 77, input: input({ contacts: [contact({ contactId: 11 })], ...overrides }), useBy: 9, granted: ALL, ctx });
+
+  beforeEach(() => {
+    state.provider = { ...storedProvider };
+    prismaMock.tbl_provider_contacts.findMany.mockResolvedValue([{ ...storedContact }]);
+    prismaMock.tbl_provider_classifications.findMany.mockResolvedValue([{ pvt_id: 2 }]);
+  });
+
+  it("no admite tipos de menús distintos (409), al crear ni al editar, y no escribe nada", async () => {
+    await expect(
+      service.saveProvider({ prvId: 0, input: input({ pvtIds: [2, 3] }), useBy: 9, granted: ALL, ctx, idempotencyKey: KEY })
+    ).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("menús de facturas distintos") });
+    expect(prismaMock.tbl_providers.create).not.toHaveBeenCalled();
+
+    await expect(edit({ pvtIds: [2, 3] })).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.tbl_providers.update).not.toHaveBeenCalled();
+  });
+
+  it("un tipo sin menú se combina con cualquiera", async () => {
+    await expect(edit({ pvtIds: [1, 2] })).resolves.toMatchObject({ prvId: 77 });
+    expect(prismaMock.tbl_invoices.findMany).not.toHaveBeenCalled();
+  });
+
+  it("si cambia el menú y tiene facturas de contrato, sin decisión responde 409 con cuántas y no guarda", async () => {
+    prismaMock.tbl_invoices.findMany.mockResolvedValue([
+      { inv_id: 5, inv_view: "SUBCONTRACTOR" },
+      { inv_id: 6, inv_view: "SUBCONTRACTOR" },
+    ]);
+
+    await expect(edit({ pvtIds: [3] })).rejects.toMatchObject({
+      statusCode: 409,
+      data: { code: "INVOICE_VIEW_CHANGE", invoices: 2, canMove: true, providers: [expect.objectContaining({ prvId: 77, from: "SUBCONTRACTOR", to: "MAJOR" })] },
+    });
+    expect(prismaMock.tbl_invoices.findMany.mock.calls[0][0].where).toMatchObject({ prv_id: 77, inv_type: { not: "SIMPLE" }, NOT: { inv_view: "MAJOR" } });
+    expect(prismaMock.tbl_provider_classifications.createMany).not.toHaveBeenCalled();
+  });
+
+  it("MOVE: pasa todas al menú nuevo, con bitácora por factura en la misma operación", async () => {
+    prismaMock.tbl_invoices.findMany.mockResolvedValue([
+      { inv_id: 5, inv_view: "SUBCONTRACTOR" },
+      { inv_id: 6, inv_view: "SUBCONTRACTOR" },
+    ]);
+
+    await expect(edit({ pvtIds: [3], invoiceMove: "MOVE" })).resolves.toMatchObject({ message: expect.stringContaining("2 factura(s) movida(s)") });
+
+    expect(prismaMock.tbl_invoices.updateMany).toHaveBeenCalledWith({ where: { inv_id: { in: [5, 6] } }, data: { inv_view: "MAJOR" } });
+    const moves = auditRows().filter((r) => r.aud_field === "inv_view");
+    expect(moves).toEqual([
+      expect.objectContaining({ aud_entity: "FACTURA", aud_record_id: 5, aud_old_value: "SUBCONTRACTOR", aud_new_value: "MAJOR" }),
+      expect.objectContaining({ aud_entity: "FACTURA", aud_record_id: 6 }),
+    ]);
+    const types = auditRows().find((r) => r.aud_field === "pvt_ids");
+    expect(new Set(auditRows().map((r) => r.aud_operation_id))).toEqual(new Set([types.aud_operation_id]));
+    expect(prismaMock.tbl_provider_classifications.createMany).toHaveBeenCalled();
+  });
+
+  it("KEEP: las deja como histórico y guarda el cambio", async () => {
+    prismaMock.tbl_invoices.findMany.mockResolvedValue([{ inv_id: 5, inv_view: "SUBCONTRACTOR" }]);
+
+    await expect(edit({ pvtIds: [3], invoiceMove: "KEEP" })).resolves.toMatchObject({ message: "Proveedor modificado correctamente" });
+    expect(prismaMock.tbl_invoices.updateMany).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_provider_classifications.createMany).toHaveBeenCalled();
+  });
+
+  it("sin menú nuevo no se pueden mover (409); como histórico, sí", async () => {
+    prismaMock.tbl_invoices.findMany.mockResolvedValue([{ inv_id: 5, inv_view: "SUBCONTRACTOR" }]);
+
+    await expect(edit({ pvtIds: [1] })).rejects.toMatchObject({ statusCode: 409, data: expect.objectContaining({ canMove: false }) });
+    await expect(edit({ pvtIds: [1], invoiceMove: "MOVE" })).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("histórico") });
+    await expect(edit({ pvtIds: [1], invoiceMove: "KEEP" })).resolves.toMatchObject({ prvId: 77 });
+  });
+
+  it("bloquea también los tipos que tenía, no solo los nuevos", async () => {
+    await edit({ pvtIds: [3] });
+
+    const typeLocks = prismaMock.$queryRaw.mock.calls
+      .filter(([, ...values]) => values.some((v) => v?.strings?.join("") === "tbl_provider_types"))
+      .flatMap(([, ...values]) => lockedIdsOf(values));
+    expect(typeLocks).toEqual(expect.arrayContaining([2, 3]));
   });
 });
 

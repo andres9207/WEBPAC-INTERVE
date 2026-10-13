@@ -9,6 +9,7 @@ import {
   contactsRules,
 } from "../../../common/utils/validation.utils.js";
 import { EDITABLE_STATUS_VALUES } from "../../../common/constants/status.constants.js";
+import { INVOICE_MOVES } from "../../billing/invoices/invoiceViews.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). El formato del
 // número según su tipo, la unicidad de la identidad y "un solo principal"
@@ -62,6 +63,8 @@ export const saveProviderSchema = [
   // Uno o varios tipos (DEC-041).
   body("pvtIds").isArray({ min: 1, max: 20 }).withMessage("Selecciona al menos un tipo de proveedor."),
   body("pvtIds.*").isInt({ min: 1 }).withMessage("Cada tipo de proveedor debe ser un id válido."),
+  // Si cambia el menú de facturas y hay facturas de contrato (DEC-056).
+  body("invoiceMove").optional({ values: "falsy" }).isIn(Object.values(INVOICE_MOVES)).withMessage("La decisión sobre las facturas no es válida."),
   optionalBodyText("serviceType", "El tipo de servicio", 150),
   emailRule("email", { optional: true }),
   optionalBodyText("observation", "La observación", 500),

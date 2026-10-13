@@ -65,6 +65,8 @@ Es una regla de **configuración del contrato**, que vive en el tipo de contrato
 
    **Actualización 2026-10-13 ([DEC-054](../decisiones/DEC-054-vistas-facturas-simple-sin-obra.md)):** la distinción sigue fuera de la factura, pero la decide el **tipo de contrato**: cada tipo declara su menú de facturas (`ctt_invoice_view`: contrato mayor o subcontratista; sin definir, sus contratos no admiten facturas). No se deduce de los tipos del proveedor, porque un proveedor puede tener varios ([DEC-041](../decisiones/DEC-041-varios-tipos-proveedor.md)). Resuelve H7: "mayor" es tipo de contrato. Las facturas se consultan en una vista por menú, cada una con su permiso de ver.
 
+   **Actualización 2026-10-13 ([DEC-056](../decisiones/DEC-056-menu-facturas-tipo-proveedor.md)):** el menú pasa al **tipo de proveedor** (`pvt_invoice_view`), como la configuración del contrato (DEC-053). La ambigüedad de varios tipos se resuelve prohibiendo que un proveedor tenga tipos de menús distintos. La factura guarda su vista al registrarse (`inv_view`, la alternativa C): si después cambia el menú de su proveedor, el usuario decide moverlas todas o dejarlas como histórico. H7 queda así: la distinción es del tipo de proveedor.
+
 3. **No se implementa ninguna regla diferenciada sin validación previa.**
 
 4. **Si alguna hipótesis de diferencia se confirma, se incorpora por configuración o como regla sobre el modelo común**, nunca como un modelo de factura paralelo:

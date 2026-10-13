@@ -37,9 +37,11 @@ export const createMasterControllers = (config, service) => {
     ),
     save: handle(async (req) => {
       const input = Object.fromEntries(fields.map((f) => [f.name, req.body[f.name]]));
+      const options = Object.fromEntries((config.updateOptions ?? []).map((o) => [o.name, req.body[o.name] || undefined]));
       const result = await service.save({
         id: req.body[idField],
         input,
+        options,
         useBy: req.user.useId,
         ctx: auditContext(req),
         idempotencyKey: req.get(IDEMPOTENCY_HEADER),

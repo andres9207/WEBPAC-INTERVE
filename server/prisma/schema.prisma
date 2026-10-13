@@ -409,6 +409,7 @@ model tbl_identity_documents {
 model tbl_provider_types {
   pvt_id                           Int                                @id @default(autoincrement())
   pvt_name                         String                             @db.VarChar(100)
+  pvt_invoice_view                 String?                            @db.VarChar(20)
   pvt_config_version               Int                                @default(1)
   sta_id                           Int                                @default(1)
   pvt_create_by                    Int?
@@ -554,7 +555,6 @@ model tbl_construction_companies {
 model tbl_contract_types {
   ctt_id               Int             @id @default(autoincrement())
   ctt_name             String          @db.VarChar(100)
-  ctt_invoice_view     String?         @db.VarChar(20)
   sta_id               Int             @default(1)
   ctt_create_by        Int?
   ctt_create_at        DateTime?       @default(now()) @db.Timestamp(0)
@@ -997,6 +997,7 @@ model tbl_contract_suspensions {
 model tbl_invoices {
   inv_id                               Int                                   @id @default(autoincrement())
   inv_type                             String                                @db.VarChar(20)
+  inv_view                             String                                @db.VarChar(20)
   prv_id                               Int
   wrk_id                               Int?
   ctr_id                               Int?
@@ -1032,6 +1033,7 @@ model tbl_invoices {
   @@index([inv_date], map: "idx_invoices_date")
   @@index([inv_state], map: "idx_invoices_state")
   @@index([inv_type], map: "idx_invoices_type")
+  @@index([inv_view], map: "idx_invoices_view")
   @@index([ctr_id, inv_type, inv_state], map: "idx_invoices_contract_type_state")
   @@index([ctr_id, wrk_id, prv_id], map: "tbl_invoices_contract")
   @@index([inv_create_by], map: "tbl_invoices_create_by")

@@ -14,7 +14,7 @@ import {
   uncoveredContractsWhere,
 } from "../../work/contracts/policyTerms.js";
 import { INVOICE_STATES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
-import { CONTRACT_VIEWS, CONTRACT_VIEW_SELECT, grantedViews, viewOfRow, viewsWhere } from "../../billing/invoices/invoiceViews.js";
+import { CONTRACT_VIEWS, grantedViews, viewsWhere } from "../../billing/invoices/invoiceViews.js";
 import { invoiceScopeWhere } from "../../billing/invoices/invoices.service.js";
 
 /**
@@ -144,7 +144,7 @@ const invoicesBlock = async (scope, views) => {
         inv_state: true,
         tbl_providers: { select: { prv_name: true } },
         tbl_works: { select: { wrk_code: true } },
-        tbl_contracts: { select: CONTRACT_VIEW_SELECT },
+        inv_view: true,
       },
       orderBy: [{ inv_create_at: "desc" }, { inv_id: "desc" }],
       take: LATEST_ROWS,
@@ -173,7 +173,7 @@ const invoicesBlock = async (scope, views) => {
     byWork: ranked.map((r) => ({ ...r, workCode: names.get(r.wrkId)?.wrk_code ?? null, workName: names.get(r.wrkId)?.wrk_name ?? null })),
     latest: latest.map((row) => ({
       invId: row.inv_id,
-      view: viewOfRow(row),
+      view: row.inv_view,
       number: row.inv_number,
       typeName: INVOICE_TYPE_NAMES[row.inv_type] ?? row.inv_type,
       providerName: row.tbl_providers?.prv_name ?? null,

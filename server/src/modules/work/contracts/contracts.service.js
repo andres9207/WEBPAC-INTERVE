@@ -9,6 +9,7 @@ import { withLockedTransaction } from "../../../common/services/transaction.serv
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
 import { assertProviderInScope } from "../providers/providers.service.js";
+import { PROVIDER_VIEW_SELECT, providerViewOf } from "../../billing/invoices/invoiceViews.js";
 import { resolveProviderFields } from "../../admin/providerTypes/providerTypeFields.service.js";
 import { FIELD_GROUPS, enforceFields, typeAppliesAiu, withContractAiu } from "../../admin/providerTypes/contractFields.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
@@ -439,9 +440,11 @@ export const getContract = async ({ ctrId, scope }) => {
       created_by_user: USER_NAME_SELECT,
       updated_by_user: USER_NAME_SELECT,
       tbl_works: { select: { wrk_code: true, wrk_name: true } },
-      tbl_providers: { select: { prv_name: true, prv_identification: true, tbl_identity_documents: { select: { idd_code: true } } } },
+      tbl_providers: {
+        select: { prv_name: true, prv_identification: true, tbl_identity_documents: { select: { idd_code: true } }, ...PROVIDER_VIEW_SELECT },
+      },
       tbl_work_stages: { select: { wks_name: true } },
-      tbl_contract_types: { select: { ctt_name: true, ctt_invoice_view: true } },
+      tbl_contract_types: { select: { ctt_name: true } },
       tbl_contract_concepts: { select: CONCEPT_SELECT },
       // Pólizas vigentes, para el conteo de la pestaña (DEC-050).
       _count: { select: { tbl_policies: { where: { pol_is_current: true } } } },
@@ -495,8 +498,8 @@ export const getContract = async ({ ctrId, scope }) => {
     providerIdentification: [row.tbl_providers?.tbl_identity_documents?.idd_code, row.tbl_providers?.prv_identification].filter(Boolean).join(" "),
     stageName: row.tbl_work_stages?.wks_name ?? null,
     contractType: row.tbl_contract_types?.ctt_name ?? null,
-    // Vista de sus facturas (DEC-054): el menú de facturas de su tipo; null si está sin definir.
-    invoiceView: row.tbl_contract_types?.ctt_invoice_view ?? null,
+    // Menú de sus facturas nuevas (DEC-056): el de los tipos de su proveedor; null si no tiene.
+    invoiceView: providerViewOf(row.tbl_providers),
     startDate: dateOnlyText(row.ctr_start_date),
     term: row.ctr_term,
     termUnit: row.ctr_term_unit,
@@ -909,17 +912,9 @@ const updateContract = async ({ ctrId, input, granted, useBy, ctx }) => {
       await assertStage(tx, { wrkId, wksId: values.wks_id, currentWksId: before.wks_id });
       await assertUniqueNumber(tx, { wrkId, number: values.ctr_number, excludeId: before.ctr_id });
       // Las facturas son del proveedor del contrato: con facturas, no cambia
-      // (lo garantiza también la FK compuesta de tbl_invoices, DEC-042). El
-      // tipo decide la vista de sus facturas (DEC-054): tampoco cambia.
-      const providerChanged = values.prv_id !== before.prv_id;
-      const typeChanged = values.ctt_id !== before.ctt_id;
-      if ((providerChanged || typeChanged) && (await countInvoices(tx, before.ctr_id)) > 0) {
-        throw httpError(
-          409,
-          providerChanged
-            ? "El contrato tiene facturas registradas: no se puede cambiar su proveedor."
-            : "El contrato tiene facturas registradas: no se puede cambiar su tipo de contrato."
-        );
+      // (lo garantiza también la FK compuesta de tbl_invoices, DEC-042).
+      if (values.prv_id !== before.prv_id && (await countInvoices(tx, before.ctr_id)) > 0) {
+        throw httpError(409, "El contrato tiene facturas registradas: no se puede cambiar su proveedor.");
       }
 
       // La fecha fin se recalcula en la misma transacción (ADR-0015, decisión 5).

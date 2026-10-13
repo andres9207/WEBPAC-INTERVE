@@ -10,6 +10,7 @@ import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudi
 import { identityDocumentsService } from "../../admin/identityDocuments/identityDocuments.service.js";
 import { identificationError } from "../../admin/identityDocuments/identityDocuments.formats.js";
 import { providerTypesService } from "../../admin/providerTypes/providerTypes.service.js";
+import { applyProviderViewChanges, assertNotMixed, providerViewOf, resolveProviderView } from "../../billing/invoices/invoiceViews.js";
 import { defineContacts } from "../../admin/addressTypes/addressTypes.contacts.js";
 import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
@@ -22,7 +23,9 @@ import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/
  *   Las dos responden igual: 409 con el proveedor existente en `data`, para
  *   que el cliente ofrezca asignarlo en vez de crear otro (decisión 7).
  * - Contactos y tipos de proveedor (uno o varios, DEC-041): parte del
- *   proveedor, guardados con él por diferencial.
+ *   proveedor, guardados con él por diferencial. Sus tipos no pueden tener
+ *   menús de facturas distintos; si el menú cambia y hay facturas de
+ *   contrato, el usuario decide moverlas o dejarlas como histórico (DEC-056).
  * - Cambiar la identificación de un proveedor existente exige su propio
  *   permiso (ADR-0012, regla 5): el controller pasa los permisos efectivos.
  * - Asignar, editar la asignación y desasignar tienen endpoints propios
@@ -48,9 +51,9 @@ const SORT_FIELDS = {
   updatedAt: (order) => ({ prv_update_at: order }),
 };
 
-// Tipos del proveedor (DEC-041), por nombre.
+// Tipos del proveedor (DEC-041), por nombre, con su menú de facturas (DEC-056).
 const CLASSIFICATIONS_SELECT = {
-  select: { pvt_id: true, tbl_provider_types: { select: { pvt_name: true } } },
+  select: { pvt_id: true, tbl_provider_types: { select: { pvt_name: true, pvt_invoice_view: true } } },
   orderBy: { tbl_provider_types: { pvt_name: "asc" } },
 };
 const typeNamesOf = (classifications = []) => classifications.map((c) => c.tbl_provider_types?.pvt_name).filter(Boolean);
@@ -215,6 +218,8 @@ export const getProvider = async ({ prvId, scope }) => {
     name: row.prv_name,
     pvtIds: row.tbl_provider_classifications.map((c) => c.pvt_id),
     providerTypes: typeNamesOf(row.tbl_provider_classifications),
+    // Menú de sus facturas de contrato nuevas (DEC-056); null si ningún tipo lo tiene.
+    invoiceView: providerViewOf(row),
     serviceType: row.prv_service_type,
     email: row.prv_email,
     observation: row.prv_observation,
@@ -347,7 +352,7 @@ const assertIdentification = async (tx, values, current = {}) => {
 
 const masterLocksOf = (values, pvtIds, contacts) => ({
   TIPO_IDENTIFICACION: values.idd_id,
-  TIPO_PROVEEDOR: pvtIds,
+  TIPO_PROVEEDOR: [...new Set(pvtIds)],
   ...contactsHelper.locksOf(contacts),
 });
 
@@ -357,6 +362,16 @@ const assertProviderTypes = async (tx, pvtIds, currentIds = []) => {
   for (const id of pvtIds) {
     await providerTypesService.assertAssignable(tx, id, currentIds.includes(id) ? id : undefined);
   }
+};
+
+// Menú de facturas de un conjunto de tipos (DEC-056), con los tipos ya
+// bloqueados: 409 si mezclan menús.
+const providerViewOfTypes = async (tx, pvtIds, providerName) => {
+  if (pvtIds.length === 0) return null;
+  const types = await tx.tbl_provider_types.findMany({ where: { pvt_id: { in: pvtIds } }, select: { pvt_invoice_view: true } });
+  const menus = types.map((t) => t.pvt_invoice_view);
+  assertNotMixed(menus, providerName);
+  return resolveProviderView(menus).view;
 };
 
 // Diferencial de tipos contra la BD: altas y bajas de la tabla de unión.
@@ -448,6 +463,7 @@ const createProvider = ({ values, pvtIds, contacts, assignment, useBy, ctx, idem
       if (assignment) await assertWorkAssignable(tx, assignment.wrkId);
       await assertIdentification(tx, values);
       await assertProviderTypes(tx, pvtIds);
+      await providerViewOfTypes(tx, pvtIds, values.prv_name);
       await contactsHelper.assertAddressTypes(tx, contacts);
 
       // Cortesía: el mensaje claro y el proveedor existente. El UNIQUE es la
@@ -485,11 +501,19 @@ const createProvider = ({ values, pvtIds, contacts, assignment, useBy, ctx, idem
     }
   );
 
+const findTypeIds = async (db, prvId) =>
+  (await db.tbl_provider_classifications.findMany({ where: { prv_id: prvId }, select: { pvt_id: true } }))
+    .map((c) => c.pvt_id)
+    .sort((a, b) => a - b);
+
 // Editar fija la cabecera y los contactos: repetirlo deja lo mismo, así que
-// se puede reintentar ante un interbloqueo.
-const updateProvider = ({ prvId, values, pvtIds, contacts, useBy, granted, ctx }) =>
-  withLockedTransaction(
-    { PROVEEDOR: prvId, ...masterLocksOf(values, pvtIds, contacts) },
+// se puede reintentar ante un interbloqueo. Bloquea también los tipos que el
+// proveedor tenía (no solo los nuevos): un cambio del menú de facturas de uno
+// de ellos (DEC-056) no se cruza con quitárselo.
+const updateProvider = async ({ prvId, values, pvtIds, contacts, invoiceMove, useBy, granted, ctx }) => {
+  const knownIds = await findTypeIds(prisma, Number(prvId));
+  return withLockedTransaction(
+    { PROVEEDOR: prvId, ...masterLocksOf(values, [...knownIds, ...pvtIds], contacts) },
     async (tx) => {
       const id = Number(prvId);
       const before = await tx.tbl_providers.findUnique({ where: { prv_id: id }, select: { ...HEADER_SELECT, sta_id: true } });
@@ -502,12 +526,15 @@ const updateProvider = ({ prvId, values, pvtIds, contacts, useBy, granted, ctx }
 
       const currentContacts = await contactsHelper.findCurrent(tx, id);
       const contactDiff = contactsHelper.diff(currentContacts, contacts);
-      const currentIds = (await tx.tbl_provider_classifications.findMany({ where: { prv_id: id }, select: { pvt_id: true } }))
-        .map((c) => c.pvt_id)
-        .sort((a, b) => a - b);
+      const currentIds = await findTypeIds(tx, id);
+      if (currentIds.some((typeId) => !knownIds.includes(typeId))) {
+        throw httpError(409, "Los tipos del proveedor cambiaron mientras se guardaba. Vuelve a intentarlo.");
+      }
 
       await assertIdentification(tx, values, before);
       await assertProviderTypes(tx, pvtIds, currentIds);
+      const viewBefore = await providerViewOfTypes(tx, currentIds);
+      const viewAfter = await providerViewOfTypes(tx, pvtIds, values.prv_name);
       await contactsHelper.assertAddressTypes(tx, contacts, currentContacts);
 
       if (identityChanged) {
@@ -518,16 +545,27 @@ const updateProvider = ({ prvId, values, pvtIds, contacts, useBy, granted, ctx }
       await tx.tbl_providers.update({ where: { prv_id: id }, data: { ...values, prv_update_by: useBy } });
 
       const changes = diffFields({ ...before, pvt_ids: currentIds }, { ...values, pvt_ids: pvtIds }, AUDITED_HEADER);
+      const operationId = newOperationId();
       if (changes.length > 0) {
-        await writeAudit(tx, { entity: AUDIT_ENTITIES.PROVIDER, recordId: id, operation: AUDIT_OPERATIONS.UPDATE, ctx, changes });
+        await writeAudit(tx, { operationId, entity: AUDIT_ENTITIES.PROVIDER, recordId: id, operation: AUDIT_OPERATIONS.UPDATE, ctx, changes });
       }
+      const { moved = 0 } = await applyProviderViewChanges(tx, {
+        changes: [{ prvId: id, name: values.prv_name, from: viewBefore, to: viewAfter }],
+        invoiceMove,
+        ctx,
+        operationId,
+      });
       await applyProviderTypes(tx, { prvId: id, currentIds, pvtIds });
       await contactsHelper.apply(tx, { ownerId: id, diff: contactDiff, useBy });
 
-      return { message: "Proveedor modificado correctamente", prvId: id };
+      return {
+        message: moved > 0 ? `Proveedor modificado correctamente; ${moved} factura(s) movida(s) al nuevo menú` : "Proveedor modificado correctamente",
+        prvId: id,
+      };
     },
     { idempotent: true }
   );
+};
 
 // El UNIQUE saltó porque otra petición registró la misma identidad entre la
 // verificación y el INSERT: misma respuesta que la verificación (409 con el
@@ -560,7 +598,7 @@ export const saveProvider = async ({ prvId, input, useBy, granted, scope, ctx = 
   if (Number(prvId) > 0) {
     await assertProviderInScope(scope, prvId);
     try {
-      return await updateProvider({ prvId, values, pvtIds, contacts, useBy: Number(useBy), granted, ctx });
+      return await updateProvider({ prvId, values, pvtIds, contacts, invoiceMove: input.invoiceMove || undefined, useBy: Number(useBy), granted, ctx });
     } catch (err) {
       return translateDuplicate(err, values, prvId);
     }

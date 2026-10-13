@@ -60,8 +60,8 @@ import { TERM_UNIT_OPTIONS } from 'utils/constants';
  *   GenericFormSection. Al editar, un valor guardado en un campo que dejó de
  *   aplicar se muestra en solo lectura, marcado como heredado. Se envían
  *   solo los campos visibles: el resto lo resuelve el servidor.
- * - El tipo de contrato decide en qué menú de facturas aparecen las del
- *   contrato (DEC-054); con facturas, el servidor no deja cambiarlo.
+ * - El menú de facturas lo deciden los tipos del proveedor (DEC-056); con
+ *   facturas, el servidor no deja cambiar el proveedor del contrato.
  */
 
 const EMPTY_FORM = {

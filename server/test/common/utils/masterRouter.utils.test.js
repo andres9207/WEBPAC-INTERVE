@@ -63,6 +63,7 @@ describe("createMasterControllers", () => {
     expect(serviceMock.save).toHaveBeenCalledWith({
       id: 0,
       input: { code: "AB", name: "Uno" },
+      options: {},
       useBy: 7,
       ctx: { useId: 7, ip: "1.1.1.1" },
       idempotencyKey: KEY,
@@ -174,5 +175,18 @@ describe("createMasterSchemas", () => {
     expect(await errorsFor(scoped.pagination, { scope: "Z" })).toEqual(["El acto no es válido."]);
     expect(await errorsFor(scoped.select, { scope: "Z" })).toEqual(["El acto no es válido."]);
     expect(await errorsFor(scoped.select, { scope: "B" })).toEqual([]);
+  });
+
+  it("las opciones de edición (updateOptions) solo admiten sus valores y llegan al service en options", async () => {
+    const withOptions = defineMaster({ ...config, updateOptions: [{ name: "invoiceMove", values: ["MOVE", "KEEP"] }] });
+    const schemas = createMasterSchemas(withOptions);
+    expect(await errorsFor(schemas.save, { thgId: 3, name: "Uno", invoiceMove: "X" })).toEqual(["invoiceMove no es válido."]);
+    expect(await errorsFor(schemas.save, { thgId: 3, name: "Uno", invoiceMove: "MOVE" })).toEqual([]);
+    expect(await errorsFor(schemas.save, { thgId: 3, name: "Uno" })).toEqual([]);
+
+    serviceMock.save.mockResolvedValue({});
+    const controllers = createMasterControllers(withOptions, serviceMock);
+    await controllers.save(mockReq({ user: { useId: 7 }, body: { thgId: 3, name: "Uno", invoiceMove: "KEEP", other: "x" } }), buildRes(), jest.fn());
+    expect(serviceMock.save.mock.calls.at(-1)[0].options).toEqual({ invoiceMove: "KEEP" });
   });
 });

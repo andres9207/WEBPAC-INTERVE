@@ -10,12 +10,13 @@ import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
 // Retenido contractual (DEC-051): I3 e I4 contra los mismos saldos, el
 // permiso de ajustar el retenido y la devolución de retenido.
 // Vistas y factura simple sin obra (DEC-054): la simple es del proveedor, y
-// cada factura pertenece a una vista que el usuario debe ver.
+// cada factura pertenece a una vista que el usuario debe ver. La vista sale
+// del menú de los tipos del proveedor y se guarda en la factura (DEC-056).
 
 const state = {
   invoice: null,
   contract: null,
-  contractType: null,
+  providerMenu: null,
   duplicate: null,
   reason: null,
   invoiceReplay: null,
@@ -28,6 +29,8 @@ const state = {
 };
 
 const D = (value) => new Prisma.Decimal(value);
+// Tipos del proveedor con su menú de facturas (DEC-056).
+const providerTypes = (menu) => ({ tbl_provider_classifications: [{ pvt_id: 3, tbl_provider_types: { pvt_invoice_view: menu } }] });
 
 // Ejemplo de ADR-0024: B = 120.000.000, A = 32.000.000 (≈ 26,67 %). Retenido
 // del 5 % en los dos conceptos: RP = 6.000.000.
@@ -54,9 +57,12 @@ const prismaMock = {
     groupBy: jest.fn(async () => []),
   },
   tbl_invoice_status_history: { create: jest.fn(), findUnique: jest.fn(async () => state.historyReplay) },
-  tbl_contracts: { findUnique: jest.fn(async () => state.contract), findMany: jest.fn(async () => []), findFirst: jest.fn() },
+  tbl_contracts: {
+    findUnique: jest.fn(async () => state.contract && { ...state.contract, tbl_providers: providerTypes(state.providerMenu) }),
+    findMany: jest.fn(async () => []),
+    findFirst: jest.fn(),
+  },
   tbl_providers: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(async () => []) },
-  tbl_contract_types: { findUnique: jest.fn(async () => state.contractType) },
   tbl_reasons: { findUnique: jest.fn(async () => state.reason) },
   tbl_contract_concepts: { findMany: jest.fn(async () => state.concepts) },
   tbl_invoice_advance_details: {
@@ -175,7 +181,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   state.invoice = null;
   state.contract = contract();
-  state.contractType = { ctt_name: "Contrato mayor", ctt_invoice_view: "MAJOR" };
+  state.providerMenu = "MAJOR";
   state.duplicate = null;
   state.invoiceReplay = null;
   state.historyReplay = null;
@@ -186,7 +192,7 @@ beforeEach(() => {
   state.retainedSum = null;
   state.refundedSum = null;
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
-  prismaMock.tbl_providers.findUnique.mockResolvedValue({ prv_name: "Aceros SA", sta_id: 1 });
+  prismaMock.tbl_providers.findUnique.mockImplementation(async () => ({ prv_name: "Aceros SA", sta_id: 1, ...providerTypes(state.providerMenu) }));
   prismaMock.tbl_providers.findFirst.mockResolvedValue({ prv_id: 77 });
 });
 
@@ -202,6 +208,7 @@ describe("registrar", () => {
     expect(data).not.toHaveProperty("wks_id");
     expect(data).toMatchObject({
       inv_type: "SIMPLE",
+      inv_view: "SIMPLE",
       wrk_id: null,
       prv_id: 77,
       ctr_id: null,
@@ -232,9 +239,15 @@ describe("registrar", () => {
   it("de contrato: bloquea el contrato y toma obra y proveedor de él, no del cliente", async () => {
     await save(contractInput({ wrkId: 999, prvId: 999, wksId: 999 }));
 
-    // El tipo de contrato al final, como los maestros: su menú de facturas se lee bajo bloqueo (DEC-054).
-    expect(lockedTables()).toEqual([expect.stringMatching(/tbl_contracts/), expect.stringMatching(/tbl_contract_types/)]);
-    expect(prismaMock.tbl_invoices.create.mock.calls[0][0].data).toMatchObject({ inv_type: "ADVANCE", ctr_id: 30, wrk_id: 8, prv_id: 77 });
+    // Proveedor, contrato y, al final como los maestros, los tipos del
+    // proveedor: su menú de facturas se lee bajo bloqueo y queda en la factura (DEC-056).
+    expect(lockedTables()).toEqual([
+      expect.stringMatching(/tbl_providers/),
+      expect.stringMatching(/tbl_contracts/),
+      expect.stringMatching(/tbl_provider_types/),
+    ]);
+    expect(prismaMock.tbl_invoices.create.mock.calls[0][0].data).toMatchObject({ inv_type: "ADVANCE", inv_view: "MAJOR", ctr_id: 30, wrk_id: 8, prv_id: 77 });
+    expect(auditRows().find((r) => r.aud_field === "inv_view")).toMatchObject({ aud_operation: "CREAR", aud_new_value: "MAJOR" });
   });
 
   it("el estado del contrato decide el tipo: anticipo en ejecución, liquidación en liquidación (409 si no)", async () => {
@@ -517,9 +530,11 @@ describe("selectores del formulario", () => {
     expect(await service.selectInvoiceContracts({ type: "LIQUIDATION", includeCtrId: 30 })).toEqual([]);
   });
 
-  test("contratos solo de los tipos que van al menú de la vista (DEC-054)", async () => {
+  test("contratos solo de proveedores cuyos tipos van al menú de la vista (DEC-056)", async () => {
     await service.selectInvoiceContracts({ type: "ADVANCE", view: "SUBCONTRACTOR" });
-    expect(prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0].where.tbl_contract_types).toEqual({ ctt_invoice_view: "SUBCONTRACTOR" });
+    expect(prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0].where.tbl_providers).toEqual({
+      tbl_provider_classifications: { some: { tbl_provider_types: { pvt_invoice_view: "SUBCONTRACTOR" } } },
+    });
   });
 
   test("proveedores de la simple: activos y del alcance; el ya elegido vuelve aunque esté inactivo (DEC-054)", async () => {
@@ -901,13 +916,8 @@ describe("retenido contractual (DEC-051)", () => {
   it("el detalle de una devolución expone su valor", async () => {
     prismaMock.tbl_invoices.findFirst.mockResolvedValueOnce({
       ...storedRefund(approved),
-      tbl_contracts: {
-        ctr_number: "C-1",
-        ctr_name: "Suministro",
-        ctr_state: "IN_LIQUIDATION",
-        tbl_contract_types: { ctt_invoice_view: "SUBCONTRACTOR" },
-        tbl_work_stages: null,
-      },
+      inv_view: "SUBCONTRACTOR",
+      tbl_contracts: { ctr_number: "C-1", ctr_name: "Suministro", ctr_state: "IN_LIQUIDATION", tbl_work_stages: null },
       tbl_invoice_status_history: [],
     });
     await expect(service.getInvoice({ invId: 70 })).resolves.toMatchObject({ view: "SUBCONTRACTOR", amounts: { value: "3000000.00" } });
@@ -967,7 +977,7 @@ describe("alcance por obra (DEC-047)", () => {
 // ─── Vistas (DEC-054) ────────────────────────────────────────────────────────
 
 describe("vistas de facturas (DEC-054)", () => {
-  const MAJOR_ONLY = { OR: [{ tbl_contracts: { tbl_contract_types: { ctt_invoice_view: "MAJOR" } } }] };
+  const MAJOR_ONLY = { inv_view: { in: ["MAJOR"] } };
 
   it("el listado de una vista muestra solo esa; sin vista, las que el usuario ve; una que no ve, nada", async () => {
     await service.paginationInvoices({ view: "MAJOR", views: ["SIMPLE", "MAJOR"], rows: 10, first: 0 });
@@ -975,7 +985,7 @@ describe("vistas de facturas (DEC-054)", () => {
     expect(prismaMock.tbl_invoices.groupBy.mock.calls.at(-1)[0].where.AND).toEqual([MAJOR_ONLY]);
 
     await service.paginationInvoices({ views: ["SIMPLE"], rows: 10, first: 0 });
-    expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where.AND).toEqual([{ OR: [{ inv_type: "SIMPLE" }] }]);
+    expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where.AND).toEqual([{ inv_view: { in: ["SIMPLE"] } }]);
 
     await service.paginationInvoices({ view: "SUBCONTRACTOR", views: ["SIMPLE"], rows: 10, first: 0 });
     expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where.AND).toEqual([{ inv_id: { in: [] } }]);
@@ -985,10 +995,10 @@ describe("vistas de facturas (DEC-054)", () => {
     expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where).not.toHaveProperty("AND");
   });
 
-  it("cada fila del listado dice su vista", async () => {
+  it("cada fila del listado dice su vista, la guardada en la factura", async () => {
     prismaMock.tbl_invoices.findMany.mockResolvedValueOnce([
-      { inv_id: 1, inv_type: "SIMPLE", tbl_contracts: null },
-      { inv_id: 2, inv_type: "LIQUIDATION", tbl_contracts: { ctr_number: "C-1", tbl_contract_types: { ctt_invoice_view: "SUBCONTRACTOR" } } },
+      { inv_id: 1, inv_type: "SIMPLE", inv_view: "SIMPLE", tbl_contracts: null },
+      { inv_id: 2, inv_type: "LIQUIDATION", inv_view: "SUBCONTRACTOR", tbl_contracts: { ctr_number: "C-1" } },
     ]);
     const { results } = await service.paginationInvoices({ rows: 10, first: 0 });
     expect(results.map((r) => r.view)).toEqual(["SIMPLE", "SUBCONTRACTOR"]);
@@ -998,7 +1008,7 @@ describe("vistas de facturas (DEC-054)", () => {
     state.invoice = storedInvoice();
     const views = ["SIMPLE"];
     await expect(service.getInvoice({ invId: 70, views })).rejects.toMatchObject({ statusCode: 404 });
-    expect(prismaMock.tbl_invoices.findFirst.mock.calls[0][0].where).toEqual({ inv_id: 70, AND: [{}, { OR: [{ inv_type: "SIMPLE" }] }] });
+    expect(prismaMock.tbl_invoices.findFirst.mock.calls[0][0].where).toEqual({ inv_id: 70, AND: [{}, { inv_view: { in: ["SIMPLE"] } }] });
     await expect(service.approveInvoice({ invId: 70, input: { approvalDate: "2026-03-05" }, useBy: 9, views, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
       statusCode: 404,
     });
@@ -1018,37 +1028,40 @@ describe("vistas de facturas (DEC-054)", () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
-  it("registrar contra un contrato cuyo tipo va a un menú que el usuario no ve responde 404, leído bajo bloqueo", async () => {
-    state.contractType = { ctt_name: "Subcontrato", ctt_invoice_view: "SUBCONTRACTOR" };
+  it("registrar contra un contrato cuyo proveedor va a un menú que el usuario no ve responde 404, leído bajo bloqueo", async () => {
+    state.providerMenu = "SUBCONTRACTOR";
     await expect(
       service.saveInvoice({ invId: 0, input: contractInput(), useBy: 9, granted: new Set(), views: ["MAJOR"], ctx, idempotencyKey: KEY })
     ).rejects.toMatchObject({ statusCode: 404, message: "No se encontró el contrato." });
-    expect(lockedTables()).toEqual([expect.stringMatching(/tbl_contracts/), expect.stringMatching(/tbl_contract_types/)]);
-    expect(prismaMock.tbl_contract_types.findUnique.mock.calls[0][0].where).toEqual({ ctt_id: 4 });
+    expect(lockedTables().at(-1)).toMatch(/tbl_provider_types/);
     expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
 
     await expect(
       service.saveInvoice({ invId: 0, input: contractInput(), useBy: 9, granted: new Set(), views: ["SUBCONTRACTOR"], ctx, idempotencyKey: KEY })
     ).resolves.toMatchObject({ invId: 70 });
+    expect(prismaMock.tbl_invoices.create.mock.calls[0][0].data.inv_view).toBe("SUBCONTRACTOR");
   });
 
-  it("un tipo de contrato sin menú de facturas definido no admite facturas (409)", async () => {
-    state.contractType = { ctt_name: "contrato menores", ctt_invoice_view: null };
+  it("un proveedor sin tipo con menú de facturas no admite facturas de contrato (409)", async () => {
+    state.providerMenu = null;
     await expect(save(contractInput())).rejects.toMatchObject({
       statusCode: 409,
-      message: 'El tipo de contrato "contrato menores" no tiene definido su menú de facturas: defínelo en el maestro antes de facturar.',
+      message: 'El proveedor "Aceros SA" no tiene un tipo de proveedor con menú de facturas: defínelo en el maestro de tipos de proveedor antes de facturar.',
     });
     expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
   });
 
-  it("si el contrato cambió de tipo entre la lectura y el bloqueo, responde 409", async () => {
-    prismaMock.tbl_contracts.findUnique.mockResolvedValueOnce({ ctt_id: 9 });
-    await expect(save(contractInput())).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/cambió de tipo/) });
+  it("si el proveedor del contrato o sus tipos cambiaron entre la lectura y el bloqueo, responde 409", async () => {
+    prismaMock.tbl_contracts.findUnique.mockResolvedValueOnce({ prv_id: 12, tbl_providers: providerTypes("MAJOR") });
+    await expect(save(contractInput())).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/cambiaron/) });
+
+    prismaMock.tbl_contracts.findUnique.mockResolvedValueOnce({ prv_id: 77, tbl_providers: { tbl_provider_classifications: [] } });
+    await expect(save(contractInput())).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/cambiaron/) });
     expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
   });
 
-  it("los saldos de un contrato exigen ver el menú de su tipo (404)", async () => {
-    prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce({ ctr_id: 30, tbl_contract_types: { ctt_invoice_view: "SUBCONTRACTOR" } });
+  it("los saldos de un contrato exigen ver el menú de su proveedor (404)", async () => {
+    prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce({ ctr_id: 30, tbl_providers: providerTypes("SUBCONTRACTOR") });
     await expect(service.getContractAdvance({ ctrId: 30, views: ["MAJOR"] })).rejects.toMatchObject({ statusCode: 404 });
   });
 });

@@ -18,6 +18,7 @@ import RouteDialog from 'ui-component/extended/RouteDialog';
 import SelectSocket from 'ui-component/extended/SelectSocket';
 import useIdentityCheck from './components/useIdentityCheck';
 import { useAuth } from 'contexts/AuthContext';
+import useInvoiceViewChange from 'hooks/useInvoiceViewChange';
 import { getIdentityDocumentsSelectAPI } from 'api/requests/identityDocumentsApi';
 import { getProviderTypesSelectAPI } from 'api/requests/providerTypesApi';
 import { providersApi } from 'api/requests/providersApi';
@@ -84,6 +85,7 @@ export default function ProviderFormPage() {
   const [idempotencyKey] = useState(() => (isEdit ? null : newIdempotencyKey()));
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
+  const { withInvoiceMove, dialog: invoiceMoveDialog } = useInvoiceViewChange();
   const [loaded, setLoaded] = useState(null);
   const [identityOptions, setIdentityOptions] = useState([]);
   const [conflict, setConflict] = useState(null);
@@ -150,7 +152,7 @@ export default function ProviderFormPage() {
     if (existing) return;
     setSaving(true);
     try {
-      const { data } = await providersApi.save(toPayload(prvId, form), isEdit ? undefined : idempotencyKey);
+      const { data } = await withInvoiceMove(providersApi.save)(toPayload(prvId, form), isEdit ? undefined : idempotencyKey);
       showSuccess(data.message || 'Guardado correctamente.');
       refresh?.();
       navigate(`/work/providers/${data.prvId ?? prvId}`);
@@ -403,6 +405,7 @@ export default function ProviderFormPage() {
         message="Hay cambios sin guardar en el proveedor. ¿Salir sin guardarlos?"
         confirmLabel="Descartar"
       />
+      {invoiceMoveDialog}
     </RouteDialog>
   );
 }
