@@ -11,7 +11,7 @@ import {
 } from "../../../common/utils/validation.utils.js";
 import { TERM_UNITS } from "../../../common/utils/term.utils.js";
 import { CONTRACT_POLICY_STATUS } from "./policyTerms.js";
-import { CONTRACT_STATES } from "./contractTerms.js";
+import { BILLING_CLASSES, CONTRACT_STATES } from "./contractTerms.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). Las reglas de
 // negocio (etapa de la obra, estado que admite el acto, cronología…) viven en
@@ -108,6 +108,8 @@ export const saveContractSchema = [
   requiredId("prvId").withMessage("Selecciona el proveedor."),
   optionalId("wksId"),
   requiredId("cttId").withMessage("Selecciona el tipo de contrato."),
+  // Clase de facturación (DEC-054): con facturas no cambia, lo decide el service.
+  body("billingClass").isIn(Object.values(BILLING_CLASSES)).withMessage("Indica si el contrato es de contrato mayor o de subcontratista."),
   requiredText("number", "número de contrato", 50),
   requiredText("name", "nombre", 200),
   dateRule("startDate", "fecha de inicio"),

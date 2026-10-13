@@ -25,7 +25,8 @@ import { ACTION_TONES } from 'ui-component/extended/ActionButton';
 import { showError } from 'services/ToastService';
 import { gridSpacing } from 'store/constant';
 import { fDateOnly } from 'utils/formatTime';
-import { STATUS } from 'utils/constants';
+import { STATUS, invoicePath } from 'utils/constants';
+import useInvoiceViews from 'hooks/useInvoiceViews';
 
 import DashboardCards from './components/DashboardCards';
 import PolicyStatusCard from './components/PolicyStatusCard';
@@ -69,6 +70,10 @@ export default function Dashboard() {
     activeWork === ALL_WORKS ? 'Todas las obras' : (works.find((w) => w.value === activeWork)?.label ?? 'Sin obra seleccionada');
 
   const s = summary ?? {};
+  // Vistas de facturas que el usuario ve (DEC-054): los enlaces van a la primera que aplique.
+  const invoiceViews = useInvoiceViews();
+  const firstInvoiceView = invoiceViews[0];
+  const firstContractInvoiceView = invoiceViews.find((view) => view !== 'SIMPLE');
   const cards = useMemo(() => {
     if (!summary) return [];
     const items = [];
@@ -156,7 +161,8 @@ export default function Dashboard() {
         hint: 'Registradas, pendientes de aprobación',
         icon: IconReceipt,
         tone: ACTION_TONES.edit,
-        to: '/billing/invoices?status=REGISTERED'
+        // La primera vista con facturas por aprobar, o la primera que ve.
+        to: `${invoicePath(s.invoices.pendingByView?.find((p) => p.count > 0)?.view ?? firstInvoiceView)}?status=REGISTERED`
       });
     }
     if (s.contracts) {
@@ -171,15 +177,15 @@ export default function Dashboard() {
       });
     }
     return list;
-  }, [summary, s.policies, s.invoices, s.contracts, s.expiringDays]);
+  }, [summary, s.policies, s.invoices, s.contracts, s.expiringDays, firstInvoiceView]);
 
   // Accesos rápidos según permisos (experiencia de uso: el servidor vuelve a verificar).
   const canDo = (perId) => perId != null && hasPermission(perId);
   const quickLinks = [
     {
       label: 'Registrar factura',
-      to: '/billing/invoices/new',
-      perId: permissionsCatalog.billing?.invoices?.create,
+      to: invoicePath(firstInvoiceView, 'new'),
+      perId: firstInvoiceView ? permissionsCatalog.billing?.invoices?.create : null,
       icon: IconFilePlus,
       tone: ACTION_TONES.edit
     },
@@ -271,7 +277,7 @@ export default function Dashboard() {
               )}
               {s.invoices && (
                 <Grid size={{ xs: 12, lg: s.worksActivity ? 7 : 12 }}>
-                  <InvoicesByWorkCard byWork={s.invoices.byWork} />
+                  <InvoicesByWorkCard byWork={s.invoices.byWork} view={firstContractInvoiceView} />
                 </Grid>
               )}
             </Grid>
@@ -280,7 +286,7 @@ export default function Dashboard() {
           <Grid container spacing={gridSpacing}>
             {s.invoices && (
               <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-                <LatestInvoicesCard invoices={s.invoices.latest} />
+                <LatestInvoicesCard invoices={s.invoices.latest} allPath={invoicePath(firstInvoiceView)} />
               </Grid>
             )}
             {s.policies && (

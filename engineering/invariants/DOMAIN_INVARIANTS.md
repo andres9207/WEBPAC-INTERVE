@@ -55,7 +55,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 **Aplicadas (2026-10-05), con facturas ([DEC-042](../decisiones/DEC-042-facturas-area-ciclo-vida.md)), probadas contra la BD de desarrollo:**
 
 - **I11:** `UNIQUE uq_invoices_provider_number (prv_id, inv_number)`; el service responde 409 antes.
-- **I13:** `CHECK ck_invoices_type_links`. La simple va sin contrato y con etapa; las demás, con contrato y sin etapa.
+- **I13:** `CHECK ck_invoices_type_links`. La simple va sin contrato ni obra; las demás, con contrato y obra. Ninguna guarda etapa ([DEC-054](../decisiones/DEC-054-vistas-facturas-simple-sin-obra.md), migración 0089).
 - **I14:** `CHECK ck_invoices_approval`. Una registrada no tiene fecha de aprobación y una aprobada sí; una anulada conserva la que tenía. `ck_invoices_dates` impide que la aprobación sea anterior a la factura.
 
 ## Ciclo de vida
@@ -104,7 +104,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | DOM-26 | Un número de documento siempre tiene tipo de identificación, y un tipo sin número no se guarda | ADR-0008, decisión 8 |
 | DOM-27 | Un campo configurable obligatorio es visible, y uno visible aplica; un campo sin configuración no aplica | ADR-0006, decisión 4 |
 | DOM-28 | Un contrato no recibe valor en un campo que no aplica para su tipo, salvo el que ya tenía (heredado), que se conserva sin cambios | ADR-0006, decisiones 6 a 8 |
-| DOM-29 | Proveedor y obra de una factura de contrato son los del contrato; el proveedor de una factura simple está asignado a su obra, y su etapa es de esa obra | ADR-0020, regla 4; ADR-0023, decisión 3 |
+| DOM-29 | Proveedor y obra de una factura de contrato son los del contrato; la factura simple no tiene obra ni etapa, y su proveedor está activo al registrarla | ADR-0020, regla 4; DEC-054 |
 
 **Aplicadas (2026-09-29), para el tipo de identificación:**
 

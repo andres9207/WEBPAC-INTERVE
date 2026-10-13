@@ -22,8 +22,12 @@ const WORKS = 52;
 const PROVIDERS = 60;
 const CONTRACTS = 68;
 const POLICIES = 99;
-const INVOICES = 83;
-const ALL = new Set([WORKS, PROVIDERS, CONTRACTS, POLICIES, INVOICES]);
+// Un permiso de ver por vista de facturas (DEC-054).
+const SIMPLE_INVOICES = 105;
+const MAJOR_INVOICES = 106;
+const SUBCONTRACTOR_INVOICES = 107;
+const INVOICES = [SIMPLE_INVOICES, MAJOR_INVOICES, SUBCONTRACTOR_INVOICES];
+const ALL = new Set([WORKS, PROVIDERS, CONTRACTS, POLICIES, ...INVOICES]);
 const OWN = Object.freeze({ all: false, wrkId: 8 });
 
 const allWheres = () =>
@@ -83,14 +87,34 @@ describe("getDashboardSummary", () => {
       { wrk_id: 8, wrk_code: "OB-8", wrk_name: "Vía" },
       { wrk_id: 3, wrk_code: "OB-3", wrk_name: "Puente" },
     ]);
-    const { invoices } = await getDashboardSummary({ granted: new Set([INVOICES]), scope: OWN });
+    const { invoices } = await getDashboardSummary({ granted: new Set(INVOICES), scope: OWN });
 
     const { where } = prismaMock.tbl_invoices.groupBy.mock.calls[0][0];
     expect(where.inv_state).toEqual({ in: ["REGISTERED", "APPROVED"] });
+    // Solo las de contrato tienen obra (DEC-054).
+    expect(where.wrk_id).toEqual({ not: null });
+    expect(JSON.stringify(where.AND)).toContain('"ctr_billing_class":"MAJOR"');
     expect(invoices.byWork).toEqual([
       { wrkId: 8, registered: 2, approved: 3, workCode: "OB-8", workName: "Vía" },
       { wrkId: 3, registered: 1, approved: 0, workCode: "OB-3", workName: "Puente" },
     ]);
+  });
+
+  it("facturas: solo las vistas que el usuario ve, con las pendientes por vista (DEC-054)", async () => {
+    prismaMock.tbl_invoices.count.mockResolvedValue(4);
+    const { invoices } = await getDashboardSummary({ granted: new Set([SIMPLE_INVOICES]), scope: OWN });
+
+    expect(invoices.pendingByView).toEqual([{ view: "SIMPLE", count: 4 }]);
+    expect(invoices.pendingApproval).toBe(4);
+    const latestWhere = JSON.stringify(prismaMock.tbl_invoices.findMany.mock.calls[0][0].where);
+    expect(latestWhere).toContain('"inv_type":"SIMPLE"');
+    expect(latestWhere).not.toContain("ctr_billing_class");
+    // Sin vistas de contrato, el ranking por obra no devuelve nada.
+    expect(JSON.stringify(prismaMock.tbl_invoices.groupBy.mock.calls[0][0].where)).toContain('"inv_id":{"in":[]}');
+
+    jest.clearAllMocks();
+    expect((await getDashboardSummary({ granted: new Set([WORKS]), scope: OWN })).invoices).toBeNull();
+    expect(prismaMock.tbl_invoices.count).not.toHaveBeenCalled();
   });
 
   it("obras en seguimiento: solo activas, con las cifras de los módulos que el usuario ve", async () => {

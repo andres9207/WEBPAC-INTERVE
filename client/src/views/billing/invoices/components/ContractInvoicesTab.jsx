@@ -7,13 +7,14 @@ import { IconPlus } from '@tabler/icons-react';
 
 import InvoicesTab from './InvoicesTab';
 import { useAuth } from 'contexts/AuthContext';
-import { INVOICE_TYPE_OPTIONS } from 'utils/constants';
+import useInvoiceViews from 'hooks/useInvoiceViews';
+import { INVOICE_TYPE_OPTIONS, invoicePath } from 'utils/constants';
 
 /**
  * Facturas de un contrato, en su expediente (DEC-042). Registrar ofrece solo
  * los tipos que el estado del contrato admite hoy (`allowedActions` del
- * contrato, ADR-0017), y abre el formulario con el tipo y el contrato ya
- * elegidos.
+ * contrato, ADR-0017), y abre el formulario de la vista de su clase (DEC-054)
+ * con el tipo y el contrato ya elegidos. Exige ver esa vista.
  */
 
 // Acción del contrato (STATE_ALLOWS) que habilita cada tipo de factura.
@@ -23,7 +24,8 @@ export default function ContractInvoicesTab({ contract }) {
   const navigate = useNavigate();
   const { permissionsCatalog, hasPermission } = useAuth();
   const createId = permissionsCatalog.billing?.invoices?.create;
-  const canCreate = createId != null && hasPermission(createId);
+  const seesClass = useInvoiceViews().includes(contract.billingClass);
+  const canCreate = createId != null && hasPermission(createId) && seesClass;
 
   const admitted = canCreate ? contract.allowedActions.map((action) => TYPE_BY_ACTION[action]).filter(Boolean) : [];
 
@@ -36,7 +38,7 @@ export default function ContractInvoicesTab({ contract }) {
           variant="outlined"
           color="secondary"
           startIcon={<IconPlus size={16} />}
-          onClick={() => navigate(`/billing/invoices/new?type=${type}&ctrId=${contract.ctrId}`)}
+          onClick={() => navigate(`${invoicePath(contract.billingClass, 'new')}?type=${type}&ctrId=${contract.ctrId}`)}
         >
           Factura de {INVOICE_TYPE_OPTIONS.find((o) => o.value === type)?.label.toLowerCase()}
         </Button>
@@ -56,6 +58,6 @@ export default function ContractInvoicesTab({ contract }) {
 }
 
 ContractInvoicesTab.propTypes = {
-  /** Contrato del expediente: `{ ctrId, allowedActions }`. */
+  /** Contrato del expediente: `{ ctrId, billingClass, allowedActions }`. */
   contract: PropTypes.object.isRequired
 };

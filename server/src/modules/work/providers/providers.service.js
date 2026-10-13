@@ -639,7 +639,9 @@ export const changeProviderStatus = async ({ prvId, staId, useBy, scope, ctx = {
 /**
  * Eliminación lógica (DEC-006), bloqueada con 409 si el proveedor tiene obras
  * asignadas (regla 15): forma parte de sus expedientes. Los contactos se
- * conservan. Con contratos y facturas se agregan aquí sus tablas.
+ * conservan. Los contratos exigen una asignación; las facturas simples no
+ * (DEC-054), así que se cuentan aparte. Registrar una simple bloquea el
+ * proveedor: no se cruza con esto.
  */
 export const deleteProvider = async ({ prvId, useBy, scope, ctx = { useId: useBy } }) => {
   await assertProviderInScope(scope, prvId);
@@ -649,6 +651,10 @@ export const deleteProvider = async ({ prvId, useBy, scope, ctx = { useId: useBy
     const works = await tx.tbl_work_providers.count({ where: { prv_id: Number(prvId) } });
     if (works > 0) {
       throw httpError(409, `No se puede eliminar el proveedor: está asignado a ${works} obra(s). Desasígnalo primero o desactívalo.`);
+    }
+    const invoices = await tx.tbl_invoices.count({ where: { prv_id: Number(prvId) } });
+    if (invoices > 0) {
+      throw httpError(409, `No se puede eliminar el proveedor: tiene ${invoices} factura(s). Desactívalo en su lugar.`);
     }
 
     await tx.tbl_providers.update({
@@ -776,14 +782,12 @@ export const unassignProviderFromWork = async ({ wrkId, prvId, useBy, scope, ctx
   assertInScope(scope, wrkId, "No se encontró la obra.");
   return withLockedTransaction({ OBRA: wrkId, PROVEEDOR: prvId }, async (tx) => {
     const before = await findLockedAssignment(tx, { wrkId, prvId });
+    // Cuenta también los contratos eliminados: siguen apuntando a la
+    // asignación, y con ellos sus facturas. La factura simple no tiene obra
+    // (DEC-054): no impide desasignar, solo deja de verse en esta obra.
     const contracts = await tx.tbl_contracts.count({ where: { wrk_id: Number(wrkId), prv_id: Number(prvId) } });
     if (contracts > 0) {
       throw httpError(409, `No se puede desasignar el proveedor: tiene ${contracts} contrato(s) en esta obra. Inactiva la asignación en su lugar.`);
-    }
-    // Las facturas de la obra también apuntan a la asignación (DEC-042).
-    const invoices = await tx.tbl_invoices.count({ where: { wrk_id: Number(wrkId), prv_id: Number(prvId) } });
-    if (invoices > 0) {
-      throw httpError(409, `No se puede desasignar el proveedor: tiene ${invoices} factura(s) en esta obra. Inactiva la asignación en su lugar.`);
     }
     await tx.tbl_work_providers.delete({ where: { wkp_id: before.wkp_id } });
     await auditAssignment(tx, { operation: AUDIT_OPERATIONS.REVOKE, before, ctx });

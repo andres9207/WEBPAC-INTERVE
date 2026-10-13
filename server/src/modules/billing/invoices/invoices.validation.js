@@ -1,9 +1,10 @@
 import { body, query } from "express-validator";
 import { paginationRules, optionalText, optionalId, optionalDate, requiredId, idempotencyKeyRule, moneyRule } from "../../../common/utils/validation.utils.js";
 import { INVOICE_STATES, INVOICE_TYPES, hasContract } from "./invoiceTerms.js";
+import { CONTRACT_VIEWS, INVOICE_VIEWS } from "./invoiceViews.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). Las reglas de
-// negocio (proveedor de la obra, estado del contrato, cronología…) viven en
+// negocio (proveedor del alcance, estado del contrato, cronología…) viven en
 // el service. Estado, fecha de aprobación y saldos no se aceptan en el
 // formulario: si llegan, se ignoran (ADR-0020, "Seguridad"). Los importes
 // capturados son opcionales aquí: si el tipo los exige lo decide el service.
@@ -21,6 +22,8 @@ export const paginationInvoicesSchema = [
   ...paginationRules(),
   optionalText("search", 100),
   body("state").optional({ values: "falsy" }).isIn(Object.values(INVOICE_STATES)).withMessage("El estado no es válido."),
+  // Vista del listado (DEC-054); sin ella, todas las que el usuario ve (pestañas de los expedientes).
+  body("view").optional({ values: "falsy" }).isIn(Object.values(INVOICE_VIEWS)).withMessage("La vista de facturas no es válida."),
   body("type").optional({ values: "falsy" }).isIn(Object.values(INVOICE_TYPES)).withMessage("El tipo de factura no es válido."),
   optionalId("wrkId"),
   optionalId("prvId"),
@@ -38,14 +41,8 @@ export const paginationInvoicesSchema = [
 
 export const getInvoiceSchema = [query("invId").isInt({ min: 1 }).withMessage("invId es obligatorio y debe ser un entero positivo.")];
 
-export const selectInvoiceWorksSchema = [
+export const selectInvoiceProvidersSchema = [
   query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
-  query("includeWrkId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includeWrkId debe ser un entero positivo."),
-];
-
-export const getInvoiceFormOptionsSchema = [
-  query("wrkId").isInt({ min: 1 }).withMessage("wrkId es obligatorio y debe ser un entero positivo."),
-  query("includeWksId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includeWksId debe ser un entero positivo."),
   query("includePrvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePrvId debe ser un entero positivo."),
 ];
 
@@ -53,6 +50,7 @@ export const selectInvoiceContractsSchema = [
   query("type")
     .isIn(Object.values(INVOICE_TYPES).filter(hasContract))
     .withMessage("El tipo debe ser uno de factura de contrato."),
+  query("view").isIn(CONTRACT_VIEWS).withMessage("La vista debe ser contrato mayor o subcontratista."),
   query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
   query("includeCtrId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includeCtrId debe ser un entero positivo."),
 ];
@@ -68,16 +66,13 @@ export const getContractAdvanceSchema = [
 export const saveInvoiceSchema = [
   idempotencyKeyRule(isCreate),
   body("invId").optional({ values: "falsy" }).isInt({ min: 0 }).withMessage("invId debe ser un entero."),
-  // Tipo, obra y contrato solo se eligen al crear: después no cambian.
+  // Tipo y contrato solo se eligen al crear: después no cambian.
   body("type").if((_value, { req }) => isCreate(req)).isIn(Object.values(INVOICE_TYPES)).withMessage("Selecciona el tipo de factura."),
   body("ctrId").if((_value, { req }) => isContractCreate(req)).isInt({ min: 1 }).withMessage("Selecciona el contrato."),
-  body("wrkId").if((_value, { req }) => isSimpleCreate(req)).isInt({ min: 1 }).withMessage("Selecciona la obra."),
   body("prvId").if((_value, { req }) => isSimpleCreate(req)).isInt({ min: 1 }).withMessage("Selecciona el proveedor."),
-  body("wksId").if((_value, { req }) => isSimpleCreate(req)).isInt({ min: 1 }).withMessage("Selecciona la etapa."),
-  // Proveedor y etapa: de la factura simple (al crear y al editar). Si
-  // aplican lo decide el service con el tipo guardado.
+  // Proveedor: de la factura simple, sin obra ni etapa (DEC-054), al crear y
+  // al editar. Si aplica lo decide el service con el tipo guardado.
   optionalId("prvId"),
-  optionalId("wksId"),
   body("number")
     .trim()
     .notEmpty()

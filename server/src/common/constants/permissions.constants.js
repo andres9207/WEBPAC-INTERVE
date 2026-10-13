@@ -169,7 +169,13 @@ export const PERMISSIONS = {
   // efectos sobre saldos (ADR-0020, "Autorización").
   billing: {
     invoices: {
-      view: 83, // pagination_invoices, get_invoice, get_invoice_form_options, select_invoice_contracts, get_contract_advance
+      // Un permiso de ver por vista (DEC-054): facturas simples, de contrato
+      // mayor y de subcontratistas. Reemplazan al 83, retirado. Las acciones
+      // de abajo son comunes, y operar sobre una factura exige además ver su
+      // vista (invoiceViews.js).
+      viewSimple: 105,
+      viewMajor: 106,
+      viewSubcontractor: 107,
       create: 84,
       edit: 85,
       approve: 86,

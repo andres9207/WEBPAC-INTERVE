@@ -14,13 +14,16 @@ import {
   uncoveredContractsWhere,
 } from "../../work/contracts/policyTerms.js";
 import { INVOICE_STATES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
+import { CONTRACT_VIEWS, grantedViews, viewOf, viewsWhere } from "../../billing/invoices/invoiceViews.js";
+import { invoiceScopeWhere } from "../../billing/invoices/invoices.service.js";
 
 /**
  * Tablero (ADR-0002, DEC-052): solo lectura, cifras calculadas en la base de
  * datos bajo demanda, sin precálculo ni caché (decisión 10).
  *
  * - Cada bloque sale solo si el usuario puede ver el módulo que agrega
- *   (`granted`, decisión 8); si no, es null y el cliente no lo dibuja.
+ *   (`granted`, decisión 8); si no, es null y el cliente no lo dibuja. Las
+ *   facturas, solo las de las vistas que ve (DEC-054).
  * - Todo se restringe al alcance por obra de la petición (DEC-047).
  * - La fecha de referencia es la del servidor (decisión 3) y el umbral de "a
  *   vencer", el de las pólizas (`expiringDays`).
@@ -110,17 +113,27 @@ const policiesBlock = async (scope, { today, days }) => {
   };
 };
 
+/** Facturas no eliminadas del alcance (DEC-047) y de las vistas que ve el usuario (DEC-054). */
+const invoicesWhere = (scope, views) => ({ ...notDeleted, AND: [invoiceScopeWhere(scope), viewsWhere(views)] });
+
 /**
- * Facturas: pendientes de aprobar, por obra (registradas y aprobadas; las
- * anuladas no cuentan, DEC-052) y las últimas registradas. El ranking por
- * obra es por cantidad: la factura simple todavía no tiene importes.
+ * Facturas: pendientes de aprobar (en total y por vista, para el enlace),
+ * por obra (registradas y aprobadas; las anuladas no cuentan, DEC-052) y las
+ * últimas registradas. El ranking por obra es por cantidad y solo de las de
+ * contrato: la simple no tiene obra (DEC-054).
  */
-const invoicesBlock = async (scope) => {
-  const where = { ...notDeleted, ...scopeWhere(scope) };
+const invoicesBlock = async (scope, views) => {
+  const where = invoicesWhere(scope, views);
+  const contractWhere = invoicesWhere(scope, views.filter((view) => CONTRACT_VIEWS.includes(view)));
   const counted = [INVOICE_STATES.REGISTERED, INVOICE_STATES.APPROVED];
-  const [pendingApproval, grouped, latest] = await Promise.all([
-    prisma.tbl_invoices.count({ where: { ...where, inv_state: INVOICE_STATES.REGISTERED } }),
-    prisma.tbl_invoices.groupBy({ by: ["wrk_id", "inv_state"], where: { ...where, inv_state: { in: counted } }, _count: { _all: true } }),
+  const pending = (view) => prisma.tbl_invoices.count({ where: { ...invoicesWhere(scope, [view]), inv_state: INVOICE_STATES.REGISTERED } });
+  const [pendingCounts, grouped, latest] = await Promise.all([
+    Promise.all(views.map(pending)),
+    prisma.tbl_invoices.groupBy({
+      by: ["wrk_id", "inv_state"],
+      where: { ...contractWhere, wrk_id: { not: null }, inv_state: { in: counted } },
+      _count: { _all: true },
+    }),
     prisma.tbl_invoices.findMany({
       where,
       select: {
@@ -131,6 +144,7 @@ const invoicesBlock = async (scope) => {
         inv_state: true,
         tbl_providers: { select: { prv_name: true } },
         tbl_works: { select: { wrk_code: true } },
+        tbl_contracts: { select: { ctr_billing_class: true } },
       },
       orderBy: [{ inv_create_at: "desc" }, { inv_id: "desc" }],
       take: LATEST_ROWS,
@@ -152,11 +166,14 @@ const invoicesBlock = async (scope) => {
   });
   const names = new Map(works.map((w) => [w.wrk_id, w]));
 
+  const pendingByView = views.map((view, i) => ({ view, count: pendingCounts[i] }));
   return {
-    pendingApproval,
+    pendingApproval: pendingByView.reduce((sum, p) => sum + p.count, 0),
+    pendingByView,
     byWork: ranked.map((r) => ({ ...r, workCode: names.get(r.wrkId)?.wrk_code ?? null, workName: names.get(r.wrkId)?.wrk_name ?? null })),
     latest: latest.map((row) => ({
       invId: row.inv_id,
+      view: viewOf(row.inv_type, row.tbl_contracts?.ctr_billing_class),
       number: row.inv_number,
       typeName: INVOICE_TYPE_NAMES[row.inv_type] ?? row.inv_type,
       providerName: row.tbl_providers?.prv_name ?? null,
@@ -170,17 +187,22 @@ const invoicesBlock = async (scope) => {
 
 /**
  * Obras en seguimiento: las activas del alcance con más movimiento
- * (contratos no eliminados y facturas no anuladas), con sus cifras. Cada
- * cifra sale solo si el usuario puede ver su módulo.
+ * (contratos no eliminados y facturas de contrato no anuladas de las vistas
+ * que ve el usuario), con sus cifras. Cada cifra sale solo si el usuario
+ * puede ver su módulo.
  */
-const worksActivityBlock = async (scope, { contracts, invoices }) => {
+const worksActivityBlock = async (scope, { contracts, invoices }, views) => {
   const where = { ...notDeleted, ...scopeWhere(scope) };
   const [contractCounts, invoiceCounts] = await Promise.all([
     contracts ? prisma.tbl_contracts.groupBy({ by: ["wrk_id"], where, _count: { _all: true } }) : [],
     invoices
       ? prisma.tbl_invoices.groupBy({
           by: ["wrk_id"],
-          where: { ...where, inv_state: { in: [INVOICE_STATES.REGISTERED, INVOICE_STATES.APPROVED] } },
+          where: {
+            ...invoicesWhere(scope, views.filter((view) => CONTRACT_VIEWS.includes(view))),
+            wrk_id: { not: null },
+            inv_state: { in: [INVOICE_STATES.REGISTERED, INVOICE_STATES.APPROVED] },
+          },
           _count: { _all: true },
         })
       : [],
@@ -211,13 +233,15 @@ export const getDashboardSummary = async ({ granted, scope }) => {
   const has = (perId) => granted.has(perId);
   const today = todayDateOnly();
   const days = expiringDays();
+  const invoiceViews = grantedViews(granted);
   const see = {
     works: has(can.work.works.view),
     providers: has(can.work.providers.view),
     contracts: has(can.work.contracts.view),
     // El estado de pólizas es de contratos: exige ver los dos.
     policies: has(can.work.contracts.view) && has(can.work.policies.view),
-    invoices: has(can.billing.invoices.view),
+    // Alguna de las vistas de facturas (DEC-054).
+    invoices: invoiceViews.length > 0,
   };
 
   const [works, providers, contracts, policies, invoices, worksActivity] = await Promise.all([
@@ -225,8 +249,8 @@ export const getDashboardSummary = async ({ granted, scope }) => {
     see.providers ? providersBlock(scope) : null,
     see.contracts ? contractsBlock(scope) : null,
     see.policies ? policiesBlock(scope, { today, days }) : null,
-    see.invoices ? invoicesBlock(scope) : null,
-    see.works && (see.contracts || see.invoices) ? worksActivityBlock(scope, see) : null,
+    see.invoices ? invoicesBlock(scope, invoiceViews) : null,
+    see.works && (see.contracts || see.invoices) ? worksActivityBlock(scope, see, invoiceViews) : null,
   ]);
 
   return { referenceDate: dateOnlyText(today), expiringDays: days, works, providers, contracts, policies, invoices, worksActivity };

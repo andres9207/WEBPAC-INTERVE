@@ -39,9 +39,12 @@ const PAGES = [
   { pag_id: 16, pag_description: "Contratos", pag_parent: 13, pag_url: "work/contracts", pag_icon: "file-description", pag_order: 3, pag_name: "Contratos", pag_type: 2 },
   // database/migrations/0062_seed_reasons_suspensions_permissions.sql
   { pag_id: 17, pag_description: "Motivos", pag_parent: 5, pag_url: "admin/reasons", pag_icon: "message-report", pag_order: 8, pag_name: "Motivos", pag_type: 2 },
-  // database/migrations/0069_seed_invoices_pages_permissions.sql
-  { pag_id: 18, pag_description: "Facturación", pag_parent: 0, pag_url: null, pag_icon: "receipt", pag_order: 3, pag_name: "Facturación", pag_type: 1 },
-  { pag_id: 19, pag_description: "Facturas", pag_parent: 18, pag_url: "billing/invoices", pag_icon: "invoice", pag_order: 1, pag_name: "Facturas", pag_type: 2 },
+  // database/migrations/0069_seed_invoices_pages_permissions.sql; nombre y
+  // vistas de 0091 (DEC-054). La página 19 (todas juntas) se retiró en 0091.
+  { pag_id: 18, pag_description: "Facturas", pag_parent: 0, pag_url: null, pag_icon: "receipt", pag_order: 3, pag_name: "Facturas", pag_type: 1 },
+  { pag_id: 21, pag_description: "Facturas simples", pag_parent: 18, pag_url: "billing/invoices/simple", pag_icon: "invoice", pag_order: 1, pag_name: "Facturas simples", pag_type: 2 },
+  { pag_id: 22, pag_description: "Facturas contrato mayor", pag_parent: 18, pag_url: "billing/invoices/major", pag_icon: "invoice", pag_order: 2, pag_name: "Facturas contrato mayor", pag_type: 2 },
+  { pag_id: 23, pag_description: "Facturas subcontratistas", pag_parent: 18, pag_url: "billing/invoices/subcontractors", pag_icon: "invoice", pag_order: 3, pag_name: "Facturas subcontratistas", pag_type: 2 },
   // database/migrations/0082_seed_policies_pages_permissions.sql
   { pag_id: 20, pag_description: "Tipos de póliza", pag_parent: 5, pag_url: "admin/policyTypes", pag_icon: "shield-check", pag_order: 9, pag_name: "Tipos de póliza", pag_type: 2 },
 ];
@@ -137,15 +140,16 @@ const PERMISSIONS = [
   { per_id: 100, per_name: "Registrar póliza", pag_id: 16, per_order: 13 },
   { per_id: 101, per_name: "Modificar póliza", pag_id: 16, per_order: 14 },
   { per_id: 102, per_name: "Anular póliza", pag_id: 16, per_order: 15 },
-  { per_id: 84, per_name: "Crear factura", pag_id: 19, per_order: 1 },
-  { per_id: 85, per_name: "Modificar factura", pag_id: 19, per_order: 2 },
-  { per_id: 86, per_name: "Aprobar factura", pag_id: 19, per_order: 3 },
-  { per_id: 87, per_name: "Anular factura", pag_id: 19, per_order: 4 },
-  { per_id: 88, per_name: "Anular factura aprobada", pag_id: 19, per_order: 5 },
+  // Acciones de facturas, comunes a las tres vistas: en el grupo 18 desde 0091 (DEC-054).
+  { per_id: 84, per_name: "Crear factura", pag_id: 18, per_order: 1 },
+  { per_id: 85, per_name: "Modificar factura", pag_id: 18, per_order: 2 },
+  { per_id: 86, per_name: "Aprobar factura", pag_id: 18, per_order: 3 },
+  { per_id: 87, per_name: "Anular factura", pag_id: 18, per_order: 4 },
+  { per_id: 88, per_name: "Anular factura aprobada", pag_id: 18, per_order: 5 },
   // database/migrations/0072_seed_adjust_amortization_permission.sql
-  { per_id: 89, per_name: "Ajustar amortización de anticipo", pag_id: 19, per_order: 6 },
+  { per_id: 89, per_name: "Ajustar amortización de anticipo", pag_id: 18, per_order: 6 },
   // database/migrations/0084_seed_adjust_retention_permission.sql
-  { per_id: 103, per_name: "Ajustar retenido", pag_id: 19, per_order: 8 },
+  { per_id: 103, per_name: "Ajustar retenido", pag_id: 18, per_order: 8 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -185,7 +189,10 @@ const VIEW_PERMISSIONS = [
   { per_id: 60, per_name: "Ver proveedores", pag_id: 15, per_order: 8 },
   { per_id: 68, per_name: "Ver contratos", pag_id: 16, per_order: 8 },
   { per_id: 78, per_name: "Ver motivos", pag_id: 17, per_order: 5 },
-  { per_id: 83, per_name: "Ver facturas", pag_id: 19, per_order: 7 },
+  // database/migrations/0091_seed_invoice_views_pages_permissions.sql (DEC-054): uno por vista; el 83 se retiró.
+  { per_id: 105, per_name: "Ver facturas simples", pag_id: 21, per_order: 1 },
+  { per_id: 106, per_name: "Ver facturas de contrato mayor", pag_id: 22, per_order: 1 },
+  { per_id: 107, per_name: "Ver facturas de subcontratistas", pag_id: 23, per_order: 1 },
   { per_id: 93, per_name: "Ver tipos de póliza", pag_id: 20, per_order: 5 },
   { per_id: 99, per_name: "Ver pólizas", pag_id: 16, per_order: 12 },
 ];

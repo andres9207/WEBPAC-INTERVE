@@ -9,6 +9,20 @@ import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
  * y la conciliación de la fecha fin (fase B) lo usará para comparar.
  */
 
+// ─── Clase de facturación (DEC-054) ──────────────────────────────────────────
+
+/**
+ * Contrato mayor o subcontratista: se elige al crear el contrato y decide en
+ * qué vista de facturas aparecen las suyas. Dominio cerrado, como en el
+ * CHECK de tbl_contracts (migración 0090).
+ */
+export const BILLING_CLASSES = Object.freeze({ MAJOR: "MAJOR", SUBCONTRACTOR: "SUBCONTRACTOR" });
+
+export const BILLING_CLASS_NAMES = Object.freeze({
+  MAJOR: "Contrato mayor",
+  SUBCONTRACTOR: "Subcontratista",
+});
+
 // ─── Estados (ADR-0017) ──────────────────────────────────────────────────────
 
 export const CONTRACT_STATES = Object.freeze({

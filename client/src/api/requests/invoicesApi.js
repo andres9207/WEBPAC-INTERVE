@@ -5,27 +5,24 @@ import { idempotencyConfig } from 'utils/idempotency';
 /**
  * Facturas (DEC-042). Listado, detalle y guardado tienen la forma de un
  * maestro: se reutiliza createMasterApi. No hay eliminar ni cambiar estado:
- * una factura se aprueba o se anula con su propia llamada.
+ * una factura se aprueba o se anula con su propia llamada. El listado de una
+ * vista lleva `view` (DEC-054); sin ella, el servidor devuelve todas las que
+ * el usuario ve (pestañas de los expedientes).
  */
 export const invoicesApi = createMasterApi('billing/invoices', { entity: 'invoice', plural: 'invoices' });
 
 /**
- * Obras activas para la factura simple, con tope: se busca en el servidor.
- * @param {{ search?: string, includeWrkId?: number }} [params]  la obra ya elegida vuelve aunque la búsqueda la deje fuera
+ * Proveedores activos del alcance para la factura simple (DEC-054), con tope:
+ * se busca en el servidor por razón social o documento.
+ * @param {{ search?: string, includePrvId?: number }} [params]  el proveedor ya elegido vuelve aunque la búsqueda lo deje fuera
  */
-export const getInvoiceWorksSelectAPI = (params = {}) => httpCliente.get('billing/invoices/select_invoice_works', params);
+export const getInvoiceProvidersSelectAPI = (params = {}) => httpCliente.get('billing/invoices/select_invoice_providers', params);
 
 /**
- * Etapas y proveedores asignados de una obra, para la factura simple.
- * @param {{ wrkId: number, includeWksId?: number, includePrvId?: number }} params  los actuales se incluyen aunque estén inactivos
- */
-export const getInvoiceFormOptionsAPI = (params) => httpCliente.get('billing/invoices/get_invoice_form_options', params);
-
-/**
- * Contratos cuyo estado admite el tipo de factura (ADR-0017): el anticipo,
- * en ejecución; liquidación y devolución de retenido, en liquidación. Busca
- * por número, nombre, proveedor y obra.
- * @param {{ type: string, search?: string, includeCtrId?: number }} params  el contrato ya elegido vuelve aunque la búsqueda lo deje fuera
+ * Contratos de la clase de la vista (DEC-054) cuyo estado admite el tipo de
+ * factura (ADR-0017): el anticipo, en ejecución; liquidación y devolución de
+ * retenido, en liquidación. Busca por número, nombre, proveedor y obra.
+ * @param {{ type: string, view: 'MAJOR'|'SUBCONTRACTOR', search?: string, includeCtrId?: number }} params  el contrato ya elegido vuelve aunque la búsqueda lo deje fuera
  */
 export const getInvoiceContractsSelectAPI = (params) => httpCliente.get('billing/invoices/select_invoice_contracts', params);
 

@@ -24,11 +24,12 @@ import { useSocket } from 'socket/SocketProvider';
 import { showError } from 'services/ToastService';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
 import { fMoneyText, fPercentText } from 'utils/formatNumber';
-import { INVOICE_STATE_COLORS } from 'utils/constants';
+import { INVOICE_STATE_COLORS, invoicePath } from 'utils/constants';
 
 /**
- * Expediente de una factura (DEC-042), en un modal sobre el listado con
- * dirección propia `/billing/invoices/:invId` (DEC-034): identidad, estado,
+ * Expediente de una factura (DEC-042), en un modal sobre el listado de su
+ * vista con dirección propia `/billing/invoices/<vista>/:invId` (DEC-034,
+ * DEC-054). Abierta desde otra vista, se lleva a la suya. Identidad, estado,
  * datos del documento e historial de estado. El estado no se edita: lo
  * cambian Aprobar y Anular, cada una con su diálogo y su permiso, ofrecidas
  * según `allowedActions` del servidor. Importes: los del anticipo, la
@@ -153,7 +154,7 @@ export default function InvoiceDetailPage() {
   const { invId } = useParams();
   const navigate = useNavigate();
   const socket = useSocket();
-  const { refresh } = useOutletContext() ?? {};
+  const { refresh, view = 'SIMPLE' } = useOutletContext() ?? {};
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
   const perms = permissionsCatalog.billing?.invoices;
@@ -167,14 +168,19 @@ export default function InvoiceDetailPage() {
     setLoading(true);
     try {
       const { data } = await invoicesApi.getById({ invId });
+      // Cada factura vive en su vista (DEC-054): una dirección de otra vista se corrige.
+      if (data.view && data.view !== view) {
+        navigate(invoicePath(data.view, data.invId), { replace: true });
+        return;
+      }
       setInvoice(data);
     } catch (err) {
       showError(err.response?.data?.message || 'Error al cargar la factura');
-      if (err.response?.status === 404) navigate('/billing/invoices', { replace: true });
+      if (err.response?.status === 404) navigate(invoicePath(view), { replace: true });
     } finally {
       setLoading(false);
     }
-  }, [invId, navigate]);
+  }, [invId, navigate, view]);
 
   useEffect(() => {
     load();
@@ -194,7 +200,7 @@ export default function InvoiceDetailPage() {
     refresh?.();
   }, [load, refresh]);
 
-  const close = () => navigate('/billing/invoices');
+  const close = () => navigate(invoicePath(view));
 
   if (!invoice) return <RouteDialog onClose={close} loading={loading} />;
 
@@ -218,8 +224,13 @@ export default function InvoiceDetailPage() {
             <Chip size="small" variant="outlined" label={invoice.typeName} />
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            {invoice.providerName} · {invoice.workCode} {invoice.workName}
-            {invoice.contractNumber ? ` · Contrato ${invoice.contractNumber}` : ''}
+            {[
+              invoice.providerName,
+              invoice.workCode && `${invoice.workCode} ${invoice.workName}`,
+              invoice.contractNumber && `Contrato ${invoice.contractNumber}`
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </Typography>
           <Typography variant="caption" color="text.secondary">
             Modificada el {fDateTime(invoice.updatedAt)} por {invoice.updatedByName ?? '—'}
@@ -260,7 +271,7 @@ export default function InvoiceDetailPage() {
             Cerrar
           </Button>
           {canEdit && (
-            <Button variant="outlined" color="secondary" onClick={() => navigate(`/billing/invoices/${invoice.invId}/edit`)}>
+            <Button variant="outlined" color="secondary" onClick={() => navigate(invoicePath(view, invoice.invId, 'edit'))}>
               {allows('edit') ? 'Editar factura' : 'Editar extracto y descripción'}
             </Button>
           )}
@@ -300,17 +311,19 @@ export default function InvoiceDetailPage() {
               </SubCard>
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
-              <SubCard title="Proveedor, obra y contrato">
+              <SubCard title={invoice.ctrId ? 'Proveedor, obra y contrato' : 'Proveedor'}>
                 <DataList
                   items={[
                     ['Proveedor', `${invoice.providerName} · ${invoice.providerIdentification}`],
-                    ['Obra', `${invoice.workCode} — ${invoice.workName}`],
-                    ['Etapa', invoice.stageName],
-                    [
-                      'Contrato',
-                      invoice.contractNumber ? `${invoice.contractNumber} — ${invoice.contractName}` : 'Sin contrato (factura simple)'
-                    ],
-                    ...(invoice.contractNumber ? [['Estado del contrato', invoice.contractStateName]] : []),
+                    // La simple no tiene obra, etapa ni contrato (DEC-054).
+                    ...(invoice.ctrId
+                      ? [
+                          ['Obra', `${invoice.workCode} — ${invoice.workName}`],
+                          ['Etapa', invoice.stageName],
+                          ['Contrato', `${invoice.contractNumber} — ${invoice.contractName}`],
+                          ['Estado del contrato', invoice.contractStateName]
+                        ]
+                      : [['Contrato', 'Sin contrato ni obra (factura simple)']]),
                     ['Registrada', `${fDateTime(invoice.createdAt)} por ${invoice.createdByName ?? '—'}`]
                   ]}
                 />

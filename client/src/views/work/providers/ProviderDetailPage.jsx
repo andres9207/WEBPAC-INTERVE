@@ -22,9 +22,10 @@ import WorkProviderDialog from './components/WorkProviderDialog';
 import InvoicesTab from 'views/billing/invoices/components/InvoicesTab';
 import { providersApi, workProvidersApi } from 'api/requests/providersApi';
 import { useAuth } from 'contexts/AuthContext';
+import useInvoiceViews from 'hooks/useInvoiceViews';
 import { showError, showSuccess } from 'services/ToastService';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
-import { STATUS } from 'utils/constants';
+import { STATUS, invoicePath } from 'utils/constants';
 
 /**
  * Detalle de un proveedor (ADR-0012, DEC-031), en un modal sobre el listado
@@ -59,6 +60,9 @@ export default function ProviderDetailPage() {
   const canViewWorks = canDo(permissionsCatalog.work?.works?.view);
   const canAssign = canDo(perms?.assignWork);
   const canUnassign = canDo(perms?.unassignWork);
+  // La factura simple es del proveedor (DEC-054): se registra desde aquí.
+  const invoiceViews = useInvoiceViews();
+  const canCreateSimple = canDo(permissionsCatalog.billing?.invoices?.create) && invoiceViews.includes('SIMPLE');
 
   const [provider, setProvider] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -395,8 +399,21 @@ export default function ProviderDetailPage() {
       {tab === 'invoices' && (
         <InvoicesTab
           filter={{ prvId: provider.prvId }}
+          actions={
+            active && canCreateSimple ? (
+              <Button
+                size="small"
+                variant="outlined"
+                color="secondary"
+                startIcon={<IconPlus size={16} />}
+                onClick={() => navigate(`${invoicePath('SIMPLE', 'new')}?prvId=${provider.prvId}`)}
+              >
+                Factura simple
+              </Button>
+            ) : null
+          }
           emptyTitle="Todavía no hay facturas de este proveedor."
-          emptyText="Se registran desde la pestaña Facturas de la obra (simple) o del contrato (anticipo, liquidación y devolución de retenido). Un proveedor con facturas no se puede desasignar de esa obra."
+          emptyText="La factura simple, sin contrato ni obra, se registra aquí; las de anticipo, liquidación y devolución de retenido, desde la pestaña Facturas del contrato. Un proveedor con facturas no se puede eliminar."
         />
       )}
 

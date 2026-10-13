@@ -399,6 +399,18 @@ describe("estado y eliminación", () => {
     expect(prismaMock.tbl_providers.update).not.toHaveBeenCalled();
   });
 
+  it("no se elimina un proveedor con facturas, aunque no tenga obras (409, DEC-054)", async () => {
+    state.provider = { sta_id: 1 };
+    prismaMock.tbl_invoices.count.mockResolvedValue(3);
+
+    await expect(service.deleteProvider({ prvId: 77, useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: "No se puede eliminar el proveedor: tiene 3 factura(s). Desactívalo en su lugar.",
+    });
+    expect(prismaMock.tbl_invoices.count).toHaveBeenCalledWith({ where: { prv_id: 77 } });
+    expect(prismaMock.tbl_providers.update).not.toHaveBeenCalled();
+  });
+
   it("sin obras se elimina de forma lógica, con evidencia y bitácora", async () => {
     state.provider = { sta_id: 1 };
 
@@ -491,16 +503,13 @@ describe("asignación proveedor-obra", () => {
     expect(prismaMock.tbl_work_providers.delete).not.toHaveBeenCalled();
   });
 
-  it("no desasigna un proveedor con facturas en la obra (409, DEC-042)", async () => {
+  it("desasigna aunque el proveedor tenga facturas simples: no tienen obra (DEC-054)", async () => {
     state.assignment = { wkp_id: 300, wrk_id: 8, prv_id: 77, wkp_assignment_date: new Date("2026-10-01T00:00:00Z"), wkp_observation: null, sta_id: 1 };
     prismaMock.tbl_invoices.count.mockResolvedValue(2);
 
-    await expect(service.unassignProviderFromWork({ wrkId: 8, prvId: 77, useBy: 9, ctx })).rejects.toMatchObject({
-      statusCode: 409,
-      message: "No se puede desasignar el proveedor: tiene 2 factura(s) en esta obra. Inactiva la asignación en su lugar.",
-    });
-    expect(prismaMock.tbl_invoices.count).toHaveBeenCalledWith({ where: { wrk_id: 8, prv_id: 77 } });
-    expect(prismaMock.tbl_work_providers.delete).not.toHaveBeenCalled();
+    await service.unassignProviderFromWork({ wrkId: 8, prvId: 77, useBy: 9, ctx });
+    expect(prismaMock.tbl_invoices.count).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_work_providers.delete).toHaveBeenCalledWith({ where: { wkp_id: 300 } });
   });
 
   it("desasignar lo que no está asignado responde 404", async () => {

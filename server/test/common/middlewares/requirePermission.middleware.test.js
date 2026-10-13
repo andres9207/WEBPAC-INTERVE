@@ -154,4 +154,26 @@ describe("requirePermission middleware", () => {
     expect(next).toHaveBeenCalledWith(error);
     expect(res.status).not.toHaveBeenCalled();
   });
+
+  it("una lista exige cualquiera de sus permisos (vistas de facturas, DEC-054)", async () => {
+    prismaMock.tbl_user_permissions.findFirst.mockResolvedValue(null);
+    prismaMock.tbl_profile_permissions.findFirst.mockImplementation(async ({ where }) => (where.per_id === 106 ? { prp_id: 1 } : null));
+    const next = jest.fn();
+    await requirePermission([105, 106, 107])({ user: { useId: 4, proId: 2 }, body: {} }, buildRes(), next);
+    expect(next).toHaveBeenCalledTimes(1);
+
+    const res = buildRes();
+    const denied = jest.fn();
+    await requirePermission([105, 107])({ user: { useId: 4, proId: 2 }, body: {} }, res, denied);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(denied).not.toHaveBeenCalled();
+  });
+
+  it("una lista vacía no concede nada", async () => {
+    const res = buildRes();
+    const next = jest.fn();
+    await requirePermission([])({ user: { useId: 4, proId: 2 }, body: {} }, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(prismaMock.tbl_profile_permissions.findFirst).not.toHaveBeenCalled();
+  });
 });

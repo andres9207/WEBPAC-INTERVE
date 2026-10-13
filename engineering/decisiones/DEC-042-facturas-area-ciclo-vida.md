@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-10-05 · **Tipo:** Obligatoria · **ADR:** [0020](../adr/0020-facturacion.md), [0017](../adr/0017-estados-contrato.md), [0021](../adr/0021-facturacion-contrato-mayor.md), [0023](../adr/0023-facturacion-simple.md), [0027](../adr/0027-integridad-transaccional.md)
 
+> **Parcialmente reemplazada por [DEC-054](DEC-054-vistas-facturas-simple-sin-obra.md) (2026-10-13):** la factura simple ya no tiene obra ni etapa (es del proveedor, bloqueo proveedor → factura), las facturas no guardan etapa, el permiso 83 se reemplazó por uno de ver por vista (105 a 107) y desasignar un proveedor o quitar una etapa ya no consultan facturas. Lo demás sigue vigente.
+
 Resuelve PD-05 ([`PROJECT_STATE`](../PROJECT_STATE.md)) **para facturación** y las decisiones de negocio DEC-16 y DEC-17 (número de factura) del backlog. El usuario lo decidió el 2026-10-05 y aprobó la spec [`docs/specs/billing-invoices.md`](../../docs/specs/billing-invoices.md). Es la fase A. Los detalles por tipo con sus importes, los saldos y el evaluador C1–C8 son la fase B, bloqueada por decisiones contables ([deuda](../debt/TECHNICAL_DEBT.md)).
 
 ## Decisión

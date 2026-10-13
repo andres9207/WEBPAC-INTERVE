@@ -6,20 +6,23 @@ import { useTheme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 
 import MainCard from 'ui-component/cards/MainCard';
+import { invoicePath } from 'utils/constants';
 
 /**
  * Facturas recibidas por obra (DEC-052): registradas y aprobadas, sin las
  * anuladas, apiladas por obra. Por cantidad: la factura simple todavía no
  * tiene importes. Dos series con leyenda; colores validados contra el fondo
  * claro (orange.dark y primary.800, contraste ≥ 3:1 y separables con
- * daltonismo). El clic en una barra lleva a las facturas de esa obra.
+ * daltonismo). Solo las de contrato: la simple no tiene obra (DEC-054). El
+ * clic en una barra lleva a las facturas de esa obra en `view`, la primera
+ * vista de contrato que el usuario ve.
  */
-export default function InvoicesByWorkCard({ byWork }) {
+export default function InvoicesByWorkCard({ byWork, view }) {
   const theme = useTheme();
   const navigate = useNavigate();
   const open = (index) => {
     const work = byWork[index];
-    if (work) navigate(`/billing/invoices?wrkId=${work.wrkId}&label=${encodeURIComponent(work.workCode ?? '')}`);
+    if (work && view) navigate(`${invoicePath(view)}?wrkId=${work.wrkId}&label=${encodeURIComponent(work.workCode ?? '')}`);
   };
 
   const options = {
@@ -77,4 +80,8 @@ export default function InvoicesByWorkCard({ byWork }) {
   );
 }
 
-InvoicesByWorkCard.propTypes = { byWork: PropTypes.arrayOf(PropTypes.object).isRequired };
+InvoicesByWorkCard.propTypes = {
+  byWork: PropTypes.arrayOf(PropTypes.object).isRequired,
+  /** Vista de contrato a la que lleva el clic (DEC-054); sin ella, no navega. */
+  view: PropTypes.oneOf(['MAJOR', 'SUBCONTRACTOR'])
+};

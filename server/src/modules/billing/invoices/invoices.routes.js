@@ -3,11 +3,11 @@ import { verifyToken } from "../../../common/middlewares/authjwt.middleware.js";
 import { requirePermission } from "../../../common/middlewares/requirePermission.middleware.js";
 import { validate } from "../../../common/middlewares/validate.middleware.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
+import { ANY_CONTRACT_VIEW_PERMISSION, ANY_VIEW_PERMISSION, INVOICE_VIEWS, VIEW_PERMISSIONS } from "./invoiceViews.js";
 import {
   paginationInvoicesSchema,
   getInvoiceSchema,
-  selectInvoiceWorksSchema,
-  getInvoiceFormOptionsSchema,
+  selectInvoiceProvidersSchema,
   selectInvoiceContractsSchema,
   getContractAdvanceSchema,
   saveInvoiceSchema,
@@ -17,8 +17,7 @@ import {
 import {
   paginationInvoicesController,
   getInvoiceController,
-  selectInvoiceWorksController,
-  getInvoiceFormOptionsController,
+  selectInvoiceProvidersController,
   selectInvoiceContractsController,
   getContractAdvanceController,
   saveInvoiceController,
@@ -30,26 +29,39 @@ import {
 // ENDPOINT_STANDARD: verifyToken → requirePermission → esquema → validate →
 // controller. Cada transición tiene su endpoint y su permiso
 // (WORKFLOW_STANDARD, regla 3). No hay ruta de eliminar: una factura se anula.
+//
+// Vistas (DEC-054): el listado de una vista exige su permiso de ver; los
+// endpoints comunes, cualquiera de los tres, y el service responde 404 a una
+// factura de una vista que el usuario no ve.
 const can = PERMISSIONS.billing.invoices;
 const invoicesRoutes = express.Router();
 
-invoicesRoutes.post("/pagination_invoices", verifyToken, requirePermission(can.view), paginationInvoicesSchema, validate, paginationInvoicesController);
-invoicesRoutes.get("/get_invoice", verifyToken, requirePermission(can.view), getInvoiceSchema, validate, getInvoiceController);
-// Obras activas, y etapas y proveedores de una obra, para la factura simple.
-invoicesRoutes.get("/select_invoice_works", verifyToken, requirePermission(can.view), selectInvoiceWorksSchema, validate, selectInvoiceWorksController);
-invoicesRoutes.get(
-  "/get_invoice_form_options",
+// Una vista desconocida pide los tres permisos: la validación la rechaza después.
+const viewPermission = (view) => VIEW_PERMISSIONS[view] ?? ANY_VIEW_PERMISSION;
+
+invoicesRoutes.post(
+  "/pagination_invoices",
   verifyToken,
-  requirePermission(can.view),
-  getInvoiceFormOptionsSchema,
+  requirePermission((req) => (req.body.view ? viewPermission(req.body.view) : ANY_VIEW_PERMISSION)),
+  paginationInvoicesSchema,
   validate,
-  getInvoiceFormOptionsController
+  paginationInvoicesController
 );
-// Contratos cuyo estado admite el tipo de factura (ADR-0017).
+invoicesRoutes.get("/get_invoice", verifyToken, requirePermission(ANY_VIEW_PERMISSION), getInvoiceSchema, validate, getInvoiceController);
+// Proveedores activos del alcance, para la factura simple.
+invoicesRoutes.get(
+  "/select_invoice_providers",
+  verifyToken,
+  requirePermission(VIEW_PERMISSIONS[INVOICE_VIEWS.SIMPLE]),
+  selectInvoiceProvidersSchema,
+  validate,
+  selectInvoiceProvidersController
+);
+// Contratos de la clase de la vista cuyo estado admite el tipo de factura (ADR-0017).
 invoicesRoutes.get(
   "/select_invoice_contracts",
   verifyToken,
-  requirePermission(can.view),
+  requirePermission((req) => viewPermission(req.query.view)),
   selectInvoiceContractsSchema,
   validate,
   selectInvoiceContractsController
@@ -58,7 +70,7 @@ invoicesRoutes.get(
 invoicesRoutes.get(
   "/get_contract_advance",
   verifyToken,
-  requirePermission(can.view),
+  requirePermission(ANY_CONTRACT_VIEW_PERMISSION),
   getContractAdvanceSchema,
   validate,
   getContractAdvanceController

@@ -18,7 +18,7 @@ import Typography from '@mui/material/Typography';
 
 import MainCard from 'ui-component/cards/MainCard';
 import { fDateOnly } from 'utils/formatTime';
-import { INVOICE_STATE_COLORS } from 'utils/constants';
+import { INVOICE_STATE_COLORS, invoicePath } from 'utils/constants';
 
 // Bloques de lista del tablero (DEC-052). Todo lo cuenta el servidor; aquí
 // solo se presenta y se enlaza al registro o al listado filtrado.
@@ -123,13 +123,13 @@ export function AlertsCard({ alerts }) {
 
 AlertsCard.propTypes = { alerts: PropTypes.arrayOf(PropTypes.object).isRequired };
 
-/** Últimas facturas registradas, de cualquier estado. */
-export function LatestInvoicesCard({ invoices }) {
+/** Últimas facturas registradas, de cualquier estado y de las vistas que el usuario ve (DEC-054). */
+export function LatestInvoicesCard({ invoices, allPath }) {
   return (
     <MainCard
       title="Últimas facturas registradas"
       secondary={
-        <Link component={RouterLink} to="/billing/invoices" underline="hover" variant="body2">
+        <Link component={RouterLink} to={allPath} underline="hover" variant="body2">
           Ver todas
         </Link>
       }
@@ -143,7 +143,7 @@ export function LatestInvoicesCard({ invoices }) {
       ) : (
         <List disablePadding aria-label="Últimas facturas registradas">
           {invoices.map((inv) => (
-            <ListItemButton key={inv.invId} component={RouterLink} to={`/billing/invoices/${inv.invId}`} sx={{ borderRadius: 1, gap: 1 }}>
+            <ListItemButton key={inv.invId} component={RouterLink} to={invoicePath(inv.view, inv.invId)} sx={{ borderRadius: 1, gap: 1 }}>
               <ListItemText
                 primary={`${inv.typeName} ${inv.number}`}
                 secondary={[inv.providerName, inv.workCode, fDateOnly(inv.date)].filter(Boolean).join(' · ')}
@@ -158,7 +158,11 @@ export function LatestInvoicesCard({ invoices }) {
   );
 }
 
-LatestInvoicesCard.propTypes = { invoices: PropTypes.arrayOf(PropTypes.object).isRequired };
+LatestInvoicesCard.propTypes = {
+  invoices: PropTypes.arrayOf(PropTypes.object).isRequired,
+  /** Listado al que lleva "Ver todas": la primera vista que el usuario ve. */
+  allPath: PropTypes.string.isRequired
+};
 
 /** Pólizas vigentes vencidas o por vencer, las más próximas primero. */
 export function UpcomingPoliciesCard({ policies, expiringDays }) {

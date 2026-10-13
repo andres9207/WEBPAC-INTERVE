@@ -102,10 +102,36 @@ export const INVOICE_STATE_TABS = [
 export const INVOICE_STATE_COLORS = { REGISTERED: 'warning', APPROVED: 'success', CANCELLED: 'default' };
 
 export const INVOICE_TYPE_OPTIONS = [
-  { value: 'SIMPLE', label: 'Simple', hint: 'Sin contrato: se imputa a una etapa de la obra' },
+  { value: 'SIMPLE', label: 'Simple', hint: 'Del proveedor, sin contrato ni obra' },
   { value: 'ADVANCE', label: 'Anticipo', hint: 'De un contrato en ejecución' },
   { value: 'LIQUIDATION', label: 'Liquidación', hint: 'De un contrato en liquidación' },
   { value: 'RETENTION_REFUND', label: 'Devolución de retenido', hint: 'De un contrato en liquidación' }
+];
+
+const CONTRACT_INVOICE_TYPES = ['ADVANCE', 'LIQUIDATION', 'RETENTION_REFUND'];
+
+// Vistas de facturas (DEC-054): una por menú, cada una con su permiso de ver
+// (clave en permissionsCatalog.billing.invoices), su dirección y sus tipos.
+// La factura dice a cuál pertenece (`view`, del servidor).
+export const INVOICE_VIEWS = {
+  SIMPLE: { path: 'simple', title: 'Facturas simples', permission: 'viewSimple', types: ['SIMPLE'] },
+  MAJOR: { path: 'major', title: 'Facturas contrato mayor', permission: 'viewMajor', types: CONTRACT_INVOICE_TYPES },
+  SUBCONTRACTOR: {
+    path: 'subcontractors',
+    title: 'Facturas subcontratistas',
+    permission: 'viewSubcontractor',
+    types: CONTRACT_INVOICE_TYPES
+  }
+};
+
+/** Dirección del listado de una vista, o de una factura en él: `invoicePath('MAJOR', 70, 'edit')`. */
+export const invoicePath = (view, invId, suffix) =>
+  ['/billing/invoices', INVOICE_VIEWS[view]?.path ?? INVOICE_VIEWS.SIMPLE.path, invId, suffix].filter(Boolean).join('/');
+
+// Clase de facturación del contrato (DEC-054): decide la vista de sus facturas.
+export const BILLING_CLASS_OPTIONS = [
+  { value: 'MAJOR', label: 'Contrato mayor' },
+  { value: 'SUBCONTRACTOR', label: 'Subcontratista' }
 ];
 export const reasonScopeName = (scope) => REASON_SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? scope;
 

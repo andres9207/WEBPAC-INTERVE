@@ -35,7 +35,7 @@ import { useAuth } from 'contexts/AuthContext';
 import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
-import { TERM_UNIT_OPTIONS } from 'utils/constants';
+import { BILLING_CLASS_OPTIONS, TERM_UNIT_OPTIONS } from 'utils/constants';
 
 /**
  * Alta y edición de un contrato (ADR-0015, DEC-035), en un modal sobre el
@@ -60,6 +60,9 @@ import { TERM_UNIT_OPTIONS } from 'utils/constants';
  *   GenericFormSection. Al editar, un valor guardado en un campo que dejó de
  *   aplicar se muestra en solo lectura, marcado como heredado. Se envían
  *   solo los campos visibles: el resto lo resuelve el servidor.
+ * - Clase de facturación (DEC-054): contrato mayor o subcontratista. Decide
+ *   en qué vista de facturas aparecen las del contrato; con facturas, el
+ *   servidor no deja cambiarla.
  */
 
 const EMPTY_FORM = {
@@ -67,6 +70,7 @@ const EMPTY_FORM = {
   wksId: '',
   prvId: '',
   cttId: '',
+  billingClass: '',
   number: '',
   name: '',
   startDate: '',
@@ -103,6 +107,7 @@ const toPayload = (ctrId, form, descriptors) => {
     ...(ctrId ? {} : { wrkId: form.wrkId }),
     prvId: form.prvId,
     cttId: form.cttId,
+    billingClass: form.billingClass,
     number: text(form.number),
     name: text(form.name),
     startDate: form.startDate,
@@ -462,6 +467,24 @@ export default function ContractFormPage() {
                       error={fieldState.error}
                       fetchApi={fetchContractTypes}
                       socketEvent="refresh-contract-types"
+                    />
+                  )}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <Controller
+                  name="billingClass"
+                  control={control}
+                  rules={{ required: 'Indica si es de contrato mayor o de subcontratista.' }}
+                  render={({ field, fieldState }) => (
+                    <SearchSelect
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? '')}
+                      options={BILLING_CLASS_OPTIONS}
+                      label="Clase de facturación"
+                      required
+                      error={fieldState.error?.message}
+                      helperText="Decide en qué menú de facturas aparecen las suyas. Con facturas no cambia."
                     />
                   )}
                 />

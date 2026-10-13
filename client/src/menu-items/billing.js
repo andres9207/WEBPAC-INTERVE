@@ -1,29 +1,30 @@
 // assets
 import { IconFileInvoice, IconReceipt } from '@tabler/icons-react';
 
+import { INVOICE_VIEWS, invoicePath } from 'utils/constants';
+
 // ==============================|| BILLING MENU ITEMS ||============================== //
-// Solo alimenta las migas de pan: el sidebar sale de tbl_pages (DEC-042).
+// Solo alimenta las migas de pan: el sidebar sale de tbl_pages (DEC-042). Una
+// entrada por vista de facturas (DEC-054).
 
 const billing = {
   id: 'billing',
-  title: 'Facturación',
+  title: 'Facturas',
   type: 'group',
   children: [
     {
       id: 'billing-collapse',
-      title: 'Facturación',
+      title: 'Facturas',
       type: 'collapse',
       icon: IconReceipt,
-      children: [
-        {
-          id: 'invoices',
-          title: 'Facturas',
-          type: 'item',
-          url: '/billing/invoices',
-          icon: IconFileInvoice,
-          breadcrumbs: true
-        }
-      ]
+      children: Object.entries(INVOICE_VIEWS).map(([view, { title }]) => ({
+        id: `invoices-${view.toLowerCase()}`,
+        title,
+        type: 'item',
+        url: invoicePath(view),
+        icon: IconFileInvoice,
+        breadcrumbs: true
+      }))
     }
   ]
 };

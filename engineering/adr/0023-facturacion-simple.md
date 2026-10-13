@@ -11,6 +11,7 @@ Las fórmulas de composición económica **no existen en el código**. Las que a
 ## Fecha
 
 2026-09-10 — versión inicial.
+2026-10-13 — la decisión 3 se resuelve en [DEC-054](../decisiones/DEC-054-vistas-facturas-simple-sin-obra.md): la factura simple nunca tiene obra ni etapa.
 
 ## Contexto
 
@@ -73,9 +74,9 @@ Elementos del sistema actual que condicionan el diseño:
 
 2. **No tiene contrato, y el esquema lo garantiza** con el `CHECK` de coherencia entre tipo y contrato definido en ADR-0020.
 
-3. **La etapa es obligatoria y determina la obra.** La factura simple se imputa a una etapa, y por ella a una obra. El proveedor debe estar asignado a esa obra ([ADR-0012](0012-proveedores.md)).
+3. ~~**La etapa es obligatoria y determina la obra.** La factura simple se imputa a una etapa, y por ella a una obra. El proveedor debe estar asignado a esa obra ([ADR-0012](0012-proveedores.md)).~~
 
-   **Estado: Pendiente de validación.** Queda por confirmar si hay facturas simples sin obra (gastos generales). Si existen, la etapa pasa a ser opcional y el modelo lo admite sin cambios estructurales.
+   **Estado: Resuelto en [DEC-054](../decisiones/DEC-054-vistas-facturas-simple-sin-obra.md) (2026-10-13), en sentido contrario.** La factura simple es del proveedor: **nunca** tiene obra ni etapa (un `CHECK` lo garantiza). Se ve en las obras a las que su proveedor está asignado (alcance por obra).
 
 4. **El tipo de factura lo decide la presencia de contrato, no el tipo de proveedor.** El alcance nombra la facturación simple igual que el tipo de proveedor "Simple" ([ADR-0010](0010-tipos-proveedor.md)), y eso sugiere una correspondencia. No hay evidencia de que sea una regla. **No se restringe** que un contratista mayor reciba facturas simples ni que un proveedor simple las tenga exclusivamente.
 

@@ -4,19 +4,14 @@ import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils
 import { dateOnlyText, toDateOnly, todayDateOnly } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
-import { assertInScope, inScope, scopeWhere } from "../../../common/services/workScope.service.js";
+import { scopeWhere } from "../../../common/services/workScope.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import { moneyText, ratioText, toMoney } from "../../../common/utils/money.utils.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
-import {
-  CONCEPT_SELECT,
-  assertContractInScope,
-  findLockedContract,
-  getContractFormOptions,
-  selectContractWorks,
-} from "../../work/contracts/contracts.service.js";
+import { CONCEPT_SELECT, assertContractInScope, findLockedContract } from "../../work/contracts/contracts.service.js";
+import { assertProviderInScope } from "../../work/providers/providers.service.js";
 import {
   INVOICE_ACTIONS,
   contractTotals,
@@ -55,15 +50,20 @@ import {
   retentionBalances,
   retentionDto,
 } from "./retentionTerms.js";
+import { INVOICE_VIEWS, assertViewGranted, seesView, viewOf, viewsWhere } from "./invoiceViews.js";
 
 /**
  * Facturas, fase A (ADR-0020, DEC-042): encabezado común, ciclo de vida y
  * efectos del estado del contrato. Sin importes: los detalles por tipo
  * llegan con sus decisiones de negocio (backlog DEC-01, DEC-02, DEC-03).
  *
- * - Bloqueo (LOCK_ORDER): simple, obra → proveedor (→ factura); de
- *   contrato, contrato (→ factura). Tipo, obra y contrato no cambian después
- *   de crear: leerlos antes del bloqueo solo dice qué bloquear (ADR-0027,
+ * - La simple es del proveedor: sin obra, etapa ni contrato (DEC-054). Se ve
+ *   en las obras a las que su proveedor está asignado (`invoiceScopeWhere`).
+ * - Tres vistas con su permiso de ver (invoiceViews.js, DEC-054): `views`
+ *   son las que ve el usuario. Una factura de otra vista responde 404.
+ * - Bloqueo (LOCK_ORDER): simple, proveedor (→ factura); de contrato,
+ *   contrato (→ factura). Tipo, obra y contrato no cambian después de
+ *   crear: leerlos antes del bloqueo solo dice qué bloquear (ADR-0027,
  *   regla 3; mismo criterio que updateConcept).
  * - Obra y proveedor de una factura de contrato salen del contrato bloqueado,
  *   nunca del cliente. Lo garantiza también la FK compuesta.
@@ -93,7 +93,6 @@ const INVOICE_AUDITED = [
   "inv_type",
   "prv_id",
   "wrk_id",
-  "wks_id",
   "ctr_id",
   "inv_number",
   "inv_date",
@@ -122,7 +121,6 @@ const LOCKED_SELECT = {
   inv_type: true,
   prv_id: true,
   wrk_id: true,
-  wks_id: true,
   ctr_id: true,
   inv_number: true,
   inv_date: true,
@@ -153,14 +151,30 @@ const LOCKED_SELECT = {
 const NOT_FOUND = "No se encontró la factura.";
 
 /**
- * 404 si la obra de la factura está fuera del alcance de la petición
- * (DEC-047). La obra de una factura no cambia nunca, así que se lee fuera de
- * la transacción. Una factura inexistente da el mismo 404.
+ * Alcance por obra de las facturas (DEC-047, DEC-054): la de contrato, por
+ * su obra; la simple, que no tiene obra, por las obras a las que está
+ * asignado su proveedor (el mismo criterio que el listado de proveedores).
  */
-const assertInvoiceInScope = async (scope, invId) => {
-  if (!scope || scope.all) return;
-  const row = await prisma.tbl_invoices.findUnique({ where: { inv_id: Number(invId) }, select: { wrk_id: true } });
-  if (!row || !inScope(scope, row.wrk_id)) throw httpError(404, NOT_FOUND);
+export const invoiceScopeWhere = (scope) =>
+  scopeWhere(scope, (ids) => ({
+    OR: [{ wrk_id: { in: ids } }, { inv_type: INVOICE_TYPES.SIMPLE, tbl_providers: { tbl_work_providers: { some: { wrk_id: { in: ids } } } } }],
+  }));
+
+/**
+ * 404 si la factura está fuera del alcance por obra o de las vistas que ve
+ * el usuario (`access`: `{ scope, views }`). Obra, tipo y contrato no
+ * cambian nunca, y la clase del contrato tampoco una vez que tiene facturas:
+ * se lee fuera de la transacción. Una factura inexistente da el mismo 404.
+ */
+const assertInvoiceVisible = async ({ scope, views }, invId) => {
+  // Sin alcance ni vistas (llamadas internas): nada que restringir; el
+  // service da el 404 de la inexistente al leerla.
+  if ((!scope || scope.all) && !views) return;
+  const row = await prisma.tbl_invoices.findFirst({
+    where: { inv_id: Number(invId), AND: [invoiceScopeWhere(scope), viewsWhere(views)] },
+    select: { inv_id: true },
+  });
+  if (!row) throw httpError(404, NOT_FOUND);
 };
 
 /** Factura bloqueada (la utilidad ya ejecutó el FOR UPDATE). 404 si no existe. */
@@ -183,9 +197,14 @@ const findImmutable = async (invId) => {
   return known;
 };
 
-/** Bloqueos de una factura existente: contrato → factura, u obra → proveedor → factura. */
+/**
+ * Bloqueos de una factura existente: contrato → factura, o proveedor →
+ * factura (la simple; si cambia de proveedor, el anterior y el nuevo).
+ */
 const locksOf = (known, invId, prvId = known.prv_id) =>
-  known.ctr_id ? { CONTRATO: known.ctr_id, FACTURA: Number(invId) } : { OBRA: known.wrk_id, PROVEEDOR: prvId, FACTURA: Number(invId) };
+  known.ctr_id
+    ? { CONTRATO: known.ctr_id, FACTURA: Number(invId) }
+    : { PROVEEDOR: [...new Set([known.prv_id, prvId])], FACTURA: Number(invId) };
 
 // ─── Saldos de anticipo y de retenido (ADR-0024, ADR-0025) ──────────────────
 
@@ -232,15 +251,16 @@ export const contractBalances = async (db, ctrId) => {
  * anticipo y, aparte, los de retenido, que es una garantía contractual y no
  * una retención tributaria. Si llega `value`, también la amortización y el
  * retenido por defecto de una liquidación por ese VALOR. Solo lectura: al
- * guardar se recalcula todo.
+ * guardar se recalcula todo. Exige ver la vista de la clase del contrato.
  */
-export const getContractAdvance = async ({ ctrId, value, scope }) => {
+export const getContractAdvance = async ({ ctrId, value, scope, views }) => {
   await assertContractInScope(scope, ctrId);
   const contract = await prisma.tbl_contracts.findFirst({
     where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS } },
-    select: { ctr_id: true },
+    select: { ctr_id: true, ctr_billing_class: true },
   });
   if (!contract) throw httpError(404, "No se encontró el contrato.");
+  assertViewGranted(views, contract.ctr_billing_class, "No se encontró el contrato.");
   const balances = await contractBalances(prisma, contract.ctr_id);
   const amount = toMoney(value);
   return {
@@ -516,14 +536,15 @@ const LIST_SELECT = {
   updated_by_user: USER_NAME_SELECT,
   tbl_providers: { select: { prv_name: true } },
   tbl_works: { select: { wrk_code: true, wrk_name: true } },
-  tbl_work_stages: { select: { wks_name: true } },
-  tbl_contracts: { select: { ctr_number: true, tbl_work_stages: { select: { wks_name: true } } } },
+  tbl_contracts: { select: { ctr_number: true, ctr_billing_class: true, tbl_work_stages: { select: { wks_name: true } } } },
 };
 
 const toListDto = (row) => ({
   invId: row.inv_id,
   type: row.inv_type,
   typeName: TYPE_NAMES[row.inv_type] ?? row.inv_type,
+  // Vista a la que pertenece (DEC-054): el cliente arma con ella la dirección de la factura.
+  view: viewOf(row.inv_type, row.tbl_contracts?.ctr_billing_class),
   number: row.inv_number,
   date: dateOnlyText(row.inv_date),
   approvalDate: dateOnlyText(row.inv_approval_date),
@@ -533,8 +554,8 @@ const toListDto = (row) => ({
   workName: row.tbl_works?.wrk_name ?? null,
   ctrId: row.ctr_id,
   contractNumber: row.tbl_contracts?.ctr_number ?? null,
-  // La etapa de una factura de contrato es la del contrato (no se copia).
-  stageName: row.tbl_work_stages?.wks_name ?? row.tbl_contracts?.tbl_work_stages?.wks_name ?? null,
+  // La etapa de una factura de contrato es la del contrato (no se copia); la simple no tiene.
+  stageName: row.tbl_contracts?.tbl_work_stages?.wks_name ?? null,
   state: row.inv_state,
   stateName: STATE_NAMES[row.inv_state] ?? row.inv_state,
   updatedAt: row.inv_update_at,
@@ -570,11 +591,18 @@ const countByState = async (where) => {
  * campo (DEC-048). Los conteos respetan todos los filtros menos el estado.
  *
  * `scope`: alcance por obra de la petición (DEC-047). El filtro de obra va en
- * el `AND`: se suma al alcance y nunca lo reemplaza.
+ * el `AND`: se suma al alcance y nunca lo reemplaza. Una factura simple no
+ * tiene obra: el filtro `wrkId` la deja fuera.
+ *
+ * `view`: la vista del listado (DEC-054); sin ella (las pestañas de los
+ * expedientes), todas las que el usuario ve (`views`). Nunca muestra una
+ * vista que no esté en `views`.
  */
 export const paginationInvoices = async ({
   search,
   state,
+  view,
+  views,
   type,
   wrkId,
   prvId,
@@ -596,14 +624,16 @@ export const paginationInvoices = async ({
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
+  const listed = view ? (views ?? [view]).filter((v) => v === view) : views;
   const baseWhere = {
     sta_id: { not: DELETED_STATUS },
-    ...scopeWhere(scope),
     ...(type ? { inv_type: type } : {}),
     ...(positiveId(prvId) ? { prv_id: positiveId(prvId) } : {}),
     ...(positiveId(ctrId) ? { ctr_id: positiveId(ctrId) } : {}),
     ...searchWhereOf(search),
     ...filtersWhere([
+      // Sin restricción (alcance "Ver todo", las tres vistas) son `{}`: no se agregan.
+      ...[invoiceScopeWhere(scope), viewsWhere(listed)].filter((where) => Object.keys(where).length > 0),
       idFilter(wrkId, (id) => ({ wrk_id: id })),
       containsFilter(number, (c) => ({ inv_number: c })),
       containsFilter(voucherNumber, (c) => ({ inv_voucher_number: c })),
@@ -649,8 +679,8 @@ const amountsDto = (row) => {
   return null;
 };
 
-export const getInvoice = async ({ invId, scope }) => {
-  await assertInvoiceInScope(scope, invId);
+export const getInvoice = async ({ invId, scope, views }) => {
+  await assertInvoiceVisible({ scope, views }, invId);
   const row = await prisma.tbl_invoices.findFirst({
     where: { inv_id: Number(invId), sta_id: { not: DELETED_STATUS } },
     select: {
@@ -661,8 +691,9 @@ export const getInvoice = async ({ invId, scope }) => {
       updated_by_user: USER_NAME_SELECT,
       tbl_providers: { select: { prv_name: true, prv_identification: true, tbl_identity_documents: { select: { idd_code: true } } } },
       tbl_works: { select: { wrk_code: true, wrk_name: true } },
-      tbl_work_stages: { select: { wks_name: true } },
-      tbl_contracts: { select: { ctr_number: true, ctr_name: true, ctr_state: true, tbl_work_stages: { select: { wks_name: true } } } },
+      tbl_contracts: {
+        select: { ctr_number: true, ctr_name: true, ctr_state: true, ctr_billing_class: true, tbl_work_stages: { select: { wks_name: true } } },
+      },
       tbl_invoice_status_history: {
         select: {
           ish_id: true,
@@ -686,9 +717,9 @@ export const getInvoice = async ({ invId, scope }) => {
     invId: row.inv_id,
     type: row.inv_type,
     typeName: TYPE_NAMES[row.inv_type] ?? row.inv_type,
+    view: viewOf(row.inv_type, contract?.ctr_billing_class),
     prvId: row.prv_id,
     wrkId: row.wrk_id,
-    wksId: row.wks_id,
     ctrId: row.ctr_id,
     number: row.inv_number,
     date: dateOnlyText(row.inv_date),
@@ -700,7 +731,7 @@ export const getInvoice = async ({ invId, scope }) => {
     providerIdentification: [row.tbl_providers?.tbl_identity_documents?.idd_code, row.tbl_providers?.prv_identification].filter(Boolean).join(" "),
     workCode: row.tbl_works?.wrk_code ?? null,
     workName: row.tbl_works?.wrk_name ?? null,
-    stageName: row.tbl_work_stages?.wks_name ?? contract?.tbl_work_stages?.wks_name ?? null,
+    stageName: contract?.tbl_work_stages?.wks_name ?? null,
     contractNumber: contract?.ctr_number ?? null,
     contractName: contract?.ctr_name ?? null,
     contractState: contract?.ctr_state ?? null,
@@ -735,27 +766,57 @@ export const getInvoice = async ({ invId, scope }) => {
 
 // ─── Opciones del formulario ─────────────────────────────────────────────────
 
-// Obras activas, y etapas y proveedores asignados de una obra: las mismas
-// consultas del formulario de contrato (una factura simple se imputa a una
-// etapa de la obra y su proveedor debe estar asignado a ella, ADR-0023).
-export const selectInvoiceWorks = selectContractWorks;
-export const getInvoiceFormOptions = getContractFormOptions;
+/** Proveedores del alcance (DEC-047): los asignados a alguna obra del alcance, como en su listado. */
+const providerScopeWhere = (scope) => scopeWhere(scope, (ids) => ({ tbl_work_providers: { some: { wrk_id: { in: ids } } } }));
 
 /**
- * Contratos que hoy admiten el tipo de factura pedido (ADR-0017, "Efectos de
- * cada estado"): el anticipo, en ejecución; liquidación y devolución, en
- * liquidación. Con tope fijo, como un selector (DEC-018); busca por
- * número, nombre, proveedor y obra. `includeCtrId`: el contrato ya elegido
- * (el que abre el formulario desde su expediente) se devuelve aunque la
- * búsqueda o el tope lo dejen fuera, si su estado admite el tipo.
+ * Proveedores para la factura simple (DEC-054): activos y del alcance, por
+ * razón social o documento, con tope fijo (DEC-018). `includePrvId`: el
+ * proveedor ya elegido (el de la factura que se edita, o el que abre el
+ * formulario desde su expediente) se devuelve aunque esté inactivo o la
+ * búsqueda o el tope lo dejen fuera, si no está eliminado y es del alcance.
  */
-export const selectInvoiceContracts = async ({ type, search, includeCtrId, scope } = {}) => {
+export const selectInvoiceProviders = async ({ search, includePrvId, scope } = {}) => {
+  const value = text(search);
+  const inScope = providerScopeWhere(scope);
+  const select = { prv_id: true, prv_name: true, prv_identification: true, sta_id: true, tbl_identity_documents: { select: { idd_code: true } } };
+  const rows = await prisma.tbl_providers.findMany({
+    where: {
+      sta_id: ACTIVE_STATUS,
+      ...inScope,
+      ...(value ? { OR: [{ prv_name: { contains: value } }, { prv_identification: { contains: value } }] } : {}),
+    },
+    select,
+    orderBy: { prv_name: "asc" },
+    take: MAX_ROWS,
+  });
+  const includeId = positiveId(includePrvId);
+  if (includeId && !rows.some((row) => row.prv_id === includeId)) {
+    const included = await prisma.tbl_providers.findFirst({ where: { prv_id: includeId, sta_id: { not: DELETED_STATUS }, ...inScope }, select });
+    if (included) rows.unshift(included);
+  }
+  return rows.map((row) => {
+    const label = `${row.prv_name} · ${[row.tbl_identity_documents?.idd_code, row.prv_identification].filter(Boolean).join(" ")}`;
+    return { value: row.prv_id, label: row.sta_id === ACTIVE_STATUS ? label : `${label} (inactivo)` };
+  });
+};
+
+/**
+ * Contratos de la clase `view` (DEC-054) que hoy admiten el tipo de factura
+ * pedido (ADR-0017, "Efectos de cada estado"): el anticipo, en ejecución;
+ * liquidación y devolución, en liquidación. Con tope fijo, como un selector
+ * (DEC-018); busca por número, nombre, proveedor y obra. `includeCtrId`: el
+ * contrato ya elegido (el que abre el formulario desde su expediente) se
+ * devuelve aunque la búsqueda o el tope lo dejen fuera, si su estado admite
+ * el tipo.
+ */
+export const selectInvoiceContracts = async ({ type, view, search, includeCtrId, scope } = {}) => {
   const action = INVOICE_ACTIONS[type];
   if (!action) return [];
   const states = Object.entries(CONTRACT_STATE_ALLOWS)
     .filter(([, actions]) => actions.includes(action))
     .map(([state]) => state);
-  const admitted = { sta_id: { not: DELETED_STATUS }, ctr_state: { in: states }, ...scopeWhere(scope) };
+  const admitted = { sta_id: { not: DELETED_STATUS }, ctr_billing_class: view, ctr_state: { in: states }, ...scopeWhere(scope) };
   const select = {
     ctr_id: true,
     ctr_number: true,
@@ -800,33 +861,14 @@ export const selectInvoiceContracts = async ({ type, search, includeCtrId, scope
 
 // ─── Validaciones bajo bloqueo ───────────────────────────────────────────────
 
-/** La obra existe y está activa (solo al crear: la obra no cambia después). */
-const assertWork = async (tx, wrkId) => {
-  const work = await tx.tbl_works.findUnique({ where: { wrk_id: wrkId }, select: { sta_id: true, wrk_code: true } });
-  if (!work || work.sta_id === DELETED_STATUS) throw httpError(400, "La obra seleccionada no existe.");
-  if (work.sta_id !== ACTIVE_STATUS) throw httpError(400, `La obra ${work.wrk_code} está inactiva: no admite facturas nuevas.`);
-};
-
-/** La etapa es de la obra y está activa, salvo que sea la que ya tenía (ADR-0023, decisión 3). */
-const assertStage = async (tx, { wrkId, wksId, currentWksId }) => {
-  if (!wksId) throw httpError(400, "Selecciona la etapa de la obra.");
-  const stage = await tx.tbl_work_stages.findUnique({ where: { wks_id: wksId }, select: { wrk_id: true, sta_id: true, wks_name: true } });
-  if (!stage || stage.wrk_id !== wrkId) throw httpError(400, "La etapa seleccionada no pertenece a la obra de la factura.");
-  if (stage.sta_id !== ACTIVE_STATUS && wksId !== currentWksId) {
-    throw httpError(400, `La etapa "${stage.wks_name}" está inactiva y no se puede asignar.`);
-  }
-};
-
-/** El proveedor está asignado a la obra (ADR-0023, decisión 3); activo, salvo el que ya tenía. */
-const assertProviderAssigned = async (tx, { wrkId, prvId, currentPrvId }) => {
-  const assignment = await tx.tbl_work_providers.findUnique({
-    where: { wrk_id_prv_id: { wrk_id: wrkId, prv_id: prvId } },
-    select: { sta_id: true, tbl_providers: { select: { prv_name: true, sta_id: true } } },
-  });
-  if (!assignment) throw httpError(400, "El proveedor seleccionado no está asignado a la obra de la factura.");
-  if (prvId === currentPrvId) return;
-  if (assignment.tbl_providers.sta_id !== ACTIVE_STATUS) throw httpError(400, `El proveedor ${assignment.tbl_providers.prv_name} está inactivo.`);
-  if (assignment.sta_id !== ACTIVE_STATUS) throw httpError(400, `La asignación de ${assignment.tbl_providers.prv_name} a la obra está inactiva.`);
+/**
+ * El proveedor de una factura simple existe y está activo, salvo que sea el
+ * que ya tenía (DEC-054). Que sea del alcance se verifica antes del bloqueo.
+ */
+const assertProviderActive = async (tx, { prvId, currentPrvId }) => {
+  const provider = await tx.tbl_providers.findUnique({ where: { prv_id: prvId }, select: { prv_name: true, sta_id: true } });
+  if (!provider || provider.sta_id === DELETED_STATUS) throw httpError(400, "El proveedor seleccionado no existe.");
+  if (prvId !== currentPrvId && provider.sta_id !== ACTIVE_STATUS) throw httpError(400, `El proveedor ${provider.prv_name} está inactivo.`);
 };
 
 // Número único por proveedor, anuladas incluidas (backlog DEC-17, DEC-042).
@@ -892,16 +934,12 @@ const insertInvoice = async (tx, { values, detail = {}, useBy, ctx, idempotencyD
   return { message: "Factura registrada correctamente", invId: created.inv_id };
 };
 
-/** Factura simple: obra, proveedor asignado y etapa, elegidos por el usuario. Bloquea obra → proveedor. */
+/** Factura simple: solo el proveedor, sin obra, etapa ni contrato (DEC-054). Bloquea el proveedor. */
 const createSimpleInvoice = ({ input, document, useBy, ctx, idempotencyData }) => {
-  const wrkId = Number(input.wrkId);
   const prvId = Number(input.prvId);
-  return withLockedTransaction({ OBRA: wrkId, PROVEEDOR: prvId }, async (tx) => {
-    const wksId = positiveId(input.wksId);
-    await assertWork(tx, wrkId);
-    await assertProviderAssigned(tx, { wrkId, prvId });
-    await assertStage(tx, { wrkId, wksId });
-    const values = { inv_type: input.type, prv_id: prvId, wrk_id: wrkId, wks_id: wksId, ctr_id: null, ...document };
+  return withLockedTransaction({ PROVEEDOR: prvId }, async (tx) => {
+    await assertProviderActive(tx, { prvId });
+    const values = { inv_type: input.type, prv_id: prvId, wrk_id: null, ctr_id: null, ...document };
     return insertInvoice(tx, { values, useBy, ctx, idempotencyData });
   });
 };
@@ -911,16 +949,18 @@ const createSimpleInvoice = ({ input, document, useBy, ctx, idempotencyData }) =
  * estado debe admitir el tipo (ADR-0017, "Efectos de cada estado"). Bloquea
  * el contrato: serializa con el otrosí de liquidación y la suspensión, que
  * cambian ese estado, y con las facturas que mueven los saldos de anticipo
- * y de retenido.
+ * y de retenido, y con el cambio de su clase: la de facturación (DEC-054)
+ * se lee aquí, bajo bloqueo, y debe ser una vista que el usuario ve.
  */
-const createContractInvoice = ({ input, document, granted, useBy, ctx, idempotencyData }) =>
+const createContractInvoice = ({ input, document, granted, views, useBy, ctx, idempotencyData }) =>
   withLockedTransaction({ CONTRATO: Number(input.ctrId) }, async (tx) => {
     const contract = await findLockedContract(tx, input.ctrId);
+    assertViewGranted(views, contract.ctr_billing_class, "No se encontró el contrato.");
     assertContractAllows(contract.ctr_state, INVOICE_ACTIONS[input.type]);
     if (document.inv_date.getTime() < new Date(dateOnlyText(contract.ctr_start_date)).getTime()) {
       throw httpError(400, `La fecha de la factura no puede ser anterior al inicio del contrato (${dateOnlyText(contract.ctr_start_date)}).`);
     }
-    const values = { inv_type: input.type, prv_id: contract.prv_id, wrk_id: contract.wrk_id, wks_id: null, ctr_id: contract.ctr_id, ...document };
+    const values = { inv_type: input.type, prv_id: contract.prv_id, wrk_id: contract.wrk_id, ctr_id: contract.ctr_id, ...document };
     const detail = await resolveDetail(tx, { type: input.type, ctrId: contract.ctr_id, input, granted });
     return insertInvoice(tx, { values, detail, useBy, ctx, idempotencyData });
   });
@@ -934,17 +974,18 @@ const createContractInvoice = ({ input, document, granted, useBy, ctx, idempoten
  * bajo bloqueo; los de una aprobada no cambian. Fija valores: repetirlo deja
  * lo mismo, así que se puede reintentar ante un interbloqueo.
  */
-const updateInvoice = async ({ invId, input, document, granted, useBy, ctx }) => {
+const updateInvoice = async ({ invId, input, document, granted, scope, useBy, ctx }) => {
   const known = await findImmutable(invId);
   const isSimple = !hasContract(known.inv_type);
-  // Proveedor y etapa son de la simple; si no llegan, se conservan.
+  // El proveedor es de la simple; si no llega, se conserva. Uno nuevo debe ser del alcance.
   const requestedPrvId = (isSimple && positiveId(input.prvId)) || known.prv_id;
+  if (requestedPrvId !== known.prv_id) await assertProviderInScope(scope, requestedPrvId);
 
   return withLockedTransaction(
     locksOf(known, invId, requestedPrvId),
     async (tx) => {
       const before = await findLockedInvoice(tx, invId);
-      const values = isSimple ? { ...document, prv_id: requestedPrvId, wks_id: positiveId(input.wksId) ?? before.wks_id } : { ...document };
+      const values = isSimple ? { ...document, prv_id: requestedPrvId } : { ...document };
 
       let detail = {};
       let amountChanges = [];
@@ -970,10 +1011,7 @@ const updateInvoice = async ({ invId, input, document, granted, useBy, ctx }) =>
         );
       }
 
-      if (isSimple) {
-        await assertProviderAssigned(tx, { wrkId: before.wrk_id, prvId: values.prv_id, currentPrvId: before.prv_id });
-        await assertStage(tx, { wrkId: before.wrk_id, wksId: values.wks_id, currentWksId: before.wks_id });
-      }
+      if (isSimple) await assertProviderActive(tx, { prvId: values.prv_id, currentPrvId: before.prv_id });
       const prvId = values.prv_id ?? before.prv_id;
       if (values.inv_number !== before.inv_number || prvId !== before.prv_id) {
         await assertUniqueNumber(tx, { prvId, number: values.inv_number, excludeId: before.inv_id });
@@ -995,23 +1033,27 @@ const updateInvoice = async ({ invId, input, document, granted, useBy, ctx }) =>
  * Registrar (invId vacío o 0) o editar. Crear exige `Idempotency-Key`: el
  * reintento devuelve la factura creada y no "ya existe". `granted`: permisos
  * efectivos, para ajustar la amortización y el retenido de una liquidación.
+ * `views`: las vistas que ve el usuario (DEC-054).
  */
-export const saveInvoice = async ({ invId, input, useBy, granted, scope, ctx = { useId: useBy }, idempotencyKey }) => {
-  // Alcance por obra (DEC-047): se registra y se edita solo en la obra del alcance.
-  if (Number(invId) > 0) await assertInvoiceInScope(scope, invId);
+export const saveInvoice = async ({ invId, input, useBy, granted, scope, views, ctx = { useId: useBy }, idempotencyKey }) => {
+  // Alcance por obra (DEC-047) y vistas (DEC-054): una factura de contrato,
+  // en la obra del alcance; una simple, de un proveedor del alcance. La
+  // vista de un contrato se verifica bajo su bloqueo, al crear.
+  if (Number(invId) > 0) await assertInvoiceVisible({ scope, views }, invId);
   else if (hasContract(input.type)) await assertContractInScope(scope, input.ctrId);
-  else assertInScope(scope, input.wrkId, "No se encontró la obra.");
+  else {
+    if (!seesView(views, INVOICE_VIEWS.SIMPLE)) throw httpError(403, "Registrar una factura simple exige el permiso de ver facturas simples.");
+    await assertProviderInScope(scope, input.prvId);
+  }
   const document = documentValuesOf(input);
   pastDate(input.date, "fecha de la factura");
   if (!document.inv_number) throw httpError(400, "El número de la factura es requerido.");
 
-  if (Number(invId) > 0) return updateInvoice({ invId: Number(invId), input, document, granted, useBy: Number(useBy), ctx });
+  if (Number(invId) > 0) return updateInvoice({ invId: Number(invId), input, document, granted, scope, useBy: Number(useBy), ctx });
 
   if (!TYPE_NAMES[input.type]) throw httpError(400, "El tipo de factura no es válido.");
   const create = hasContract(input.type) ? createContractInvoice : createSimpleInvoice;
-  const target = hasContract(input.type)
-    ? { type: input.type, ctrId: Number(input.ctrId) }
-    : { type: input.type, wrkId: Number(input.wrkId), prvId: Number(input.prvId), wksId: positiveId(input.wksId) };
+  const target = hasContract(input.type) ? { type: input.type, ctrId: Number(input.ctrId) } : { type: input.type, prvId: Number(input.prvId) };
 
   return runIdempotent({
     target: IDEMPOTENCY_TARGET,
@@ -1026,7 +1068,7 @@ export const saveInvoice = async ({ invId, input, useBy, granted, scope, ctx = {
       retention: moneyText(toMoney(input.retention)),
       retentionObservation: optionalText(input.retentionObservation),
     },
-    execute: (idempotencyData) => create({ input, document, granted, useBy: Number(useBy), ctx, idempotencyData }),
+    execute: (idempotencyData) => create({ input, document, granted, views, useBy: Number(useBy), ctx, idempotencyData }),
   });
 };
 
@@ -1057,8 +1099,8 @@ const assertContractStillAdmits = async (tx, invoice) => {
  * liquidación y devolución revalidan aquí I1 a I4 con carácter definitivo
  * (DEC-044, DEC-051). Falta evaluar C1–C8 (ADR-0017).
  */
-export const approveInvoice = async ({ invId, input, useBy, scope, ctx = { useId: useBy }, idempotencyKey }) => {
-  await assertInvoiceInScope(scope, invId);
+export const approveInvoice = async ({ invId, input, useBy, scope, views, ctx = { useId: useBy }, idempotencyKey }) => {
+  await assertInvoiceVisible({ scope, views }, invId);
   const approvalDate = pastDate(input.approvalDate, "fecha de aprobación");
   const observation = optionalText(input.observation);
   const message = "Factura aprobada correctamente";
@@ -1115,8 +1157,8 @@ export const approveInvoice = async ({ invId, input, useBy, scope, ctx = { useId
  * liquidación aprobada cuyo retenido ya se devolvió, también (I3, DEC-051).
  * Bloquea contrato → factura → motivo.
  */
-export const cancelInvoice = async ({ invId, input, useBy, granted, scope, ctx = { useId: useBy }, idempotencyKey }) => {
-  await assertInvoiceInScope(scope, invId);
+export const cancelInvoice = async ({ invId, input, useBy, granted, scope, views, ctx = { useId: useBy }, idempotencyKey }) => {
+  await assertInvoiceVisible({ scope, views }, invId);
   const reaId = Number(input.reaId);
   const observation = text(input.observation);
   if (!observation) throw httpError(400, "La observación de la anulación es requerida.");
