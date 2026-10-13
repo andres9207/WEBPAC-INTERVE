@@ -29,11 +29,13 @@ import { EMPTY_FORM, FIELD_TAB, text, toForm, toPayload } from './components/pro
 import InvoicesTab from 'views/billing/invoices/components/InvoicesTab';
 import { providersApi, workProvidersApi } from 'api/requests/providersApi';
 import { useAuth } from 'contexts/AuthContext';
+import { useWorkScope } from 'contexts/WorkScopeContext';
 import useInvoiceViews from 'hooks/useInvoiceViews';
 import useInvoiceViewChange from 'hooks/useInvoiceViewChange';
 import { showError, showSuccess } from 'services/ToastService';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
 import { newIdempotencyKey } from 'utils/idempotency';
+import { ALL_WORKS } from 'utils/workScope';
 import { STATUS, invoicePath, providerInvoiceViewName } from 'utils/constants';
 
 /**
@@ -88,6 +90,11 @@ function ProviderView() {
   const identityLocked = !isNew && !canDo(perms?.changeIdentity);
   const canViewWorks = canDo(permissionsCatalog.work?.works?.view);
   const canAssign = canDo(perms?.assignWork);
+  // Asignar a otra obra solo con "Ver todo" en el encabezado (DEC-047): con
+  // una obra elegida, se trabaja dentro de ella y el proveedor se asigna desde
+  // la pestaña Proveedores de esa obra.
+  const { activeWork } = useWorkScope();
+  const canAssignNew = canAssign && activeWork === ALL_WORKS;
   const canUnassign = canDo(perms?.unassignWork);
   const invoiceViews = useInvoiceViews();
   const canCreateSimple = canDo(permissionsCatalog.billing?.invoices?.create) && invoiceViews.includes('SIMPLE');
@@ -269,7 +276,7 @@ function ProviderView() {
     });
 
   const assignButton =
-    canAssign && active ? (
+    canAssignNew && active ? (
       <Button variant="contained" color="secondary" size="small" startIcon={<IconPlus size={16} />} onClick={() => setAssignDialog({})}>
         Asignar a obra
       </Button>
@@ -498,7 +505,9 @@ function ProviderView() {
               title="Sin obras."
               text={
                 active
-                  ? 'Este proveedor todavía no está asignado a ninguna obra. Asígnalo aquí o desde la pestaña Proveedores de la obra.'
+                  ? canAssignNew
+                    ? 'Este proveedor todavía no está asignado a ninguna obra. Asígnalo aquí o desde la pestaña Proveedores de la obra.'
+                    : 'Este proveedor todavía no está asignado a ninguna obra. Asígnalo desde la pestaña Proveedores de la obra.'
                   : 'Este proveedor no está asignado a ninguna obra, y está inactivo: actívalo para asignarlo.'
               }
               action={assignButton}
