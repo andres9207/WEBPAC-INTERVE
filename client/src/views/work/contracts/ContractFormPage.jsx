@@ -368,7 +368,7 @@ export default function ContractFormPage() {
                   <TextField
                     label="Obra"
                     value={isEdit ? `${loaded.workCode} — ${loaded.workName}` : headerWork.label}
-                    helperText={isEdit ? undefined : 'La del selector del encabezado'}
+                    helperText={isEdit ?? undefined}
                     size="small"
                     fullWidth
                     slotProps={{ input: { readOnly: true } }}

@@ -93,17 +93,35 @@ function MenuList() {
             const childrenOfPadre = hijos.filter((hijo) => hijo.padre === padre.id);
             
             if (childrenOfPadre.length > 0) {
+              const items = childrenOfPadre.map((hijo) => ({
+                id: hijo.toa || `item-${hijo.id}`,
+                title: hijo.label || hijo.pag_description,
+                type: 'item',
+                url: hijo.toa?.startsWith('/') ? hijo.toa : hijo.toa ? `/${hijo.toa}` : '#',
+                icon: getIconByName(hijo.icon)
+              }));
+              // Grupo plegable (pag_type 3, migración 0093): sin título fijo,
+              // un desplegable con el nombre del grupo y sus páginas dentro.
+              if (padre.collapsible) {
+                return {
+                  id: `group-${padre.id}`,
+                  type: 'group',
+                  children: [
+                    {
+                      id: `collapse-${padre.id}`,
+                      title: padre.label || padre.pag_description,
+                      type: 'collapse',
+                      icon: getIconByName(padre.icon),
+                      children: items
+                    }
+                  ]
+                };
+              }
               return {
                 id: `group-${padre.id}`,
                 title: padre.label || padre.pag_description,
                 type: 'group',
-                children: childrenOfPadre.map((hijo) => ({
-                  id: hijo.toa || `item-${hijo.id}`,
-                  title: hijo.label || hijo.pag_description,
-                  type: 'item',
-                  url: hijo.toa?.startsWith('/') ? hijo.toa : hijo.toa ? `/${hijo.toa}` : '#',
-                  icon: getIconByName(hijo.icon)
-                }))
+                children: items
               };
             } else {
               return {

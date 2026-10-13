@@ -11,6 +11,7 @@ const PAGE_SELECT = {
   pag_icon: true,
   pag_order: true,
   pag_name: true,
+  pag_type: true,
 };
 
 const toParent = (p) => ({
@@ -20,6 +21,8 @@ const toParent = (p) => ({
   icon: p.pag_icon,
   pag_order: p.pag_order,
   label: p.pag_name,
+  // 3: grupo plegable (migración 0093).
+  collapsible: p.pag_type === 3,
 });
 
 const toChild = (p) => ({

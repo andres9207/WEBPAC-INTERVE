@@ -6,7 +6,8 @@ import { prisma } from "../src/common/configs/prismaClient.js";
 // en vez de hardcodear un mapa propio. Cambiar estos valores rompe permisos
 // ya asignados y la navegación de cualquier ambiente que ya tenga datos.
 //
-// pag_type: 1 = página padre (grupo en el sidebar), 2 = página hija (item).
+// pag_type: 1 = página padre (grupo en el sidebar), 2 = página hija (item),
+// 3 = página padre que el sidebar dibuja como desplegable (migración 0093).
 // pag_order de los grupos: el de la migración 0069 (Dashboard, Obras,
 // Facturación, Administración, Seguridad). El upsert lo reescribe en cada `yarn db:seed`.
 
@@ -41,10 +42,10 @@ const PAGES = [
   { pag_id: 17, pag_description: "Motivos", pag_parent: 5, pag_url: "admin/reasons", pag_icon: "message-report", pag_order: 8, pag_name: "Motivos", pag_type: 2 },
   // database/migrations/0069_seed_invoices_pages_permissions.sql; nombre y
   // vistas de 0091 (DEC-054). La página 19 (todas juntas) se retiró en 0091.
-  { pag_id: 18, pag_description: "Facturas", pag_parent: 0, pag_url: null, pag_icon: "receipt", pag_order: 3, pag_name: "Facturas", pag_type: 1 },
-  { pag_id: 21, pag_description: "Facturas simples", pag_parent: 18, pag_url: "billing/invoices/simple", pag_icon: "invoice", pag_order: 1, pag_name: "Facturas simples", pag_type: 2 },
-  { pag_id: 22, pag_description: "Facturas contrato mayor", pag_parent: 18, pag_url: "billing/invoices/major", pag_icon: "invoice", pag_order: 2, pag_name: "Facturas contrato mayor", pag_type: 2 },
-  { pag_id: 23, pag_description: "Facturas subcontratistas", pag_parent: 18, pag_url: "billing/invoices/subcontractors", pag_icon: "invoice", pag_order: 3, pag_name: "Facturas subcontratistas", pag_type: 2 },
+  { pag_id: 18, pag_description: "Facturas", pag_parent: 0, pag_url: null, pag_icon: "receipt", pag_order: 3, pag_name: "Facturas", pag_type: 3 },
+  { pag_id: 21, pag_description: "Facturas simples", pag_parent: 18, pag_url: "billing/invoices/simple", pag_icon: "invoice", pag_order: 1, pag_name: "Simples", pag_type: 2 },
+  { pag_id: 22, pag_description: "Facturas contrato mayor", pag_parent: 18, pag_url: "billing/invoices/major", pag_icon: "invoice", pag_order: 2, pag_name: "Contrato mayor", pag_type: 2 },
+  { pag_id: 23, pag_description: "Facturas subcontratistas", pag_parent: 18, pag_url: "billing/invoices/subcontractors", pag_icon: "invoice", pag_order: 3, pag_name: "Subcontratistas", pag_type: 2 },
   // database/migrations/0082_seed_policies_pages_permissions.sql
   { pag_id: 20, pag_description: "Tipos de póliza", pag_parent: 5, pag_url: "admin/policyTypes", pag_icon: "shield-check", pag_order: 9, pag_name: "Tipos de póliza", pag_type: 2 },
 ];
