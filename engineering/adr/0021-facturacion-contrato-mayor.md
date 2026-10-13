@@ -8,6 +8,8 @@ La facturación asociada a contrato **no existe** en el código ni en el esquema
 
 **Decisión confirmada con el área usuaria (2026-09-10):** la factura de liquidación **se asocia al otrosí de liquidación**.
 
+**Decisión confirmada (2026-10-13, [DEC-055](../decisiones/DEC-055-sin-facturacion-avance.md)):** **no se factura avance de obra durante la ejecución** (alternativa **a**). Todo el valor ejecutado se factura en la liquidación.
+
 Las fórmulas de composición **no existen en el código**. Las de este ADR son **PROPUESTA PENDIENTE DE VALIDACIÓN**; su versión autoritativa está en [ADR-0026](0026-calculos-facturacion.md).
 
 ## Fecha
@@ -137,7 +139,7 @@ Hechos verificados del sistema que condicionan la decisión:
 
 8. **El proveedor de la factura debe ser el del contrato.** La clave foránea no lo garantiza; lo verifica el backend.
 
-9. **Cómo se factura el avance de obra durante la ejecución queda como decisión pendiente y bloqueante para la operación de contratos de larga duración.** Ver `Alternativas consideradas`.
+9. **Durante la ejecución no se factura avance de obra** (alternativa **a**, confirmada el 2026-10-13 en [DEC-055](../decisiones/DEC-055-sin-facturacion-avance.md)). En `EN EJECUCIÓN` la única factura de contrato es la de anticipo; todo el valor ejecutado se factura en la liquidación. Ver `Alternativas consideradas`.
 
 ## Justificación
 
@@ -171,15 +173,45 @@ Hechos verificados del sistema que condicionan la decisión:
 | **B** | Tabla auxiliar de saldos o libro de movimientos | Trazabilidad explícita, pero duplica los hechos ya registrados en las facturas: dos fuentes para el mismo dato |
 | **C** | **Cálculo desde facturas aprobadas y conceptos** *(seleccionada)* | Una sola verdad; las anulaciones se reflejan solas; coste bajo por el volumen de facturas por contrato |
 
-### Avance de obra durante la ejecución — decisión pendiente
+### Avance de obra durante la ejecución
 
 | | Alternativa | Consecuencia |
 | --- | --- | --- |
-| **a** | No se factura avance: todo el valor ejecutado se factura en la liquidación | Coherente con la confirmación. Durante la ejecución, el costo ejecutado de un contrato solo refleja anticipos; en contratos largos, el proveedor financia la obra hasta la liquidación |
+| **a** | **No se factura avance: todo el valor ejecutado se factura en la liquidación** *(seleccionada, [DEC-055](../decisiones/DEC-055-sin-facturacion-avance.md))* | Coherente con la confirmación. Durante la ejecución, el costo ejecutado de un contrato solo refleja anticipos; en contratos largos, el proveedor financia la obra hasta la liquidación |
 | **b** | El avance se factura con facturas simples ([ADR-0023](0023-facturacion-simple.md)) | Operativo hoy, pero **sin control contra el contrato**: no amortiza, no retiene y no respeta el valor pactado |
 | **c** | Un tipo de factura de avance con la estructura económica de la de liquidación, admisible en `EN EJECUCIÓN` | Control completo de saldos durante la ejecución; añade un quinto tipo que el alcance no nombra |
 
-**No se selecciona ninguna.** Es una decisión de negocio. Si se adopta **c**, el modelo de [ADR-0020](0020-facturacion.md) la admite como una tabla de detalle más, sin cambiar el encabezado ni los saldos de [ADR-0024](0024-amortizacion-anticipo.md) y [ADR-0025](0025-retenciones.md).
+**Se selecciona a** (2026-10-13). Si más adelante se adoptara **c**, el modelo de [ADR-0020](0020-facturacion.md) la admite como una tabla de detalle más, sin cambiar el encabezado ni los saldos de [ADR-0024](0024-amortizacion-anticipo.md) y [ADR-0025](0025-retenciones.md); sería una decisión nueva que reemplaza a DEC-055.
+
+#### Preguntas para reabrir la decisión con la alternativa c
+
+Si en el futuro se quiere facturar el avance durante la ejecución, estas preguntas fijan el diseño y se responden antes de implementar (PRO-BD-13, PRO-BE-25 y PRO-FE-11 dejarían de ser "no aplica").
+
+**Cómo se mide el avance**
+
+1. ¿Se factura un valor libre, un porcentaje de avance por concepto o cantidades ejecutadas (acta de corte de obra)?
+2. ¿La factura es por concepto contractual o por el contrato completo?
+3. ¿Exige un acta o un visto bueno de interventoría para registrarla o aprobarla?
+4. ¿Hay una periodicidad (por ejemplo, corte mensual) o se registran varias cuando sea?
+
+**Efecto sobre los saldos**
+
+5. ¿Amortiza anticipo? ¿Con el mismo valor por defecto (VALOR × % efectivo) y el mismo permiso de ajuste (89) que la liquidación ([DEC-044](../decisiones/DEC-044-anticipo-amortizacion.md))?
+6. ¿Acumula retenido? ¿Con el mismo valor por defecto y el permiso 103 ([DEC-051](../decisiones/DEC-051-retenido-contractual.md))?
+7. ¿Cuál es su límite de valor? ¿La suma de avance y liquidación llega hasta la base vigente antes de IVA? Ligada a B6.
+8. ¿La liquidación factura entonces solo lo que falta y amortiza el anticipo pendiente que quede?
+
+**Estados y anulación**
+
+9. ¿Se admite solo en ejecución o también con el contrato suspendido? Hoy suspendido no admite ninguna factura ([DEC-039](../decisiones/DEC-039-suspension-contratos.md)).
+10. Si se anula una factura de avance que amortizó o retuvo, ¿aplica la misma regla que a la liquidación (revalidar I2 e I3 al anular)?
+
+**Alcance**
+
+11. ¿Solo en contrato mayor o también en subcontratistas? Toca DEC-09 ([ADR-0022](0022-facturacion-subcontratista.md)).
+12. ¿Tiene permiso propio por tipo de factura? Es la parte abierta de DEC-19.
+
+**Dependencias:** su composición económica (AIU, IVA y retenciones tributarias) sería la de la liquidación, así que queda atada a DEC-03 y DEC-07. Sin ellas cabe una fase A con valor, amortización y retenido, como se hizo con la liquidación.
 
 ### Multiplicidad de la factura de anticipo
 
@@ -305,7 +337,7 @@ stateDiagram-v2
 13. Cada aprobación de liquidación o devolución evalúa las condiciones de liquidación del contrato.
 14. Con el contrato `LIQUIDADO` no se registra, aprueba ni anula ninguna factura del contrato.
 
-**Pendiente de validación:** cómo se factura el avance de obra durante la ejecución; si hay una o varias facturas de liquidación; el límite de valor de las facturas de liquidación; si la factura de anticipo lleva impuestos o retenciones; la composición económica completa de la factura de liquidación.
+**Pendiente de validación:** si hay una o varias facturas de liquidación; el límite de valor de las facturas de liquidación; si la factura de anticipo lleva impuestos o retenciones; la composición económica completa de la factura de liquidación.
 
 ## Seguridad
 
@@ -485,7 +517,7 @@ Toda corrección de una factura aprobada se hace **anulando y registrando de nue
 
 ### Negativas
 
-- **Durante la ejecución no se factura avance de obra** mientras no se resuelva la decisión pendiente.
+- **Durante la ejecución no se factura avance de obra** (DEC-055): en contratos largos el proveedor financia la obra hasta la liquidación, y el costo ejecutado de un contrato solo refleja anticipos mientras está en ejecución.
 - El bloqueo sobre el contrato serializa todas las facturas de ese contrato.
 - La revalidación en la aprobación puede rechazar facturas que fueron válidas al registrarse, y hay que explicarlo al usuario.
 - El panel financiero exige varias agregaciones por consulta.
@@ -495,7 +527,7 @@ Toda corrección de una factura aprobada se hace **anulando y registrando de nue
 
 | Riesgo | Severidad | Descripción |
 | --- | --- | --- |
-| **Avance de obra sin mecanismo de facturación** | **Crítico** | Operación bloqueada en contratos largos, o avance facturado con facturas simples sin control contra el contrato |
+| Avance de obra sin facturar hasta la liquidación | **Medio** | Aceptado en DEC-055: el proveedor financia la obra hasta la liquidación. Si el avance se factura por fuera con facturas simples, queda sin control contra el contrato |
 | Anticipo facturado por encima de lo pactado | **Crítico** | Sin bloqueo, dos aprobaciones concurrentes superan el anticipo |
 | Amortización o devolución por encima del saldo | **Crítico** | Mismo mecanismo; ver ADR-0024 y ADR-0025 |
 | Lectura antes del bloqueo | **Alto** | Con `REPEATABLE READ`, las sumas usan una instantánea vieja y el bloqueo no protege |
@@ -548,7 +580,7 @@ Toda corrección de una factura aprobada se hace **anulando y registrando de nue
 | Información financiera | No existe | Calculada desde facturas aprobadas, nunca almacenada | **Alta** |
 | Anticipo | No existe | Saldo por contrato con límite de facturación | **Alta** |
 | Amortización y retenido | No existen | Movimientos con valor por defecto y ajuste con permiso | **Alta** |
-| Avance en ejecución | No existe | **Decisión pendiente** | **Crítica** |
+| Avance en ejecución | No existe | No se factura (DEC-055) | — |
 | Concurrencia | Ningún bloqueo en el backend | Bloqueo del contrato como primera sentencia | **Alta** |
 | Deadlocks | Sin tratamiento | Mapeo y reintento controlado | **Media** |
 | Aritmética | Sin librería decimal | Aritmética exacta | **Alta** |
@@ -558,7 +590,7 @@ Toda corrección de una factura aprobada se hace **anulando y registrando de nue
 
 | # | Brecha | Severidad |
 | --- | --- | --- |
-| B1 | **Facturación del avance de obra durante la ejecución sin definir** | **Crítica** — decisión de negocio bloqueante |
+| B1 | Facturación del avance de obra durante la ejecución | **Resuelta** (DEC-055): no se factura avance |
 | B2 | Las facturas de contrato no existen en ninguna capa | **Alta** |
 | B3 | No existen contratos, conceptos ni el modelo común de facturación | **Alta** — bloqueante |
 | B4 | Composición de la factura de liquidación sin validar | **Alta** — decisión de negocio pendiente |
@@ -578,8 +610,8 @@ Toda corrección de una factura aprobada se hace **anulando y registrando de nue
 
 Recomendación derivada del análisis. **No fue ejecutada.**
 
-**Fase 0 — Decisiones de negocio (B1, B4, B5, B6, B7)**
-**Bloqueante.** Definir cómo se factura el avance durante la ejecución, validar la composición de la factura de liquidación, la cantidad de facturas de liquidación, su límite de valor y el tratamiento tributario del anticipo y la devolución.
+**Fase 0 — Decisiones de negocio (B4, B5, B6, B7; B1 resuelta en DEC-055)**
+**Bloqueante.** Validar la composición de la factura de liquidación, la cantidad de facturas de liquidación, su límite de valor y el tratamiento tributario del anticipo y la devolución.
 
 **Fase 1 — Prerrequisitos (B3, B11, B15)**
 Contratos, conceptos y modelo común de facturación. Autorización en backend. Migraciones versionadas.
