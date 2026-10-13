@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link as RouterLink, useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link as RouterLink, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -14,90 +16,193 @@ import { IconEdit, IconPlus, IconUnlink } from '@tabler/icons-react';
 
 import SubCard from 'ui-component/cards/SubCard';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
+import ContactsEditor from 'ui-component/extended/ContactsEditor';
 import { DataList, Figure, Pending } from 'ui-component/extended/DetailBlocks';
+import FormSection from 'ui-component/extended/FormSection';
 import RouteDialog from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import ContactsList from 'ui-component/extended/ContactsList';
 import WorkProviderDialog from './components/WorkProviderDialog';
+import ProviderDataForm from './components/ProviderDataForm';
+import useIdentityCheck from './components/useIdentityCheck';
+import { EMPTY_FORM, FIELD_TAB, text, toForm, toPayload } from './components/providerForm';
 import InvoicesTab from 'views/billing/invoices/components/InvoicesTab';
 import { providersApi, workProvidersApi } from 'api/requests/providersApi';
 import { useAuth } from 'contexts/AuthContext';
 import useInvoiceViews from 'hooks/useInvoiceViews';
+import useInvoiceViewChange from 'hooks/useInvoiceViewChange';
 import { showError, showSuccess } from 'services/ToastService';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
+import { newIdempotencyKey } from 'utils/idempotency';
 import { STATUS, invoicePath, providerInvoiceViewName } from 'utils/constants';
 
 /**
- * Detalle de un proveedor (ADR-0012, DEC-031), en un modal sobre el listado
- * con dirección propia `/work/providers/:prvId` (DEC-034): encabezado con identidad,
- * estado y autoría, y pestañas para sus datos, contactos y obras. Activar,
- * desactivar y eliminar viven aquí, no en el listado (DEC-030). Un proveedor
- * asignado a obras no se elimina: el servidor responde con el motivo.
+ * Un proveedor en un solo modal (ADR-0012, DEC-031, DEC-057), sobre el
+ * listado y con dirección propia (DEC-034): `/work/providers/new`, `/:prvId`
+ * y `/:prvId/edit` abren la misma vista. La edición abre en la pestaña
+ * "Datos del proveedor"; el detalle, en "Resumen". Activar, desactivar y
+ * eliminar viven aquí, no en el listado (DEC-030). Un proveedor asignado a
+ * obras no se elimina: el servidor responde con el motivo.
  *
- * En la pestaña Obras se asigna el proveedor a una obra, se edita la
- * asignación y se desasigna, con los mismos endpoints y permisos que la
- * pestaña Proveedores de la obra (ADR-0012, decisión 2; DEC-031). Desasignar
- * no toca el proveedor: solo quita su participación en esa obra.
- *
- * La pestaña Facturas lista las del proveedor en todas sus obras (DEC-042);
- * se registran desde la obra o el contrato, que fijan dónde se imputan.
+ * - Datos del proveedor y contactos se editan en su pestaña y se guardan
+ *   juntos con un solo botón, en una petición. Sin el permiso de editar, los
+ *   contactos son de consulta y "Datos del proveedor" no aparece. Guardar no
+ *   es un submit del modal: un Enter en el buscador de facturas no debe
+ *   guardar el proveedor.
+ * - Al crear solo están esas dos pestañas; el resto se habilita al guardar,
+ *   sin salir del modal. Crear lleva clave de idempotencia.
+ * - Mientras se escribe el documento se avisa si ya existe; el 409 del
+ *   servidor da el mismo aviso si otro usuario lo registró entretanto.
+ * - En la pestaña Obras se asigna el proveedor a una obra, se edita la
+ *   asignación y se desasigna, con los mismos endpoints y permisos que la
+ *   pestaña Proveedores de la obra (ADR-0012, decisión 2; DEC-031).
+ * - La pestaña Facturas lista las del proveedor (DEC-042); la simple, que es
+ *   del proveedor (DEC-054), se registra desde aquí.
  */
 
 const TABS = [
   { key: 'summary', label: 'Resumen' },
-  { key: 'contacts', label: 'Contactos' },
+  { key: 'data', label: 'Datos del proveedor', form: true },
+  { key: 'contacts', label: 'Contactos', form: true },
   { key: 'works', label: 'Obras' },
   { key: 'invoices', label: 'Facturas' }
 ];
 
+// Cambiar de proveedor (o pasar de "nuevo" al creado) vuelve a montar la vista.
 export default function ProviderDetailPage() {
   const { prvId } = useParams();
+  return <ProviderView key={prvId ?? 'new'} />;
+}
+
+function ProviderView() {
+  const { prvId: prvIdParam } = useParams();
+  const prvId = Number(prvIdParam) || 0;
+  const isNew = prvId === 0;
   const navigate = useNavigate();
+  const location = useLocation();
   const { refresh } = useOutletContext() ?? {};
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
   const perms = permissionsCatalog.work?.providers;
+  const canEdit = isNew || canDo(perms?.edit);
+  const identityLocked = !isNew && !canDo(perms?.changeIdentity);
   const canViewWorks = canDo(permissionsCatalog.work?.works?.view);
   const canAssign = canDo(perms?.assignWork);
   const canUnassign = canDo(perms?.unassignWork);
-  // La factura simple es del proveedor (DEC-054): se registra desde aquí.
   const invoiceViews = useInvoiceViews();
   const canCreateSimple = canDo(permissionsCatalog.billing?.invoices?.create) && invoiceViews.includes('SIMPLE');
 
+  const [idempotencyKey] = useState(() => (isNew ? newIdempotencyKey() : null));
   const [provider, setProvider] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('summary');
+  const [loading, setLoading] = useState(!isNew);
+  const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState(() =>
+    isNew || (canEdit && location.pathname.endsWith('/edit')) ? 'data' : (location.state?.tab ?? 'summary')
+  );
   const [confirm, setConfirm] = useState(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   // Diálogo de asignación: `{ assignment }` para editar, `{}` para asignar a una obra nueva.
   const [assignDialog, setAssignDialog] = useState(null);
+  const [addingContact, setAddingContact] = useState(false);
+  const [identityOptions, setIdentityOptions] = useState([]);
+  const [conflict, setConflict] = useState(null);
+  const { withInvoiceMove, dialog: invoiceMoveDialog } = useInvoiceViewChange();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data } = await providersApi.getById({ prvId });
-      setProvider(data);
-    } catch (err) {
-      showError(err.response?.data?.message || 'Error al cargar el proveedor');
-      if (err.response?.status === 404) navigate('/work/providers', { replace: true });
-    } finally {
-      setLoading(false);
-    }
-  }, [prvId, navigate]);
+  const { control, handleSubmit, reset, formState } = useForm({ defaultValues: EMPTY_FORM });
+  const { errors, isDirty } = formState;
+  // Recargar el proveedor (cambio de estado, obras) no pisa lo que se está editando.
+  const dirtyRef = useRef(false);
+  dirtyRef.current = isDirty;
+
+  const load = useCallback(
+    async ({ resetForm = !dirtyRef.current } = {}) => {
+      try {
+        const { data } = await providersApi.getById({ prvId });
+        setProvider(data);
+        if (resetForm) reset(toForm(data));
+      } catch (err) {
+        showError(err.response?.data?.message || 'Error al cargar el proveedor');
+        if (err.response?.status === 404) navigate('/work/providers', { replace: true });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [prvId, reset, navigate]
+  );
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!isNew) load({ resetForm: true });
+  }, [isNew, load]);
+
+  const [iddId, identification, contacts] = useWatch({ control, name: ['iddId', 'identification', 'contacts'] });
+  const identityFormat = identityOptions.find((o) => o.value === iddId)?.format;
+  const identityChanged = isNew || iddId !== provider?.iddId || text(identification) !== provider?.identification;
+  const { existing: found } = useIdentityCheck({
+    iddId,
+    identification,
+    format: identityFormat,
+    excludeId: isNew ? undefined : prvId,
+    enabled: canEdit && !loading && identityChanged
+  });
+  const existing = conflict ?? found;
+
+  useEffect(() => setConflict(null), [iddId, identification]);
 
   const close = () => navigate('/work/providers');
+  // Cerrar con la X, Escape o el fondo pide confirmar si hay cambios sin guardar.
+  const requestClose = () => (isDirty ? setConfirmLeave(true) : close());
 
-  if (!provider) return <RouteDialog onClose={close} loading={loading} />;
+  const tabOfField = (field) => FIELD_TAB[field] ?? 'data';
+  const errorTabs = new Set(Object.keys(errors).map(tabOfField));
 
-  const active = provider.staId === STATUS.ACTIVE;
-  const documentText = `${provider.identityCode ?? ''} ${provider.identification}`;
+  const onSave = async (form) => {
+    if (existing) {
+      setTab('data');
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data } = await withInvoiceMove(providersApi.save)(toPayload(prvId, form), isNew ? idempotencyKey : undefined);
+      showSuccess(data.message || 'Guardado correctamente.');
+      refresh?.();
+      // El nuevo se abre en el resumen, con todas las pestañas habilitadas.
+      if (isNew) navigate(`/work/providers/${data.prvId}`, { replace: true, state: { tab: 'summary' } });
+      else await load({ resetForm: true });
+    } catch (err) {
+      const duplicate = err.response?.status === 409 && err.response?.data?.data?.existing;
+      if (duplicate) {
+        setConflict(duplicate);
+        setTab('data');
+      } else showError(err.response?.data?.message || 'Error al guardar el proveedor');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Lleva a la primera pestaña (en el orden de TABS) con un campo inválido.
+  const onInvalid = (invalid) => {
+    const tabs = new Set(Object.keys(invalid).map(tabOfField));
+    const first = TABS.find((t) => tabs.has(t.key));
+    if (first) setTab(first.key);
+  };
+
+  const save = handleSubmit(onSave, onInvalid);
+
+  if (loading || (!isNew && !provider)) return <RouteDialog onClose={close} loading />;
+
+  const visibleTabs = TABS.filter((t) => t.key !== 'data' || canEdit);
+  // Al crear, solo las pestañas del formulario: el resto necesita el proveedor guardado.
+  const enabled = (t) => !isNew || t.form;
+  const hidden = (key) => ({ display: tab === key ? 'block' : 'none' });
+
+  const tabBadge = provider
+    ? { contacts: canEdit ? contacts.length : provider.contacts.length, works: provider.worksCount }
+    : { contacts: contacts.length };
+
+  const active = provider?.staId === STATUS.ACTIVE;
+  const documentText = provider ? `${provider.identityCode ?? ''} ${provider.identification}` : '';
   // Uno o varios tipos (DEC-041).
-  const typesText = provider.providerTypes.join(', ');
-  const mainContact = provider.contacts.find((c) => c.main);
-  const activeWorks = provider.works.filter((w) => w.staId === STATUS.ACTIVE).length;
+  const typesText = provider?.providerTypes.join(', ') ?? '';
 
   const changeStatus = async () => {
     const { data } = await providersApi.changeStatus({ prvId: provider.prvId, staId: active ? STATUS.INACTIVE : STATUS.ACTIVE });
@@ -154,13 +259,6 @@ export default function ProviderDetailPage() {
     refresh?.();
   };
 
-  const assignButton =
-    canAssign && active ? (
-      <Button variant="contained" color="secondary" size="small" startIcon={<IconPlus size={16} />} onClick={() => setAssignDialog({})}>
-        Asignar a obra
-      </Button>
-    ) : null;
-
   const askDelete = () =>
     setConfirm({
       title: 'Eliminar proveedor',
@@ -170,43 +268,46 @@ export default function ProviderDetailPage() {
       run: remove
     });
 
-  const figures = [
-    { label: 'Documento', value: documentText, hint: provider.identityName },
-    {
-      label: provider.providerTypes.length === 1 ? 'Tipo de proveedor' : 'Tipos de proveedor',
-      value: typesText,
-      hint: `Menú de facturas: ${providerInvoiceViewName(provider.invoiceView)}`
-    },
-    { label: 'Obras', value: String(provider.worksCount), hint: `${activeWorks} con asignación activa` },
-    {
-      label: 'Contactos',
-      value: String(provider.contacts.length),
-      hint: mainContact ? `Principal: ${mainContact.name || mainContact.addressType}` : 'Sin principal'
-    }
-  ];
-
-  const tabBadge = { contacts: provider.contacts.length, works: provider.worksCount };
+  const assignButton =
+    canAssign && active ? (
+      <Button variant="contained" color="secondary" size="small" startIcon={<IconPlus size={16} />} onClick={() => setAssignDialog({})}>
+        Asignar a obra
+      </Button>
+    ) : null;
 
   return (
     <RouteDialog
-      onClose={close}
+      onClose={requestClose}
+      closeLabel={isDirty ? 'Cerrar sin guardar' : 'Cerrar'}
       labelledBy="provider-title"
       header={
-        <>
-          <Stack direction="row" sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
+        isNew ? (
+          <>
             <Typography id="provider-title" variant="h3" component="h2">
-              {provider.name}
+              Nuevo proveedor
             </Typography>
-            <StatusChip staId={provider.staId} label={active ? 'Activo' : 'Inactivo'} />
-          </Stack>
-          <Typography variant="body2" color="text.secondary">
-            {documentText} · {typesText}
-            {provider.serviceType ? ` · ${provider.serviceType}` : ''}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Modificado el {fDateTime(provider.updatedAt)} por {provider.updatedByName ?? '—'}
-          </Typography>
-        </>
+            <Typography variant="caption" color="text.secondary">
+              Identidad, datos generales y contactos. Al guardar el proveedor se habilitan el resumen, las obras y las facturas. Los campos
+              con * son obligatorios.
+            </Typography>
+          </>
+        ) : (
+          <>
+            <Stack direction="row" sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
+              <Typography id="provider-title" variant="h3" component="h2">
+                {provider.name}
+              </Typography>
+              <StatusChip staId={provider.staId} label={active ? 'Activo' : 'Inactivo'} />
+            </Stack>
+            <Typography variant="body2" color="text.secondary">
+              {documentText} · {typesText}
+              {provider.serviceType ? ` · ${provider.serviceType}` : ''}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Modificado el {fDateTime(provider.updatedAt)} por {provider.updatedByName ?? '—'}
+            </Typography>
+          </>
+        )
       }
       tabs={
         <Tabs
@@ -216,14 +317,18 @@ export default function ProviderDetailPage() {
           scrollButtons="auto"
           aria-label="Partes del proveedor"
         >
-          {TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <Tab
               key={t.key}
               value={t.key}
+              disabled={!enabled(t)}
               label={
                 <Stack direction="row" spacing={1} alignItems="center">
-                  <span>{t.label}</span>
-                  {tabBadge[t.key] !== undefined && <Chip label={tabBadge[t.key]} size="small" color="default" />}
+                  <Box component="span" sx={errorTabs.has(t.key) ? { color: 'error.main' } : undefined}>
+                    {t.label}
+                    {errorTabs.has(t.key) && ' *'}
+                  </Box>
+                  {enabled(t) && tabBadge[t.key] !== undefined && <Chip label={tabBadge[t.key]} size="small" color="default" />}
                 </Stack>
               }
             />
@@ -232,32 +337,63 @@ export default function ProviderDetailPage() {
       }
       footer={
         <>
-          {canDo(perms?.delete) && (
-            <Button variant="outlined" color="error" onClick={askDelete}>
+          {!isNew && canDo(perms?.delete) && (
+            <Button variant="outlined" color="error" onClick={askDelete} disabled={saving}>
               Eliminar
             </Button>
           )}
-          {canDo(perms?.changeStatus) && (
-            <Button variant="outlined" color="inherit" onClick={askStatus}>
+          {!isNew && canDo(perms?.changeStatus) && (
+            <Button variant="outlined" color="inherit" onClick={askStatus} disabled={saving}>
               {active ? 'Desactivar' : 'Activar'}
             </Button>
           )}
           <Box sx={{ flexGrow: 1 }} />
-          <Button variant="outlined" color="inherit" onClick={close}>
-            Cerrar
+          {!isNew && isDirty && (
+            <Button color="inherit" onClick={() => reset()} disabled={saving}>
+              Descartar cambios
+            </Button>
+          )}
+          <Button variant="outlined" color="inherit" onClick={requestClose} disabled={saving}>
+            {isNew ? 'Cancelar' : 'Cerrar'}
           </Button>
-          {canDo(perms?.edit) && (
-            <Button variant="contained" color="secondary" onClick={() => navigate(`/work/providers/${provider.prvId}/edit`)}>
-              Editar proveedor
+          {canEdit && (
+            <Button variant="contained" color="secondary" onClick={save} disabled={saving || Boolean(existing) || (!isNew && !isDirty)}>
+              {saving ? 'Guardando…' : isNew ? 'Guardar' : 'Guardar cambios'}
             </Button>
           )}
         </>
       }
     >
-      {tab === 'summary' && (
+      {errorTabs.size > 0 && (
+        <Alert severity="error" role="alert" sx={{ mb: 2 }}>
+          Revisa los campos marcados antes de guardar. Las pestañas con errores llevan *.
+        </Alert>
+      )}
+
+      {tab === 'summary' && provider && (
         <Stack spacing={2}>
           <Grid container spacing={1.5}>
-            {figures.map((figure) => (
+            {[
+              { label: 'Documento', value: documentText, hint: provider.identityName },
+              {
+                label: provider.providerTypes.length === 1 ? 'Tipo de proveedor' : 'Tipos de proveedor',
+                value: typesText,
+                hint: `Menú de facturas: ${providerInvoiceViewName(provider.invoiceView)}`
+              },
+              {
+                label: 'Obras',
+                value: String(provider.worksCount),
+                hint: `${provider.works.filter((w) => w.staId === STATUS.ACTIVE).length} con asignación activa`
+              },
+              {
+                label: 'Contactos',
+                value: String(provider.contacts.length),
+                hint: (() => {
+                  const main = provider.contacts.find((c) => c.main);
+                  return main ? `Principal: ${main.name || main.addressType}` : 'Sin principal';
+                })()
+              }
+            ].map((figure) => (
               <Grid key={figure.label} size={{ xs: 12, sm: 6, md: 3 }}>
                 <Figure {...figure} />
               </Grid>
@@ -299,14 +435,53 @@ export default function ProviderDetailPage() {
         </Stack>
       )}
 
-      {tab === 'contacts' && (
-        <ContactsList
-          contacts={provider.contacts}
-          emptyText="Agrégalos editando el proveedor. Los contactos son de la empresa y valen para todas sus obras."
-        />
+      {/* Pestañas del formulario: montadas siempre, para que sus campos se validen aunque no estén a la vista. */}
+      {canEdit ? (
+        <>
+          <Box sx={hidden('data')}>
+            <ProviderDataForm
+              control={control}
+              loaded={provider}
+              identityLocked={identityLocked}
+              identityFormat={identityFormat}
+              onIdentityOptions={setIdentityOptions}
+              existing={existing}
+              onViewExisting={() => navigate(`/work/providers/${existing.prvId}`)}
+            />
+          </Box>
+          <Box sx={hidden('contacts')}>
+            <FormSection
+              title="Contactos"
+              subtitle="Son de la empresa y valen para todas sus obras. Uno puede marcarse como principal."
+              onAdd={() => setAddingContact(true)}
+              addLabel="Agregar contacto"
+            >
+              <Controller
+                name="contacts"
+                control={control}
+                render={({ field, fieldState }) => (
+                  <ContactsEditor
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={fieldState.error}
+                    adding={addingContact}
+                    onAddingChange={setAddingContact}
+                  />
+                )}
+              />
+            </FormSection>
+          </Box>
+        </>
+      ) : (
+        tab === 'contacts' && (
+          <ContactsList
+            contacts={provider.contacts}
+            emptyText="Los agrega quien puede editar el proveedor. Los contactos son de la empresa y valen para todas sus obras."
+          />
+        )
       )}
 
-      {tab === 'works' && (
+      {tab === 'works' && provider && (
         <Stack spacing={1.5}>
           {provider.works.length > 0 && (
             <Stack direction="row" sx={{ flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
@@ -400,7 +575,7 @@ export default function ProviderDetailPage() {
         </Stack>
       )}
 
-      {tab === 'invoices' && (
+      {tab === 'invoices' && provider && (
         <InvoicesTab
           filter={{ prvId: provider.prvId }}
           actions={
@@ -421,13 +596,15 @@ export default function ProviderDetailPage() {
         />
       )}
 
-      <WorkProviderDialog
-        open={Boolean(assignDialog)}
-        prvId={provider.prvId}
-        assignment={assignDialog?.assignment ?? null}
-        onClose={() => setAssignDialog(null)}
-        onSaved={assignmentSaved}
-      />
+      {provider && (
+        <WorkProviderDialog
+          open={Boolean(assignDialog)}
+          prvId={provider.prvId}
+          assignment={assignDialog?.assignment ?? null}
+          onClose={() => setAssignDialog(null)}
+          onSaved={assignmentSaved}
+        />
+      )}
 
       <ConfirmDialog
         open={Boolean(confirm)}
@@ -438,6 +615,16 @@ export default function ProviderDetailPage() {
         confirmLabel={confirm?.label}
         confirmColor={confirm?.color}
       />
+
+      <ConfirmDialog
+        open={confirmLeave}
+        onClose={() => setConfirmLeave(false)}
+        onConfirm={close}
+        title="Descartar cambios"
+        message="Hay cambios sin guardar en el proveedor. ¿Salir sin guardarlos?"
+        confirmLabel="Descartar"
+      />
+      {invoiceMoveDialog}
     </RouteDialog>
   );
 }

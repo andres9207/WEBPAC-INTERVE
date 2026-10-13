@@ -27,10 +27,8 @@ const ReasonPage = Loadable(lazy(() => import('views/admin/reasons/ReasonPage'))
 const PolicyTypePage = Loadable(lazy(() => import('views/admin/policyTypes/PolicyTypePage')));
 const WorksPage = Loadable(lazy(() => import('views/work/works/WorksPage')));
 const WorkDetailPage = Loadable(lazy(() => import('views/work/works/WorkDetailPage')));
-const WorkFormPage = Loadable(lazy(() => import('views/work/works/WorkFormPage')));
 const ProvidersPage = Loadable(lazy(() => import('views/work/providers/ProvidersPage')));
 const ProviderDetailPage = Loadable(lazy(() => import('views/work/providers/ProviderDetailPage')));
-const ProviderFormPage = Loadable(lazy(() => import('views/work/providers/ProviderFormPage')));
 const ContractsPage = Loadable(lazy(() => import('views/work/contracts/ContractsPage')));
 const ContractDetailPage = Loadable(lazy(() => import('views/work/contracts/ContractDetailPage')));
 const ContractFormPage = Loadable(lazy(() => import('views/work/contracts/ContractFormPage')));
@@ -78,24 +76,25 @@ const MainRoutes = {
           path: 'work',
           // Obras y proveedores (DEC-030, DEC-031): alta, detalle y edición
           // son rutas hijas del listado y se abren en un modal sobre él, con
-          // dirección propia (DEC-034).
+          // dirección propia (DEC-034). Las tres abren la misma vista con
+          // pestañas (DEC-057); la edición, en la pestaña de datos.
           children: [
             {
               path: 'works',
               element: <WorksPage />,
               children: [
-                { path: 'new', element: <WorkFormPage /> },
+                { path: 'new', element: <WorkDetailPage /> },
                 { path: ':wrkId', element: <WorkDetailPage /> },
-                { path: ':wrkId/edit', element: <WorkFormPage /> }
+                { path: ':wrkId/edit', element: <WorkDetailPage /> }
               ]
             },
             {
               path: 'providers',
               element: <ProvidersPage />,
               children: [
-                { path: 'new', element: <ProviderFormPage /> },
+                { path: 'new', element: <ProviderDetailPage /> },
                 { path: ':prvId', element: <ProviderDetailPage /> },
-                { path: ':prvId/edit', element: <ProviderFormPage /> }
+                { path: ':prvId/edit', element: <ProviderDetailPage /> }
               ]
             },
             {

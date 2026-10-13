@@ -1,6 +1,6 @@
 # DEC-034 — El detalle y el formulario de un agregado se abren en un modal con dirección propia
 
-**Fecha:** 2026-10-02 · **Tipo:** Vigente · **ADR:** [0011](../adr/0011-obras.md), [0012](../adr/0012-proveedores.md) · **Reemplaza en parte:** [DEC-030](DEC-030-obra-paginas-propias-plazo.md) (solo la presentación a página completa)
+**Fecha:** 2026-10-02 · **Tipo:** Vigente · **ADR:** [0011](../adr/0011-obras.md), [0012](../adr/0012-proveedores.md) · **Reemplaza en parte:** [DEC-030](DEC-030-obra-paginas-propias-plazo.md) (solo la presentación a página completa) · **Reemplazada en parte por:** [DEC-057](DEC-057-agregado-vista-unica-pestanas.md) (obras y proveedores: detalle y formulario en una sola vista)
 
 Sale del prototipo de vistas revisado con el usuario (2026-10-02): el detalle y la edición de obras y proveedores se ven en un modal grande sobre el listado.
 
