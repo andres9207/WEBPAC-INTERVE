@@ -32,10 +32,12 @@ import {
 } from 'api/requests/contractsApi';
 import useEndDatePreview from 'hooks/useEndDatePreview';
 import { useAuth } from 'contexts/AuthContext';
+import { useWorkScope } from 'contexts/WorkScopeContext';
 import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
 import { TERM_UNIT_OPTIONS } from 'utils/constants';
+import { ALL_WORKS } from 'utils/workScope';
 
 /**
  * Alta y edición de un contrato (ADR-0015, DEC-035), en un modal sobre el
@@ -46,8 +48,10 @@ import { TERM_UNIT_OPTIONS } from 'utils/constants';
  *   sola petición: el servidor los guarda juntos con el historial
  *   (PRO-BE-09). Lleva clave de idempotencia. Las pólizas amparan el valor
  *   inicial y solo se ofrecen con el permiso de registrar pólizas.
- * - Etapa y proveedor se filtran por la obra elegida (y el servidor lo exige).
- *   La obra no cambia después de crear el contrato.
+ * - La obra es la del selector del encabezado (DEC-047): el contrato nace en
+ *   ella y el formulario no la pide. Solo con "Ver todo" se elige aquí.
+ *   Etapa y proveedor se filtran por esa obra (y el servidor lo exige). La
+ *   obra no cambia después de crear el contrato.
  * - La fecha fin es solo lectura: la calcula el servidor (inicio + plazo +
  *   prórrogas + días suspendidos; FRONTEND_STANDARD, regla 9). Se le pide al
  *   salir del plazo, al cambiar la unidad o la fecha de inicio
@@ -140,6 +144,10 @@ export default function ContractFormPage() {
   const isEdit = ctrId > 0;
   const navigate = useNavigate();
   const { refresh } = useOutletContext() ?? {};
+  const { activeWork, works: scopeWorks } = useWorkScope();
+  // Obra fija del encabezado; null con "Ver todo" (se elige en el formulario).
+  const headerWork = activeWork === ALL_WORKS ? null : (scopeWorks.find((work) => work.value === activeWork) ?? null);
+  const headerWrkId = headerWork?.value ?? '';
 
   const [idempotencyKey] = useState(() => (isEdit ? null : newIdempotencyKey()));
   const [loading, setLoading] = useState(true);
@@ -177,7 +185,7 @@ export default function ContractFormPage() {
         ]);
         setLoaded(contract);
         setWorkOptions(works);
-        reset(contract ? toForm(contract) : EMPTY_FORM);
+        reset(contract ? toForm(contract) : { ...EMPTY_FORM, wrkId: headerWrkId });
         resetEndDate(contract?.endDate);
       } catch (err) {
         showError(err.response?.data?.message || 'Error al cargar el contrato');
@@ -187,7 +195,7 @@ export default function ContractFormPage() {
       }
     };
     load();
-  }, [isEdit, ctrId, reset, resetEndDate, navigate]);
+  }, [isEdit, ctrId, headerWrkId, reset, resetEndDate, navigate]);
 
   const [wrkId, prvId, aiuRequested] = useWatch({ control, name: ['wrkId', 'prvId', 'aiuRequested'] });
   const { permissionsCatalog, hasPermission } = useAuth();
@@ -245,6 +253,8 @@ export default function ContractFormPage() {
   };
 
   const blocked = isEdit && loaded && !loaded.allowedActions.includes('editContract');
+  // La obra del encabezado está inactiva: no admite contratos nuevos.
+  const inactiveWork = !isEdit && headerWork != null && headerWork.active === false;
 
   // Cancelar o cerrar vuelve al listado, también al editar (DEC-034).
   const leave = () => navigate('/work/contracts');
@@ -313,7 +323,7 @@ export default function ContractFormPage() {
           <Button onClick={requestLeave} disabled={saving}>
             Cancelar
           </Button>
-          <Button type="submit" variant="contained" color="secondary" disabled={saving || blocked || !fieldsReady}>
+          <Button type="submit" variant="contained" color="secondary" disabled={saving || blocked || inactiveWork || !fieldsReady}>
             {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar'}
           </Button>
         </>
@@ -324,6 +334,11 @@ export default function ContractFormPage() {
           {blocked && (
             <Alert severity="warning">
               El contrato está {loaded.stateName.toLowerCase()}: sus datos contractuales solo se modifican mientras está en ejecución.
+            </Alert>
+          )}
+          {inactiveWork && (
+            <Alert severity="warning">
+              La obra {headerWork.label} está inactiva: no admite contratos nuevos. Elige otra obra en el selector del encabezado.
             </Alert>
           )}
           {hasErrors && (
@@ -349,10 +364,11 @@ export default function ContractFormPage() {
           >
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 4 }}>
-                {isEdit ? (
+                {isEdit || headerWork ? (
                   <TextField
                     label="Obra"
-                    value={`${loaded.workCode} — ${loaded.workName}`}
+                    value={isEdit ? `${loaded.workCode} — ${loaded.workName}` : headerWork.label}
+                    helperText={isEdit ? undefined : 'La del selector del encabezado'}
                     size="small"
                     fullWidth
                     slotProps={{ input: { readOnly: true } }}
