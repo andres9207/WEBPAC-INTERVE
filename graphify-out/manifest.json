@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "client/src/routes/MainRoutes.jsx": {
-    "mtime": 1791900344.6487193,
-    "seen": 1791909112.3762949,
-    "ast_hash": "4a606235c882bd9651a5ca7c34c2e438",
+    "mtime": 1791921901.8381493,
+    "seen": 1791922722.621975,
+    "ast_hash": "9c81b46a77c5ab7346e1256a16082531",
     "semantic_hash": ""
   },
   "client/src/routes/PrivateRoute.jsx": {
@@ -2178,26 +2178,20 @@
     "semantic_hash": ""
   },
   "client/src/views/work/works/WorkDetailPage.jsx": {
-    "mtime": 1791900477.6286697,
-    "seen": 1791909112.3764663,
-    "ast_hash": "9199fc2b42ba5455a973e30d3dc3e445",
-    "semantic_hash": ""
-  },
-  "client/src/views/work/works/WorkFormPage.jsx": {
-    "mtime": 1791918041.5166068,
-    "seen": 1791918950.8643339,
-    "ast_hash": "0744b318db8099d2f89f6570f04d371c",
+    "mtime": 1791921887.2939765,
+    "seen": 1791922722.62218,
+    "ast_hash": "5b31d2476ff44e60737a383029db21e2",
     "semantic_hash": ""
   },
   "client/src/views/work/works/components/ManagerDialog.jsx": {
-    "mtime": 1791297525.4639199,
-    "seen": 1791298128.5536885,
+    "mtime": 1791921914.4010208,
+    "seen": 1791922722.6221821,
     "ast_hash": "4e6ef2f690c205b5040f034e13756864",
     "semantic_hash": ""
   },
   "client/src/views/work/works/components/ManagersTable.jsx": {
-    "mtime": 1791297525.4639199,
-    "seen": 1791298128.5536897,
+    "mtime": 1791921914.4020262,
+    "seen": 1791922722.622183,
     "ast_hash": "a19178e6d185ad37d16a22822256d1d6",
     "semantic_hash": ""
   },
@@ -2244,15 +2238,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/providers/ProviderDetailPage.jsx": {
-    "mtime": 1791913049.5582623,
-    "seen": 1791916678.0131433,
-    "ast_hash": "862d505a8f3a9413b478cf578aaee881",
-    "semantic_hash": ""
-  },
-  "client/src/views/work/providers/ProviderFormPage.jsx": {
-    "mtime": 1791912941.4042842,
-    "seen": 1791916678.0131443,
-    "ast_hash": "df95350561b12ec448038604aecb9f43",
+    "mtime": 1791922081.3472788,
+    "seen": 1791922722.6221707,
+    "ast_hash": "49c681bf05e89016f24b4077824ca75d",
     "semantic_hash": ""
   },
   "client/src/views/work/providers/ProvidersPage.jsx": {
@@ -3333,6 +3321,30 @@
     "mtime": 1791912212.2199697,
     "seen": 1791916678.0132544,
     "ast_hash": "0efea9043b9ba692a63975ad5025f8fd",
+    "semantic_hash": ""
+  },
+  "client/src/views/work/providers/components/ProviderDataForm.jsx": {
+    "mtime": 1791921951.6559927,
+    "seen": 1791922722.6221743,
+    "ast_hash": "ee71ed0c7c21ea4c69abdc0e1a59268c",
+    "semantic_hash": ""
+  },
+  "client/src/views/work/providers/components/providerForm.js": {
+    "mtime": 1791922081.3472788,
+    "seen": 1791922722.6221776,
+    "ast_hash": "84740455ff696e2d4d9c545559f10567",
+    "semantic_hash": ""
+  },
+  "client/src/views/work/works/components/WorkDataForm.jsx": {
+    "mtime": 1791921793.195659,
+    "seen": 1791922722.6221852,
+    "ast_hash": "5b9ff6b801ab98dd5e25c9c93dda3d0b",
+    "semantic_hash": ""
+  },
+  "client/src/views/work/works/components/workForm.js": {
+    "mtime": 1791921768.107861,
+    "seen": 1791922722.6221876,
+    "ast_hash": "bfd5b71b809691e25d2c370b70369aef",
     "semantic_hash": ""
   }
 }
