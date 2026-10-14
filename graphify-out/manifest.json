@@ -102,9 +102,9 @@
     "semantic_hash": ""
   },
   "client/src/api/services/httpCliente.js": {
-    "mtime": 1791323034.009377,
-    "seen": 1791324355.8109818,
-    "ast_hash": "3d76a4411a1d2bfdf5d71b6b89f11a5b",
+    "mtime": 1792014349.819747,
+    "seen": 1792014805.330646,
+    "ast_hash": "a79d82c2a76dd2120c08d579016d7410",
     "semantic_hash": ""
   },
   "client/src/config.js": {
@@ -786,9 +786,9 @@
     "semantic_hash": ""
   },
   "client/src/utils/idempotency.js": {
-    "mtime": 1790370516.2912695,
-    "seen": 1790694517.6645975,
-    "ast_hash": "f91a0994d19f922a60ea86e61e9ae974",
+    "mtime": 1792014349.8187075,
+    "seen": 1792014805.3309786,
+    "ast_hash": "e6310326872a208e801f060523a16992",
     "semantic_hash": ""
   },
   "client/src/utils/password-strength.js": {
