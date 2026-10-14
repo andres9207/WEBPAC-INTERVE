@@ -432,6 +432,43 @@ describe("anular", () => {
     expect(prismaMock.tbl_invoices.update.mock.calls[0][0].data).not.toHaveProperty("inv_approval_date");
   });
 
+  it("con el contrato liquidado no se anula, ni aprobada ni registrada (409, ADR-0027)", async () => {
+    state.contract = contract({ ctr_state: "LIQUIDATED" });
+    state.invoice = storedInvoice({ inv_state: "APPROVED", inv_approval_date: new Date("2026-03-05T00:00:00Z") });
+    await expect(cancel([CAN_CANCEL, CAN_CANCEL_APPROVED])).rejects.toMatchObject({
+      statusCode: 409,
+      message: "Las facturas de un contrato liquidado no se anulan: el contrato solo se consulta. Estado actual: Liquidado.",
+    });
+    state.invoice = storedInvoice();
+    await expect(cancel()).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_invoice_status_history.create).not.toHaveBeenCalled();
+  });
+
+  it("en ejecución, suspendido o en liquidación, el estado del contrato no impide anular", async () => {
+    for (const ctr_state of ["IN_PROGRESS", "SUSPENDED", "IN_LIQUIDATION"]) {
+      state.contract = contract({ ctr_state });
+      state.invoice = storedInvoice();
+      await expect(cancel()).resolves.toMatchObject({ invId: 70 });
+    }
+  });
+
+  it("el detalle no ofrece anular con el contrato liquidado; en liquidación, sí", async () => {
+    const detail = (ctr_state, invoice) => {
+      prismaMock.tbl_invoices.findFirst.mockResolvedValueOnce({
+        ...invoice,
+        inv_view: "MAJOR",
+        tbl_contracts: { ctr_number: "C-1", ctr_name: "Obra", ctr_state, tbl_work_stages: null },
+        tbl_invoice_status_history: [],
+      });
+      return service.getInvoice({ invId: 70 });
+    };
+    const approved = storedInvoice({ inv_state: "APPROVED", inv_approval_date: new Date("2026-03-05T00:00:00Z") });
+    await expect(detail("LIQUIDATED", approved)).resolves.toMatchObject({ allowedActions: ["editNotes"] });
+    await expect(detail("LIQUIDATED", storedInvoice())).resolves.toMatchObject({ allowedActions: ["edit", "editNotes", "approve"] });
+    await expect(detail("IN_LIQUIDATION", approved)).resolves.toMatchObject({ allowedActions: ["editNotes", "cancelApproved"] });
+  });
+
   it("una anulada es terminal (409)", async () => {
     state.invoice = storedInvoice({ inv_state: "CANCELLED" });
     await expect(cancel([CAN_CANCEL, CAN_CANCEL_APPROVED])).rejects.toMatchObject({ statusCode: 409 });

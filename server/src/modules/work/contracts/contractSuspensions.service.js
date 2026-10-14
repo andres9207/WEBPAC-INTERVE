@@ -7,6 +7,7 @@ import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudi
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { CONTRACT_STATES, STATE_NAMES, assertStateAllows, assertTransition, historyRow, suspendedDaysBetween } from "./contractTerms.js";
 import { assertContractInScope, findLockedContract, httpError } from "./contracts.service.js";
+import { contractLabel, notifyWorkManagers } from "./contractNotifications.service.js";
 
 /**
  * Suspensiones de contrato (ADR-0017, decisiones 3, 8 y 9; DEC-039).
@@ -90,8 +91,8 @@ export const suspendContract = async ({ ctrId, input, useBy, scope, ctx = { useI
     key: idempotencyKey,
     ownerId: useBy,
     payload: { ctrId: Number(ctrId), ...auditable(requested) },
-    execute: (idempotencyData) =>
-      withLockedTransaction({ CONTRATO: ctrId, MOTIVO: requested.rea_id }, async (tx) => {
+    execute: async (idempotencyData) => {
+      const { reasonName, ...result } = await withLockedTransaction({ CONTRATO: ctrId, MOTIVO: requested.rea_id }, async (tx) => {
         const contract = await findLockedContract(tx, ctrId);
         assertStateAllows(contract.ctr_state, "suspend");
         const { to: nextState } = assertTransition("suspend", contract.ctr_state);
@@ -144,8 +145,21 @@ export const suspendContract = async ({ ctrId, input, useBy, scope, ctx = { useI
           changes: [{ field: "ctr_state", oldValue: contract.ctr_state, newValue: nextState }],
         });
 
-        return { message: "Contrato suspendido correctamente", ctrId: contract.ctr_id };
-      }),
+        return { message: "Contrato suspendido correctamente", ctrId: contract.ctr_id, reasonName: reason.rea_name };
+      });
+
+      // Después del COMMIT (ADR-0027).
+      await notifyWorkManagers({
+        ctrId,
+        actorId: useBy,
+        title: "Contrato suspendido",
+        action: "suspend",
+        type: "warning",
+        buildMessage: (contract) =>
+          `El contrato ${contractLabel(contract)} fue suspendido desde el ${dateOnlyText(requested.csp_suspension_date)}. Motivo: ${reasonName}.`,
+      });
+      return result;
+    },
   });
 };
 

@@ -116,7 +116,7 @@ export const createAmendmentController = handle(async (req) => {
   const granted = new Set(await getEffectivePermissionIds({ useId, proId }));
   const result = await conceptsService.createAmendment({
     ctrId: req.body.ctrId,
-    input: pick(req.body, [...ACT_FIELDS, "extension", "liftDate"]),
+    input: pick(req.body, [...ACT_FIELDS, "extension", "liftDate", "policies"]),
     useBy: useId,
     granted,
     scope: await workScopeOf(req),

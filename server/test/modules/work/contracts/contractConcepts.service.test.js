@@ -21,18 +21,32 @@ const prismaMock = {
   tbl_contract_fields: { findMany: jest.fn(async () => CONTRACT_FIELDS_CATALOG) },
   tbl_provider_classifications: { findMany: jest.fn(async () => [{ pvt_id: 1 }]) },
   tbl_provider_type_fields: { findMany: jest.fn(async () => state.typeFields) },
+  tbl_policies: {
+    findFirst: jest.fn(async () => null),
+    create: jest.fn(async () => ({ pol_id: 500 + prismaMock.tbl_policies.create.mock.calls.length })),
+    update: jest.fn(),
+  },
+  tbl_policy_types: { findUnique: jest.fn(async ({ where }) => ({ plt_name: `Tipo ${where.plt_id}`, plt_base: "TOTAL_VALUE", sta_id: 1 })) },
+  tbl_insurers: { findUnique: jest.fn(async () => ({ ins_description: "Seguros SA", sta_id: 1 })) },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
 };
 
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
+// Notificación a los responsables de la obra, después del COMMIT (ADR-0027).
+const notifyWorkManagers = jest.fn(async () => 1);
+jest.unstable_mockModule("../../../../src/modules/work/contracts/contractNotifications.service.js", () => ({
+  notifyWorkManagers,
+  contractLabel: (c) => c.ctr_number,
+}));
 
 const service = await import("../../../../src/modules/work/contracts/contractConcepts.service.js");
 
 const KEY = "3f2b8c1e-5d4a-4e6b-9a7c-1b2d3e4f5a6b";
 const ctx = { useId: 9, ip: "1.1.1.1" };
 const auditRows = () => prismaMock.tbl_audit_log.createMany.mock.calls.flatMap((c) => c[0].data);
+const lockedTables = () => prismaMock.$queryRaw.mock.calls.map((call) => call.slice(1).map((v) => v?.strings?.join("") ?? "").join(" "));
 
 const contract = (overrides = {}) => ({
   ctr_id: 30,
@@ -135,6 +149,82 @@ describe("createAmendment", () => {
   });
 });
 
+describe("createAmendment con pólizas (ADR-0027, catálogo de operaciones críticas)", () => {
+  const CAN_POLICIES = new Set([100]);
+  const policy = (overrides = {}) => ({ pltId: 4, insId: 6, number: "CU-OT2", percentage: "10", startDate: "2026-03-01", endDate: "2026-12-31", ...overrides });
+  const amend = (policies, granted = CAN_POLICIES) =>
+    service.createAmendment({ ctrId: 30, input: act({ policies }), useBy: 9, granted, ctx, idempotencyKey: KEY });
+
+  it("crea las pólizas sobre el otrosí, en su transacción y con su operationId", async () => {
+    await expect(amend([policy(), policy({ pltId: 5, number: "AN-OT2" })])).resolves.toEqual({
+      message: "Otrosí N.º 2 registrado correctamente",
+      ccpId: 310,
+      number: 2,
+    });
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    const rows = prismaMock.tbl_policies.create.mock.calls.map((c) => c[0].data);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ ctr_id: 30, ccp_id: 310, plt_id: 4, pol_base: "TOTAL_VALUE", pol_version: 1, pol_is_current: true, pol_create_by: 9 });
+    expect(rows[1]).toMatchObject({ ccp_id: 310, plt_id: 5, pol_number: "AN-OT2" });
+    // Sin clave propia: la del otrosí cubre todo el envío.
+    expect(rows[0]).not.toHaveProperty("pol_idempotency_key");
+    expect(prismaMock.tbl_policies.create.mock.invocationCallOrder[0]).toBeGreaterThan(prismaMock.tbl_contract_concepts.create.mock.invocationCallOrder[0]);
+
+    const audit = auditRows();
+    expect(audit.filter((r) => r.aud_entity === "POLIZA" && r.aud_field === "plt_id")).toHaveLength(2);
+    expect(new Set(audit.map((r) => r.aud_operation_id)).size).toBe(1);
+  });
+
+  it("bloquea contrato → aseguradoras → tipos de póliza, en el orden fijo", async () => {
+    await amend([policy({ pltId: 5 }), policy({ pltId: 4, insId: 7 })]);
+    expect(lockedTables()).toEqual([
+      expect.stringMatching(/tbl_contracts/),
+      expect.stringMatching(/tbl_insurers/),
+      expect.stringMatching(/tbl_policy_types/),
+    ]);
+  });
+
+  it("sin pólizas no exige el permiso ni bloquea sus maestros", async () => {
+    await expect(amend([], new Set())).resolves.toMatchObject({ number: 2 });
+    expect(prismaMock.tbl_policies.create).not.toHaveBeenCalled();
+    expect(lockedTables()).toHaveLength(1);
+  });
+
+  it("sin el permiso de registrar pólizas responde 403 y no abre la transacción", async () => {
+    await expect(amend([policy()], new Set())).rejects.toMatchObject({
+      statusCode: 403,
+      message: "No tienes permiso para registrar pólizas. Registra el otrosí sin ellas.",
+    });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("dos pólizas del mismo tipo en el envío responden 400", async () => {
+    await expect(amend([policy(), policy({ number: "CU-OT3" })])).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Hay dos pólizas del mismo tipo: el otrosí admite una por tipo.",
+    });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("una póliza inválida aborta todo el otrosí, dentro de la única transacción", async () => {
+    prismaMock.tbl_insurers.findUnique.mockResolvedValueOnce({ ins_description: "Seguros SA", sta_id: 2 });
+    await expect(amend([policy()])).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.tbl_policies.create).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(notifyWorkManagers).not.toHaveBeenCalled();
+  });
+
+  it("las pólizas entran en la huella de idempotencia: la misma clave con otras pólizas responde 422", async () => {
+    await amend([policy()]);
+    const { ccp_idempotency_hash: hash } = prismaMock.tbl_contract_concepts.create.mock.calls[0][0].data;
+    jest.clearAllMocks();
+    prismaMock.tbl_contract_concepts.findUnique.mockImplementationOnce(async () => ({ ccp_id: 310, ccp_number: 2, ccp_idempotency_hash: hash, ccp_create_by: 9 }));
+    await expect(amend([policy({ number: "OTRA" })])).rejects.toMatchObject({ statusCode: 422 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
 describe("createLiquidation", () => {
   it("crea el otrosí sin número y pasa el contrato a liquidación con su historial", async () => {
     await expect(service.createLiquidation({ ctrId: 30, input: act(), useBy: 9, ctx, idempotencyKey: KEY })).resolves.toMatchObject({ ccpId: 310 });
@@ -151,9 +241,20 @@ describe("createLiquidation", () => {
     expect(auditRows().find((r) => r.aud_field === "ctr_state")).toMatchObject({ aud_old_value: "IN_PROGRESS", aud_new_value: "IN_LIQUIDATION" });
   });
 
+  it("después del COMMIT notifica a los responsables de la obra, salvo al autor", async () => {
+    await service.createLiquidation({ ctrId: 30, input: act(), useBy: 9, ctx, idempotencyKey: KEY });
+    expect(notifyWorkManagers).toHaveBeenCalledTimes(1);
+    const lastWrite = Math.max(...prismaMock.tbl_audit_log.createMany.mock.invocationCallOrder);
+    expect(notifyWorkManagers.mock.invocationCallOrder[0]).toBeGreaterThan(lastWrite);
+    const call = notifyWorkManagers.mock.calls[0][0];
+    expect(call).toMatchObject({ ctrId: 30, actorId: 9, title: "Contrato en liquidación", action: "start_liquidation", data: { ccpId: 310 } });
+    expect(call.buildMessage({ ctr_number: "C-30" })).toBe("Se registró el otrosí de liquidación del contrato C-30. El contrato pasó a liquidación.");
+  });
+
   it("solo uno por contrato (409)", async () => {
     state.concepts.push(concept({ ccp_id: 305, ccp_type: "LIQUIDATION" }));
     await expect(service.createLiquidation({ ctrId: 30, input: act(), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({ statusCode: 409 });
+    expect(notifyWorkManagers).not.toHaveBeenCalled();
   });
 
   it("no desde un contrato suspendido o liquidado (409)", async () => {

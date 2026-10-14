@@ -972,29 +972,38 @@ export const saveContract = async ({ ctrId, input, useBy, granted, scope, ctx = 
       ...auditableContract(values),
       aiuRequested: input.aiuRequested ?? null,
       initialConcept: auditableConcept(initialConcept),
-      policies: policies.map((p) => ({ ...p, pol_percentage: percentText(p.pol_percentage), pol_start_date: dateOnlyText(p.pol_start_date), pol_end_date: dateOnlyText(p.pol_end_date) })),
+      policies: policiesPayload(policies),
     },
     execute: (idempotencyData) => createContract({ wrkId, input, policies, granted, useBy: Number(useBy), ctx, idempotencyData }),
   });
 };
 
 /**
- * Pólizas que llegan con la creación (PRO-BE-09). Son opcionales; si llegan,
- * exigen el permiso de registrar pólizas: crear el contrato no lo da (403).
- * Un concepto admite una póliza vigente por tipo, así que el envío no repite
- * tipo (400); contra las ya guardadas lo verifica insertPolicy.
+ * Pólizas que llegan con un acto que crea un concepto: la creación del
+ * contrato, sobre el valor inicial (PRO-BE-09), y el otrosí (ADR-0027,
+ * catálogo de operaciones críticas). Son opcionales; si llegan, exigen el
+ * permiso de registrar pólizas: el acto no lo da (403). Un concepto admite
+ * una póliza vigente por tipo, así que el envío no repite tipo (400); contra
+ * las ya guardadas lo verifica insertPolicy.
+ *
+ * - `act`: cómo se nombra el acto en el 403 ("el contrato", "el otrosí").
+ * - `concept`: el concepto que amparan, para el 400 ("el valor inicial").
  */
-const policiesOf = (input, granted) => {
+export const policiesOf = (input, granted, { act = "el contrato", concept = "el valor inicial" } = {}) => {
   const policies = (input.policies ?? []).map(policyValuesOf);
   if (policies.length === 0) return policies;
   if (!granted?.has(PERMISSIONS.work.policies.create)) {
-    throw httpError(403, "No tienes permiso para registrar pólizas. Crea el contrato sin ellas.");
+    throw httpError(403, `No tienes permiso para registrar pólizas. Registra ${act} sin ellas.`);
   }
   if (new Set(policies.map((p) => p.plt_id)).size !== policies.length) {
-    throw httpError(400, "Hay dos pólizas del mismo tipo: el valor inicial admite una por tipo.");
+    throw httpError(400, `Hay dos pólizas del mismo tipo: ${concept} admite una por tipo.`);
   }
   return policies;
 };
+
+/** Pólizas como huella de idempotencia: textos, no Decimal ni Date. */
+export const policiesPayload = (policies) =>
+  policies.map((p) => ({ ...p, pol_percentage: percentText(p.pol_percentage), pol_start_date: dateOnlyText(p.pol_start_date), pol_end_date: dateOnlyText(p.pol_end_date) }));
 
 // ─── Eliminación ─────────────────────────────────────────────────────────────
 

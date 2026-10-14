@@ -18,8 +18,12 @@ import {
   findLockedContract,
   hasApprovedInvoices,
   httpError,
+  policiesOf,
+  policiesPayload,
 } from "./contracts.service.js";
+import { insertPolicy } from "./contractPolicies.service.js";
 import { liftWithAmendment } from "./contractSuspensions.service.js";
+import { contractLabel, notifyWorkManagers } from "./contractNotifications.service.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
@@ -131,14 +135,25 @@ export const createAmendment = async ({ ctrId, input, useBy, granted, scope, ctx
   const requested = { ...conceptValuesOf(input), ccp_extension: optionalInt(input.extension) };
   const liftDate = input.liftDate || null;
   assertStartDate(requested);
+  const policies = policiesOf(input, granted, { act: "el otrosí", concept: "el otrosí" });
+  const locks = {
+    CONTRATO: ctrId,
+    ...(policies.length > 0 && { ASEGURADORA: policies.map((p) => p.ins_id), TIPO_POLIZA: policies.map((p) => p.plt_id) }),
+  };
 
   return runIdempotent({
     target: conceptTarget(amendmentResult),
     key: idempotencyKey,
     ownerId: useBy,
-    payload: { ctrId: Number(ctrId), type: CONCEPT_TYPES.AMENDMENT, ...auditableConcept(requested), liftDate },
-    execute: (idempotencyData) =>
-      withLockedTransaction({ CONTRATO: ctrId }, async (tx) => {
+    payload: {
+      ctrId: Number(ctrId),
+      type: CONCEPT_TYPES.AMENDMENT,
+      ...auditableConcept(requested),
+      liftDate,
+      ...(policies.length > 0 && { policies: policiesPayload(policies) }),
+    },
+    execute: async (idempotencyData) => {
+      const { resumed, ...result } = await withLockedTransaction(locks, async (tx) => {
         const contract = await findLockedContract(tx, ctrId);
         assertStateAllows(contract.ctr_state, "createAmendment");
         const values = { ...(await configuredConcept(tx, contract, input)), ccp_extension: optionalInt(input.extension) };
@@ -178,9 +193,33 @@ export const createAmendment = async ({ ctrId, input, useBy, granted, scope, ctx
           contractChanges: [...lifted.changes, ...(endChange ? [endChange] : [])],
         });
 
+        // Las pólizas que amparan el otrosí, en su transacción y su operación
+        // de bitácora (ADR-0027). Con el estado ya reanudado, si lo estaba.
+        if (policies.length > 0) assertStateAllows(lifted.contract.ctr_state, "createPolicy");
+        for (const values of policies) {
+          await insertPolicy(tx, { ctrId: contract.ctr_id, ccpId: created.ccp_id, values, useBy, ctx, operationId });
+        }
+
         const result = amendmentResult(created);
-        return lifted.changes.length > 0 ? { ...result, message: `${result.message}. El contrato se reanudó.` } : result;
-      }),
+        return lifted.changes.length > 0
+          ? { ...result, message: `${result.message}. El contrato se reanudó.`, resumed: true }
+          : { ...result, resumed: false };
+      });
+
+      // Después del COMMIT (ADR-0027): solo si el otrosí levantó la suspensión.
+      if (resumed) {
+        await notifyWorkManagers({
+          ctrId,
+          actorId: useBy,
+          title: "Contrato reanudado",
+          action: "resume",
+          data: { ccpId: result.ccpId },
+          buildMessage: (contract) =>
+            `El contrato ${contractLabel(contract)} se reanudó con el otrosí N.º ${result.number}, desde el ${dateOnlyText(liftDate)}.`,
+        });
+      }
+      return result;
+    },
   });
 };
 
@@ -199,8 +238,8 @@ export const createLiquidation = async ({ ctrId, input, useBy, scope, ctx = { us
     key: idempotencyKey,
     ownerId: useBy,
     payload: { ctrId: Number(ctrId), type: CONCEPT_TYPES.LIQUIDATION, ...auditableConcept(requested) },
-    execute: (idempotencyData) =>
-      withLockedTransaction({ CONTRATO: ctrId }, async (tx) => {
+    execute: async (idempotencyData) => {
+      const result = await withLockedTransaction({ CONTRATO: ctrId }, async (tx) => {
         const contract = await findLockedContract(tx, ctrId);
         assertStateAllows(contract.ctr_state, "createLiquidation");
         // Antes de escribir nada: el destino sale de la transición declarada.
@@ -247,7 +286,19 @@ export const createLiquidation = async ({ ctrId, input, useBy, scope, ctx = { us
         });
 
         return liquidationResult(created);
-      }),
+      });
+
+      // Después del COMMIT (ADR-0027).
+      await notifyWorkManagers({
+        ctrId,
+        actorId: useBy,
+        title: "Contrato en liquidación",
+        action: "start_liquidation",
+        data: { ccpId: result.ccpId },
+        buildMessage: (contract) => `Se registró el otrosí de liquidación del contrato ${contractLabel(contract)}. El contrato pasó a liquidación.`,
+      });
+      return result;
+    },
   });
 };
 

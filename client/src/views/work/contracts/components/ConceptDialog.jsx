@@ -14,11 +14,14 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
 import BaseDialog from 'ui-component/extended/BaseDialog';
+import FormSection from 'ui-component/extended/FormSection';
 import DateField from 'ui-component/extended/DateField';
 import GenericFormSection from 'ui-component/extended/GenericFormSection';
 import ConceptFields, { EMPTY_CONCEPT, conceptToForm } from './ConceptFields';
+import PoliciesDraftEditor from './PoliciesDraftEditor';
 import { FIELD_INPUTS, shownFields, toFormFields, visiblePayload } from './configurableFields';
 import { contractConceptsApi, getContractFieldsAPI } from 'api/requests/contractsApi';
+import { useAuth } from 'contexts/AuthContext';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
 import { fDateOnly } from 'utils/formatTime';
@@ -43,6 +46,11 @@ import { TERM_UNIT_OPTIONS } from 'utils/constants';
  * GenericFormSection. Al modificar un concepto, un valor en un campo que dejó
  * de aplicar se muestra en solo lectura, marcado como heredado.
  *
+ * El otrosí puede llevar sus pólizas (opcionales, una por tipo), que el
+ * servidor registra en su misma transacción (ADR-0027, catálogo de
+ * operaciones críticas), con el permiso de registrar pólizas; sin él, la
+ * sección no aparece y se registran después desde la pestaña Pólizas.
+ *
  * Si el contrato ya tiene facturas aprobadas (`economicsLocked`), al
  * modificar un concepto el costo y los porcentajes van en solo lectura
  * (DOM-07): se corrigen con un otrosí. Lo exige también el servidor.
@@ -65,6 +73,10 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
   const [saving, setSaving] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState(null);
   const [descriptors, setDescriptors] = useState(null);
+  const [addingPolicy, setAddingPolicy] = useState(false);
+  const { permissionsCatalog, hasPermission } = useAuth();
+  const policyPermission = permissionsCatalog.work?.policies?.create;
+  const canCreatePolicies = mode === 'amendment' && policyPermission != null && hasPermission(policyPermission);
   const methods = useForm();
   const { control, handleSubmit, reset } = methods;
 
@@ -96,7 +108,7 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
             extension: concept.extension === null || concept.extension === undefined ? '' : String(concept.extension),
             confirmed: true
           }
-        : { ...EMPTY_CONCEPT, startDate: today(), description: '', extension: '', liftDate: today(), confirmed: false }
+        : { ...EMPTY_CONCEPT, startDate: today(), description: '', extension: '', liftDate: today(), confirmed: false, policies: [] }
     );
   }, [open, isEdit, concept, reset]);
 
@@ -117,7 +129,19 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
       directCost: form.directCost,
       ...configured,
       ...(hasExtension ? { extension: text(form.extension) } : {}),
-      ...(suspension ? { liftDate: form.liftDate } : {})
+      ...(suspension ? { liftDate: form.liftDate } : {}),
+      ...(canCreatePolicies &&
+        form.policies?.length > 0 && {
+          policies: form.policies.map(({ pltId, insId, number, percentage, startDate, endDate, observation }) => ({
+            pltId,
+            insId,
+            number,
+            percentage,
+            startDate,
+            endDate,
+            observation
+          }))
+        })
     };
     try {
       const { data } = isEdit
@@ -274,6 +298,28 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
             <Typography variant="body2" color="text.secondary">
               Cargando los campos del contrato…
             </Typography>
+          )}
+
+          {canCreatePolicies && (
+            <FormSection
+              title="Pólizas"
+              subtitle="Opcionales. Amparan este otrosí, una por tipo, y se registran con él."
+              onAdd={() => setAddingPolicy(true)}
+              addLabel="Agregar póliza"
+            >
+              <Controller
+                name="policies"
+                control={control}
+                render={({ field }) => (
+                  <PoliciesDraftEditor
+                    value={field.value}
+                    onChange={field.onChange}
+                    adding={addingPolicy}
+                    onAddingChange={setAddingPolicy}
+                  />
+                )}
+              />
+            </FormSection>
           )}
 
           {mode === 'liquidation' && (

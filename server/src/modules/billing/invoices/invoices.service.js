@@ -774,8 +774,12 @@ export const getInvoice = async ({ invId, scope, views }) => {
     amounts: amountsDto(row),
     state: row.inv_state,
     stateName: STATE_NAMES[row.inv_state] ?? row.inv_state,
-    // Qué admite el estado actual: el cliente lo cruza con los permisos.
-    allowedActions: STATE_ALLOWS[row.inv_state] ?? [],
+    // Qué admite el estado actual: el cliente lo cruza con los permisos. Con
+    // el contrato liquidado no se anula (ADR-0027): el servidor lo vuelve a
+    // verificar bajo bloqueo.
+    allowedActions: (STATE_ALLOWS[row.inv_state] ?? []).filter(
+      (action) => !CANCEL_ACTIONS.has(action) || !contract || contractAllows(contract.ctr_state, "cancelInvoice")
+    ),
     createdAt: row.inv_create_at,
     createdByName: userFullName(row.created_by_user),
     updatedAt: row.inv_update_at,
@@ -1187,6 +1191,20 @@ const assertContractStillAdmits = async (tx, invoice) => {
   assertContractAllows(contract.ctr_state, INVOICE_ACTIONS[invoice.inv_type]);
 };
 
+/** Acciones de la factura que la anulan: el contrato liquidado no las admite. */
+const CANCEL_ACTIONS = new Set(["cancel", "cancelApproved"]);
+
+/**
+ * Anular una factura de contrato: 409 con el contrato liquidado (ADR-0027,
+ * catálogo de operaciones críticas; ADR-0017: liquidado, solo consulta). Con
+ * el contrato ya bloqueado. La simple no tiene contrato.
+ */
+const assertContractAdmitsCancel = async (tx, invoice) => {
+  if (!invoice.ctr_id) return;
+  const contract = await findLockedContract(tx, invoice.ctr_id);
+  assertContractAllows(contract.ctr_state, "cancelInvoice");
+};
+
 /**
  * Aprobar (ADR-0020, decisión 7): la factura empieza a contar. Bloquea
  * contrato → factura y revalida bajo bloqueo el estado de los dos. La fecha
@@ -1275,6 +1293,7 @@ export const cancelInvoice = async ({ invId, input, useBy, granted, scope, views
         }
         const reason = await reasonsService.assertAssignable(tx, reaId);
         if (reason.rea_scope !== REASON_SCOPES.INVOICE_CANCEL) throw httpError(400, "El motivo seleccionado no es de anulación de factura.");
+        await assertContractAdmitsCancel(tx, before);
         const balanceChanges = await revalidateOnCancel(tx, before);
 
         await tx.tbl_invoices.update({ where: { inv_id: before.inv_id }, data: { inv_state: rule.to, inv_update_by: Number(useBy) } });

@@ -138,6 +138,14 @@ export const createAmendmentSchema = [
   // Solo si el contrato está suspendido: el otrosí lo reanuda (DEC-039). Si
   // es obligatoria lo decide el service, con el estado bajo bloqueo.
   body("liftDate").optional({ values: "falsy" }).matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("La fecha de reanudación no es válida (AAAA-MM-DD)."),
+  // Pólizas que amparan el otrosí, en su transacción (ADR-0027, catálogo de
+  // operaciones críticas). Opcionales; el permiso y el tipo repetido los
+  // decide el service.
+  body("policies")
+    .optional({ values: "null" })
+    .isArray({ max: MAX_CREATE_POLICIES })
+    .withMessage(`Las pólizas deben ser una lista de hasta ${MAX_CREATE_POLICIES}.`),
+  ...policyRules("policies.*."),
 ];
 
 export const suspendContractSchema = [

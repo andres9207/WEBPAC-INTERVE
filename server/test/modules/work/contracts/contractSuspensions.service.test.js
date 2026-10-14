@@ -32,6 +32,12 @@ const prismaMock = {
 };
 
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
+// Notificación a los responsables de la obra, después del COMMIT (ADR-0027).
+const notifyWorkManagers = jest.fn(async () => 1);
+jest.unstable_mockModule("../../../../src/modules/work/contracts/contractNotifications.service.js", () => ({
+  notifyWorkManagers,
+  contractLabel: (c) => c.ctr_number,
+}));
 
 const suspensions = await import("../../../../src/modules/work/contracts/contractSuspensions.service.js");
 const concepts = await import("../../../../src/modules/work/contracts/contractConcepts.service.js");
@@ -40,6 +46,13 @@ const KEY = "3f2b8c1e-5d4a-4e6b-9a7c-1b2d3e4f5a6b";
 const ctx = { useId: 9, ip: "1.1.1.1" };
 const CAN_AMEND = 72;
 const CAN_LIFT = 77;
+/** La notificación salió una vez, después de la última escritura de la transacción. */
+const notifiedAfterCommit = () => {
+  expect(notifyWorkManagers).toHaveBeenCalledTimes(1);
+  const lastWrite = Math.max(...prismaMock.tbl_audit_log.createMany.mock.invocationCallOrder);
+  expect(notifyWorkManagers.mock.invocationCallOrder[0]).toBeGreaterThan(lastWrite);
+  return notifyWorkManagers.mock.calls[0][0];
+};
 const auditRows = () => prismaMock.tbl_audit_log.createMany.mock.calls.flatMap((c) => c[0].data);
 const lockedTables = () => prismaMock.$queryRaw.mock.calls.map((call) => call.slice(1).map((v) => v?.strings?.join("") ?? "").join(" "));
 
@@ -135,6 +148,28 @@ describe("suspendContract", () => {
     expect(rows.find((r) => r.aud_entity === "CONTRATO")).toMatchObject({ aud_field: "ctr_state", aud_old_value: "IN_PROGRESS", aud_new_value: "SUSPENDED" });
   });
 
+  it("después del COMMIT notifica a los responsables de la obra, salvo al autor", async () => {
+    state.contract = contract({ ctr_number: "C-30" });
+    await suspend();
+    const call = notifiedAfterCommit();
+    expect(call).toMatchObject({ ctrId: 30, actorId: 9, title: "Contrato suspendido", action: "suspend", type: "warning" });
+    expect(call.buildMessage({ ctr_number: "C-30" })).toBe("El contrato C-30 fue suspendido desde el 2026-05-01. Motivo: Falta de material.");
+  });
+
+  it("si la suspensión falla, o es un reintento con la misma clave, no notifica", async () => {
+    state.open = { csp_id: 49 };
+    await expect(suspend()).rejects.toMatchObject({ statusCode: 409 });
+    expect(notifyWorkManagers).not.toHaveBeenCalled();
+
+    state.open = null;
+    await suspend();
+    const { csh_idempotency_hash: hash } = prismaMock.tbl_contract_status_history.create.mock.calls[0][0].data;
+    jest.clearAllMocks();
+    state.replay = { ctr_id: 30, csh_idempotency_hash: hash, csh_create_by: 9 };
+    await suspend();
+    expect(notifyWorkManagers).not.toHaveBeenCalled();
+  });
+
   it("bloquea el contrato y después el motivo, antes de leer", async () => {
     await suspend();
     const tables = lockedTables();
@@ -220,6 +255,13 @@ describe("createAmendment sobre un contrato suspendido (DEC-039)", () => {
     ]);
   });
 
+  it("al reanudar, notifica después del COMMIT con el número del otrosí y la fecha", async () => {
+    await amend();
+    const call = notifiedAfterCommit();
+    expect(call).toMatchObject({ ctrId: 30, actorId: 9, title: "Contrato reanudado", action: "resume", data: { ccpId: 310 } });
+    expect(call.buildMessage({ ctr_number: "C-30" })).toBe("El contrato C-30 se reanudó con el otrosí N.º 1, desde el 2026-05-11.");
+  });
+
   it("la prórroga del otrosí y los días suspendidos se suman", async () => {
     prismaMock.tbl_contract_concepts.findMany
       .mockResolvedValueOnce(state.concepts)
@@ -236,6 +278,7 @@ describe("createAmendment sobre un contrato suspendido (DEC-039)", () => {
     await expect(amend({ granted: [CAN_AMEND] })).rejects.toMatchObject({ statusCode: 403 });
     expect(prismaMock.tbl_contract_suspensions.update).not.toHaveBeenCalled();
     expect(prismaMock.tbl_contracts.update).not.toHaveBeenCalled();
+    expect(notifyWorkManagers).not.toHaveBeenCalled();
   });
 
   it("exige la fecha de reanudación, no futura ni anterior a la suspensión", async () => {
@@ -254,5 +297,7 @@ describe("createAmendment sobre un contrato suspendido (DEC-039)", () => {
     await expect(amend()).resolves.toMatchObject({ message: "Otrosí N.º 1 registrado correctamente" });
     expect(prismaMock.tbl_contract_suspensions.findFirst).not.toHaveBeenCalled();
     expect(prismaMock.tbl_contract_status_history.create).not.toHaveBeenCalled();
+    // Un otrosí que no reanuda no notifica.
+    expect(notifyWorkManagers).not.toHaveBeenCalled();
   });
 });
