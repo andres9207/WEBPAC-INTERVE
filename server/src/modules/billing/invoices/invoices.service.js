@@ -165,7 +165,7 @@ export const invoiceScopeWhere = (scope) => scopeWhere(scope);
  * cambian nunca; la vista solo cambia si el usuario mueve las facturas de un
  * proveedor a su menú nuevo (DEC-056): se lee fuera de la transacción. Una factura inexistente da el mismo 404.
  */
-const assertInvoiceVisible = async ({ scope, views }, invId) => {
+export const assertInvoiceVisible = async ({ scope, views }, invId) => {
   // Sin alcance ni vistas (llamadas internas): nada que restringir; el
   // service da el 404 de la inexistente al leerla.
   if ((!scope || scope.all) && !views) return;
@@ -467,11 +467,12 @@ const balanceChange = (field, before, after) => ({ field, oldValue: moneyText(be
 /**
  * Aprobar una factura con detalle revalida sus importes contra los saldos
  * bajo bloqueo: es la validación definitiva (ADR-0024, decisión 8; ADR-0025,
- * decisión 5). Devuelve los cambios de saldo para la bitácora. 409 si la
+ * decisión 5). Devuelve los cambios de saldo para la bitácora y los saldos
+ * de antes, para la instantánea. 409 si la
  * factura no tiene sus importes, también una liquidación sin retenido.
  */
 const revalidateOnApprove = async (tx, invoice) => {
-  if (!hasDetail(invoice.inv_type)) return [];
+  if (!hasDetail(invoice.inv_type)) return { changes: [], balances: null };
   const value = storedAmount(invoice, VALUE_COLUMN[invoice.inv_type]);
   if (value === null) {
     throw httpError(409, "La factura no tiene su valor registrado. Edítala y registra los importes antes de aprobarla.");
@@ -479,11 +480,11 @@ const revalidateOnApprove = async (tx, invoice) => {
   const balances = await contractBalances(tx, invoice.ctr_id);
   if (invoice.inv_type === INVOICE_TYPES.ADVANCE) {
     assertAdvanceFits(value, balances.advance);
-    return [balanceChange("advance_invoiced", balances.advance.invoiced, balances.advance.invoiced.plus(value))];
+    return { balances, changes: [balanceChange("advance_invoiced", balances.advance.invoiced, balances.advance.invoiced.plus(value))] };
   }
   if (invoice.inv_type === INVOICE_TYPES.RETENTION_REFUND) {
     assertRefundFits(value, balances.retention);
-    return [balanceChange("retention_refunded", balances.retention.refunded, balances.retention.refunded.plus(value))];
+    return { balances, changes: [balanceChange("retention_refunded", balances.retention.refunded, balances.retention.refunded.plus(value))] };
   }
   const amortization = storedAmount(invoice, "ild_amortization");
   const retention = storedAmount(invoice, "ild_retention");
@@ -492,12 +493,55 @@ const revalidateOnApprove = async (tx, invoice) => {
   }
   assertAmortizationFits(amortization, value, balances.advance);
   assertRetentionFits(retention, value, balances.retention);
-  return [
-    balanceChange("advance_amortized", balances.advance.amortized, balances.advance.amortized.plus(amortization)),
-    { field: "advance_effective_pct", oldValue: null, newValue: ratioText(balances.advance.effectivePct) },
-    balanceChange("retention_retained", balances.retention.retained, balances.retention.retained.plus(retention)),
-    { field: "retention_effective_pct", oldValue: null, newValue: ratioText(balances.retention.effectivePct) },
-  ];
+  return {
+    balances,
+    changes: [
+      balanceChange("advance_amortized", balances.advance.amortized, balances.advance.amortized.plus(amortization)),
+      { field: "advance_effective_pct", oldValue: null, newValue: ratioText(balances.advance.effectivePct) },
+      balanceChange("retention_retained", balances.retention.retained, balances.retention.retained.plus(retention)),
+      { field: "retention_effective_pct", oldValue: null, newValue: ratioText(balances.retention.effectivePct) },
+    ],
+  };
+};
+
+/**
+ * Instantánea de la aprobación (PRO-BE-39; ADR-0027, "Secuencia tipo";
+ * ADR-0013): la composición de la factura y **todos** los saldos del contrato
+ * antes y después de aprobarla, en la misma operación de bitácora. Es
+ * evidencia: ningún cálculo la lee; los saldos se recalculan siempre desde
+ * las facturas aprobadas. La consulta `getInvoiceEvidence` la reconstruye.
+ *
+ * Filas `snapshot.invoice.<importe>` (solo nuevo valor) y
+ * `snapshot.<advance|retention>.<saldo>` (antes → después). Todavía no hay
+ * IVA, retenciones tributarias ni versión de fórmula (fase B, PRO-BE-36):
+ * cuando existan, se agregan aquí.
+ */
+export const SNAPSHOT_PREFIX = "snapshot.";
+export const SNAPSHOT_BALANCES = Object.freeze({
+  advance: Object.freeze(["base", "agreed", "invoiced", "amortized", "toInvoice", "toAmortize", "effectivePct"]),
+  retention: Object.freeze(["base", "agreed", "retained", "refunded", "toRetain", "balance", "effectivePct"]),
+});
+const SNAPSHOT_AMOUNTS = Object.freeze({
+  value: (invoice) => storedAmount(invoice, VALUE_COLUMN[invoice.inv_type]),
+  amortization: (invoice) => (invoice.inv_type === INVOICE_TYPES.LIQUIDATION ? storedAmount(invoice, "ild_amortization") : null),
+  retention: (invoice) => (invoice.inv_type === INVOICE_TYPES.LIQUIDATION ? storedAmount(invoice, "ild_retention") : null),
+});
+const snapshotText = (key, value) => (key === "effectivePct" ? ratioText(value) : moneyText(value));
+
+const approvalSnapshot = ({ invoice, before, after }) => {
+  if (!before) return [];
+  const amounts = Object.entries(SNAPSHOT_AMOUNTS)
+    .map(([key, read]) => [key, read(invoice)])
+    .filter(([, value]) => value !== null)
+    .map(([key, value]) => ({ field: `${SNAPSHOT_PREFIX}invoice.${key}`, oldValue: null, newValue: moneyText(value) }));
+  const balances = Object.entries(SNAPSHOT_BALANCES).flatMap(([group, keys]) =>
+    keys.map((key) => ({
+      field: `${SNAPSHOT_PREFIX}${group}.${key}`,
+      oldValue: snapshotText(key, before[group][key]),
+      newValue: snapshotText(key, after[group][key]),
+    }))
+  );
+  return [...amounts, ...balances];
 };
 
 /**
@@ -1232,7 +1276,7 @@ export const approveInvoice = async ({ invId, input, useBy, scope, views, ctx = 
         if (approvalDate.getTime() < before.inv_date.getTime()) {
           throw httpError(400, `La fecha de aprobación no puede ser anterior a la fecha de la factura (${dateOnlyText(before.inv_date)}).`);
         }
-        const balanceChanges = await revalidateOnApprove(tx, before);
+        const { changes: balanceChanges, balances: balancesBefore } = await revalidateOnApprove(tx, before);
 
         await tx.tbl_invoices.update({
           where: { inv_id: before.inv_id },
@@ -1244,6 +1288,8 @@ export const approveInvoice = async ({ invId, input, useBy, scope, views, ctx = 
             ...idempotencyData,
           },
         });
+        // Después de aprobar, en esta transacción: los saldos ya la cuentan.
+        const balancesAfter = balancesBefore ? await contractBalances(tx, before.ctr_id) : null;
         await writeAudit(tx, {
           entity: AUDIT_ENTITIES.INVOICE,
           recordId: before.inv_id,
@@ -1253,6 +1299,7 @@ export const approveInvoice = async ({ invId, input, useBy, scope, views, ctx = 
             { field: "inv_state", oldValue: before.inv_state, newValue: nextState },
             { field: "inv_approval_date", oldValue: null, newValue: dateOnlyText(approvalDate) },
             ...balanceChanges,
+            ...approvalSnapshot({ invoice: before, before: balancesBefore, after: balancesAfter }),
           ],
         });
         return { message, invId: before.inv_id };

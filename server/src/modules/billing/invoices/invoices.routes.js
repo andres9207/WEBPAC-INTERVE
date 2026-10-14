@@ -25,6 +25,7 @@ import {
   saveInvoiceController,
   approveInvoiceController,
   cancelInvoiceController,
+  getInvoiceEvidenceController,
 } from "./invoices.controller.js";
 
 // Facturas (DEC-042), montadas en /api/billing/invoices. Pipeline de
@@ -50,6 +51,8 @@ invoicesRoutes.post(
   paginationInvoicesController
 );
 invoicesRoutes.get("/get_invoice", verifyToken, requirePermission(ANY_VIEW_PERMISSION), getInvoiceSchema, validate, getInvoiceController);
+// Evidencia desde la bitácora (PRO-BE-39): permiso propio; además, ver la vista de la factura (service).
+invoicesRoutes.get("/get_invoice_evidence", verifyToken, requirePermission(can.viewEvidence), getInvoiceSchema, validate, getInvoiceEvidenceController);
 // Obras activas del alcance, y etapas y proveedores asignados de una obra, para la factura simple (DEC-058).
 invoicesRoutes.get(
   "/select_invoice_works",

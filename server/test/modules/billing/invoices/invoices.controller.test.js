@@ -11,6 +11,7 @@ const getEffectivePermissionIds = jest.fn().mockResolvedValue([87, 88]);
 const emit = jest.fn();
 
 jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.service.js", () => invoicesServiceMock);
+jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoiceEvidence.service.js", () => ({ getInvoiceEvidence: jest.fn() }));
 jest.unstable_mockModule("../../../../src/common/services/effectivePermissions.service.js", () => ({ getEffectivePermissionIds }));
 // Alcance por obra (DEC-047): el controller lo resuelve y lo pasa al service.
 const SCOPE = Object.freeze({ all: false, wrkId: 8 });

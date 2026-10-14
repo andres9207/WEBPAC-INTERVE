@@ -190,6 +190,9 @@ export const PERMISSIONS = {
       // No protege ningún endpoint: decide quién recibe la notificación de la
       // conciliación de saldos de anticipo y retenido, I1 a I4 (DEC-061).
       receiveBalanceReconciliation: 108,
+      // Consultar la evidencia de una factura desde la bitácora: operaciones e
+      // instantánea de la aprobación (PRO-BE-39).
+      viewEvidence: 109,
     },
   },
 };

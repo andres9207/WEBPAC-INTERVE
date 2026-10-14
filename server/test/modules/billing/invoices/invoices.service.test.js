@@ -367,7 +367,54 @@ describe("aprobar", () => {
       ish_observation: "Revisada",
       ish_idempotency_key: KEY,
     });
-    expect(auditRows().map((r) => r.aud_field)).toEqual(["inv_state", "inv_approval_date", "advance_invoiced"]);
+    const fields = auditRows().map((r) => r.aud_field);
+    expect(fields.filter((f) => !f.startsWith("snapshot."))).toEqual(["inv_state", "inv_approval_date", "advance_invoiced"]);
+  });
+
+  describe("instantánea de composición y saldos (PRO-BE-39)", () => {
+    const snapshot = () =>
+      Object.fromEntries(auditRows().filter((r) => r.aud_field.startsWith("snapshot.")).map((r) => [r.aud_field, [r.aud_old_value, r.aud_new_value]]));
+
+    it("guarda los importes y todos los saldos antes y después, en la misma operación y después de aprobar", async () => {
+      // Antes: nada aprobado. Después: la propia factura ya cuenta.
+      prismaMock.tbl_invoice_advance_details.aggregate
+        .mockResolvedValueOnce({ _sum: { iad_value: null } })
+        .mockResolvedValueOnce({ _sum: { iad_value: D("10000000") } });
+      await approve();
+
+      const snap = snapshot();
+      expect(snap["snapshot.invoice.value"]).toEqual([null, "10000000.00"]);
+      expect(snap).not.toHaveProperty(["snapshot.invoice.amortization"]);
+      expect(snap["snapshot.advance.invoiced"]).toEqual(["0.00", "10000000.00"]);
+      expect(snap["snapshot.advance.agreed"][0]).toBe(snap["snapshot.advance.agreed"][1]);
+      expect(snap["snapshot.advance.toAmortize"]).toEqual(["0.00", "10000000.00"]);
+      expect(Object.keys(snap)).toEqual(
+        expect.arrayContaining(["snapshot.advance.effectivePct", "snapshot.retention.balance", "snapshot.retention.toRetain"])
+      );
+      expect(Object.keys(snap)).toHaveLength(15);
+      expect(new Set(auditRows().map((r) => r.aud_operation_id)).size).toBe(1);
+      // Los saldos de después se leen con la factura ya aprobada, en la misma transacción.
+      const afterRead = prismaMock.tbl_invoice_advance_details.aggregate.mock.invocationCallOrder[1];
+      expect(afterRead).toBeGreaterThan(prismaMock.tbl_invoices.update.mock.invocationCallOrder[0]);
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it("una liquidación guarda además su amortización y su retenido", async () => {
+      state.contract = contract({ ctr_state: "IN_LIQUIDATION" });
+      state.invoice = storedLiquidation();
+      state.advanceSum = D("32000000");
+      await approve();
+      const snap = snapshot();
+      expect(snap["snapshot.invoice.value"]).toEqual([null, "90000000.00"]);
+      expect(snap["snapshot.invoice.amortization"]).toEqual([null, "24000000.00"]);
+      expect(snap["snapshot.invoice.retention"]).toEqual([null, "4500000.00"]);
+    });
+
+    it("si la aprobación falla, no queda instantánea", async () => {
+      state.advanceSum = D("999999999");
+      await expect(approve()).rejects.toMatchObject({ statusCode: 409 });
+      expect(prismaMock.tbl_audit_log.createMany).not.toHaveBeenCalled();
+    });
   });
 
   it("una ya aprobada no se aprueba de nuevo (409)", async () => {

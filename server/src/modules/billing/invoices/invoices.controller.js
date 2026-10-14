@@ -4,6 +4,7 @@ import { getEffectivePermissionIds } from "../../../common/services/effectivePer
 import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
 import { workScopeOf } from "../../../common/services/workScope.service.js";
 import * as invoicesService from "./invoices.service.js";
+import { getInvoiceEvidence } from "./invoiceEvidence.service.js";
 import { grantedViews } from "./invoiceViews.js";
 
 // Solo leen la petición y delegan. El autor sale de req.user (DEC-005); la
@@ -83,6 +84,10 @@ export const paginationInvoicesController = handle(async (req) => {
 
 export const getInvoiceController = handle(async (req) =>
   invoicesService.getInvoice({ invId: req.query.invId, scope: await workScopeOf(req), views: (await accessOf(req.user)).views })
+);
+
+export const getInvoiceEvidenceController = handle(async (req) =>
+  getInvoiceEvidence({ invId: req.query.invId, scope: await workScopeOf(req), views: (await accessOf(req.user)).views })
 );
 
 export const selectInvoiceWorksController = handle(async (req) =>
