@@ -954,9 +954,9 @@
     "semantic_hash": ""
   },
   "server/prisma/seed.js": {
-    "mtime": 1791924096.1705914,
-    "seen": 1791928261.4418373,
-    "ast_hash": "5a78ad37770cda4534ed8ddd093a535c",
+    "mtime": 1792006322.824257,
+    "seen": 1792006612.1497195,
+    "ast_hash": "e01b69d8e81a079c6e3b959a9527a873",
     "semantic_hash": ""
   },
   "server/server.js": {
@@ -1008,9 +1008,9 @@
     "semantic_hash": ""
   },
   "server/src/common/constants/permissions.constants.js": {
-    "mtime": 1791899398.6554947,
-    "seen": 1791909112.3765862,
-    "ast_hash": "75316167451074f9af319a4511850ba6",
+    "mtime": 1792006322.824257,
+    "seen": 1792006612.149729,
+    "ast_hash": "11320d0c5e40bb4b57e5f87333a54d84",
     "semantic_hash": ""
   },
   "server/src/common/middlewares/authjwt.middleware.js": {
@@ -1170,9 +1170,9 @@
     "semantic_hash": ""
   },
   "server/src/cron/index.js": {
-    "mtime": 1791403409.508435,
-    "seen": 1791403581.504854,
-    "ast_hash": "bee22ff759418db02942ba43aa446d54",
+    "mtime": 1792006377.7765107,
+    "seen": 1792006612.1497693,
+    "ast_hash": "f2e8ee4aec7e3d1c7e84a3e2ae48df61",
     "semantic_hash": ""
   },
   "server/src/modules/app/documents/document.controller.js": {
@@ -2970,9 +2970,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contractEndDateReconciliation.service.js": {
-    "mtime": 1791403394.6673295,
-    "seen": 1791403581.504946,
-    "ast_hash": "59dc88574214931505b73c3806ea0fb2",
+    "mtime": 1792006306.7528129,
+    "seen": 1792006612.1498573,
+    "ast_hash": "60906423c175980a94d452a7625027e9",
     "semantic_hash": ""
   },
   "server/test/modules/work/contracts/contractEndDateReconciliation.service.test.js": {
@@ -3363,6 +3363,36 @@
     "mtime": 1791986891.1315045,
     "seen": 1791987644.7284877,
     "ast_hash": "c49756730e8eac7156a2d24c5be9b08f",
+    "semantic_hash": ""
+  },
+  "database/migrations/0096_seed_balance_reconciliation_permission.sql": {
+    "mtime": 1792006322.824257,
+    "seen": 1792006612.1497092,
+    "ast_hash": "d386353eb01c0b75b8a7be9959fd263c",
+    "semantic_hash": ""
+  },
+  "server/src/common/services/reconciliationReport.service.js": {
+    "mtime": 1792006292.2072053,
+    "seen": 1792006612.1497483,
+    "ast_hash": "97062fce246536bc15f53063d527d4cc",
+    "semantic_hash": ""
+  },
+  "server/src/cron/jobs/contractBalanceReconciliation.job.js": {
+    "mtime": 1792006368.951378,
+    "seen": 1792006612.1497703,
+    "ast_hash": "8ef08ff82e0a7b1ffefbfe3353fc492d",
+    "semantic_hash": ""
+  },
+  "server/src/modules/billing/invoices/balanceReconciliation.service.js": {
+    "mtime": 1792006367.8727467,
+    "seen": 1792006612.1498253,
+    "ast_hash": "91edac6c925d178fca5a67d43d429e45",
+    "semantic_hash": ""
+  },
+  "server/test/modules/billing/invoices/balanceReconciliation.service.test.js": {
+    "mtime": 1792006434.5778875,
+    "seen": 1792006612.1499324,
+    "ast_hash": "d54ff74d802ef5405fd454210a3f8429",
     "semantic_hash": ""
   }
 }
