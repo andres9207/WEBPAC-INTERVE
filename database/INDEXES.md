@@ -59,6 +59,8 @@ Las migraciones declaran la FK y dejan que MySQL cree el índice con el nombre d
 | Obras de una constructora (bloqueo de eliminación) | `ref/tbl_works_construction_company/Using index` |
 | Usuarios de un perfil | `ref/tbl_users_profiles/Using where` |
 | Sesión por hash de refresh anterior | `ref/ix_sessions_prev_refresh_hash/Using where; Using index` |
+| Saldos de facturación: anticipos y liquidaciones aprobados de un contrato (2026-10-14) | `ref/idx_invoices_contract_type_state/Using where; Using index` ([DEC-060](../engineering/decisiones/DEC-060-indice-saldos-facturacion.md)) |
+| Saldos de facturación: devoluciones aprobadas (2026-10-14, sin devoluciones en desarrollo) | `ref/idx_invoices_type/Using index condition; Using where` |
 
 El `filesort` de los listados de contratos (orden por fecha de modificación) se acepta: el tope de 100 filas por página ([DEC-013](../engineering/decisiones/DEC-013-paginacion.md)) y los pocos contratos por obra no justifican otro índice.
 
@@ -216,6 +218,50 @@ Se omite la clave primaria, que tiene toda tabla. Los índices de las FK de auto
 | `uq_insurers_idempotency_key` | ins_idempotency_key | UNIQUE | Idempotencia (DEC-016) |
 | (autoría) | create, delete, update | FK implícito × 3 | Sostienen las FK de autoría a `tbl_users`. Ninguna consulta los usa |
 
+
+### `tbl_invoices` (22 filas)
+
+Agregada el 2026-10-14 (PRO-BD-21, [DEC-060](../engineering/decisiones/DEC-060-indice-saldos-facturacion.md)), después de la migración `0095`. Las tablas de facturas (`0066` en adelante) no estaban en la foto de `0062`. Solo las sumas de saldos se verificaron con `EXPLAIN`; para el resto, "Para qué" dice la consulta prevista.
+
+| Índice | Columnas | Tipo | Para qué |
+| --- | --- | --- | --- |
+| `idx_invoices_contract_type_state` | ctr_id, inv_type, inv_state | Índice | Saldos de anticipo y retenido (`contractBalances`): facturas aprobadas de un tipo en un contrato. Búsqueda sin leer la fila (DEC-060) |
+| `idx_invoices_date` | inv_date | Índice | Filtro por rango de fecha del listado (DEC-048) |
+| `idx_invoices_state` | inv_state | Índice | Pestaña por estado del listado y facturas por aprobar del tablero |
+| `idx_invoices_type` | inv_type | Índice | Filtro por tipo del listado |
+| `idx_invoices_view` | inv_view | Índice | Vista del listado (DEC-054, DEC-056) |
+| `tbl_invoices_contract` | ctr_id, wrk_id, prv_id | FK implícito | Sostiene la FK compuesta al contrato (obra y proveedor del contrato); su prefijo sirve la pestaña Facturas del contrato |
+| `tbl_invoices_work_provider` | wrk_id, prv_id | FK implícito | Sostiene la FK compuesta a la asignación (DEC-058) y la FK a la obra; su prefijo sirve el alcance por obra |
+| `tbl_invoices_work_stage` | wks_id, wrk_id | FK implícito | Sostiene la FK compuesta a la etapa de la obra (simple, DEC-058) |
+| `tbl_invoices_status` | sta_id | FK implícito | Sostiene la FK de estado de visibilidad |
+| `uq_invoices_id_contract` | inv_id, ctr_id | UNIQUE | Apoyo de la FK compuesta del detalle de liquidación (DEC-059). Interno |
+| `uq_invoices_idempotency_key` | inv_idempotency_key | UNIQUE | Idempotencia (DEC-016) |
+| `uq_invoices_provider_number` | prv_id, inv_number | UNIQUE | Número único por proveedor (I11); su prefijo sostiene la FK al proveedor |
+| (autoría) | create, delete, update | FK implícito × 3 | Sostienen las FK de autoría a `tbl_users`. Ninguna consulta los usa |
+
+### `tbl_invoice_advance_details` (19 filas), `tbl_invoice_retention_refund_details` (0 filas)
+
+| Índice | Columnas | Tipo | Para qué |
+| --- | --- | --- | --- |
+| (clave primaria) | inv_id | PRIMARY | Detalle 1:1 con la factura; la suma de saldos lo lee por `eq_ref` |
+| (autoría) | create, update | FK implícito × 2 | Sostienen las FK de autoría. Ninguna consulta los usa |
+
+### `tbl_invoice_liquidation_details` (2 filas)
+
+| Índice | Columnas | Tipo | Para qué |
+| --- | --- | --- | --- |
+| `tbl_invoice_liquidation_details_concept` | ccp_id, ctr_id | FK implícito | Sostiene la FK compuesta al otrosí de liquidación del mismo contrato (DEC-059) |
+| `tbl_invoice_liquidation_details_invoice_contract` | inv_id, ctr_id | FK implícito | Sostiene la FK compuesta a la factura (DEC-059) |
+| (autoría) | create, update | FK implícito × 2 | Sostienen las FK de autoría. Ninguna consulta los usa |
+
+### `tbl_invoice_status_history` (56 filas)
+
+| Índice | Columnas | Tipo | Para qué |
+| --- | --- | --- | --- |
+| `idx_invoice_status_history_invoice` | inv_id, ish_create_at | Índice | Historial de una factura en su expediente, ordenado por fecha; sostiene la FK a la factura |
+| `tbl_invoice_status_history_reason` | rea_id | FK implícito | Sostiene la FK al motivo de anulación |
+| `uq_invoice_status_history_idempotency_key` | ish_idempotency_key | UNIQUE | Idempotencia de aprobar y anular (DEC-016) |
+| (autoría) | create | FK implícito | Sostiene la FK de autoría |
 
 ### `tbl_notifications` (0 filas)
 

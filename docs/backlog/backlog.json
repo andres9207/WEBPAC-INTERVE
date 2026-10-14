@@ -4484,7 +4484,7 @@
       "descripcion": "Un único módulo de cálculo formado por funciones puras, sin acceso a base de datos ni efectos, que recibe los datos capturados y devuelve la composición completa. Las fórmulas se versionan: cada factura guarda la versión con que se calculó y se recalcula siempre con esa versión; una versión publicada no se modifica. El frontend no reimplementa fórmulas: obtiene la previsualización de un endpoint que ejecuta el mismo módulo sin persistir nada.",
       "criterios": [
         "Ningún importe calculado se acepta del cliente: si la petición lo trae, se ignora",
-        "La versión de fórmula queda registrada en cada factura y el recálculo la respeta",
+        "La versión de fórmula queda registrada en cada factura y el recálculo la respeta; la columna de versión en tbl_invoices se crea con esta tarea (PRO-BD-14 no la creó: sin módulo de cálculo no hay qué registrar)",
         "El endpoint de previsualización no persiste nada",
         "Las fórmulas de DEC-02, DEC-03 y DEC-07 están validadas por contabilidad antes de implementarse"
       ],

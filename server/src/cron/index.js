@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { contractEndDateReconciliationJob } from './jobs/contractEndDateReconciliation.job.js';
+import { contractBalanceReconciliationJob } from './jobs/contractBalanceReconciliation.job.js';
 
 const registeredTasks = [];
 
@@ -7,7 +8,7 @@ const registeredTasks = [];
 // que reportan o mantienen; nunca transiciones de estado, que son síncronas
 // dentro de la transacción del hecho que las causa (ADR-0017, FND-BE-36).
 // `yarn cron:run <name>` corre uno a mano (src/cron/run.js).
-export const cronJobs = [contractEndDateReconciliationJob];
+export const cronJobs = [contractEndDateReconciliationJob, contractBalanceReconciliationJob];
 
 const wrapHandler = (job) => async () => {
   try {

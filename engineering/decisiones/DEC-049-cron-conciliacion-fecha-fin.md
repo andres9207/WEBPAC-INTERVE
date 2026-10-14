@@ -21,6 +21,8 @@ La fecha fin del contrato se guarda, pero es un valor derivado (ADR-0015): una s
   - **Log** siempre (`logs/api.log`), también cuando no hay discrepancias.
 - **En desarrollo el cron no arranca.** Un job se corre a mano con `yarn cron:run <nombre>`.
 
+**Actualizado el 2026-10-14 ([DEC-061](DEC-061-conciliacion-saldos.md)):** se agregó la conciliación de saldos (I1 a I4) con su propio permiso (108), y la entrega del informe pasó a `deliverReconciliationReport`, común a las dos conciliaciones, sin cambiar lo descrito arriba.
+
 ## Descartado
 
 - **Corregir la fecha automáticamente:** escondería el defecto que la produjo.

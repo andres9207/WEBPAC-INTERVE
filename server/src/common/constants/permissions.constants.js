@@ -187,6 +187,9 @@ export const PERMISSIONS = {
       // Registrar una liquidación con un retenido distinto del valor por
       // defecto (ADR-0025, DEC-051). Aceptar el valor por defecto no lo exige.
       adjustRetention: 103,
+      // No protege ningún endpoint: decide quién recibe la notificación de la
+      // conciliación de saldos de anticipo y retenido, I1 a I4 (DEC-061).
+      receiveBalanceReconciliation: 108,
     },
   },
 };

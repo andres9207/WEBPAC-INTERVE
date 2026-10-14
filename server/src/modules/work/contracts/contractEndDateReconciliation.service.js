@@ -1,11 +1,8 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
-import logger from "../../../common/configs/winston.config.js";
 import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import { withTransaction } from "../../../common/services/transaction.service.js";
-import { findUsersWithPermission } from "../../../common/services/effectivePermissions.service.js";
-import { sendEmail } from "../../../common/services/mailerService.js";
-import { insertNotification } from "../../app/notifications/notifications.service.js";
+import { RECONCILIATION_NOTIFICATION_LINES, deliverReconciliationReport } from "../../../common/services/reconciliationReport.service.js";
 import { dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
 import { contractEndDate, totalExtensions } from "./contractTerms.js";
 
@@ -21,8 +18,6 @@ import { contractEndDate, totalExtensions } from "./contractTerms.js";
  */
 
 const BATCH_SIZE = 200;
-// La notificación lleva las primeras; el correo y el log, todas.
-const NOTIFICATION_LINES = 20;
 const DAY_MS = 86400000;
 
 /** Días de la guardada menos la calculada (negativo: la guardada se quedó corta). null si falta una. */
@@ -97,74 +92,26 @@ const discrepancyLine = (d) => {
   return `Contrato ${d.number}${d.workCode ? ` (obra ${d.workCode})` : ""}, id ${d.ctrId}: guardada ${d.persisted ?? "vacía"}, calculada ${d.derived ?? "no calculable"}, ${difference}`;
 };
 
-/** Destinatarios del correo: RECONCILIATION_REPORT_EMAILS, separados por coma. */
-const reportEmails = () =>
-  String(process.env.RECONCILIATION_REPORT_EMAILS ?? "")
-    .split(",")
-    .map((email) => email.trim())
-    .filter(Boolean);
-
 /**
- * Corre la conciliación y entrega el informe: siempre al log; si hay
- * discrepancias, además una notificación a cada usuario activo con el permiso
- * de recibirla y un correo a RECONCILIATION_REPORT_EMAILS, si está definida.
- * Sin discrepancias no avisa a nadie: solo queda en el log.
+ * Corre la conciliación y entrega el informe (`deliverReconciliationReport`):
+ * siempre al log; si hay discrepancias, además una notificación a cada
+ * usuario activo con el permiso 92 y un correo a RECONCILIATION_REPORT_EMAILS,
+ * si está definida. Sin discrepancias no avisa a nadie: solo queda en el log.
  */
 export const runEndDateReconciliation = async ({ batchSize } = {}) => {
   const { checked, discrepancies } = await findEndDateDiscrepancies({ batchSize });
-  const lines = discrepancies.map(discrepancyLine);
-
-  if (discrepancies.length === 0) {
-    logger.info(`[conciliación fecha fin] ${checked} contrato(s) revisado(s), sin discrepancias.`);
-    return { checked, discrepancies, notified: 0, emailed: false };
-  }
-
-  logger.warn(`[conciliación fecha fin] ${checked} contrato(s) revisado(s), ${discrepancies.length} discrepancia(s):\n${lines.join("\n")}`);
-
-  const title = `Conciliación de fechas fin: ${discrepancies.length} discrepancia(s)`;
-  const shown = lines.slice(0, NOTIFICATION_LINES);
-  const rest = lines.length - shown.length;
-  const message = [
-    `De ${checked} contrato(s) revisado(s), ${discrepancies.length} tienen una fecha fin guardada distinta de la calculada. No se corrigió nada.`,
-    ...shown,
-    ...(rest > 0 ? [`… y ${rest} más (ver el correo o el log del servidor).`] : []),
-  ].join("\n");
-
-  const recipients = await findUsersWithPermission(PERMISSIONS.work.contracts.receiveReconciliation);
-  let notified = 0;
-  for (const user of recipients) {
-    const created = await insertNotification({
-      userId: user.use_id,
-      priority: "high",
-      type: "warning",
-      title,
-      message,
-      module: "contracts",
-      action: "end_date_reconciliation",
-      data: { checked, total: discrepancies.length, discrepancies: discrepancies.slice(0, NOTIFICATION_LINES) },
-    });
-    if (created) notified += 1;
-  }
-  if (recipients.length === 0) {
-    logger.warn("[conciliación fecha fin] Ningún usuario activo tiene el permiso de recibir la conciliación: nadie fue notificado.");
-  }
-
-  const emails = reportEmails();
-  let emailed = false;
-  if (emails.length > 0) {
-    const result = await sendEmail({
-      to: emails.join(","),
-      subject: title,
-      text: [
-        `De ${checked} contrato(s) revisado(s), ${discrepancies.length} tienen una fecha fin guardada distinta de la calculada.`,
-        "El proceso solo reporta: no corrigió ninguna fecha. Hay que revisar qué operación dejó cada diferencia.",
-        "",
-        ...lines,
-      ].join("\n"),
-    });
-    emailed = Boolean(result?.success);
-    if (!emailed) logger.error(`[conciliación fecha fin] No se pudo enviar el correo: ${result?.error ?? "error desconocido"}`);
-  }
-
+  const { notified, emailed } = await deliverReconciliationReport({
+    tag: "conciliación fecha fin",
+    checked,
+    lines: discrepancies.map(discrepancyLine),
+    noun: "discrepancias",
+    title: `Conciliación de fechas fin: ${discrepancies.length} discrepancia(s)`,
+    summary: `De ${checked} contrato(s) revisado(s), ${discrepancies.length} tienen una fecha fin guardada distinta de la calculada. No se corrigió nada.`,
+    emailNote: "El proceso solo reporta: no corrigió ninguna fecha. Hay que revisar qué operación dejó cada diferencia.",
+    permission: PERMISSIONS.work.contracts.receiveReconciliation,
+    module: "contracts",
+    action: "end_date_reconciliation",
+    data: { checked, total: discrepancies.length, discrepancies: discrepancies.slice(0, RECONCILIATION_NOTIFICATION_LINES) },
+  });
   return { checked, discrepancies, notified, emailed };
 };

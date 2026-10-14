@@ -151,6 +151,8 @@ const PERMISSIONS = [
   { per_id: 89, per_name: "Ajustar amortización de anticipo", pag_id: 18, per_order: 6 },
   // database/migrations/0084_seed_adjust_retention_permission.sql
   { per_id: 103, per_name: "Ajustar retenido", pag_id: 18, per_order: 8 },
+  // database/migrations/0096_seed_balance_reconciliation_permission.sql
+  { per_id: 108, per_name: "Recibir conciliación de saldos de facturación", pag_id: 18, per_order: 9 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
