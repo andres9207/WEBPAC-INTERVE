@@ -12,6 +12,7 @@ import { moneyText, ratioText, toMoney } from "../../../common/utils/money.utils
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, getContractFormOptions } from "../../work/contracts/contracts.service.js";
 import {
+  CONCEPT_TYPES,
   INVOICE_ACTIONS,
   contractTotals,
   STATE_ALLOWS as CONTRACT_STATE_ALLOWS,
@@ -73,7 +74,8 @@ import { INVOICE_VIEWS, PROVIDER_VIEW_SELECT, assertViewGranted, providerViewOf,
  * - Anticipo, liquidación y devolución de retenido llevan su detalle con
  *   importes: el valor del anticipo (DEC-044); el VALOR, la amortización y
  *   el retenido de la liquidación (DEC-044, DEC-051), y el valor devuelto
- *   (DEC-051). Los saldos de anticipo (ADR-0024) y de retenido (ADR-0025)
+ *   (DEC-051). La liquidación guarda además su otrosí de liquidación, que
+ *   resuelve el servidor, nunca el cliente (DEC-059). Los saldos de anticipo (ADR-0024) y de retenido (ADR-0025)
  *   se calculan bajo el bloqueo del contrato al registrar, editar, aprobar y
  *   anular, nunca se reciben ni se guardan. IVA y retenciones tributarias
  *   siguen pendientes (backlog DEC-03, DEC-07).
@@ -135,6 +137,7 @@ const LOCKED_SELECT = {
   tbl_invoice_advance_details: { select: { iad_value: true } },
   tbl_invoice_liquidation_details: {
     select: {
+      ccp_id: true,
       ild_value: true,
       ild_amortization: true,
       ild_default_amortization: true,
@@ -304,13 +307,30 @@ const adjustableAmount = ({ requested, byDefault, observation, granted, permissi
 };
 
 /**
+ * Otrosí de liquidación del contrato bloqueado, al que se asocia la factura
+ * de liquidación (DEC-059; ADR-0021, decisión confirmada). Un contrato tiene
+ * a lo sumo uno (ccp_liquidation_key UNIQUE), y la FK compuesta del detalle
+ * garantiza que sea del mismo contrato. 409 si no existe: en liquidación
+ * siempre existe, así que solo falla ante datos incoherentes.
+ */
+const liquidationConceptOf = async (tx, ctrId) => {
+  const concept = await tx.tbl_contract_concepts.findFirst({
+    where: { ctr_id: Number(ctrId), ccp_type: CONCEPT_TYPES.LIQUIDATION },
+    select: { ccp_id: true },
+  });
+  if (!concept) throw httpError(409, "El contrato no tiene otrosí de liquidación: la factura de liquidación se asocia a él.");
+  return concept.ccp_id;
+};
+
+/**
  * Importes del detalle según el tipo, validados contra los saldos del
  * contrato bloqueado (al registrar y al editar una registrada).
  *
  * - Anticipo: valor ≤ anticipo por facturar (I1).
  * - Liquidación: amortización ≤ mín(pendiente por amortizar, VALOR) (I2) y
  *   retenido ≤ mín(por retener, VALOR) (I4). Cada uno se aparta del valor
- *   por defecto solo con su permiso de ajuste y una observación.
+ *   por defecto solo con su permiso de ajuste y una observación. Se asocia
+ *   al otrosí de liquidación del contrato (DEC-059).
  * - Devolución de retenido: valor ≤ saldo de retenido (I3).
  */
 const resolveDetail = async (tx, { type, ctrId, input, granted }) => {
@@ -351,6 +371,8 @@ const resolveDetail = async (tx, { type, ctrId, input, granted }) => {
   assertRetentionFits(retention.amount, value, balances.retention);
   return {
     liquidation: {
+      ctr_id: Number(ctrId),
+      ccp_id: await liquidationConceptOf(tx, ctrId),
       ild_value: value,
       ild_amortization: amortization.amount,
       ild_default_amortization: amortizationDefault,
@@ -369,6 +391,7 @@ const resolveDetail = async (tx, { type, ctrId, input, granted }) => {
 // Bitácora del detalle: importes como texto con dos decimales.
 const DETAIL_AUDITED = [
   "iad_value",
+  "ccp_id",
   "ild_value",
   "ild_amortization",
   "ild_default_amortization",
@@ -658,7 +681,10 @@ const amountsDto = (row) => {
   if (advance) return { value: moneyText(advance.iad_value) };
   if (refund) return { value: moneyText(refund.irr_value) };
   if (liquidation) {
+    const concept = liquidation.tbl_contract_concepts;
     return {
+      // Otrosí de liquidación al que se asocia (DEC-059).
+      liquidationConcept: concept ? { ccpId: liquidation.ccp_id, number: concept.ccp_number, startDate: dateOnlyText(concept.ccp_start_date) } : null,
       value: moneyText(liquidation.ild_value),
       amortization: moneyText(liquidation.ild_amortization),
       defaultAmortization: moneyText(liquidation.ild_default_amortization),
@@ -687,6 +713,12 @@ export const getInvoice = async ({ invId, scope, views }) => {
       created_by_user: USER_NAME_SELECT,
       updated_by_user: USER_NAME_SELECT,
       tbl_providers: { select: { prv_name: true, prv_identification: true, tbl_identity_documents: { select: { idd_code: true } } } },
+      tbl_invoice_liquidation_details: {
+        select: {
+          ...LOCKED_SELECT.tbl_invoice_liquidation_details.select,
+          tbl_contract_concepts: { select: { ccp_number: true, ccp_start_date: true } },
+        },
+      },
       tbl_works: { select: { wrk_code: true, wrk_name: true } },
       tbl_work_stages: { select: { wks_name: true } },
       tbl_contracts: {

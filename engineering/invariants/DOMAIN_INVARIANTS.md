@@ -56,6 +56,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 
 - **I11:** `UNIQUE uq_invoices_provider_number (prv_id, inv_number)`; el service responde 409 antes.
 - **I13:** `CHECK ck_invoices_type_links`. La simple va sin contrato y con etapa; las demás, con contrato y sin etapa (la suya es la del contrato). Toda factura tiene obra. La etapa es de la obra (FK `(wks_id, wrk_id)`) y el proveedor está asignado a ella (FK `(wrk_id, prv_id)`) ([DEC-058](../decisiones/DEC-058-factura-simple-obra-etapa.md), migración 0094).
+- **I16:** la factura de liquidación factura el otrosí de liquidación de su contrato. FK `(ccp_id, ctr_id)` → concepto del mismo contrato y FK `(inv_id, ctr_id)` → la factura; el tipo `LIQUIDATION` lo verifica el service bajo el bloqueo del contrato ([DEC-059](../decisiones/DEC-059-factura-liquidacion-otrosi.md), migración 0095).
 - **I14:** `CHECK ck_invoices_approval`. Una registrada no tiene fecha de aprobación y una aprobada sí; una anulada conserva la que tenía. `ck_invoices_dates` impide que la aprobación sea anterior a la factura.
 
 ## Ciclo de vida

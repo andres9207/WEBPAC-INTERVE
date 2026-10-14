@@ -165,7 +165,7 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
       <FormProvider {...methods}>
         <Stack spacing={2} sx={{ pt: 1 }}>
           {mode === 'liquidation' && (
-            <Alert severity="warning">
+            <Alert severity="info">
               Al registrar el otrosí de liquidación, el contrato <strong>{contract?.number}</strong> pasa a <strong>en liquidación</strong>:
               ya no admite otrosí ni cambios en sus datos contractuales. Solo puede haber uno por contrato.
             </Alert>

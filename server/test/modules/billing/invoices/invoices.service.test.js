@@ -30,6 +30,7 @@ const state = {
   work: null,
   stage: null,
   assignment: null,
+  liquidationConcept: null,
 };
 
 const D = (value) => new Prisma.Decimal(value);
@@ -71,7 +72,7 @@ const prismaMock = {
   tbl_work_stages: { findUnique: jest.fn(async () => state.stage) },
   tbl_work_providers: { findUnique: jest.fn(async () => state.assignment) },
   tbl_reasons: { findUnique: jest.fn(async () => state.reason) },
-  tbl_contract_concepts: { findMany: jest.fn(async () => state.concepts) },
+  tbl_contract_concepts: { findMany: jest.fn(async () => state.concepts), findFirst: jest.fn(async () => state.liquidationConcept) },
   tbl_invoice_advance_details: {
     aggregate: jest.fn(async () => ({ _sum: { iad_value: state.advanceSum } })),
     upsert: jest.fn(),
@@ -203,6 +204,7 @@ beforeEach(() => {
   state.work = { sta_id: 1, wrk_code: "OB-8" };
   state.stage = { wrk_id: 8, sta_id: 1, wks_name: "Cimentación" };
   state.assignment = { sta_id: 1, tbl_providers: { prv_name: "Aceros SA", sta_id: 1 } };
+  state.liquidationConcept = { ccp_id: 41 };
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
   prismaMock.tbl_providers.findUnique.mockImplementation(async () => ({ prv_name: "Aceros SA", sta_id: 1, ...providerTypes(state.providerMenu) }));
   prismaMock.tbl_providers.findFirst.mockResolvedValue({ prv_id: 77 });
@@ -659,6 +661,22 @@ describe("anticipo y amortización (DEC-044)", () => {
     state.amortizedSum = D("24000000");
     await save(liquidationInput({ value: "30000000" }));
     expect(liquidationUpsert().create.ild_amortization.toFixed(2)).toBe("8000000.00");
+  });
+
+  it("liquidación: se asocia al otrosí de liquidación de su contrato, que resuelve el servidor (DEC-059)", async () => {
+    state.contract = contract({ ctr_state: "IN_LIQUIDATION" });
+    state.advanceSum = D("32000000");
+    await save(liquidationInput({ ccpId: 999 }));
+    expect(prismaMock.tbl_contract_concepts.findFirst.mock.calls[0][0].where).toEqual({ ctr_id: 30, ccp_type: "LIQUIDATION" });
+    expect(liquidationUpsert().create).toMatchObject({ inv_id: 70, ctr_id: 30, ccp_id: 41 });
+    expect(auditRows().find((r) => r.aud_field === "ccp_id")).toMatchObject({ aud_operation: "CREAR", aud_new_value: "41" });
+  });
+
+  it("liquidación: sin otrosí de liquidación en el contrato no se registra (409)", async () => {
+    state.contract = contract({ ctr_state: "IN_LIQUIDATION" });
+    state.liquidationConcept = null;
+    await expect(save(liquidationInput())).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("otrosí de liquidación") });
+    expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
   });
 
   it("el valor por defecto nunca supera el pendiente por amortizar", async () => {

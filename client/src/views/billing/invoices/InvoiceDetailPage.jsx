@@ -321,7 +321,21 @@ export default function InvoiceDetailPage() {
                     ...(invoice.ctrId
                       ? [
                           ['Contrato', `${invoice.contractNumber} — ${invoice.contractName}`],
-                          ['Estado del contrato', invoice.contractStateName]
+                          ['Estado del contrato', invoice.contractStateName],
+                          // La liquidación se asocia al otrosí de liquidación del contrato (DEC-059).
+                          ...(invoice.amounts?.liquidationConcept
+                            ? [
+                                [
+                                  'Otrosí de liquidación',
+                                  [
+                                    invoice.amounts.liquidationConcept.number && `N.º ${invoice.amounts.liquidationConcept.number}`,
+                                    `desde ${fDateOnly(invoice.amounts.liquidationConcept.startDate)}`
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' · ')
+                                ]
+                              ]
+                            : [])
                         ]
                       : [['Contrato', 'Sin contrato (factura simple)']]),
                     ['Registrada', `${fDateTime(invoice.createdAt)} por ${invoice.createdByName ?? '—'}`]

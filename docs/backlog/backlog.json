@@ -3946,7 +3946,8 @@
         "Las ocho condiciones se evalúan juntas y bajo bloqueo del contrato",
         "Si todas se cumplen, la transición a liquidado ocurre en la misma transacción",
         "Si alguna falla, se registra cuál en el historial para diagnóstico",
-        "C7 y C8 se implementan solo según lo que resuelva DEC-15"
+        "C7 y C8 se implementan solo según lo que resuelva DEC-15",
+        "Los saldos de anticipo y de retenido (C2 y C3) se leen con contractBalances, el mismo cálculo del endpoint de información financiera (PRO-BE-28), dentro de la transacción y bajo el bloqueo del contrato: ningún cálculo propio de saldos"
       ],
       "prioridad": "Crítica",
       "responsable": "Dev Backend",
@@ -3954,7 +3955,8 @@
         "PRO-BE-29",
         "PRO-BE-31",
         "PRO-BE-23",
-        "DEC-15"
+        "DEC-15",
+        "PRO-BE-28"
       ],
       "estado": "Pendiente",
       "estimacion": 20,

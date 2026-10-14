@@ -102,6 +102,8 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   "uq_policies_idempotency_key",
   // Apoyo de la FK compuesta póliza → concepto del contrato (0079)
   "uq_contract_concepts_id_contract",
+  // Apoyo de la FK compuesta detalle de liquidación → factura (0095)
+  "uq_invoices_id_contract",
 ]);
 
 /** Duplicado de un índice interno o desconocido. No remite a sistemas: suele ser una carrera. */

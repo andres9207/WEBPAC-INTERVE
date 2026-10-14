@@ -858,35 +858,36 @@ model tbl_contracts {
 /// ccp_initial_key y ccp_liquidation_key son columnas GENERADAS por MySQL (uno de cada tipo por contrato):
 /// nunca se escriben desde el código.
 model tbl_contract_concepts {
-  ccp_id                   Int                       @id @default(autoincrement())
-  ctr_id                   Int
-  ccp_type                 String                    @db.VarChar(12)
-  ccp_number               Int?
-  ccp_start_date           DateTime                  @db.Date
-  ccp_description          String?                   @db.VarChar(500)
-  ccp_direct_cost          Decimal                   @db.Decimal(18, 2)
-  ccp_admin_pct            Decimal                   @default(0.00) @db.Decimal(5, 2)
-  ccp_contingency_pct      Decimal                   @default(0.00) @db.Decimal(5, 2)
-  ccp_profit_pct           Decimal                   @default(0.00) @db.Decimal(5, 2)
-  ccp_vat_pct              Decimal                   @default(0.00) @db.Decimal(5, 2)
-  ccp_advance_pct          Decimal                   @default(0.00) @db.Decimal(5, 2)
-  ccp_retention_pct        Decimal                   @default(0.00) @db.Decimal(5, 2)
-  ccp_extension            Int?
-  sta_id                   Int                       @default(1)
-  ccp_create_by            Int?
-  ccp_create_at            DateTime?                 @default(now()) @db.Timestamp(0)
-  ccp_update_by            Int?
-  ccp_update_at            DateTime?                 @default(now()) @db.Timestamp(0)
-  ccp_idempotency_key      String?                   @unique(map: "uq_contract_concepts_idempotency_key") @db.Char(36)
-  ccp_idempotency_hash     String?                   @db.Char(64)
-  ccp_initial_key          Int?                      @unique(map: "uq_contract_concepts_initial")
-  ccp_liquidation_key      Int?                      @unique(map: "uq_contract_concepts_liquidation")
-  tbl_contracts            tbl_contracts             @relation(fields: [ctr_id], references: [ctr_id], onUpdate: NoAction, map: "tbl_contract_concepts_contract")
-  created_by_user          tbl_users?                @relation("ContractConceptCreatedBy", fields: [ccp_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_concepts_create_by")
-  tbl_status               tbl_status                @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_contract_concepts_status")
-  updated_by_user          tbl_users?                @relation("ContractConceptUpdatedBy", fields: [ccp_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_concepts_update_by")
-  tbl_contract_suspensions tbl_contract_suspensions?
-  tbl_policies             tbl_policies[]
+  ccp_id                          Int                               @id @default(autoincrement())
+  ctr_id                          Int
+  ccp_type                        String                            @db.VarChar(12)
+  ccp_number                      Int?
+  ccp_start_date                  DateTime                          @db.Date
+  ccp_description                 String?                           @db.VarChar(500)
+  ccp_direct_cost                 Decimal                           @db.Decimal(18, 2)
+  ccp_admin_pct                   Decimal                           @default(0.00) @db.Decimal(5, 2)
+  ccp_contingency_pct             Decimal                           @default(0.00) @db.Decimal(5, 2)
+  ccp_profit_pct                  Decimal                           @default(0.00) @db.Decimal(5, 2)
+  ccp_vat_pct                     Decimal                           @default(0.00) @db.Decimal(5, 2)
+  ccp_advance_pct                 Decimal                           @default(0.00) @db.Decimal(5, 2)
+  ccp_retention_pct               Decimal                           @default(0.00) @db.Decimal(5, 2)
+  ccp_extension                   Int?
+  sta_id                          Int                               @default(1)
+  ccp_create_by                   Int?
+  ccp_create_at                   DateTime?                         @default(now()) @db.Timestamp(0)
+  ccp_update_by                   Int?
+  ccp_update_at                   DateTime?                         @default(now()) @db.Timestamp(0)
+  ccp_idempotency_key             String?                           @unique(map: "uq_contract_concepts_idempotency_key") @db.Char(36)
+  ccp_idempotency_hash            String?                           @db.Char(64)
+  ccp_initial_key                 Int?                              @unique(map: "uq_contract_concepts_initial")
+  ccp_liquidation_key             Int?                              @unique(map: "uq_contract_concepts_liquidation")
+  tbl_contracts                   tbl_contracts                     @relation(fields: [ctr_id], references: [ctr_id], onUpdate: NoAction, map: "tbl_contract_concepts_contract")
+  created_by_user                 tbl_users?                        @relation("ContractConceptCreatedBy", fields: [ccp_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_concepts_create_by")
+  tbl_status                      tbl_status                        @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_contract_concepts_status")
+  updated_by_user                 tbl_users?                        @relation("ContractConceptUpdatedBy", fields: [ccp_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contract_concepts_update_by")
+  tbl_contract_suspensions        tbl_contract_suspensions?
+  tbl_invoice_liquidation_details tbl_invoice_liquidation_details[]
+  tbl_policies                    tbl_policies[]
 
   @@unique([ctr_id, ccp_number], map: "uq_contract_concepts_number")
   @@unique([ccp_id, ctr_id], map: "uq_contract_concepts_id_contract")
@@ -1022,6 +1023,7 @@ model tbl_invoices {
   inv_idempotency_hash                 String?                               @db.Char(64)
   tbl_invoice_advance_details          tbl_invoice_advance_details?
   tbl_invoice_liquidation_details      tbl_invoice_liquidation_details?
+  liquidation_detail_by_contract       tbl_invoice_liquidation_details[]     @relation("InvoiceLiquidationDetailContract")
   tbl_invoice_retention_refund_details tbl_invoice_retention_refund_details?
   tbl_invoice_status_history           tbl_invoice_status_history[]
   tbl_contracts                        tbl_contracts?                        @relation(fields: [ctr_id, wrk_id, prv_id], references: [ctr_id, wrk_id, prv_id], onUpdate: NoAction, map: "tbl_invoices_contract")
@@ -1035,6 +1037,7 @@ model tbl_invoices {
   tbl_work_stages                      tbl_work_stages?                      @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: NoAction, map: "tbl_invoices_work_stage")
 
   @@unique([prv_id, inv_number], map: "uq_invoices_provider_number")
+  @@unique([inv_id, ctr_id], map: "uq_invoices_id_contract")
   @@index([inv_date], map: "idx_invoices_date")
   @@index([inv_state], map: "idx_invoices_state")
   @@index([inv_type], map: "idx_invoices_type")
@@ -1085,29 +1088,37 @@ model tbl_invoice_advance_details {
   @@index([iad_update_by], map: "tbl_invoice_advance_details_update_by")
 }
 
+/// Detalle de la factura de liquidación (0071, 0083, 0095). ccp_id es su otrosí de liquidación (DEC-059):
+/// del mismo contrato por FK compuesta (ccp_id, ctr_id); ctr_id es el de la factura por FK (inv_id, ctr_id).
 model tbl_invoice_liquidation_details {
-  inv_id                     Int          @id
-  ild_value                  Decimal      @db.Decimal(18, 2)
-  ild_amortization           Decimal      @db.Decimal(18, 2)
-  ild_default_amortization   Decimal      @db.Decimal(18, 2)
-  ild_default_pct            Decimal      @db.Decimal(9, 6)
-  ild_applied_pct            Decimal      @db.Decimal(9, 6)
-  ild_adjustment_observation String?      @db.VarChar(1000)
-  ild_retention              Decimal?     @db.Decimal(18, 2)
-  ild_default_retention      Decimal?     @db.Decimal(18, 2)
-  ild_retention_default_pct  Decimal?     @db.Decimal(9, 6)
-  ild_retention_applied_pct  Decimal?     @db.Decimal(9, 6)
-  ild_retention_observation  String?      @db.VarChar(1000)
+  inv_id                     Int                   @id
+  ctr_id                     Int
+  ccp_id                     Int
+  ild_value                  Decimal               @db.Decimal(18, 2)
+  ild_amortization           Decimal               @db.Decimal(18, 2)
+  ild_default_amortization   Decimal               @db.Decimal(18, 2)
+  ild_default_pct            Decimal               @db.Decimal(9, 6)
+  ild_applied_pct            Decimal               @db.Decimal(9, 6)
+  ild_adjustment_observation String?               @db.VarChar(1000)
+  ild_retention              Decimal?              @db.Decimal(18, 2)
+  ild_default_retention      Decimal?              @db.Decimal(18, 2)
+  ild_retention_default_pct  Decimal?              @db.Decimal(9, 6)
+  ild_retention_applied_pct  Decimal?              @db.Decimal(9, 6)
+  ild_retention_observation  String?               @db.VarChar(1000)
   ild_create_by              Int?
-  ild_create_at              DateTime?    @default(now()) @db.Timestamp(0)
+  ild_create_at              DateTime?             @default(now()) @db.Timestamp(0)
   ild_update_by              Int?
-  ild_update_at              DateTime?    @default(now()) @db.Timestamp(0)
-  created_by_user            tbl_users?   @relation("InvoiceLiquidationDetailCreatedBy", fields: [ild_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_liquidation_details_create_by")
-  tbl_invoices               tbl_invoices @relation(fields: [inv_id], references: [inv_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_invoice")
-  updated_by_user            tbl_users?   @relation("InvoiceLiquidationDetailUpdatedBy", fields: [ild_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_liquidation_details_update_by")
+  ild_update_at              DateTime?             @default(now()) @db.Timestamp(0)
+  created_by_user            tbl_users?            @relation("InvoiceLiquidationDetailCreatedBy", fields: [ild_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_liquidation_details_create_by")
+  tbl_invoices               tbl_invoices          @relation(fields: [inv_id], references: [inv_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_invoice")
+  invoice_contract           tbl_invoices          @relation("InvoiceLiquidationDetailContract", fields: [inv_id, ctr_id], references: [inv_id, ctr_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_invoice_contract")
+  tbl_contract_concepts      tbl_contract_concepts @relation(fields: [ccp_id, ctr_id], references: [ccp_id, ctr_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_concept")
+  updated_by_user            tbl_users?            @relation("InvoiceLiquidationDetailUpdatedBy", fields: [ild_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_liquidation_details_update_by")
 
   @@index([ild_create_by], map: "tbl_invoice_liquidation_details_create_by")
   @@index([ild_update_by], map: "tbl_invoice_liquidation_details_update_by")
+  @@index([ccp_id, ctr_id], map: "tbl_invoice_liquidation_details_concept")
+  @@index([inv_id, ctr_id], map: "tbl_invoice_liquidation_details_invoice_contract")
 }
 
 model tbl_invoice_retention_refund_details {

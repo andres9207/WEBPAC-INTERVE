@@ -250,7 +250,7 @@ FACTURA_ANTICIPO_DETALLE
 
 FACTURA_LIQUIDACION_DETALLE
   ├── factura                    FK  UNIQUE (1:1)
-  ├── concepto de liquidación    FK  NOT NULL → CONTRATO_CONCEPTO (tipo OTROSI_LIQUIDACION)
+  ├── concepto de liquidación    FK  NOT NULL → CONTRATO_CONCEPTO (tipo OTROSI_LIQUIDACION)   ← implementado: DEC-059, 0095
   ├── valor                      decimal exacto   ingresado, base antes de IVA
   ├── % utilidad                 ingresado, congelado — por defecto del contrato (ADR-0026)
   ├── % IVA                      ingresado, congelado
