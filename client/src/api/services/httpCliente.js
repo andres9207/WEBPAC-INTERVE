@@ -1,6 +1,7 @@
 import axios from "axios";
 import Cookies from "js-cookie";
 import { WORK_HEADER, activeWorkHeader } from "utils/workScope";
+import { IDEMPOTENCY_HEADER } from "utils/idempotency";
 
 // ─── Instancia con baseURL desde .env ────────────────────────────────────────
 const baseURL = import.meta.env.VITE_API_URL || "http://localhost:5063/api";
@@ -45,6 +46,22 @@ instance.interceptors.request.use((config) => {
   if (work) config.headers[WORK_HEADER] = work;
   return config;
 });
+
+// Mensaje del 503 que persiste tras el reintento automático, cuando la
+// petición lleva clave de idempotencia (PRO-FE-17): ofrece reintentar. Es
+// seguro aunque la operación sí se hubiera guardado: la misma clave devuelve
+// el resultado ya guardado en vez de crear otro.
+export const RETRY_503_HINT = "Puedes volver a intentarlo: no se duplicará.";
+
+const hasIdempotencyKey = (config) => Boolean(config?.headers?.get?.(IDEMPOTENCY_HEADER) ?? config?.headers?.[IDEMPOTENCY_HEADER]);
+
+const withRetryHint = (error) => {
+  const data = error.response?.data;
+  if (data && typeof data === "object" && !String(data.message ?? "").includes(RETRY_503_HINT)) {
+    data.message = [data.message, RETRY_503_HINT].filter(Boolean).join(" ");
+  }
+  return error;
+};
 
 // ─── Interceptor de RESPONSE ──────────────────────────────────────────────────
 instance.interceptors.response.use(
@@ -101,12 +118,16 @@ instance.interceptors.response.use(
     // 503: servicio temporalmente no disponible (conexión a BD perdida,
     // límite de conexiones, espera de bloqueo). Se reintenta la MISMA
     // petición una única vez, con el mismo config —mismos headers, mismo
-    // body—, para que una futura clave de idempotencia que envíe el
-    // llamador viaje igual en el reintento; si vuelve a fallar, se rinde.
+    // body—, así la clave de idempotencia viaja igual en el reintento. Si
+    // vuelve a fallar, se rinde; con clave, el mensaje ofrece reintentar
+    // desde el mismo formulario, que conserva su clave (PRO-FE-17).
     if (status === 503 && config && !config._retried503) {
       config._retried503 = true;
       await new Promise((resolve) => setTimeout(resolve, 1000));
       return instance(config);
+    }
+    if (status === 503 && hasIdempotencyKey(config)) {
+      return Promise.reject(withRetryHint(error));
     }
 
     return Promise.reject(error);

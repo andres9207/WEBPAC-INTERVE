@@ -26,6 +26,13 @@ Ninguna operación era idempotente. Un doble clic, un reenvío manual o el reint
 - **Aplicada a**: crear usuario, crear perfil y registrar un documento. En el cliente: `UserDialog`, `ProfileDialog` (clave al abrir "nuevo") y la subida de archivos (una clave por archivo).
 - **Transiciones** (aprobar, anular…): el mismo `runIdempotent`, con la clave en la fila del **historial de estado** del agregado y la precondición leída bajo bloqueo. Se aplica cuando existan esas tablas (CORE); hoy ninguna tabla tiene historial de estado.
 
+**Actualizado el 2026-10-14 (PRO-FE-17):**
+
+- **Aplicada hoy a** todas las creaciones (maestros, usuarios, perfiles, obras, proveedores y su asignación a obras, contratos, otrosí, otrosí de liquidación, pólizas y sus versiones, facturas, documentos) y a las transiciones con historial de estado (suspender, aprobar y anular factura); reanudar va con su otrosí. En el cliente, cada formulario o diálogo genera la clave **al abrir** y la conserva hasta cerrarse: un reenvío o un nuevo intento tras corregir un error usan la misma.
+- **El control es la clave, no el botón.** Deshabilitar "Guardar" mientras se guarda es una mejora de experiencia: un doble clic que se cuele, otra pestaña o un reintento de la red llegan con la misma clave y reciben el mismo resultado.
+- **503:** `httpCliente` reintenta una vez la misma petición, con la misma clave. Si vuelve a fallar y la petición lleva clave, agrega al mensaje "Puedes volver a intentarlo: no se duplicará." (`RETRY_503_HINT`): el formulario sigue abierto con su clave. Es seguro aunque la operación se hubiera confirmado, porque la misma clave devuelve el resultado guardado.
+- **Excepción: anular póliza** (`cancel_policy`) no lleva clave. Fija un estado final bajo bloqueo: repetirla no duplica nada, pero responde 409 ("ya anulada") en vez del mismo resultado. Las pólizas no tienen historial de estado donde guardar la clave; darle una exige dos columnas nuevas, y se dejó así por decisión del usuario.
+
 ## Descartado
 
 - **Tabla central de claves**: se evaluó y se descartó a favor de lo que dice el ADR, con la clave en la propia entidad. Se agregó la columna de huella para poder cumplir "misma clave con otro contenido se rechaza" sin comparar campo por campo.
@@ -40,4 +47,4 @@ Ninguna operación era idempotente. Un doble clic, un reenvío manual o el reint
 
 ## Dónde
 
-`server/src/common/services/idempotency.service.js` · `server/src/common/utils/validation.utils.js` (`idempotencyKeyRule`) · `database/migrations/0016_idempotency_keys.sql` · `client/src/utils/idempotency.js`
+`server/src/common/services/idempotency.service.js` · `server/src/common/utils/validation.utils.js` (`idempotencyKeyRule`) · `database/migrations/0016_idempotency_keys.sql` · `client/src/utils/idempotency.js` · `client/src/api/services/httpCliente.js` (reintento del 503)

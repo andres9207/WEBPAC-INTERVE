@@ -49,7 +49,7 @@ Ver [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - **Documentos en el cliente:** `DocumentManagement` está comentado en `UserDialog.jsx`. La ruta del backend funciona y está protegida.
 - **Bitácora:** se escribe, pero no hay pantalla para consultarla ni política de retención (ADR-0013, B15/B16). El único endpoint que la lee es la evidencia de una factura ([DEC-062](decisiones/DEC-062-evidencia-aprobacion-factura.md)).
 - **ADR-0014:** aceptado en lo que existe; las acciones de los módulos de negocio están propuestas.
-- **Idempotencia:** cubre la creación; las transiciones de estado esperan el historial de estado del CORE (ADR-0027, B3).
+- **Idempotencia:** cubre todas las creaciones y las transiciones con historial de estado (suspender, aprobar y anular factura), con la clave generada al abrir el formulario y el reintento del 503 que ofrece volver a intentar ([DEC-016](decisiones/DEC-016-idempotencia-por-clave.md), PRO-FE-17). Excepción documentada: anular póliza, que no tiene historial de estado y responde 409 al repetirse.
 
 ## No implementado
 

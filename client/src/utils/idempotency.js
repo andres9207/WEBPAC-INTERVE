@@ -9,6 +9,15 @@
 //
 // Formulario nuevo = clave nueva. Nunca reutilizar la clave de otro
 // formulario: con otro contenido, el backend la rechaza con 422.
+//
+// El control contra el doble envío es esta clave, no el botón: deshabilitar
+// "Guardar" mientras se guarda es solo una mejora de experiencia (PRO-FE-17).
+// Un doble clic que se cuele, otra pestaña o un reintento de la red llegan
+// al servidor con la misma clave y reciben el mismo resultado.
+//
+// Ante un 503, httpCliente reintenta una vez con la misma petición y la misma
+// clave; si vuelve a fallar, el mensaje invita a reintentar: el formulario
+// sigue abierto con su clave, así que no se duplica.
 
 const fallbackUuid = () => {
   // crypto.randomUUID solo existe en contexto seguro (https o localhost).
@@ -22,5 +31,7 @@ const fallbackUuid = () => {
 export const newIdempotencyKey = () =>
   typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : fallbackUuid();
 
+export const IDEMPOTENCY_HEADER = 'Idempotency-Key';
+
 /** Config de axios con el encabezado, o {} si no hay clave (p. ej. al editar). */
-export const idempotencyConfig = (key) => (key ? { headers: { 'Idempotency-Key': key } } : {});
+export const idempotencyConfig = (key) => (key ? { headers: { [IDEMPOTENCY_HEADER]: key } } : {});
