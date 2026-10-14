@@ -29,7 +29,7 @@ Los permisos (ADR-0014) dicen qué acciones puede hacer un usuario, pero no sobr
   | Obras | `wrk_id` de la obra | Leer, editar, cambiar estado y eliminar, solo esa obra |
   | Proveedores | Los asignados a la obra | Leer y editar los asignados a la obra. Asignar, editar y desasignar, solo en la obra. Crear sin "Ver todo" lo asigna a la obra del alcance, con fecha de hoy |
   | Contratos | `wrk_id` de la obra; selector de obras del formulario | Leer, crear, editar, eliminar, otrosí, liquidación, modificar concepto y suspender, solo en la obra |
-  | Facturas | De contrato, `wrk_id` de la obra; la simple, que no tiene obra, si su proveedor está asignado a la obra ([DEC-054](DEC-054-vistas-facturas-simple-sin-obra.md)); selectores de contratos y de proveedores | Leer, registrar, editar, aprobar y anular, solo en la obra (la simple, con un proveedor de la obra); saldos de anticipo del contrato |
+  | Facturas | `wrk_id` de la obra, también la simple ([DEC-058](DEC-058-factura-simple-obra-etapa.md)); selectores de contratos y de obras | Leer, registrar, editar, aprobar y anular, solo en la obra; saldos de anticipo del contrato |
 
 - **Fuera del alcance responde 404**, el mismo que da un registro inexistente: no revela que exista. La comprobación se hace antes de bloquear y escribir.
 - **Excepciones**, declaradas en `test/common/workScope.guard.test.js` con su motivo:

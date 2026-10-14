@@ -595,13 +595,17 @@ describe("asignación proveedor-obra", () => {
     expect(prismaMock.tbl_work_providers.delete).not.toHaveBeenCalled();
   });
 
-  it("desasigna aunque el proveedor tenga facturas simples: no tienen obra (DEC-054)", async () => {
+  it("no desasigna si el proveedor tiene facturas simples en la obra (409, DEC-058)", async () => {
     state.assignment = { wkp_id: 300, wrk_id: 8, prv_id: 77, wkp_assignment_date: new Date("2026-10-01T00:00:00Z"), wkp_observation: null, sta_id: 1 };
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
     prismaMock.tbl_invoices.count.mockResolvedValue(2);
 
-    await service.unassignProviderFromWork({ wrkId: 8, prvId: 77, useBy: 9, ctx });
-    expect(prismaMock.tbl_invoices.count).not.toHaveBeenCalled();
-    expect(prismaMock.tbl_work_providers.delete).toHaveBeenCalledWith({ where: { wkp_id: 300 } });
+    await expect(service.unassignProviderFromWork({ wrkId: 8, prvId: 77, useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: "No se puede desasignar el proveedor: tiene 2 factura(s) en esta obra. Inactiva la asignación en su lugar.",
+    });
+    expect(prismaMock.tbl_invoices.count).toHaveBeenCalledWith({ where: { wrk_id: 8, prv_id: 77 } });
+    expect(prismaMock.tbl_work_providers.delete).not.toHaveBeenCalled();
   });
 
   it("desasignar lo que no está asignado responde 404", async () => {

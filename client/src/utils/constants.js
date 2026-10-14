@@ -102,7 +102,7 @@ export const INVOICE_STATE_TABS = [
 export const INVOICE_STATE_COLORS = { REGISTERED: 'warning', APPROVED: 'success', CANCELLED: 'default' };
 
 export const INVOICE_TYPE_OPTIONS = [
-  { value: 'SIMPLE', label: 'Simple', hint: 'Del proveedor, sin contrato ni obra' },
+  { value: 'SIMPLE', label: 'Simple', hint: 'Imputada a una etapa de la obra, sin contrato' },
   { value: 'ADVANCE', label: 'Anticipo', hint: 'De un contrato en ejecución' },
   { value: 'LIQUIDATION', label: 'Liquidación', hint: 'De un contrato en liquidación' },
   { value: 'RETENTION_REFUND', label: 'Devolución de retenido', hint: 'De un contrato en liquidación' }

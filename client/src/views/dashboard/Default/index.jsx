@@ -73,7 +73,6 @@ export default function Dashboard() {
   // Vistas de facturas que el usuario ve (DEC-054): los enlaces van a la primera que aplique.
   const invoiceViews = useInvoiceViews();
   const firstInvoiceView = invoiceViews[0];
-  const firstContractInvoiceView = invoiceViews.find((view) => view !== 'SIMPLE');
   const cards = useMemo(() => {
     if (!summary) return [];
     const items = [];
@@ -277,7 +276,7 @@ export default function Dashboard() {
               )}
               {s.invoices && (
                 <Grid size={{ xs: 12, lg: s.worksActivity ? 7 : 12 }}>
-                  <InvoicesByWorkCard byWork={s.invoices.byWork} view={firstContractInvoiceView} />
+                  <InvoicesByWorkCard byWork={s.invoices.byWork} view={firstInvoiceView} />
                 </Grid>
               )}
             </Grid>

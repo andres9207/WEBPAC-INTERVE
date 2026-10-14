@@ -17,11 +17,13 @@ import DateField from 'ui-component/extended/DateField';
 import RouteDialog from 'ui-component/extended/RouteDialog';
 import SearchSelect from 'ui-component/extended/SearchSelect';
 import AdvanceAmountsSection from './components/AdvanceAmountsSection';
-import { getInvoiceContractsSelectAPI, getInvoiceProvidersSelectAPI, invoicesApi } from 'api/requests/invoicesApi';
+import { getInvoiceContractsSelectAPI, getInvoiceFormOptionsAPI, getInvoiceWorksSelectAPI, invoicesApi } from 'api/requests/invoicesApi';
 import { useAuth } from 'contexts/AuthContext';
+import { useWorkScope } from 'contexts/WorkScopeContext';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
 import { INVOICE_TYPE_OPTIONS, INVOICE_VIEWS, invoicePath } from 'utils/constants';
+import { ALL_WORKS } from 'utils/workScope';
 
 /**
  * Registro y edición de una factura (ADR-0020, DEC-042), en un modal sobre el
@@ -29,19 +31,22 @@ import { INVOICE_TYPE_OPTIONS, INVOICE_VIEWS, invoicePath } from 'utils/constant
  * `…/:invId/edit` (DEC-034). La vista llega por el contexto del Outlet.
  *
  * - La vista decide los tipos: la de simples registra solo la simple, que
- *   pide el proveedor (activo y del alcance) y nada más: no tiene obra,
- *   etapa ni contrato. Las de contrato mayor y subcontratistas eligen el
+ *   pide la obra, una etapa de ella y un proveedor asignado a ella, sin
+ *   contrato (DEC-058). Las de contrato mayor y subcontratistas eligen el
  *   tipo y el contrato de su clase (solo los que hoy admiten ese tipo), y
  *   toman de él obra y proveedor.
- * - Tipo y contrato no cambian después de registrar.
+ * - Tipo, obra y contrato no cambian después de registrar.
  * - Registrada se edita entera; aprobada, solo extracto y descripción;
  *   anulada, nada. Lo decide el servidor (`allowedActions`).
  * - Estado y fecha de aprobación no están en el formulario: los fijan
  *   Aprobar y Anular. Crear lleva clave de idempotencia.
  * - Desde la pestaña Facturas del contrato llega con `?type=…&ctrId=…`: el
- *   tipo y el contrato ya elegidos; desde la del proveedor, con `?prvId=…`.
- * - Contratos y proveedores se buscan en el servidor (los selectores tienen
- *   tope, DEC-018).
+ *   tipo y el contrato ya elegidos; desde la de la obra, con `?wrkId=…`, y
+ *   desde la del proveedor, con `?prvId=…` (solo sus obras).
+ * - Con una obra fija en el encabezado (no "Ver todo"), la simple se registra
+ *   en esa obra: no se elige (mismo criterio que el formulario de contrato).
+ * - Contratos y obras se buscan en el servidor (los selectores tienen tope,
+ *   DEC-018).
  * - Anticipo, liquidación y devolución de retenido llevan sus importes
  *   (DEC-044, DEC-051, AdvanceAmountsSection). Los de una aprobada no se
  *   envían: no cambian.
@@ -50,7 +55,9 @@ import { INVOICE_TYPE_OPTIONS, INVOICE_VIEWS, invoicePath } from 'utils/constant
 const EMPTY_FORM = {
   type: '',
   ctrId: '',
+  wrkId: '',
   prvId: '',
+  wksId: '',
   number: '',
   date: '',
   voucherNumber: '',
@@ -66,7 +73,7 @@ const EMPTY_FORM = {
   retentionObservation: ''
 };
 
-const DOCUMENT_FIELDS = ['type', 'ctrId', 'prvId', 'number', 'date', 'voucherNumber', 'statement', 'description'];
+const DOCUMENT_FIELDS = ['type', 'ctrId', 'wrkId', 'prvId', 'wksId', 'number', 'date', 'voucherNumber', 'statement', 'description'];
 
 const text = (value) => String(value ?? '').trim();
 const today = () => format(new Date(), 'yyyy-MM-dd');
@@ -99,8 +106,8 @@ const amountsPayload = (form) => ({
 
 const toPayload = (invId, form, sendAmounts) => ({
   invId,
-  ...(invId ? {} : { type: form.type, ...(isSimple(form.type) ? {} : { ctrId: form.ctrId }) }),
-  ...(isSimple(form.type) ? { prvId: form.prvId } : {}),
+  ...(invId ? {} : { type: form.type, ...(isSimple(form.type) ? { wrkId: form.wrkId } : { ctrId: form.ctrId }) }),
+  ...(isSimple(form.type) ? { prvId: form.prvId, wksId: form.wksId } : {}),
   number: text(form.number),
   date: form.date,
   voucherNumber: text(form.voucherNumber),
@@ -167,6 +174,10 @@ export default function InvoiceFormPage() {
   const [searchParams] = useSearchParams();
   const presetType = fixedType || (typeOptions.some((o) => o.value === searchParams.get('type')) ? searchParams.get('type') : '');
   const presetCtrId = Number(searchParams.get('ctrId')) || '';
+  const { activeWork, works: scopeWorks } = useWorkScope();
+  // Obra fija del encabezado; null con "Ver todo" (se elige en el formulario).
+  const headerWork = activeWork === ALL_WORKS ? null : (scopeWorks.find((work) => work.value === activeWork) ?? null);
+  const presetWrkId = headerWork?.value ?? (Number(searchParams.get('wrkId')) || '');
   const presetPrvId = Number(searchParams.get('prvId')) || '';
 
   const [idempotencyKey] = useState(() => (isEdit ? null : newIdempotencyKey()));
@@ -175,6 +186,8 @@ export default function InvoiceFormPage() {
   const [loaded, setLoaded] = useState(null);
   // Contrato elegido: su proveedor y su obra se muestran aunque una búsqueda nueva no lo traiga.
   const [pickedContract, setPickedContract] = useState(null);
+  const [options, setOptions] = useState({ stages: [], providers: [] });
+  const [loadingOptions, setLoadingOptions] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
 
   const { control, handleSubmit, reset, setValue, formState } = useForm({ defaultValues: EMPTY_FORM });
@@ -194,6 +207,7 @@ export default function InvoiceFormPage() {
                 date: today(),
                 type: presetType,
                 ctrId: presetType && !isSimple(presetType) ? presetCtrId : '',
+                wrkId: isSimple(presetType) ? presetWrkId : '',
                 prvId: isSimple(presetType) ? presetPrvId : ''
               }
         );
@@ -205,9 +219,9 @@ export default function InvoiceFormPage() {
       }
     };
     load();
-  }, [isEdit, invId, reset, navigate, listPath, presetType, presetCtrId, presetPrvId]);
+  }, [isEdit, invId, reset, navigate, listPath, presetType, presetCtrId, presetWrkId, presetPrvId]);
 
-  const [type, ctrId] = useWatch({ control, name: ['type', 'ctrId'] });
+  const [type, ctrId, wrkId] = useWatch({ control, name: ['type', 'ctrId', 'wrkId'] });
   const simple = isSimple(type);
 
   // Contratos de la clase de la vista que hoy admiten el tipo elegido (solo al registrar).
@@ -221,34 +235,66 @@ export default function InvoiceFormPage() {
       }).then((res) => res.data),
     [type, view, presetCtrId]
   );
-  // Proveedores del alcance (simple); el ya elegido vuelve aunque esté inactivo.
-  const currentPrvId = loaded?.prvId ?? presetPrvId;
-  const fetchProviders = useCallback(
+  // Obras activas del alcance (simple); desde el proveedor, solo las suyas.
+  const fetchWorks = useCallback(
     (search) =>
-      getInvoiceProvidersSelectAPI({ ...(search ? { search } : {}), ...(currentPrvId ? { includePrvId: currentPrvId } : {}) }).then(
-        (res) => res.data
-      ),
-    [currentPrvId]
+      getInvoiceWorksSelectAPI({
+        ...(search ? { search } : {}),
+        ...(presetPrvId ? { prvId: presetPrvId } : {}),
+        ...(presetWrkId ? { includeWrkId: presetWrkId } : {})
+      }).then((res) => res.data),
+    [presetPrvId, presetWrkId]
   );
   const contractOptions = useRemoteOptions(
     !loading && !isEdit && Boolean(type) && !simple,
     fetchContracts,
     'Error al cargar los contratos'
   );
-  const providerOptions = useRemoteOptions(
-    !loading && simple && (!isEdit || loaded.allowedActions.includes('edit')),
-    fetchProviders,
-    'Error al cargar los proveedores'
-  );
+  const workOptions = useRemoteOptions(!loading && !isEdit && simple && !headerWork, fetchWorks, 'Error al cargar las obras');
+
+  // Etapas y proveedores de la obra (simple); al editar, también los actuales aunque estén inactivos.
+  useEffect(() => {
+    if (!simple || !wrkId) {
+      setOptions({ stages: [], providers: [] });
+      return undefined;
+    }
+    let cancelled = false;
+    setLoadingOptions(true);
+    getInvoiceFormOptionsAPI({ wrkId, ...(loaded ? { includeWksId: loaded.wksId, includePrvId: loaded.prvId } : {}) })
+      .then(({ data }) => !cancelled && setOptions(data))
+      .catch((err) => showError(err.response?.data?.message || 'Error al cargar las etapas y proveedores de la obra'))
+      .finally(() => !cancelled && setLoadingOptions(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [simple, wrkId, loaded]);
 
   const changeType = (value) => {
     setValue('type', value ?? '', { shouldDirty: true });
-    for (const field of ['ctrId', 'prvId', 'value', 'amortization', 'amortizationObservation', 'retention', 'retentionObservation']) {
+    for (const field of [
+      'ctrId',
+      'wrkId',
+      'prvId',
+      'wksId',
+      'value',
+      'amortization',
+      'amortizationObservation',
+      'retention',
+      'retentionObservation'
+    ]) {
       setValue(field, '', { shouldDirty: true });
     }
     setValue('adjustAmortization', false, { shouldDirty: true });
     setValue('adjustRetention', false, { shouldDirty: true });
     contractOptions.setSearch('');
+    workOptions.setSearch('');
+  };
+
+  // Otra obra: la etapa es de ella, y el proveedor también, salvo el que llega desde su expediente.
+  const changeWork = (value) => {
+    setValue('wrkId', value ?? '', { shouldDirty: true });
+    setValue('wksId', '', { shouldDirty: true });
+    if (!presetPrvId) setValue('prvId', '', { shouldDirty: true });
   };
 
   const leave = () => navigate(listPath);
@@ -279,6 +325,8 @@ export default function InvoiceFormPage() {
   const contract =
     contractOptions.items.find((c) => Number(c.value) === Number(ctrId)) ??
     (pickedContract && Number(pickedContract.value) === Number(ctrId) ? pickedContract : undefined);
+  const noOptions = wrkId && !loadingOptions;
+  const inactiveWork = !isEdit && simple && headerWork != null && headerWork.active === false;
 
   return (
     <RouteDialog
@@ -304,7 +352,7 @@ export default function InvoiceFormPage() {
           <Button onClick={requestLeave} disabled={saving}>
             Cancelar
           </Button>
-          <Button type="submit" variant="contained" color="secondary" disabled={saving || blocked || !type}>
+          <Button type="submit" variant="contained" color="secondary" disabled={saving || blocked || inactiveWork || !type}>
             {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Registrar'}
           </Button>
         </>
@@ -316,6 +364,11 @@ export default function InvoiceFormPage() {
           <Alert severity="info">
             La factura está aprobada: solo se modifican el extracto y la descripción. Para corregir otro dato, anúlala y regístrala de
             nuevo.
+          </Alert>
+        )}
+        {inactiveWork && (
+          <Alert severity="warning">
+            La obra {headerWork.label} está inactiva: no admite facturas nuevas. Elige otra obra en el selector del encabezado.
           </Alert>
         )}
         {hasErrors && (
@@ -330,10 +383,10 @@ export default function InvoiceFormPage() {
         </Alert>
 
         <FormSection
-          title={simple ? 'Proveedor' : 'Tipo y origen'}
+          title={simple ? 'Obra y proveedor' : 'Tipo y origen'}
           subtitle={
             simple
-              ? 'La factura simple es del proveedor: sin contrato ni obra. Se ve en las obras a las que el proveedor está asignado.'
+              ? 'La factura simple se imputa a una etapa de la obra, sin contrato. El proveedor debe estar asignado a la obra. La obra no cambia después de registrar.'
               : 'El tipo decide contra qué contrato se registra. No cambia después de registrar.'
           }
         >
@@ -401,35 +454,93 @@ export default function InvoiceFormPage() {
             )}
 
             {simple && (
-              <Grid size={{ xs: 12, md: 8 }}>
-                <Controller
-                  name="prvId"
-                  control={control}
-                  rules={{ required: 'Selecciona el proveedor.' }}
-                  render={({ field, fieldState }) =>
-                    lockDocument || blocked ? (
-                      readOnlyField('Proveedor', loaded.providerName)
-                    ) : (
+              <>
+                <Grid size={{ xs: 12, md: 8 }}>
+                  {isEdit || headerWork ? (
+                    readOnlyField('Obra', isEdit ? `${loaded.workCode} — ${loaded.workName}` : headerWork.label)
+                  ) : (
+                    <Controller
+                      name="wrkId"
+                      control={control}
+                      rules={{ required: 'Selecciona la obra.' }}
+                      render={({ field, fieldState }) => (
+                        <SearchSelect
+                          value={field.value}
+                          onChange={changeWork}
+                          onSearch={workOptions.setSearch}
+                          options={workOptions.items}
+                          loading={workOptions.loading}
+                          placeholder="Código o nombre"
+                          label="Obra"
+                          required
+                          error={fieldState.error?.message}
+                          helperText={
+                            workOptions.loaded && !workOptions.search && workOptions.items.length === 0
+                              ? presetPrvId
+                                ? 'El proveedor no está asignado a ninguna obra activa que veas'
+                                : 'No hay obras activas que veas'
+                              : presetPrvId
+                                ? 'Obras activas a las que está asignado el proveedor'
+                                : 'Solo obras activas'
+                          }
+                        />
+                      )}
+                    />
+                  )}
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Controller
+                    name="wksId"
+                    control={control}
+                    rules={{ required: 'Selecciona la etapa.' }}
+                    render={({ field, fieldState }) => (
                       <SearchSelect
                         value={field.value}
                         onChange={field.onChange}
-                        onSearch={providerOptions.setSearch}
-                        options={providerOptions.items}
-                        loading={providerOptions.loading}
-                        placeholder="Razón social o documento"
+                        options={options.stages}
+                        loading={loadingOptions}
+                        disabled={!wrkId || lockDocument || blocked}
+                        label="Etapa"
+                        required
+                        error={fieldState.error?.message}
+                        helperText={
+                          !wrkId
+                            ? 'Elige primero la obra'
+                            : noOptions && options.stages.length === 0
+                              ? 'La obra no tiene etapas activas'
+                              : ''
+                        }
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Controller
+                    name="prvId"
+                    control={control}
+                    rules={{ required: 'Selecciona el proveedor.' }}
+                    render={({ field, fieldState }) => (
+                      <SearchSelect
+                        value={field.value}
+                        onChange={field.onChange}
+                        options={options.providers}
+                        loading={loadingOptions}
+                        disabled={!wrkId || lockDocument || blocked}
                         label="Proveedor"
                         required
                         error={fieldState.error?.message}
                         helperText={
-                          providerOptions.loaded && !providerOptions.search && providerOptions.items.length === 0
-                            ? 'No hay proveedores activos asignados a las obras que ves'
-                            : 'Proveedores activos asignados a las obras que ves'
+                          !wrkId
+                            ? 'Elige primero la obra'
+                            : noOptions && options.providers.length === 0
+                              ? 'Asigna antes un proveedor a la obra'
+                              : 'Proveedores activos asignados a la obra'
                         }
                       />
-                    )
-                  }
-                />
-              </Grid>
+                    )}
+                  />
+                </Grid>
+              </>
             )}
           </Grid>
         </FormSection>

@@ -12,11 +12,18 @@ import { idempotencyConfig } from 'utils/idempotency';
 export const invoicesApi = createMasterApi('billing/invoices', { entity: 'invoice', plural: 'invoices' });
 
 /**
- * Proveedores activos del alcance para la factura simple (DEC-054), con tope:
- * se busca en el servidor por razón social o documento.
- * @param {{ search?: string, includePrvId?: number }} [params]  el proveedor ya elegido vuelve aunque la búsqueda lo deje fuera
+ * Obras activas del alcance para la factura simple (DEC-058), con tope: se
+ * busca en el servidor por código o nombre. Con `prvId`, solo las obras a las
+ * que está asignado ese proveedor.
+ * @param {{ search?: string, prvId?: number, includeWrkId?: number }} [params]  la obra ya elegida vuelve aunque la búsqueda la deje fuera
  */
-export const getInvoiceProvidersSelectAPI = (params = {}) => httpCliente.get('billing/invoices/select_invoice_providers', params);
+export const getInvoiceWorksSelectAPI = (params = {}) => httpCliente.get('billing/invoices/select_invoice_works', params);
+
+/**
+ * Etapas y proveedores asignados de una obra, para la factura simple.
+ * @param {{ wrkId: number, includeWksId?: number, includePrvId?: number }} params  los actuales se incluyen aunque estén inactivos
+ */
+export const getInvoiceFormOptionsAPI = (params) => httpCliente.get('billing/invoices/get_invoice_form_options', params);
 
 /**
  * Contratos de la clase de la vista (DEC-054) cuyo estado admite el tipo de

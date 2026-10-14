@@ -62,12 +62,12 @@ export const INVOICE_COLUMNS = [
 
 export const INVOICE_STATE_FILTER = { param: 'state', tabs: INVOICE_STATE_TABS, colors: INVOICE_STATE_COLORS };
 
-// La simple no tiene tipo que elegir, ni contrato ni obra (DEC-054).
-const SIMPLE_COLUMNS = INVOICE_COLUMNS.filter((column) => column.id !== 'type' && column.id !== 'work');
+// La simple no tiene tipo que elegir; sí obra y etapa, sin contrato (DEC-058).
+const SIMPLE_COLUMNS = INVOICE_COLUMNS.filter((column) => column.id !== 'type');
 
 const CONTRACT_TYPE_OPTIONS = INVOICE_TYPE_OPTIONS.filter((o) => INVOICE_VIEWS.MAJOR.types.includes(o.value));
 
-// Filtros del listado (DEC-048). En las de contrato, el de obra solo con "Ver todo" (useWorkFilterField).
+// Filtros del listado (DEC-048). El de obra solo con "Ver todo" (useWorkFilterField).
 const COMMON_FILTERS = [
   { key: 'number', type: 'input', label: 'Número', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
   { key: 'voucherNumber', type: 'input', label: 'Comprobante', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
@@ -96,11 +96,11 @@ export default function InvoicesPage({ view }) {
   const outletContext = useMemo(() => ({ view, refresh: () => setReloadKey((k) => k + 1) }), [view]);
   const workFilter = useWorkFilterField();
   const filterFields = useMemo(() => {
-    if (simple) return COMMON_FILTERS;
-    return workFilter ? [...CONTRACT_FILTERS, workFilter] : CONTRACT_FILTERS;
+    const fields = simple ? COMMON_FILTERS : CONTRACT_FILTERS;
+    return workFilter ? [...fields, workFilter] : fields;
   }, [simple, workFilter]);
   const linked = useLinkedFilters(LINKED_KEYS, describeLinked);
-  const filters = useMemo(() => ({ view, ...(simple ? {} : linked.filters) }), [view, simple, linked.filters]);
+  const filters = useMemo(() => ({ view, ...linked.filters }), [view, linked.filters]);
 
   const navigation = useMemo(
     () => ({

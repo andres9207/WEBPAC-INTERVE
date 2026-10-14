@@ -14,7 +14,7 @@ import {
   uncoveredContractsWhere,
 } from "../../work/contracts/policyTerms.js";
 import { INVOICE_STATES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
-import { CONTRACT_VIEWS, grantedViews, viewsWhere } from "../../billing/invoices/invoiceViews.js";
+import { grantedViews, viewsWhere } from "../../billing/invoices/invoiceViews.js";
 import { invoiceScopeWhere } from "../../billing/invoices/invoices.service.js";
 
 /**
@@ -119,19 +119,18 @@ const invoicesWhere = (scope, views) => ({ ...notDeleted, AND: [invoiceScopeWher
 /**
  * Facturas: pendientes de aprobar (en total y por vista, para el enlace),
  * por obra (registradas y aprobadas; las anuladas no cuentan, DEC-052) y las
- * últimas registradas. El ranking por obra es por cantidad y solo de las de
- * contrato: la simple no tiene obra (DEC-054).
+ * últimas registradas. El ranking por obra es por cantidad, de todas las
+ * vistas que ve el usuario: la simple también tiene obra (DEC-058).
  */
 const invoicesBlock = async (scope, views) => {
   const where = invoicesWhere(scope, views);
-  const contractWhere = invoicesWhere(scope, views.filter((view) => CONTRACT_VIEWS.includes(view)));
   const counted = [INVOICE_STATES.REGISTERED, INVOICE_STATES.APPROVED];
   const pending = (view) => prisma.tbl_invoices.count({ where: { ...invoicesWhere(scope, [view]), inv_state: INVOICE_STATES.REGISTERED } });
   const [pendingCounts, grouped, latest] = await Promise.all([
     Promise.all(views.map(pending)),
     prisma.tbl_invoices.groupBy({
       by: ["wrk_id", "inv_state"],
-      where: { ...contractWhere, wrk_id: { not: null }, inv_state: { in: counted } },
+      where: { ...where, inv_state: { in: counted } },
       _count: { _all: true },
     }),
     prisma.tbl_invoices.findMany({
@@ -187,8 +186,8 @@ const invoicesBlock = async (scope, views) => {
 
 /**
  * Obras en seguimiento: las activas del alcance con más movimiento
- * (contratos no eliminados y facturas de contrato no anuladas de las vistas
- * que ve el usuario), con sus cifras. Cada cifra sale solo si el usuario
+ * (contratos no eliminados y facturas no anuladas de las vistas que ve el
+ * usuario), con sus cifras. Cada cifra sale solo si el usuario
  * puede ver su módulo.
  */
 const worksActivityBlock = async (scope, { contracts, invoices }, views) => {
@@ -199,8 +198,7 @@ const worksActivityBlock = async (scope, { contracts, invoices }, views) => {
       ? prisma.tbl_invoices.groupBy({
           by: ["wrk_id"],
           where: {
-            ...invoicesWhere(scope, views.filter((view) => CONTRACT_VIEWS.includes(view))),
-            wrk_id: { not: null },
+            ...invoicesWhere(scope, views),
             inv_state: { in: [INVOICE_STATES.REGISTERED, INVOICE_STATES.APPROVED] },
           },
           _count: { _all: true },

@@ -16,7 +16,7 @@ La factura de liquidación se asocia al otrosí de liquidación (ADR-0021, confi
 
 ## Descartado
 
-- **b — Facturar el avance con facturas simples:** sin control contra el contrato (no amortiza, no retiene, no respeta el valor pactado) y, desde DEC-054, la factura simple no tiene obra ni contrato: el avance no quedaría ligado al contrato.
+- **b — Facturar el avance con facturas simples:** sin control contra el contrato (no amortiza, no retiene, no respeta el valor pactado) y la factura simple no tiene contrato (desde DEC-054 tampoco tenía obra; DEC-058 se la devolvió): el avance no quedaría ligado al contrato.
 - **c — Un tipo de factura de avance admisible en ejecución:** control completo de saldos, pero añade un tipo que el alcance no nombra y depende de la composición económica todavía abierta (DEC-03, DEC-07). Si se adoptara más adelante, el modelo de ADR-0020 la admite como una tabla de detalle más; sería una ficha nueva que reemplaza a esta. Las preguntas que habría que responder antes están en ADR-0021, "Preguntas para reabrir la decisión con la alternativa c".
 
 ## Qué implica

@@ -28,6 +28,8 @@ const pick = (source, fields) => Object.fromEntries(fields.map((field) => [field
 const INVOICE_FIELDS = [
   "type",
   "ctrId",
+  "wrkId",
+  "wksId",
   "prvId",
   "number",
   "date",
@@ -83,8 +85,22 @@ export const getInvoiceController = handle(async (req) =>
   invoicesService.getInvoice({ invId: req.query.invId, scope: await workScopeOf(req), views: (await accessOf(req.user)).views })
 );
 
-export const selectInvoiceProvidersController = handle(async (req) =>
-  invoicesService.selectInvoiceProviders({ search: req.query.search, includePrvId: req.query.includePrvId, scope: await workScopeOf(req) })
+export const selectInvoiceWorksController = handle(async (req) =>
+  invoicesService.selectInvoiceWorks({
+    search: req.query.search,
+    prvId: req.query.prvId,
+    includeWrkId: req.query.includeWrkId,
+    scope: await workScopeOf(req),
+  })
+);
+
+export const getInvoiceFormOptionsController = handle(async (req) =>
+  invoicesService.getInvoiceFormOptions({
+    wrkId: req.query.wrkId,
+    includeWksId: req.query.includeWksId,
+    includePrvId: req.query.includePrvId,
+    scope: await workScopeOf(req),
+  })
 );
 
 export const selectInvoiceContractsController = handle(async (req) =>

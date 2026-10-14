@@ -91,9 +91,9 @@ describe("getDashboardSummary", () => {
 
     const { where } = prismaMock.tbl_invoices.groupBy.mock.calls[0][0];
     expect(where.inv_state).toEqual({ in: ["REGISTERED", "APPROVED"] });
-    // Solo las de contrato tienen obra (DEC-054).
-    expect(where.wrk_id).toEqual({ not: null });
-    expect(JSON.stringify(where.AND)).toContain('"inv_view":{"in":["MAJOR"');
+    // Todas tienen obra, también la simple (DEC-058): cuentan las de las vistas que ve.
+    expect(where).not.toHaveProperty("wrk_id");
+    expect(JSON.stringify(where.AND)).toContain('"wrk_id":{"in":[8]}');
     expect(invoices.byWork).toEqual([
       { wrkId: 8, registered: 2, approved: 3, workCode: "OB-8", workName: "Vía" },
       { wrkId: 3, registered: 1, approved: 0, workCode: "OB-3", workName: "Puente" },
@@ -107,10 +107,9 @@ describe("getDashboardSummary", () => {
     expect(invoices.pendingByView).toEqual([{ view: "SIMPLE", count: 4 }]);
     expect(invoices.pendingApproval).toBe(4);
     const latestWhere = JSON.stringify(prismaMock.tbl_invoices.findMany.mock.calls[0][0].where);
-    expect(latestWhere).toContain('"inv_type":"SIMPLE"');
-    expect(latestWhere).not.toContain("ctt_invoice_view");
-    // Sin vistas de contrato, el ranking por obra no devuelve nada.
-    expect(JSON.stringify(prismaMock.tbl_invoices.groupBy.mock.calls[0][0].where)).toContain('"inv_id":{"in":[]}');
+    expect(latestWhere).toContain('"inv_view":{"in":["SIMPLE"]}');
+    // Las simples también cuentan en el ranking por obra (DEC-058).
+    expect(JSON.stringify(prismaMock.tbl_invoices.groupBy.mock.calls[0][0].where)).toContain('"inv_view":{"in":["SIMPLE"]}');
 
     jest.clearAllMocks();
     expect((await getDashboardSummary({ granted: new Set([WORKS]), scope: OWN })).invoices).toBeNull();

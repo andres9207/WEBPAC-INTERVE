@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-10-13 · **Tipo:** Obligatoria · **ADR:** [0020](../adr/0020-facturacion.md), [0022](../adr/0022-facturacion-subcontratista.md), [0023](../adr/0023-facturacion-simple.md), [0014](../adr/0014-autorizacion-permisos.md)
 
+> **Parcialmente reemplazada por [DEC-058](DEC-058-factura-simple-obra-etapa.md) (2026-10-14):** la factura simple vuelve a tener obra y etapa obligatorias, con su proveedor asignado a la obra; se ve en su obra, desasignar un proveedor y quitar una etapa vuelven a consultar facturas, y el tablero cuenta las simples por obra. Las tres vistas, sus permisos y lo demás siguen vigentes.
+
 Decidido por el usuario el 2026-10-13. Reemplaza lo que [DEC-042](DEC-042-facturas-area-ciclo-vida.md) decía de la factura simple (etapa obligatoria, proveedor asignado a la obra, bloqueo obra → proveedor) y su permiso de ver (83). Extiende el alcance por obra de [DEC-047](DEC-047-alcance-por-obra.md) a la simple. Resuelve la decisión 3 de ADR-0023 (no hay facturas simples con obra) y la hipótesis H7 de ADR-0022 ("mayor" o "subcontratista" lo decide el tipo de contrato).
 
 ## Contexto

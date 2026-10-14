@@ -285,9 +285,18 @@ describe("saveWork — editar", () => {
     expect(prismaMock.tbl_work_stages.deleteMany).not.toHaveBeenCalled();
   });
 
-  it("quitar una etapa no consulta facturas: no guardan etapa (DEC-054)", async () => {
+  it("no quita una etapa con facturas simples (409): la guardan (DEC-058)", async () => {
+    prismaMock.tbl_invoices.findMany.mockResolvedValue([{ wks_id: 12 }]);
+    await expect(service.saveWork({ wrkId: 40, input: editInput(), useBy: 9, granted: ALL, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'No se puede quitar la etapa "Estructura": tiene facturas. Desactívala en su lugar.',
+    });
+    expect(prismaMock.tbl_invoices.findMany.mock.calls[0][0].where).toEqual({ wrk_id: 40, wks_id: { in: [12] } });
+    expect(prismaMock.tbl_work_stages.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("quita una etapa sin contratos ni facturas", async () => {
     await service.saveWork({ wrkId: 40, input: editInput(), useBy: 9, granted: ALL, ctx });
-    expect(prismaMock.tbl_invoices.findMany).not.toHaveBeenCalled();
     expect(prismaMock.tbl_work_stages.deleteMany).toHaveBeenCalledWith({ where: { wrk_id: 40, wks_id: { in: [12] } } });
   });
 

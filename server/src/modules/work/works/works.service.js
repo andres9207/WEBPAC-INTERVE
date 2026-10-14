@@ -53,7 +53,7 @@ const httpError = (statusCode, message) => Object.assign(new Error(message), { s
 
 // Registros que impiden eliminar una obra (ADR-0011, decisión 12). Responde
 // 409 (DEC-026). Cuentan los no eliminados (las facturas no se eliminan:
-// cuentan todas, DEC-042). Solo las de contrato tienen obra (DEC-054).
+// cuentan todas, DEC-042). Todas tienen obra, también la simple (DEC-058).
 const WORK_DEPENDENTS = [
   { model: "tbl_contracts", column: "wrk_id", label: "contrato(s)" },
   { model: "tbl_invoices", column: "wrk_id", label: "factura(s)" },
@@ -504,10 +504,10 @@ const diffStages = (current, desired) => {
   };
 };
 
-// Una etapa con contratos no se quita (su FK lo impide; esto da el mensaje
-// claro). Cuentan también los contratos eliminados: siguen apuntando a la
-// etapa. Las facturas no guardan etapa (DEC-042, DEC-054): las de contrato
-// usan la del contrato. Se puede desactivar.
+// Una etapa con contratos o facturas simples no se quita (sus FK lo impiden;
+// esto da el mensaje claro). Cuentan también los contratos eliminados: siguen
+// apuntando a la etapa. Las facturas de contrato no guardan etapa: usan la
+// del contrato (DEC-058). Se puede desactivar.
 const assertStagesRemovable = async (tx, wrkId, toDelete) => {
   if (toDelete.length === 0) return;
   const where = { wrk_id: wrkId, wks_id: { in: toDelete.map((s) => s.wks_id) } };
@@ -518,6 +518,7 @@ const assertStagesRemovable = async (tx, wrkId, toDelete) => {
     throw httpError(409, `No se puede quitar la etapa ${names.join(", ")}: tiene ${label}. Desactívala en su lugar.`);
   };
   await usedBy("tbl_contracts", "contratos");
+  await usedBy("tbl_invoices", "facturas");
 };
 
 const hasChanges = (diff) => diff.toInsert.length > 0 || diff.toDelete.length > 0 || diff.toUpdate.length > 0;

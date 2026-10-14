@@ -3186,7 +3186,7 @@
       "bloque": "Proceso",
       "epica": "Facturación",
       "modulo": "Detalle de factura simple",
-      "historia": "Como usuario necesito registrar facturas de proveedor sin contrato ni obra.",
+      "historia": "Como usuario necesito registrar facturas de proveedor sin contrato, imputadas a una etapa de la obra.",
       "tarea": "Crear tabla de detalle de factura simple con relación uno a uno",
       "capa": "BD",
       "descripcion": "Detalle con valor, descuento AI, porcentajes congelados de IVA, retención en la fuente y retención de IVA, tarifa de ICA, flete y descuento por pronto pago. No almacena subtotal, IVA, retenciones, total facturado ni neto a pagar: todos se derivan.",
@@ -4391,15 +4391,15 @@
       "bloque": "Proceso",
       "epica": "Facturación",
       "modulo": "Factura simple",
-      "historia": "Como usuario necesito registrar facturas de proveedor sin contrato ni obra.",
+      "historia": "Como usuario necesito registrar facturas de proveedor sin contrato, imputadas a una etapa de la obra.",
       "tarea": "Endpoint y validaciones del registro de factura simple",
       "capa": "Backend",
-      "descripcion": "Registro del tipo simple dentro del módulo común, sin contrato, obra ni etapa (DEC-054). El proveedor debe estar activo y asignado a una obra del alcance. La composición económica se obtiene del módulo de cálculo común, sin implementación propia.",
+      "descripcion": "Registro del tipo simple dentro del módulo común, sin contrato y con etapa obligatoria que determina la obra (DEC-058). El proveedor debe estar asignado a esa obra. La composición económica se obtiene del módulo de cálculo común, sin implementación propia.",
       "criterios": [
         "El contrato es nulo, garantizado por el CHECK del esquema",
-        "Un proveedor fuera del alcance devuelve 404 y uno inactivo, 400",
+        "Una obra fuera del alcance devuelve 404; un proveedor no asignado a la obra o inactivo, o una etapa de otra obra, 400",
         "Los importes calculados enviados por el cliente se ignoran y se recalculan en el servidor",
-        "Obra y etapa son nulas, garantizado por el CHECK del esquema (DEC-054)"
+        "La etapa es obligatoria y de la obra, y el proveedor está asignado a ella, garantizado por el CHECK y las FK del esquema (DEC-058)"
       ],
       "prioridad": "Alta",
       "responsable": "Dev Backend",
@@ -4954,9 +4954,9 @@
       "historia": "Como usuario necesito registrar una factura simple viendo con claridad el precio y lo que se va a pagar.",
       "tarea": "Formulario de factura simple en dos bloques de precio y pago",
       "capa": "Frontend",
-      "descripcion": "Formulario sin selector de contrato, obra ni etapa: solo el proveedor (DEC-054). Los importes se presentan en dos bloques: precio, con valor, descuento, subtotal, IVA, flete y total facturado; y pago, con retenciones, descuento por pronto pago y neto a pagar.",
+      "descripcion": "Formulario sin selector de contrato: obra, etapa de la obra y proveedor asignado a ella (DEC-058). Los importes se presentan en dos bloques: precio, con valor, descuento, subtotal, IVA, flete y total facturado; y pago, con retenciones, descuento por pronto pago y neto a pagar.",
       "criterios": [
-        "No hay selector de contrato, obra ni etapa: solo el proveedor (DEC-054)",
+        "No hay selector de contrato; la etapa y el proveedor se eligen entre los de la obra (DEC-058)",
         "Los dos bloques están claramente separados y los calculados son de solo lectura",
         "La previsualización proviene del endpoint del servidor y no de fórmulas del cliente",
         "Total facturado y neto a pagar se presentan con nombres distintos y no como un único total"

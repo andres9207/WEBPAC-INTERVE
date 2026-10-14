@@ -311,19 +311,19 @@ export default function InvoiceDetailPage() {
               </SubCard>
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
-              <SubCard title={invoice.ctrId ? 'Proveedor, obra y contrato' : 'Proveedor'}>
+              <SubCard title={invoice.ctrId ? 'Proveedor, obra y contrato' : 'Proveedor y obra'}>
                 <DataList
                   items={[
                     ['Proveedor', `${invoice.providerName} · ${invoice.providerIdentification}`],
-                    // La simple no tiene obra, etapa ni contrato (DEC-054).
+                    // La simple se imputa a una etapa de la obra, sin contrato (DEC-058).
+                    ['Obra', `${invoice.workCode} — ${invoice.workName}`],
+                    ['Etapa', invoice.stageName],
                     ...(invoice.ctrId
                       ? [
-                          ['Obra', `${invoice.workCode} — ${invoice.workName}`],
-                          ['Etapa', invoice.stageName],
                           ['Contrato', `${invoice.contractNumber} — ${invoice.contractName}`],
                           ['Estado del contrato', invoice.contractStateName]
                         ]
-                      : [['Contrato', 'Sin contrato ni obra (factura simple)']]),
+                      : [['Contrato', 'Sin contrato (factura simple)']]),
                     ['Registrada', `${fDateTime(invoice.createdAt)} por ${invoice.createdByName ?? '—'}`]
                   ]}
                 />

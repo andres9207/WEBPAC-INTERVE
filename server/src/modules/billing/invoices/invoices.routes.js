@@ -7,7 +7,8 @@ import { ANY_CONTRACT_VIEW_PERMISSION, ANY_VIEW_PERMISSION, INVOICE_VIEWS, VIEW_
 import {
   paginationInvoicesSchema,
   getInvoiceSchema,
-  selectInvoiceProvidersSchema,
+  selectInvoiceWorksSchema,
+  getInvoiceFormOptionsSchema,
   selectInvoiceContractsSchema,
   getContractAdvanceSchema,
   saveInvoiceSchema,
@@ -17,7 +18,8 @@ import {
 import {
   paginationInvoicesController,
   getInvoiceController,
-  selectInvoiceProvidersController,
+  selectInvoiceWorksController,
+  getInvoiceFormOptionsController,
   selectInvoiceContractsController,
   getContractAdvanceController,
   saveInvoiceController,
@@ -48,14 +50,22 @@ invoicesRoutes.post(
   paginationInvoicesController
 );
 invoicesRoutes.get("/get_invoice", verifyToken, requirePermission(ANY_VIEW_PERMISSION), getInvoiceSchema, validate, getInvoiceController);
-// Proveedores activos del alcance, para la factura simple.
+// Obras activas del alcance, y etapas y proveedores asignados de una obra, para la factura simple (DEC-058).
 invoicesRoutes.get(
-  "/select_invoice_providers",
+  "/select_invoice_works",
   verifyToken,
   requirePermission(VIEW_PERMISSIONS[INVOICE_VIEWS.SIMPLE]),
-  selectInvoiceProvidersSchema,
+  selectInvoiceWorksSchema,
   validate,
-  selectInvoiceProvidersController
+  selectInvoiceWorksController
+);
+invoicesRoutes.get(
+  "/get_invoice_form_options",
+  verifyToken,
+  requirePermission(VIEW_PERMISSIONS[INVOICE_VIEWS.SIMPLE]),
+  getInvoiceFormOptionsSchema,
+  validate,
+  getInvoiceFormOptionsController
 );
 // Contratos cuyo tipo va al menú de la vista y cuyo estado admite el tipo de factura (ADR-0017).
 invoicesRoutes.get(

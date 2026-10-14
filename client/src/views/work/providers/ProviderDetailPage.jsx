@@ -601,7 +601,7 @@ function ProviderView() {
             ) : null
           }
           emptyTitle="Todavía no hay facturas de este proveedor."
-          emptyText="La factura simple, sin contrato ni obra, se registra aquí; las de anticipo, liquidación y devolución de retenido, desde la pestaña Facturas del contrato. Un proveedor con facturas no se puede eliminar."
+          emptyText="La factura simple se registra aquí o desde la pestaña Facturas de la obra, en una obra a la que esté asignado; las de anticipo, liquidación y devolución de retenido, desde la pestaña Facturas del contrato. Un proveedor con facturas no se puede desasignar de esa obra ni eliminar."
         />
       )}
 

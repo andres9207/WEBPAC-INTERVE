@@ -666,6 +666,7 @@ model tbl_work_stages {
   wks_update_by   Int?
   wks_update_at   DateTime?       @default(now()) @db.Timestamp(0)
   tbl_contracts   tbl_contracts[]
+  tbl_invoices    tbl_invoices[]
   created_by_user tbl_users?      @relation("WorkStageCreatedBy", fields: [wks_create_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_work_stages_create_by")
   tbl_status      tbl_status      @relation(fields: [sta_id], references: [sta_id], onUpdate: Restrict, map: "tbl_work_stages_status")
   updated_by_user tbl_users?      @relation("WorkStageUpdatedBy", fields: [wks_update_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_work_stages_update_by")
@@ -778,6 +779,7 @@ model tbl_work_providers {
   wkp_idempotency_key  String?         @unique(map: "uq_work_providers_idempotency_key") @db.Char(36)
   wkp_idempotency_hash String?         @db.Char(64)
   tbl_contracts        tbl_contracts[]
+  tbl_invoices         tbl_invoices[]
   created_by_user      tbl_users?      @relation("WorkProviderCreatedBy", fields: [wkp_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_work_providers_create_by")
   tbl_providers        tbl_providers   @relation(fields: [prv_id], references: [prv_id], onUpdate: NoAction, map: "tbl_work_providers_provider")
   tbl_status           tbl_status      @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_work_providers_status")
@@ -999,7 +1001,8 @@ model tbl_invoices {
   inv_type                             String                                @db.VarChar(20)
   inv_view                             String                                @db.VarChar(20)
   prv_id                               Int
-  wrk_id                               Int?
+  wrk_id                               Int
+  wks_id                               Int?
   ctr_id                               Int?
   inv_number                           String                                @db.VarChar(50)
   inv_date                             DateTime                              @db.Date
@@ -1027,7 +1030,9 @@ model tbl_invoices {
   tbl_providers                        tbl_providers                         @relation(fields: [prv_id], references: [prv_id], onUpdate: NoAction, map: "tbl_invoices_provider")
   tbl_status                           tbl_status                            @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_invoices_status")
   updated_by_user                      tbl_users?                            @relation("InvoiceUpdatedBy", fields: [inv_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_update_by")
-  tbl_works                            tbl_works?                            @relation(fields: [wrk_id], references: [wrk_id], onDelete: Restrict, onUpdate: NoAction, map: "tbl_invoices_work")
+  tbl_works                            tbl_works                             @relation(fields: [wrk_id], references: [wrk_id], onUpdate: NoAction, map: "tbl_invoices_work")
+  tbl_work_providers                   tbl_work_providers                    @relation(fields: [wrk_id, prv_id], references: [wrk_id, prv_id], onUpdate: NoAction, map: "tbl_invoices_work_provider")
+  tbl_work_stages                      tbl_work_stages?                      @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: NoAction, map: "tbl_invoices_work_stage")
 
   @@unique([prv_id, inv_number], map: "uq_invoices_provider_number")
   @@index([inv_date], map: "idx_invoices_date")
@@ -1040,6 +1045,7 @@ model tbl_invoices {
   @@index([inv_delete_by], map: "tbl_invoices_delete_by")
   @@index([sta_id], map: "tbl_invoices_status")
   @@index([inv_update_by], map: "tbl_invoices_update_by")
+  @@index([wks_id, wrk_id], map: "tbl_invoices_work_stage")
   @@index([wrk_id, prv_id], map: "tbl_invoices_work_provider")
 }
 

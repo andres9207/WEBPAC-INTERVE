@@ -13,9 +13,9 @@ import { invoicePath } from 'utils/constants';
  * anuladas, apiladas por obra. Por cantidad: la factura simple todavía no
  * tiene importes. Dos series con leyenda; colores validados contra el fondo
  * claro (orange.dark y primary.800, contraste ≥ 3:1 y separables con
- * daltonismo). Solo las de contrato: la simple no tiene obra (DEC-054). El
- * clic en una barra lleva a las facturas de esa obra en `view`, la primera
- * vista de contrato que el usuario ve.
+ * daltonismo). Cuentan todas las vistas que el usuario ve: la simple también
+ * tiene obra (DEC-058). El clic en una barra lleva a las facturas de esa obra
+ * en `view`, la primera vista que el usuario ve.
  */
 export default function InvoicesByWorkCard({ byWork, view }) {
   const theme = useTheme();
@@ -82,6 +82,6 @@ export default function InvoicesByWorkCard({ byWork, view }) {
 
 InvoicesByWorkCard.propTypes = {
   byWork: PropTypes.arrayOf(PropTypes.object).isRequired,
-  /** Vista de contrato a la que lleva el clic (DEC-054); sin ella, no navega. */
-  view: PropTypes.oneOf(['MAJOR', 'SUBCONTRACTOR'])
+  /** Vista a la que lleva el clic (DEC-054); sin ella, no navega. */
+  view: PropTypes.oneOf(['SIMPLE', 'MAJOR', 'SUBCONTRACTOR'])
 };
