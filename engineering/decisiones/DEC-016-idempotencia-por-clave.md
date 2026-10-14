@@ -19,7 +19,7 @@ Ninguna operación era idempotente. Un doble clic, un reenvío manual o el reint
   | Clave nueva | Se ejecuta la operación y la clave queda en la fila creada |
   | Misma clave, mismo contenido, mismo autor | La **misma respuesta** que la creación original, sin ejecutar nada |
   | Misma clave con otro contenido, o de otro autor | **422**, sin revelar la entidad ajena |
-  | Dos peticiones con la misma clave a la vez | El `UNIQUE` deja crear solo una; la otra choca, encuentra la creada y la devuelve |
+  | Dos peticiones con la misma clave a la vez | Solo una confirma. La otra falla al chocar con el `UNIQUE` o, si esperó un bloqueo, en una validación del service (duplicado, estado ya alcanzado); ante cualquier error busca la clave y, si la ganadora ya confirmó, devuelve su resultado. Probado en vivo al crear y al aprobar facturas (PRO-BE-24, 2026-10-14) |
 
 - **La clave se busca antes que todo**, incluido el control de duplicados del service. Si no, el reintento de una creación exitosa respondería "ya existe" en vez de devolver lo creado.
 - **Validación**: `idempotencyKeyRule` exige el encabezado (UUID) al crear; al editar no, porque editar ya es idempotente. Una clave en el body se ignora.

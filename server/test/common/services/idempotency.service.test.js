@@ -91,6 +91,27 @@ describe("runIdempotent", () => {
     });
   });
 
+  it("carrera bajo bloqueo: la perdedora falla en una validación del service (409) y devuelve la ganadora", async () => {
+    // Visto en vivo (PRO-BE-24): la perdedora espera el bloqueo y, al entrar,
+    // el service ve el duplicado o el estado ya alcanzado antes de insertar.
+    const winner = { x_id: 10, x_idempotency_hash: requestFingerprint(payload), x_create_by: 7 };
+    const target = buildTarget(null);
+    target.model.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(winner);
+    const conflict = Object.assign(new Error("Ya existe"), { statusCode: 409 });
+
+    await expect(runIdempotent({ target, key: KEY, ownerId: 7, payload, execute: jest.fn().mockRejectedValue(conflict) })).resolves.toEqual({
+      message: "Creado",
+      id: 10,
+    });
+  });
+
+  it("un error de negocio sin ejecución ganadora con la clave se propaga tal cual", async () => {
+    const target = buildTarget(null);
+    const conflict = Object.assign(new Error("Ya existe"), { statusCode: 409 });
+
+    await expect(runIdempotent({ target, key: KEY, ownerId: 7, payload, execute: jest.fn().mockRejectedValue(conflict) })).rejects.toBe(conflict);
+  });
+
   it("un UNIQUE que no es el de la clave (p. ej. correo repetido) se propaga tal cual", async () => {
     const target = buildTarget(null);
     const err = uniqueViolation();

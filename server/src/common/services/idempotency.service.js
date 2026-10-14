@@ -12,8 +12,10 @@ import crypto from "crypto";
  *     creada (o el estado ya alcanzado), sin volver a ejecutar nada.
  *   - Misma clave con otro contenido, u otro autor → 422. No se devuelve una
  *     entidad que no corresponde a esa petición, ni se revela la de otro.
- *   - Dos peticiones con la misma clave a la vez → el UNIQUE deja pasar solo
- *     una; la otra, al chocar, encuentra la ya creada y la devuelve.
+ *   - Dos peticiones con la misma clave a la vez → solo una confirma; la
+ *     otra, al fallar, encuentra la ya creada y la devuelve. Falla al chocar
+ *     con el UNIQUE o, si esperó un bloqueo, en una validación del service
+ *     (duplicado o estado ya alcanzado): por eso se busca ante cualquier error.
  *
  * Transiciones de estado (aprobar, anular…): el mismo mecanismo con el `target`
  * apuntando a la tabla de historial de estado del agregado, cuya fila de
@@ -73,8 +75,6 @@ const findReplay = async (target, { key, hash, ownerId }) => {
   return target.toResult(previous);
 };
 
-const isUniqueViolation = (err) => err?.code === "P2002";
-
 /**
  * Ejecuta `execute(keyData)` una sola vez por clave.
  *
@@ -107,10 +107,17 @@ export const runIdempotent = async ({ target, key, ownerId, payload, execute }) 
     return await execute({ [target.keyField]: key, [target.hashField]: hash });
   } catch (err) {
     // Otra petición con la misma clave ganó la carrera y ya confirmó: se
-    // devuelve lo que creó. Si el UNIQUE que saltó es otro (p. ej. correo
-    // duplicado), no hay fila con esta clave y se propaga el error original.
-    if (!isUniqueViolation(err)) throw err;
-    const winner = await findReplay(target, { key, hash, ownerId });
+    // devuelve lo que creó. La perdedora pudo chocar con el UNIQUE de la
+    // clave o, tras esperar el bloqueo, con una validación del service que ve
+    // lo que hizo la ganadora (PRO-BE-24, probado en vivo). Si no hay fila con
+    // esta clave, el error es propio (correo duplicado, saldo insuficiente…)
+    // y se propaga tal cual.
+    // Un fallo de la propia búsqueda (p. ej. la conexión) no tapa el original;
+    // la clave reutilizada con otro contenido (422) sí se informa.
+    const winner = await findReplay(target, { key, hash, ownerId }).catch((lookupErr) => {
+      if (lookupErr.statusCode === 422) throw lookupErr;
+      return null;
+    });
     if (winner) return winner;
     throw err;
   }
