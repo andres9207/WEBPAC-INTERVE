@@ -14,6 +14,7 @@ yarn test           # jest (unitarios, con mocks — sin BD real)
 yarn test:watch     # jest --watch
 yarn db:seed        # prisma db seed (siembra/repara tbl_pages, tbl_permissions y los permisos del superadmin)
 yarn db:seed:demo   # datos de demostración para desarrollo (ver "Datos de demostración")
+yarn db:check-invariants  # intenta violar I6 a I15 contra la BD y exige que las rechace su restricción; todo se revierte (database/migrations/README.md)
 ```
 
 ### Datos de demostración

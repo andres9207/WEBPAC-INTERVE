@@ -41,6 +41,8 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | I14 | Estado `APROBADA` ⇔ tiene fecha de aprobación | `CHECK` | ADR-0020 |
 | I15 | Fecha fin del contrato ≥ fecha de inicio | `CHECK` | ADR-0015 |
 
+**Comprobación (2026-10-14, PRO-BD-25):** `yarn db:check-invariants` (`server/prisma/invariants.check.js`) intenta violar cada una contra la BD y exige que la rechace su propia restricción. Todo corre en transacciones que se revierten. En desarrollo, los 13 casos fueron rechazados por su restricción. La tabla con la migración que declara cada una está en [`database/migrations/README.md`](../../database/migrations/README.md#invariantes-declaradas-en-el-esquema).
+
 **Aplicadas (2026-10-02), con contratos ([DEC-035](../decisiones/DEC-035-contratos-area-modelo.md), [DEC-036](../decisiones/DEC-036-conceptos-contractuales.md)):**
 
 - **I6:** `UNIQUE uq_contract_concepts_initial` sobre `ccp_initial_key`, y `createContract` crea el contrato y su valor inicial en la misma transacción.

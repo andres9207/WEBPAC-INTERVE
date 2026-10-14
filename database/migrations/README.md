@@ -46,6 +46,27 @@ Obligatorio para toda tabla nueva del **dominio de negocio** (obras, contratos, 
 9. **Idempotencia** (ADR-0027, obligatorio): si la tabla recibe creaciones desde un endpoint, lleva `<pre>_idempotency_key char(36) DEFAULT NULL` con índice `UNIQUE uq_<tabla>_idempotency_key`, y `<pre>_idempotency_hash char(64) DEFAULT NULL`. Si es la tabla de historial de estado de un agregado, lleva las mismas dos columnas para las transiciones. Ver `0016_idempotency_keys.sql` y [DEC-016](../../engineering/decisiones/DEC-016-idempotencia-por-clave.md).
 10. **Índice `UNIQUE` → mensaje de duplicado**: todo índice `UNIQUE` nuevo se declara en `server/src/common/constants/uniqueConstraints.constants.js`. Si protege un dato que el usuario escribe, va en `UNIQUE_CONSTRAINT_MESSAGES`, con el mensaje que verá en el 409 ("Ya existe una obra con ese código."); si no, va en `INTERNAL_UNIQUE_CONSTRAINTS`. Un test cruza esa tabla con `database/` y falla mientras falte.
 
+## Invariantes declaradas en el esquema
+
+El catálogo completo está en [`engineering/invariants/DOMAIN_INVARIANTS.md`](../../engineering/invariants/DOMAIN_INVARIANTS.md). Estas son las de estructura (I6 a I15, ADR-0027), que garantiza la BD, y la migración que declara cada una:
+
+| ID | Invariante | Restricción | Migración |
+| --- | --- | --- | --- |
+| I6 | Exactamente un valor inicial por contrato | `UNIQUE uq_contract_concepts_initial` sobre la columna generada `ccp_initial_key` | `0050` |
+| I7 | Como máximo un otrosí de liquidación por contrato | `UNIQUE uq_contract_concepts_liquidation` sobre la columna generada `ccp_liquidation_key` | `0050` |
+| I8 | Número de otrosí único por contrato | `UNIQUE uq_contract_concepts_number (ctr_id, ccp_number)` | `0050` |
+| I9 | Como máximo una suspensión abierta por contrato | `UNIQUE uq_contract_suspensions_open` sobre la columna generada `csp_open_contract` | `0061` |
+| I10 | Una versión vigente por póliza | `UNIQUE uq_policies_current` sobre la columna generada `pol_current_root` | `0081` |
+| I11 | Número de factura único por proveedor, también contra las anuladas | `UNIQUE uq_invoices_provider_number (prv_id, inv_number)` | `0066` |
+| I12 | Número de contrato único por obra, entre no eliminados | `UNIQUE uq_contracts_work_number_active` sobre la columna generada `ctr_number_active` | `0049` |
+| I13 | Solo la factura simple va sin contrato; ella, con etapa | `CHECK ck_invoices_type_links` | `0066`, redefinida en `0089` y `0094` |
+| I14 | Aprobada ⇔ tiene fecha de aprobación | `CHECK ck_invoices_approval` | `0066` |
+| I15 | Fecha fin del contrato ≥ fecha de inicio | `CHECK ck_contracts_end_date` | `0049` |
+
+Las de saldo (I1 a I5) **no son expresables** en el esquema, porque dependen de sumas sobre varias facturas. Las garantizan el bloqueo del contrato y la revalidación en el backend, y las concilia el cron ([DEC-061](../../engineering/decisiones/DEC-061-conciliacion-saldos.md)). I5 espera la decisión de negocio DEC-08.
+
+**Comprobarlas:** `cd server && yarn db:check-invariants`. Intenta violar cada una contra la BD configurada y exige que la rechace **su** restricción: un rechazo por otra restricción cuenta como falla. Todo corre en transacciones que se revierten, así que lo único que deja son huecos en los `AUTO_INCREMENT`. Devuelve 0 si todo está bien, 1 si alguna falla y 2 si a algún caso le faltan datos de los que partir. Correrlo después de aplicar una migración que toque estas tablas, y siempre que se dude de la deriva: en desarrollo ya faltó una vez `ck_invoices_type_links`. Una restricción nueva de este catálogo se agrega a la tabla de arriba y a `CHECKS` en `server/prisma/invariants.check.js`.
+
 ## Relación con Prisma
 
 `server/prisma/schema.prisma` se genera por introspección (`prisma db pull`) contra la base de datos real, **no** por `prisma migrate`. Cualquier cambio de estructura hecho acá (una columna/tabla nueva) requiere correr `npx prisma db pull` de nuevo en `server/` después de aplicar la migración, para que el cliente de Prisma se entere del cambio.

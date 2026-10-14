@@ -18,7 +18,7 @@ Jest en ESM puro (`--experimental-vm-modules`). `cd server && yarn test`. Hoy: 2
 
 ### Lo que los unitarios no cubren
 
-La concurrencia real, los códigos que devuelve el adapter de MySQL y las migraciones se verifican **en vivo** contra la BD de desarrollo, y el reporte dice cómo se probó. Supertest está instalado para tests de integración futuros; hoy no se usa.
+La concurrencia real, los códigos que devuelve el adapter de MySQL y las migraciones se verifican **en vivo** contra la BD de desarrollo, y el reporte dice cómo se probó. Las invariantes de estructura I6 a I15 tienen un comando propio, `yarn db:check-invariants`, que las intenta violar contra la BD y lo revierte todo ([`database/migrations/README.md`](../../database/migrations/README.md#invariantes-declaradas-en-el-esquema)). Supertest está instalado para tests de integración futuros; hoy no se usa.
 
 ## Cliente — NO HAY
 
