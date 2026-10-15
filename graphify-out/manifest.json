@@ -3432,15 +3432,15 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/GeneralDashboard.jsx": {
-    "mtime": 1792069530.89964,
-    "seen": 1792070160.7914793,
-    "ast_hash": "ec9ef4cc0c66c6adf85fe80ac2e8f2ce",
+    "mtime": 1792073715.0045087,
+    "seen": 1792074045.8561268,
+    "ast_hash": "08121b7758d21a8f7fff3c966d54ac55",
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/WorkChartsTab.jsx": {
-    "mtime": 1792071621.3819783,
-    "seen": 1792071946.715873,
-    "ast_hash": "552dd2654c68b56d6217ab498e4fa309",
+    "mtime": 1792073798.6312408,
+    "seen": 1792074045.856134,
+    "ast_hash": "7e06239280e7f792775a245d1af715f4",
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/WorkDashboard.jsx": {
