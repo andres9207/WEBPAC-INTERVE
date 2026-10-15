@@ -89,6 +89,10 @@ const DOCUMENT_FIELDS = ['type', 'ctrId', 'wrkId', 'prvId', 'wksId', 'number', '
 const text = (value) => String(value ?? '').trim();
 const today = () => format(new Date(), 'yyyy-MM-dd');
 const isSimple = (type) => type === 'SIMPLE';
+// Separación (px) de las tarjetas de saldos fijas con el borde y con el formulario.
+const CARDS_GAP = 12;
+// El contenido de RouteDialog tiene padding 3 (24 px): `sticky` se fija bajo él.
+const DIALOG_PADDING = 24;
 const hasAmounts = (type) => type === 'ADVANCE' || type === 'LIQUIDATION' || type === 'RETENTION_REFUND';
 
 const toForm = (invoice) => ({
@@ -205,6 +209,15 @@ export default function InvoiceFormPage() {
   const [confirmLeave, setConfirmLeave] = useState(false);
   // Saldos del contrato (tarjetas) y composición de la simple (panel Detalle): los calcula el servidor (DEC-065).
   const [balances, setBalances] = useState(null);
+  // Alto de las tarjetas de saldos, que quedan fijas arriba al hacer scroll:
+  // el panel Detalle se fija justo debajo de ellas.
+  const [cardsHeight, setCardsHeight] = useState(0);
+  const cardsRef = useCallback((node) => {
+    if (!node) return undefined;
+    const observer = new ResizeObserver(() => setCardsHeight(node.offsetHeight));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   const [preview, setPreview] = useState(null);
 
   const { control, handleSubmit, reset, setValue, formState } = useForm({ defaultValues: EMPTY_FORM });
@@ -397,7 +410,22 @@ export default function InvoiceFormPage() {
             Revisa los campos marcados antes de guardar.
           </Alert>
         )}
-        {hasAmounts(type) && <ContractBalanceCards balances={balances} />}
+        {hasAmounts(type) && balances && (
+          <Box
+            ref={cardsRef}
+            sx={(theme) => ({
+              position: { md: 'sticky' },
+              top: { md: CARDS_GAP - DIALOG_PADDING },
+              zIndex: { md: 2 },
+              bgcolor: 'grey.50',
+              // Tapa el formulario que pasa por encima y por debajo de las
+              // tarjetas, sin cambiar el espacio que ocupan.
+              boxShadow: { md: `0 -${CARDS_GAP}px 0 0 ${theme.palette.grey[50]}, 0 ${CARDS_GAP}px 0 0 ${theme.palette.grey[50]}` }
+            })}
+          >
+            <ContractBalanceCards balances={balances} />
+          </Box>
+        )}
 
         <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
           <Grid size={{ xs: 12, md: 8 }}>
@@ -697,6 +725,7 @@ export default function InvoiceFormPage() {
             <Grid size={{ xs: 12, md: 4 }} sx={{ alignSelf: { md: 'stretch' } }}>
               {simple ? (
                 <InvoiceDetailPanel
+                  stickyTop={hasAmounts(type) && balances ? cardsHeight + 2 * CARDS_GAP - DIALOG_PADDING : 0}
                   lines={preview?.lines ?? []}
                   total={preview?.total ?? ''}
                   extra={[{ label: 'Total facturado', value: preview?.billed ?? '', hint: 'Valor del documento; es el costo de la obra' }]}
@@ -705,6 +734,7 @@ export default function InvoiceFormPage() {
                 />
               ) : (
                 <InvoiceDetailPanel
+                  stickyTop={hasAmounts(type) && balances ? cardsHeight + 2 * CARDS_GAP - DIALOG_PADDING : 0}
                   lines={[
                     {
                       key: 'value',

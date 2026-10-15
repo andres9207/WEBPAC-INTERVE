@@ -41,7 +41,7 @@ La factura simple tenía encabezado y ciclo de vida, pero ningún importe: su co
 - **Tablero de la obra** (DEC-063): la simple vale su **total facturado**, que es el costo de la obra y no el neto. Un grupo de simples sin importes muestra "sin importes", no cero.
 - **Pantallas de facturas, como las del sistema que se migra:**
   - Formulario y detalle en dos columnas: los datos a la izquierda y el panel **Detalle** a la derecha, con cada línea y el TOTAL.
-  - En las facturas de contrato, cuatro tarjetas de saldos arriba: total anticipo, total retenido, total amortizado y pendiente por amortizar.
+  - En las facturas de contrato, cuatro tarjetas de saldos arriba: total anticipo, total retenido, total amortizado y pendiente por amortizar. En pantallas medianas o más grandes, las tarjetas quedan fijas arriba al bajar por el formulario, y el panel Detalle queda fijo debajo de ellas.
   - En anticipo y devolución, el panel muestra su valor como total. En la liquidación muestra el VALOR, la amortización y el retenido, sin total: su IVA y sus retenciones esperan DEC-03.
 - **DEC-03, respuesta adelantada** (no implementada): en la factura de liquidación, el IVA es VALOR × % IVA, como en el sistema actual; el % de utilidad no entra en ese cálculo. Lo demás de DEC-03 (el signo de la devolución y del descuento de materiales) y DEC-08 siguen abiertos.
 
