@@ -105,6 +105,8 @@ Metric.propTypes = {
 // ─── Línea de tiempo ─────────────────────────────────────────────────────────
 
 const DAY_MS = 86400000;
+// Nombres a la izquierda; en el teléfono, más angostos para que se vean las barras.
+const TIMELINE_COLUMNS = { xs: '128px minmax(0, 1fr)', sm: '240px minmax(0, 1fr)' };
 const dayOf = (text) => (text ? Date.parse(`${text}T00:00:00Z`) : null);
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const VALIDITY_BAR = {
@@ -187,8 +189,8 @@ function Timeline({ work, contracts, policies, marks, referenceDate }) {
 
   return (
     <Box sx={{ overflowX: 'auto' }}>
-      <Box sx={{ minWidth: 900 }}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: '240px minmax(0, 1fr)', gap: 2, pb: 0.75 }}>
+      <Box sx={{ minWidth: { xs: 640, sm: 900 } }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: TIMELINE_COLUMNS, gap: 2, pb: 0.75 }}>
           <span />
           <Box sx={{ position: 'relative', height: 18 }}>
             {months
@@ -215,7 +217,7 @@ function Timeline({ work, contracts, policies, marks, referenceDate }) {
               key={r.key}
               sx={{
                 display: 'grid',
-                gridTemplateColumns: '240px minmax(0, 1fr)',
+                gridTemplateColumns: TIMELINE_COLUMNS,
                 gap: 2,
                 alignItems: 'center',
                 py: 0.5,
@@ -257,8 +259,8 @@ function Timeline({ work, contracts, policies, marks, referenceDate }) {
                     <Box
                       sx={{
                         position: 'absolute',
-                        top: 8,
-                        height: 24,
+                        top: 4,
+                        height: 22,
                         left: `${left}%`,
                         width: `${width}%`,
                         boxSizing: 'border-box',
@@ -287,7 +289,7 @@ function Timeline({ work, contracts, policies, marks, referenceDate }) {
                       aria-label={`${m.typeName} ${m.number}, ${fDateOnly(m.date)}, ${m.stateName.toLowerCase()}`}
                       sx={{
                         position: 'absolute',
-                        top: 12,
+                        top: 25, // Debajo de la barra: no tapa su texto.
                         width: 14,
                         height: 14,
                         ml: '-7px',
@@ -535,7 +537,16 @@ function Advances({ contracts }) {
   const theme = useTheme();
   const list = contracts.filter((c) => c.advance.agreed !== '0.00');
   const row = (label, value, percent, color) => (
-    <Box sx={{ display: 'grid', gridTemplateColumns: '90px minmax(0, 1fr) 150px', gap: 1.25, alignItems: 'center' }}>
+    // En el teléfono la cifra baja a su propia línea: la barra conserva el ancho.
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: '80px minmax(0, 1fr)', sm: '90px minmax(0, 1fr) 150px' },
+        columnGap: 1.25,
+        rowGap: 0.25,
+        alignItems: 'center'
+      }}
+    >
       <Typography variant="caption" color="text.secondary">
         {label}
       </Typography>
@@ -550,7 +561,7 @@ function Advances({ contracts }) {
           '& .MuiLinearProgress-bar': { bgcolor: paletteColor(theme, color), borderRadius: 1 }
         }}
       />
-      <Typography variant="caption" sx={{ ...num, textAlign: 'right', fontWeight: 500 }}>
+      <Typography variant="caption" sx={{ ...num, textAlign: 'right', fontWeight: 500, gridColumn: { xs: 2, sm: 'auto' } }}>
         {fMillions(value)} · {fPercentText(percent, 1)}
       </Typography>
     </Box>

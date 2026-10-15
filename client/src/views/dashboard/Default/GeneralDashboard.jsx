@@ -25,7 +25,7 @@ import { ACTION_TONES } from 'ui-component/extended/ActionButton';
 import { showError } from 'services/ToastService';
 import { gridSpacing } from 'store/constant';
 import { fDateOnly } from 'utils/formatTime';
-import { STATUS, invoicePath } from 'utils/constants';
+import { INVOICE_VIEWS, STATUS, invoicePath } from 'utils/constants';
 import useInvoiceViews from 'hooks/useInvoiceViews';
 
 import DashboardCards from './components/DashboardCards';
@@ -154,16 +154,21 @@ export default function GeneralDashboard() {
       );
     }
     if (s.invoices) {
-      list.push({
-        key: 'pending',
-        count: s.invoices.pendingApproval,
-        label: 'factura(s) por aprobar',
-        hint: 'Registradas, pendientes de aprobación',
-        icon: IconReceipt,
-        tone: ACTION_TONES.edit,
-        // La primera vista con facturas por aprobar, o la primera que ve.
-        to: `${invoicePath(s.invoices.pendingByView?.find((p) => p.count > 0)?.view ?? firstInvoiceView)}?status=REGISTERED`
-      });
+      // Una alerta por vista con pendientes: cada vista es un listado propio, y
+      // la cifra tiene que ser la del listado al que lleva (PRO-FE-15, criterio 3).
+      const pending = (s.invoices.pendingByView ?? []).filter((p) => p.count > 0);
+      const views = pending.length > 0 ? pending : [{ view: firstInvoiceView, count: 0 }];
+      for (const p of views) {
+        list.push({
+          key: `pending-${p.view}`,
+          count: p.count,
+          label: 'factura(s) por aprobar',
+          hint: views.length > 1 ? INVOICE_VIEWS[p.view]?.title : 'Registradas, pendientes de aprobación',
+          icon: IconReceipt,
+          tone: ACTION_TONES.edit,
+          to: `${invoicePath(p.view)}?status=REGISTERED`
+        });
+      }
     }
     if (s.contracts) {
       list.push({

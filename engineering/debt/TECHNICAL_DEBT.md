@@ -75,6 +75,8 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 | MFA: no existe. Fuera del alcance de ADR-0001 (alternativa "proveedor de identidad externo", pendiente de validación) | Baja | ADR-0001 |
 | Tablero: logo de la marca. El área usuaria lo va a entregar; mientras tanto se mantiene el de Berry | Baja | ADR-0002, [DEC-052](../decisiones/DEC-052-tablero.md) |
 | Tablero: costo de obra ejecutado y estado de costos. Esperan la composición de las facturas (backlog DEC-01 a DEC-03). El costo de una obra sale de las facturas de sus contratos y de sus facturas simples, que tienen obra ([DEC-058](../decisiones/DEC-058-factura-simple-obra-etapa.md)) | Media | ADR-0002 |
+| Tablero: el gráfico de facturas por obra cuenta todas las vistas que ve el usuario (y sin las anuladas), pero el clic en una barra lleva al listado de la obra en la primera vista y con todos los estados. La cifra y las filas no coinciden si el usuario ve más de una vista. Para corregirlo, el servidor tiene que separar `byWork` por vista (o el listado aceptar varias vistas) y decidir adónde lleva la barra. También: a 375 px se corta la primera etiqueta inclinada | Media | DEC-052, PRO-FE-15 |
+| `client/.env.development` apunta `VITE_SOCKET_URL` a producción (`https://www.pavastecnologia.com`). En local el socket falla por CORS y no hay notificaciones en tiempo real. Revisar si debe ser el servidor local | Baja | Revisión del tablero 2026-10-15 |
 | Tema oscuro: no existe. El tablero y sus gráficos se verificaron solo en el claro | Baja | DESIGN_SYSTEM, DEC-052 |
 | Tests del cliente: no hay runner configurado | Media | `client/CLAUDE.md` |
 | Linter del servidor: no hay | Baja | `server/CLAUDE.md` |
