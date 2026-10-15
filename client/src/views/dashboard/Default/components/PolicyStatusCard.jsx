@@ -12,8 +12,8 @@ import Typography from '@mui/material/Typography';
 import MainCard from 'ui-component/cards/MainCard';
 
 /**
- * Estado de pólizas por contrato (ADR-0002, DEC-052): cada contrato en una
- * sola categoría, por el peor estado de sus pólizas vigentes; la suma es el
+ * Estado de pólizas por contrato (ADR-0002, DEC-052, DEC-064): cada contrato
+ * en una sola categoría, por su póliza vigente de mayor valor asegurado; la suma es el
  * total. Una sola serie: barras en un solo color, cada una con su nombre. La
  * lista de al lado es la vista en texto y lleva al listado de contratos con
  * el mismo predicado que produjo la cifra.
@@ -79,7 +79,7 @@ export default function PolicyStatusCard({ policies, expiringDays }) {
             </ListItem>
           </List>
           <Typography variant="caption" color="text.secondary">
-            Manda la póliza en peor estado. «A vencer»: dentro de {expiringDays} días.
+            Manda la póliza de mayor valor asegurado; si empatan, la de peor estado. «A vencer»: dentro de {expiringDays} días.
           </Typography>
         </Grid>
       </Grid>

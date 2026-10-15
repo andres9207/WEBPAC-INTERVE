@@ -114,6 +114,8 @@ beforeEach(() => {
       ctr_id: 20,
       ccp_id: 1,
       pol_number: "POL-1",
+      pol_base: "TOTAL_VALUE",
+      pol_percentage: "10",
       pol_start_date: new Date("1999-01-01T00:00:00Z"),
       pol_end_date: new Date("2000-01-01T00:00:00Z"),
       tbl_policy_types: { plt_name: "Cumplimiento" },
@@ -171,12 +173,12 @@ describe("getWorkDashboard", () => {
     expect(contracts.byState.find((s) => s.state === "IN_PROGRESS")).toMatchObject({ count: 1, value: "1500.00", countPct: "100.00" });
   });
 
-  it("pólizas: la categoría del tablero general, la póliza que la explica y los conceptos sin póliza", async () => {
+  it("pólizas: la categoría del tablero general, la póliza que la decide y los conceptos sin póliza", async () => {
     const { contracts } = await getWorkDashboard({ granted: ALL, scope: OWN });
     expect(contracts.items[0].policies).toMatchObject({
       status: "EXPIRED",
       statusName: "Con póliza vencida",
-      worst: { polId: 5, validity: "EXPIRED", endDate: "2000-01-01" },
+      deciding: { polId: 5, validity: "EXPIRED", endDate: "2000-01-01" },
       uncovered: [{ ccpId: 2, label: "Otrosí N.º 1" }],
     });
     expect(contracts.policies).toEqual([expect.objectContaining({ polId: 5, validityName: "Vencida" })]);

@@ -8,7 +8,7 @@ import { jest } from "@jest/globals";
 const prismaMock = {
   tbl_works: { count: jest.fn(async () => 4), findMany: jest.fn(async () => []) },
   tbl_providers: { count: jest.fn(async () => 6) },
-  tbl_contracts: { groupBy: jest.fn(async () => []), count: jest.fn(async () => 0) },
+  tbl_contracts: { groupBy: jest.fn(async () => []), count: jest.fn(async () => 0), findMany: jest.fn(async () => []) },
   tbl_policies: { count: jest.fn(async () => 0), findMany: jest.fn(async () => []) },
   tbl_invoices: { count: jest.fn(async () => 0), groupBy: jest.fn(async () => []), findMany: jest.fn(async () => []) },
 };
@@ -16,7 +16,6 @@ const prismaMock = {
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
 
 const { getDashboardSummary } = await import("../../../../src/modules/app/dashboard/dashboard.service.js");
-const { contractPolicyStatusWhere, CONTRACT_POLICY_STATUS } = await import("../../../../src/modules/work/contracts/policyTerms.js");
 
 const WORKS = 52;
 const PROVIDERS = 60;
@@ -61,16 +60,28 @@ describe("getDashboardSummary", () => {
     expect(unscoped).toEqual([]);
   });
 
-  it("cuenta cada categoría de pólizas con el predicado del listado, sobre el mismo universo", async () => {
-    prismaMock.tbl_contracts.count.mockImplementation(async ({ where }) => (where.AND ? 1 : 5));
+  it("clasifica cada contrato del alcance por su póliza de mayor exposición; las categorías suman el total (DEC-064)", async () => {
+    const concept = { ccp_id: 1, ccp_direct_cost: "1000.00", ccp_admin_pct: "0", ccp_contingency_pct: "0", ccp_profit_pct: "0", ccp_vat_pct: "0", sta_id: 1 };
+    const small = { ccp_id: 1, pol_base: "DIRECT_COST", pol_percentage: "1", pol_end_date: new Date("2000-01-01T00:00:00Z") };
+    const big = { ccp_id: 1, pol_base: "DIRECT_COST", pol_percentage: "50", pol_end_date: new Date("2999-01-01T00:00:00Z") };
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([
+      { ctr_id: 1, tbl_contract_concepts: [concept], tbl_policies: [small, big] },
+      { ctr_id: 2, tbl_contract_concepts: [concept], tbl_policies: [small] },
+      { ctr_id: 3, tbl_contract_concepts: [concept], tbl_policies: [] },
+    ]);
     const { policies } = await getDashboardSummary({ granted: ALL, scope: OWN });
 
-    expect(policies.byStatus.map((s) => s.status)).toEqual(["EXPIRED", "EXPIRING", "NO_DATE", "NONE", "ACTIVE"]);
-    expect(policies.total).toBe(5);
-    const countWheres = prismaMock.tbl_contracts.count.mock.calls.map((c) => c[0].where).filter((w) => w.AND);
-    const expired = JSON.parse(JSON.stringify(contractPolicyStatusWhere(CONTRACT_POLICY_STATUS.EXPIRED)));
-    expect(countWheres.map((w) => JSON.parse(JSON.stringify(w.AND[1])))).toContainEqual(expired);
-    for (const where of countWheres) expect(where.AND[0]).toEqual({ sta_id: { not: 3 }, wrk_id: { in: [8] } });
+    expect(policies.byStatus.map((s) => [s.status, s.count])).toEqual([
+      ["EXPIRED", 1],
+      ["EXPIRING", 0],
+      ["NO_DATE", 0],
+      ["NONE", 1],
+      ["ACTIVE", 1],
+    ]);
+    expect(policies.total).toBe(3);
+    const { where, select } = prismaMock.tbl_contracts.findMany.mock.calls[0][0];
+    expect(where).toEqual({ sta_id: { not: 3 }, wrk_id: { in: [8] } });
+    expect(select.tbl_policies.where).toEqual({ pol_is_current: true });
   });
 
   it("facturas: las anuladas no cuentan; obras ordenadas por cantidad, con su nombre", async () => {

@@ -528,15 +528,15 @@
     "semantic_hash": ""
   },
   "client/src/themes/palette.jsx": {
-    "mtime": 1791231055.3269873,
-    "seen": 1791231493.0249577,
-    "ast_hash": "fad040d7ec76cf9f08714c27ba65c4f5",
+    "mtime": 1792071580.9701998,
+    "seen": 1792071946.7156568,
+    "ast_hash": "0e53dc552a6371f69a1b69502b320335",
     "semantic_hash": ""
   },
   "client/src/themes/theme/default.js": {
-    "mtime": 1791231044.7659292,
-    "seen": 1791231493.0249586,
-    "ast_hash": "32d2a7b399ce2354fa63499cda490112",
+    "mtime": 1792071579.8655415,
+    "seen": 1792071946.715659,
+    "ast_hash": "ee81be47b37fa1dfc24a6a6bdbf33c0e",
     "semantic_hash": ""
   },
   "client/src/themes/typography.jsx": {
@@ -3438,9 +3438,9 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/WorkChartsTab.jsx": {
-    "mtime": 1792069772.5297234,
-    "seen": 1792070160.791486,
-    "ast_hash": "9ab3b7e263fa42a02c74e28ef90d0935",
+    "mtime": 1792071621.3819783,
+    "seen": 1792071946.715873,
+    "ast_hash": "552dd2654c68b56d6217ab498e4fa309",
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/WorkDashboard.jsx": {
@@ -3456,9 +3456,9 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/workDashboard.utils.js": {
-    "mtime": 1792069807.1308851,
-    "seen": 1792070160.7914891,
-    "ast_hash": "2555bc74c7f63749c9be8f40bc34dca6",
+    "mtime": 1792071595.5976162,
+    "seen": 1792071946.7158792,
+    "ast_hash": "b8896aebcfda8ef5306f2bb34a05c185",
     "semantic_hash": ""
   },
   "server/src/modules/app/dashboard/workDashboard.service.js": {

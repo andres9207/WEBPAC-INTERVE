@@ -11,7 +11,7 @@ import { policyTypesService } from "../../admin/policyTypes/policyTypes.service.
 import { POLICY_BASE_NAMES, insuredValue, policyBaseValue } from "../../admin/policyTypes/policyBases.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { CONCEPT_TYPES, CONCEPT_TYPE_NAMES, CONTRACT_STATES, assertStateAllows, conceptAmounts, sortConcepts } from "./contractTerms.js";
-import { POLICY_VALIDITY_NAMES, expiringDays, policyValidity, uncoveredConcepts } from "./policyTerms.js";
+import { POLICY_VALIDITY_NAMES, contractPolicyStatus, expiringDays, policyValidity, uncoveredConcepts } from "./policyTerms.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, httpError } from "./contracts.service.js";
 
 /**
@@ -410,4 +410,30 @@ export const getContractPolicies = async ({ ctrId, scope }) => {
     concepts: concepts.map((c) => ({ ccpId: c.ccp_id, type: c.ccp_type, label: conceptLabel(c), value: moneyText(conceptAmounts(c).value) })),
     expiringDays: days,
   };
+};
+
+// ─── Estado de pólizas por contrato (ADR-0002, DEC-064) ─────────────────────
+
+/** Columnas de una póliza vigente que necesita `contractPolicyStatus`. */
+export const POLICY_STATUS_SELECT = { ccp_id: true, pol_base: true, pol_percentage: true, pol_end_date: true };
+
+/**
+ * Categoría de pólizas de cada contrato de `where` (DEC-064): la vigencia de
+ * su póliza vigente de mayor exposición. El valor asegurado no está en la BD
+ * (ADR-0018), así que se carga cada contrato con sus conceptos y sus pólizas
+ * vigentes y se clasifica con la regla única (`contractPolicyStatus`). La
+ * usan el tablero, para contar, y el listado de contratos, para filtrar, así
+ * que la cifra y el listado no pueden diferir. Rendimiento medido con el
+ * volumen acordado (DEC-052).
+ */
+export const contractPolicyStatuses = async (where, options = {}) => {
+  const rows = await prisma.tbl_contracts.findMany({
+    where,
+    select: {
+      ctr_id: true,
+      tbl_contract_concepts: { select: CONCEPT_SELECT },
+      tbl_policies: { where: { pol_is_current: true }, select: POLICY_STATUS_SELECT },
+    },
+  });
+  return rows.map((row) => ({ ctrId: row.ctr_id, status: contractPolicyStatus(row.tbl_policies, row.tbl_contract_concepts, options) }));
 };

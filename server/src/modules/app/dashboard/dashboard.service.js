@@ -8,11 +8,11 @@ import {
   CONTRACT_POLICY_STATUS,
   CONTRACT_POLICY_STATUS_NAMES,
   POLICY_VALIDITY_NAMES,
-  contractPolicyStatusWhere,
   expiringDays,
   policyValidity,
   uncoveredContractsWhere,
 } from "../../work/contracts/policyTerms.js";
+import { contractPolicyStatuses } from "../../work/contracts/contractPolicies.service.js";
 import { INVOICE_STATES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
 import { grantedViews, viewsWhere } from "../../billing/invoices/invoiceViews.js";
 import { invoiceScopeWhere } from "../../billing/invoices/invoices.service.js";
@@ -27,8 +27,9 @@ import { invoiceScopeWhere } from "../../billing/invoices/invoices.service.js";
  * - Todo se restringe al alcance por obra de la petición (DEC-047).
  * - La fecha de referencia es la del servidor (decisión 3) y el umbral de "a
  *   vencer", el de las pólizas (`expiringDays`).
- * - El estado de pólizas cuenta contratos, no pólizas, con el mismo
- *   predicado que filtra el listado de contratos (`contractPolicyStatusWhere`).
+ * - El estado de pólizas cuenta contratos, no pólizas, por la póliza de mayor
+ *   exposición (DEC-064), con la misma clasificación que filtra el listado de
+ *   contratos (`contractPolicyStatuses`).
  */
 
 const can = PERMISSIONS;
@@ -71,11 +72,9 @@ const contractsBlock = async (scope) => {
  */
 const policiesBlock = async (scope, { today, days }) => {
   const universe = { ...notDeleted, ...scopeWhere(scope) };
-  const countContracts = (where) => prisma.tbl_contracts.count({ where: { AND: [universe, where] } });
-  const [total, statusCounts, uncovered, currentPolicies, upcoming] = await Promise.all([
-    prisma.tbl_contracts.count({ where: universe }),
-    Promise.all(POLICY_STATUS_ORDER.map((status) => countContracts(contractPolicyStatusWhere(status, { today, days })))),
-    countContracts(uncoveredContractsWhere()),
+  const [statuses, uncovered, currentPolicies, upcoming] = await Promise.all([
+    contractPolicyStatuses(universe, { today, days }),
+    prisma.tbl_contracts.count({ where: { AND: [universe, uncoveredContractsWhere()] } }),
     prisma.tbl_policies.count({ where: { pol_is_current: true, tbl_contracts: universe } }),
     prisma.tbl_policies.findMany({
       where: { pol_is_current: true, pol_end_date: { lte: new Date(today.getTime() + days * 86400000) }, tbl_contracts: universe },
@@ -91,9 +90,10 @@ const policiesBlock = async (scope, { today, days }) => {
       take: LATEST_ROWS,
     }),
   ]);
+  const count = (status) => statuses.filter((s) => s.status === status).length;
   return {
-    total,
-    byStatus: POLICY_STATUS_ORDER.map((status, i) => ({ status, name: CONTRACT_POLICY_STATUS_NAMES[status], count: statusCounts[i] })),
+    total: statuses.length,
+    byStatus: POLICY_STATUS_ORDER.map((status) => ({ status, name: CONTRACT_POLICY_STATUS_NAMES[status], count: count(status) })),
     uncoveredContracts: uncovered,
     currentPolicies,
     upcoming: upcoming.map((row) => {

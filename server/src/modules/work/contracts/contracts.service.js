@@ -29,10 +29,10 @@ import {
   totalExtensions,
 } from "./contractTerms.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
-import { contractPolicyStatusWhere, uncoveredContractsWhere } from "./policyTerms.js";
+import { assertPolicyStatus, uncoveredContractsWhere } from "./policyTerms.js";
 // Importación circular a propósito: contractPolicies usa los helpers de este
 // archivo y este, insertPolicy. Ninguno de los dos los usa al cargarse.
-import { insertPolicy, policyValuesOf } from "./contractPolicies.service.js";
+import { contractPolicyStatuses, insertPolicy, policyValuesOf } from "./contractPolicies.service.js";
 
 /**
  * Contratos (ADR-0015 a ADR-0017, DEC-035). El contrato es la raíz del
@@ -347,7 +347,7 @@ const countByState = async (where) => {
  *
  * `policyStatus` (categoría de pólizas del contrato) y `uncovered` (con algún
  * concepto sin póliza vigente) son los filtros del tablero: el mismo
- * predicado que produjo la cifra (ADR-0002, decisión 2; DEC-052). Revelan
+ * criterio que produjo la cifra (ADR-0002, decisión 2; DEC-052, DEC-064). Revelan
  * datos de pólizas, así que exigen poder verlas (`canViewPolicies`).
  */
 export const paginationContracts = async ({
@@ -371,8 +371,14 @@ export const paginationContracts = async ({
 }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
-  const policyFilters = [...(policyStatus ? [contractPolicyStatusWhere(policyStatus)] : []), ...(uncovered ? [uncoveredContractsWhere()] : [])];
-  if (policyFilters.length > 0 && !canViewPolicies) throw httpError(403, "Filtrar por el estado de las pólizas exige el permiso de ver pólizas.");
+  if ((policyStatus || uncovered) && !canViewPolicies) throw httpError(403, "Filtrar por el estado de las pólizas exige el permiso de ver pólizas.");
+  const policyFilters = uncovered ? [uncoveredContractsWhere()] : [];
+  if (policyStatus) {
+    // La categoría sale de la regla única (DEC-064), sobre los contratos del alcance.
+    assertPolicyStatus(policyStatus);
+    const statuses = await contractPolicyStatuses({ sta_id: { not: DELETED_STATUS }, ...scopeWhere(scope) });
+    policyFilters.push({ ctr_id: { in: statuses.filter((s) => s.status === policyStatus).map((s) => s.ctrId) } });
+  }
 
   const baseWhere = {
     sta_id: { not: DELETED_STATUS },

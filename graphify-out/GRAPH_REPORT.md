@@ -1,7 +1,7 @@
 # Graph Report - WEBPAC-INTERVE  (2026-10-15)
 
 ## Corpus Check
-- 577 files · ~279,845 words
+- 577 files · ~279,936 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 10 file(s) not represented in the graph (top: (none) 6, .template 1, .css 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `979744d0`
+- Built from commit: `4f8552a9`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -664,20 +664,20 @@ Cohesion: 0.40
 Nodes (4): hasEffectivePermission, prismaMock, state, user
 
 ## Knowledge Gaps
-- **940 isolated node(s):** `name`, `version`, `description`, `main`, `type` (+935 more)
+- **940 isolated node(s):** `num`, `MONTHS`, `VALIDITY_BAR`, `MONTHS`, `axios` (+935 more)
   These have ≤1 connection - possible missing edges. (Counts symbols only; 1282 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **82 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `ADR-0019` connect `permissions.constants.js` to `constants.js`?**
-  _High betweenness centrality (0.121) - this node is a cross-community bridge._
 - **Why does `ADR-0027` connect `runIdempotent` to `prismaClient.js`, `react`?**
-  _High betweenness centrality (0.106) - this node is a cross-community bridge._
-- **Why does `@mui/material` connect `@mui/material` to `constants.js`, `WorkDetailPage.jsx`, `InvoiceFormPage.jsx`, `ContractFormPage.jsx`, `withAlpha`, `client/package.json`, `AuthenticationRoutes.jsx`, `themes/index.jsx`, `UsersPage.jsx`, `NotificationSection/index.jsx`, `PolicyTypePage.jsx`, `ProviderTypePage.jsx`, `react`, `DocumentManagement.jsx`, `ImageList.jsx`, `WorkSummaryTab.jsx`, `InputLabel.jsx`, `DebouncedInput.jsx`, `MiniDrawerStyled.jsx`, `useAuth`, `GeneralDashboard.jsx`, `AuthForgotPassword.jsx`, `MainLayout/index.jsx`?**
-  _High betweenness centrality (0.083) - this node is a cross-community bridge._
-- **What connects `name`, `version`, `description` to the rest of the system?**
+  _High betweenness centrality (0.114) - this node is a cross-community bridge._
+- **Why does `ADR-0019` connect `permissions.constants.js` to `constants.js`?**
+  _High betweenness centrality (0.113) - this node is a cross-community bridge._
+- **Why does `react` connect `react` to `constants.js`, `WorkDetailPage.jsx`, `InvoiceFormPage.jsx`, `ContractFormPage.jsx`, `client/package.json`, `AuthenticationRoutes.jsx`, `themes/index.jsx`, `UsersPage.jsx`, `App.jsx`, `src/index.jsx`, `NotificationSection/index.jsx`, `PolicyTypePage.jsx`, `ProviderTypePage.jsx`, `useMenuCollapse.js`, `DocumentManagement.jsx`, `WorkSummaryTab.jsx`, `DebouncedInput.jsx`, `@mui/material`, `useAuth`, `GeneralDashboard.jsx`, `AuthForgotPassword.jsx`, `MainLayout/index.jsx`?**
+  _High betweenness centrality (0.059) - this node is a cross-community bridge._
+- **What connects `num`, `MONTHS`, `VALIDITY_BAR` to the rest of the system?**
   _940 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `overrides/index.js` be split into smaller, more focused modules?**
   _Cohesion score 0.08599033816425121 - nodes in this community are weakly interconnected._

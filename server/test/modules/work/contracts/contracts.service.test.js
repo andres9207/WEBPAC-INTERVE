@@ -481,6 +481,31 @@ describe("paginationContracts", () => {
 
     expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where).not.toHaveProperty("AND");
   });
+
+  it("estado de pólizas: filtra por los contratos que la regla única clasifica así, dentro del alcance (DEC-064)", async () => {
+    const concept = { ccp_id: 1, ccp_direct_cost: "1000.00", ccp_admin_pct: "0", ccp_contingency_pct: "0", ccp_profit_pct: "0", ccp_vat_pct: "0", sta_id: 1 };
+    const policy = (percentage, end) => ({ ccp_id: 1, pol_base: "DIRECT_COST", pol_percentage: percentage, pol_end_date: new Date(end) });
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+    prismaMock.tbl_contracts.findMany
+      // La clasificación: 41 vencida por su póliza mayor; 42 vigente aunque tenga una pequeña vencida.
+      .mockResolvedValueOnce([
+        { ctr_id: 41, tbl_contract_concepts: [concept], tbl_policies: [policy("50", "2000-01-01T00:00:00Z"), policy("1", "2999-01-01T00:00:00Z")] },
+        { ctr_id: 42, tbl_contract_concepts: [concept], tbl_policies: [policy("1", "2000-01-01T00:00:00Z"), policy("50", "2999-01-01T00:00:00Z")] },
+      ])
+      .mockResolvedValueOnce([]);
+
+    await service.paginationContracts({ policyStatus: "EXPIRED", canViewPolicies: true, scope: { all: false, wrkId: 8 } });
+
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, wrk_id: { in: [8] } });
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[1][0].where.AND).toContainEqual({ ctr_id: { in: [41] } });
+  });
+
+  it("estado de pólizas: sin permiso de ver pólizas, 403; un estado desconocido, 400", async () => {
+    await expect(service.paginationContracts({ policyStatus: "EXPIRED" })).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.paginationContracts({ policyStatus: "OTHER", canViewPolicies: true })).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.tbl_contracts.findMany).not.toHaveBeenCalled();
+  });
 });
 
 describe("campos configurables de los tipos del proveedor (DEC-053)", () => {

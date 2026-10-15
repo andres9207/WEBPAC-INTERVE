@@ -194,7 +194,7 @@ Cada contrato cae en exactamente una categoría.
 Σ categorías = total de contratos.
 ```
 
-El criterio de "póliza de mayor exposición" —la de menor fecha de fin, la de mayor valor asegurado, o la vigente para el amparo requerido— **es una decisión de negocio pendiente de validación** que debe fijarse antes de implementar.
+El criterio de "póliza de mayor exposición" —la de menor fecha de fin, la de mayor valor asegurado, o la vigente para el amparo requerido— **es una decisión de negocio pendiente de validación** que debe fijarse antes de implementar. *(Resuelto en [DEC-064](../decisiones/DEC-064-estado-polizas-mayor-exposicion.md): la de mayor valor asegurado.)*
 
 ## Reglas de negocio
 
@@ -354,7 +354,7 @@ Una precisión: los indicadores deben leerse de forma consistente entre sí. Si 
 | B2 | No existe backend de indicadores | **Alta** |
 | B3 | No existen las entidades contrato, factura, tipo de factura ni póliza | **Alta** — bloquea todo el módulo |
 | B4 | Sin permisos de consulta que restrinjan los agregados | **Media** |
-| B5 | Sin definición del criterio de "póliza de mayor exposición" | **Media** — decisión de negocio pendiente |
+| B5 | Sin definición del criterio de "póliza de mayor exposición" | **Resuelto** en [DEC-064](../decisiones/DEC-064-estado-polizas-mayor-exposicion.md): la de mayor valor asegurado; si la mayor no tiene fecha, sin fecha; en un empate, la de peor estado |
 | B6 | Sin definición del umbral de "a vencer" | **Media** — decisión de negocio pendiente |
 | B7 | Sin definición de qué estados de factura constituyen "ejecutado" | **Media** — decisión de negocio pendiente |
 | B8 | Riesgo de heredar el patrón de interpolación SQL de los servicios existentes | **Alta** — preventiva |

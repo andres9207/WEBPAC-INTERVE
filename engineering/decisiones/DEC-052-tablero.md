@@ -6,7 +6,7 @@ Implementa ADR-0002 sobre lo que hoy existe: obras, proveedores, contratos, pól
 
 El usuario decidió el 2026-10-08:
 
-- **B5, la póliza que manda:** el peor estado.
+- **B5, la póliza que manda:** el peor estado. **Reemplazado el 2026-10-15 por [DEC-064](DEC-064-estado-polizas-mayor-exposicion.md):** ahora manda la póliza vigente de mayor valor asegurado.
 - **Universo del estado de pólizas:** todos los contratos no eliminados, también los liquidados.
 - **B7, qué facturas cuentan:** las registradas y las aprobadas; las anuladas no.
 - **Alcance:** solo datos reales, con el estilo de Berry. El rediseño del mockup (menú lateral, marca "Intervé 360", foto en la bienvenida) no se hace: choca con [DESIGN_SYSTEM](../standards/DESIGN_SYSTEM.md) ("no se cambia la marca de Berry", "sin ilustraciones"). El logo queda pendiente (ADR-0002).
@@ -16,7 +16,7 @@ El usuario decidió el 2026-10-08:
 
 - **Dónde vive:** `server/src/modules/app/dashboard/` (área transversal existente), montado en `/api/app/dashboard`, con un solo endpoint de lectura, `get_summary`. En el cliente, la vista que ya existía, `views/dashboard/Default/`, y `api/requests/dashboardApi.js`.
 - **Cálculo en la base de datos, bajo demanda:** `count` y `groupBy` de Prisma, sin precálculo, vistas ni caché (ADR-0002, decisión 10). Fecha de referencia del servidor; umbral de "a vencer", el de las pólizas (`POLICY_EXPIRING_DAYS`, 30 por defecto), devuelto en la respuesta.
-- **Estado de pólizas por contrato.** Cada contrato cae en exactamente una categoría, y la suma es el total:
+- **Estado de pólizas por contrato.** Cada contrato cae en exactamente una categoría, y la suma es el total. *Lo que sigue sobre el peor estado y el predicado Prisma está reemplazado por [DEC-064](DEC-064-estado-polizas-mayor-exposicion.md): manda la póliza de mayor valor asegurado, clasificada en el servidor con una sola regla. Se deja como historia.*
   - **Sin póliza:** no tiene ninguna póliza vigente (`pol_is_current`).
   - **Sin fecha de vigencia:** ninguna de sus pólizas vigentes tiene fecha fin.
   - **Con póliza vencida**, **con póliza a vencer** o **pólizas vigentes:** manda el peor estado entre las pólizas con fecha. Una póliza sin fecha no cambia el estado de un contrato que tiene otras con fecha.

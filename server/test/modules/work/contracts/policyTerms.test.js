@@ -1,9 +1,11 @@
 import {
   CONTRACT_POLICY_STATUS,
   POLICY_VALIDITY,
+  assertPolicyStatus,
   contractPolicyStatus,
-  contractPolicyStatusWhere,
+  decidingPolicy,
   expiringDays,
+  policyExposure,
   policyValidity,
   uncoveredConcepts,
   uncoveredContractsWhere,
@@ -48,10 +50,10 @@ describe("uncoveredConcepts", () => {
   });
 });
 
-// ─── Estado de pólizas del contrato (DEC-052) ───────────────────────────────
-// La clasificación en JS (expediente) y el filtro Prisma (tablero y listado)
-// son dos expresiones de la misma regla: este evaluador mínimo aplica el
-// filtro a datos en memoria para cruzarlas (PRO-BE-34, criterio 5).
+// ─── Estado de pólizas del contrato (DEC-052, DEC-064) ──────────────────────
+// Evaluador mínimo de filtros Prisma sobre datos en memoria: cruza
+// `uncoveredContractsWhere` con `uncoveredConcepts`. La categoría de pólizas
+// ya no tiene filtro Prisma: la regla es una sola, en JS (DEC-064).
 
 const compare = (value, condition) => {
   if (condition === null || typeof condition !== "object" || condition instanceof Date) {
@@ -76,47 +78,68 @@ const matches = (row, where) =>
     return compare(row[key], condition);
   });
 
-describe("contractPolicyStatus y contractPolicyStatusWhere", () => {
+describe("contractPolicyStatus: manda la póliza de mayor exposición (DEC-064)", () => {
   const days = 30;
   const options = { today, days };
   const at = (offset) => (offset === null ? null : new Date(today.getTime() + offset * 24 * 60 * 60 * 1000));
-  // Bordes de policyValidity: ayer, hoy, el último día del umbral, el siguiente y sin fecha.
-  const ENDS = [null, -1, 0, days, days + 1];
-  const POOL = ENDS.flatMap((end) => [true, false].map((current) => ({ pol_end_date: at(end), pol_is_current: current })));
+  // Dos conceptos: el inicial de 100 000 000 de costo directo y un otrosí de 10 000 000, sin AIU ni IVA.
+  const concept = (ccpId, directCost) => ({
+    ccp_id: ccpId,
+    ccp_direct_cost: directCost,
+    ccp_admin_pct: "0",
+    ccp_contingency_pct: "0",
+    ccp_profit_pct: "0",
+    ccp_vat_pct: "0",
+    ccp_advance_pct: "0",
+    ccp_retention_pct: "0",
+  });
+  const concepts = [concept(1, "100000000.00"), concept(2, "10000000.00")];
+  // Póliza: concepto, porcentaje y días hasta su fin (null, sin fecha). Base: costo directo.
+  const p = (ccpId, percentage, offset) => ({ ccp_id: ccpId, pol_base: "DIRECT_COST", pol_percentage: percentage, pol_end_date: at(offset) });
+  const status = (policies) => contractPolicyStatus(policies, concepts, options);
 
-  const combos = [[]];
-  for (const a of POOL) {
-    combos.push([a]);
-    for (const b of POOL) {
-      combos.push([a, b]);
-      for (const c of POOL) combos.push([a, b, c]);
-    }
-  }
-
-  it("cada contrato cae en una sola categoría SQL, la misma que da la regla en JS", () => {
-    for (const policies of combos) {
-      const expected = contractPolicyStatus(
-        policies.filter((p) => p.pol_is_current),
-        options
-      );
-      const hits = Object.values(CONTRACT_POLICY_STATUS).filter((status) => matches({ tbl_policies: policies }, contractPolicyStatusWhere(status, options)));
-      expect({ policies, hits }).toEqual({ policies, hits: [expected] });
-    }
-    expect(combos.length).toBeGreaterThan(1000);
+  it("la de mayor valor asegurado decide, aunque otra más pequeña esté vencida", () => {
+    // 10 % de 100 M (10 M, vigente) frente a 50 % de 10 M (5 M, vencida).
+    expect(status([p(1, "10", days + 5), p(2, "50", -1)])).toBe(CONTRACT_POLICY_STATUS.ACTIVE);
+    expect(status([p(1, "10", -1), p(2, "50", days + 5)])).toBe(CONTRACT_POLICY_STATUS.EXPIRED);
+    expect(status([p(2, "50", 10), p(1, "1", -1)])).toBe(CONTRACT_POLICY_STATUS.EXPIRING);
   });
 
-  it("manda el peor estado; sin fecha solo si ninguna la tiene; las anuladas no cuentan", () => {
-    const p = (offset, current = true) => ({ pol_end_date: at(offset), pol_is_current: current });
-    const status = (policies) => contractPolicyStatus(policies.filter((x) => x.pol_is_current), options);
-    expect(status([p(-1), p(days + 5)])).toBe(CONTRACT_POLICY_STATUS.EXPIRED);
-    expect(status([p(10), p(days + 5)])).toBe(CONTRACT_POLICY_STATUS.EXPIRING);
-    expect(status([p(null), p(days + 5)])).toBe(CONTRACT_POLICY_STATUS.ACTIVE);
-    expect(status([p(null)])).toBe(CONTRACT_POLICY_STATUS.NO_DATE);
-    expect(status([p(-1, false)])).toBe(CONTRACT_POLICY_STATUS.NONE);
+  it("si la mayor no tiene fecha, el contrato queda sin fecha de vigencia", () => {
+    expect(status([p(1, "10", null), p(2, "10", -1)])).toBe(CONTRACT_POLICY_STATUS.NO_DATE);
+  });
+
+  it("entre empatadas manda la de peor estado; sin fecha es la última", () => {
+    // 10 % de 100 M = 100 % de 10 M.
+    expect(status([p(1, "10", days + 5), p(2, "100", -1)])).toBe(CONTRACT_POLICY_STATUS.EXPIRED);
+    expect(status([p(1, "10", days + 5), p(2, "100", 10)])).toBe(CONTRACT_POLICY_STATUS.EXPIRING);
+    expect(status([p(1, "10", null), p(2, "100", days + 5)])).toBe(CONTRACT_POLICY_STATUS.ACTIVE);
+  });
+
+  it("sin pólizas vigentes, sin póliza", () => {
+    expect(status([])).toBe(CONTRACT_POLICY_STATUS.NONE);
+    expect(decidingPolicy([], concepts, options)).toBeNull();
+  });
+
+  it("la exposición es el valor asegurado del expediente, sobre la base del tipo", () => {
+    const withAiu = { ...concept(3, "100.00"), ccp_admin_pct: "10", ccp_vat_pct: "19" };
+    expect(policyExposure({ pol_base: "TAXABLE_BASE", pol_percentage: "50" }, withAiu).toFixed(2)).toBe("55.00");
+    const deciding = decidingPolicy([p(2, "50", -1), p(1, "10", 40)], concepts, options);
+    expect(deciding).toMatchObject({ validity: POLICY_VALIDITY.ACTIVE, policy: { ccp_id: 1 } });
+    expect(deciding.exposure.toFixed(2)).toBe("10000000.00");
+  });
+
+  it("todo contrato cae en exactamente una categoría del catálogo", () => {
+    const ENDS = [null, -1, 0, days, days + 1];
+    const POOL = ENDS.flatMap((end) => [p(1, "10", end), p(2, "100", end), p(2, "5", end)]);
+    for (const a of POOL) {
+      for (const b of POOL) expect(Object.values(CONTRACT_POLICY_STATUS)).toContain(status([a, b]));
+    }
   });
 
   it("un estado desconocido responde 400", () => {
-    expect(() => contractPolicyStatusWhere("OTHER", options)).toThrow(expect.objectContaining({ statusCode: 400 }));
+    expect(() => assertPolicyStatus("OTHER")).toThrow(expect.objectContaining({ statusCode: 400 }));
+    expect(assertPolicyStatus("EXPIRED")).toBe("EXPIRED");
   });
 });
 

@@ -181,9 +181,12 @@ WorkHero.propTypes = { work: PropTypes.object.isRequired, referenceDate: PropTyp
 /** Tarjeta de un contrato: valor vigente, anticipo, retenido y pólizas. */
 function ContractCard({ contract }) {
   const policies = contract.policies;
-  const worst = policies?.worst;
+  // La póliza de mayor exposición, que decide la categoría (DEC-064).
+  const deciding = policies?.deciding;
   const policyHint = [
-    worst && worst.endDate && `${worst.number} ${worst.validity === 'EXPIRED' ? 'venció' : 'vence'} el ${fDateOnly(worst.endDate)}`,
+    deciding &&
+      deciding.endDate &&
+      `${deciding.number} ${deciding.validity === 'EXPIRED' ? 'venció' : 'vence'} el ${fDateOnly(deciding.endDate)}`,
     policies?.uncovered.length > 0 && `${policies.uncovered.map((c) => c.label).join(', ')} sin póliza`
   ]
     .filter(Boolean)

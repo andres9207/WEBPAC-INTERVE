@@ -18,6 +18,7 @@ import {
   POLICY_VALIDITY,
   POLICY_VALIDITY_NAMES,
   contractPolicyStatus,
+  decidingPolicy,
   expiringDays,
   policyValidity,
   uncoveredConcepts,
@@ -142,17 +143,17 @@ const byUrgency = (a, b) => VALIDITY_RANK[a.validity] - VALIDITY_RANK[b.validity
 
 /**
  * Estado de pólizas de un contrato: la categoría del tablero general
- * (contractPolicyStatus, el peor estado), la póliza que la explica y los
- * conceptos sin póliza vigente (uncoveredConcepts).
+ * (contractPolicyStatus: la póliza de mayor exposición, DEC-064), la póliza
+ * que la decide y los conceptos sin póliza vigente (uncoveredConcepts).
  */
 const contractPolicies = (concepts, policies, options) => {
-  const status = contractPolicyStatus(policies, options);
-  const dtos = policies.map((p) => policyDto(p, options)).sort(byUrgency);
+  const status = contractPolicyStatus(policies, concepts, options);
+  const deciding = decidingPolicy(policies, concepts, options);
   return {
     status,
     statusName: CONTRACT_POLICY_STATUS_NAMES[status],
-    worst: dtos[0] ?? null,
-    current: dtos.length,
+    deciding: deciding ? policyDto(deciding.policy, options) : null,
+    current: policies.length,
     uncovered: uncoveredConcepts(concepts.filter((c) => c.sta_id !== DELETED_STATUS), policies).map((c) => ({
       ccpId: c.ccp_id,
       label: conceptLabel(c),
@@ -208,6 +209,8 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
           ctr_id: true,
           ccp_id: true,
           pol_number: true,
+          pol_base: true,
+          pol_percentage: true,
           pol_start_date: true,
           pol_end_date: true,
           tbl_policy_types: { select: { plt_name: true } },

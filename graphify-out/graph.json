@@ -11101,7 +11101,7 @@
       "file_type": "code",
       "norm_label": "advances()",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L532"
+      "source_location": "L534"
     },
     {
       "id": "client_src_views_dashboard_default_work_workchartstab_cardtitle",
@@ -11125,7 +11125,7 @@
       "file_type": "code",
       "norm_label": "contractsbystate()",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L584"
+      "source_location": "L586"
     },
     {
       "id": "client_src_views_dashboard_default_work_workchartstab_dayof",
@@ -11161,7 +11161,7 @@
       "file_type": "code",
       "norm_label": "invoicedbycontract()",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L459"
+      "source_location": "L461"
     },
     {
       "id": "client_src_views_dashboard_default_work_workchartstab_invoicedbymonth",
@@ -11173,7 +11173,7 @@
       "file_type": "code",
       "norm_label": "invoicedbymonth()",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L324"
+      "source_location": "L326"
     },
     {
       "id": "client_src_views_dashboard_default_work_workchartstab_invoicesbytype",
@@ -11185,7 +11185,7 @@
       "file_type": "code",
       "norm_label": "invoicesbytype()",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L406"
+      "source_location": "L408"
     },
     {
       "id": "client_src_views_dashboard_default_work_workchartstab_metric",
@@ -11209,7 +11209,7 @@
       "file_type": "code",
       "norm_label": "segmentbar()",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L381"
+      "source_location": "L383"
     },
     {
       "id": "client_src_views_dashboard_default_work_workchartstab_swatch",
@@ -11245,7 +11245,7 @@
       "file_type": "code",
       "norm_label": "workchartstab()",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L684"
+      "source_location": "L686"
     },
     {
       "id": "client_src_views_dashboard_default_work_workdashboard_utils_barpercent",
@@ -11305,7 +11305,7 @@
       "file_type": "code",
       "norm_label": "monthlabel()",
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L57"
+      "source_location": "L59"
     },
     {
       "id": "client_src_views_dashboard_default_work_workdashboard_utils_palettecolor",
@@ -11317,7 +11317,7 @@
       "file_type": "code",
       "norm_label": "palettecolor()",
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L52"
+      "source_location": "L54"
     },
     {
       "id": "client_src_views_dashboard_default_work_workdashboard_utils_plural",
@@ -11329,7 +11329,7 @@
       "file_type": "code",
       "norm_label": "plural()",
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L62"
+      "source_location": "L64"
     },
     {
       "id": "client_src_views_dashboard_default_work_worksummarytab_attentioncard",
@@ -33002,7 +33002,7 @@
       "file_type": "code",
       "norm_label": "contract_state_chart_colors",
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L42"
+      "source_location": "L44"
     },
     {
       "id": "client_src_views_dashboard_default_work_workdashboard_utils_invoice_type_colors",
@@ -33013,7 +33013,7 @@
       "file_type": "code",
       "norm_label": "invoice_type_colors",
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L36"
+      "source_location": "L38"
     },
     {
       "id": "client_src_views_dashboard_default_work_workdashboard_utils_manager_role_names",
@@ -33035,7 +33035,7 @@
       "file_type": "code",
       "norm_label": "months",
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L54"
+      "source_location": "L56"
     },
     {
       "id": "client_src_views_dashboard_default_work_workdashboard_utils_policy_status_colors",
@@ -33046,7 +33046,7 @@
       "file_type": "code",
       "norm_label": "policy_status_colors",
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L49"
+      "source_location": "L51"
     },
     {
       "id": "client_src_views_dashboard_default_work_worksummarytab",
@@ -37239,6 +37239,18 @@
       "type": "external"
     },
     {
+      "id": "ref_node_fs",
+      "label": "ref_node_fs",
+      "_origin": "semantic",
+      "community": 45,
+      "community_name": "dashboard.service.js",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "ref_node_fs",
+      "source_file": "",
+      "type": "external"
+    },
+    {
       "id": "ref_fs",
       "label": "ref_fs",
       "_origin": "semantic",
@@ -37283,17 +37295,6 @@
       "external": true,
       "file_type": "concept",
       "norm_label": "ref_crypto",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "ref_node_fs",
-      "label": "ref_node_fs",
-      "community": 45,
-      "community_name": "dashboard.service.js",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_node_fs",
       "source_file": "",
       "type": "external"
     }
@@ -39108,7 +39109,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/themes/palette.jsx",
-      "source_location": "L93",
+      "source_location": "L97",
       "weight": 1.0
     },
     {
@@ -42240,7 +42241,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L542",
+      "source_location": "L544",
       "weight": 1.0
     },
     {
@@ -42252,7 +42253,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L543",
+      "source_location": "L545",
       "weight": 1.0
     },
     {
@@ -42264,7 +42265,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L548",
+      "source_location": "L550",
       "weight": 1.0
     },
     {
@@ -42276,36 +42277,12 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L552",
+      "source_location": "L554",
       "weight": 1.0
     },
     {
       "source": "client_src_views_dashboard_default_work_workchartstab_advances",
       "target": "client_src_ui_component_cards_maincard_maincard",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L557",
-      "weight": 1.0
-    },
-    {
-      "source": "client_src_views_dashboard_default_work_workchartstab_advances",
-      "target": "client_src_views_dashboard_default_work_workchartstab_cardtitle",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L557",
-      "weight": 1.0
-    },
-    {
-      "source": "client_src_views_dashboard_default_work_workchartstab_advances",
-      "target": "client_src_views_dashboard_default_work_workchartstab_empty",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -42317,6 +42294,30 @@
     },
     {
       "source": "client_src_views_dashboard_default_work_workchartstab_advances",
+      "target": "client_src_views_dashboard_default_work_workchartstab_cardtitle",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
+      "source_location": "L559",
+      "weight": 1.0
+    },
+    {
+      "source": "client_src_views_dashboard_default_work_workchartstab_advances",
+      "target": "client_src_views_dashboard_default_work_workchartstab_empty",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
+      "source_location": "L561",
+      "weight": 1.0
+    },
+    {
+      "source": "client_src_views_dashboard_default_work_workchartstab_advances",
       "target": "client_src_utils_formatnumber_fmoneytext",
       "relation": "calls",
       "_origin": "ast",
@@ -42324,7 +42325,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L569",
+      "source_location": "L571",
       "weight": 1.0
     },
     {
@@ -42336,7 +42337,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L590",
+      "source_location": "L592",
       "weight": 1.0
     },
     {
@@ -42348,7 +42349,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L606",
+      "source_location": "L608",
       "weight": 1.0
     },
     {
@@ -42360,7 +42361,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L609",
+      "source_location": "L611",
       "weight": 1.0
     },
     {
@@ -42372,7 +42373,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L610",
+      "source_location": "L612",
       "weight": 1.0
     },
     {
@@ -42384,7 +42385,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L618",
+      "source_location": "L620",
       "weight": 1.0
     },
     {
@@ -42396,7 +42397,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L668",
+      "source_location": "L670",
       "weight": 1.0
     },
     {
@@ -42408,7 +42409,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L671",
+      "source_location": "L673",
       "weight": 1.0
     },
     {
@@ -42420,36 +42421,12 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L461",
+      "source_location": "L463",
       "weight": 1.0
     },
     {
       "source": "client_src_views_dashboard_default_work_workchartstab_invoicedbycontract",
       "target": "client_src_ui_component_cards_maincard_maincard",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L464",
-      "weight": 1.0
-    },
-    {
-      "source": "client_src_views_dashboard_default_work_workchartstab_invoicedbycontract",
-      "target": "client_src_views_dashboard_default_work_workchartstab_cardtitle",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L464",
-      "weight": 1.0
-    },
-    {
-      "source": "client_src_views_dashboard_default_work_workchartstab_invoicedbycontract",
-      "target": "client_src_views_dashboard_default_work_workchartstab_empty",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -42461,6 +42438,30 @@
     },
     {
       "source": "client_src_views_dashboard_default_work_workchartstab_invoicedbycontract",
+      "target": "client_src_views_dashboard_default_work_workchartstab_cardtitle",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
+      "source_location": "L466",
+      "weight": 1.0
+    },
+    {
+      "source": "client_src_views_dashboard_default_work_workchartstab_invoicedbycontract",
+      "target": "client_src_views_dashboard_default_work_workchartstab_empty",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
+      "source_location": "L468",
+      "weight": 1.0
+    },
+    {
+      "source": "client_src_views_dashboard_default_work_workchartstab_invoicedbycontract",
       "target": "client_src_views_dashboard_default_work_workchartstab_swatch",
       "relation": "calls",
       "_origin": "ast",
@@ -42468,7 +42469,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L472",
+      "source_location": "L474",
       "weight": 1.0
     },
     {
@@ -42480,7 +42481,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L493",
+      "source_location": "L495",
       "weight": 1.0
     },
     {
@@ -42492,7 +42493,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L501",
+      "source_location": "L503",
       "weight": 1.0
     },
     {
@@ -42504,7 +42505,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L334",
+      "source_location": "L336",
       "weight": 1.0
     },
     {
@@ -42516,7 +42517,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L339",
+      "source_location": "L341",
       "weight": 1.0
     },
     {
@@ -42528,7 +42529,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L346",
+      "source_location": "L348",
       "weight": 1.0
     },
     {
@@ -42540,7 +42541,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L352",
+      "source_location": "L354",
       "weight": 1.0
     },
     {
@@ -42552,7 +42553,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L353",
+      "source_location": "L355",
       "weight": 1.0
     },
     {
@@ -42564,7 +42565,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L357",
+      "source_location": "L359",
       "weight": 1.0
     },
     {
@@ -42576,7 +42577,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L367",
+      "source_location": "L369",
       "weight": 1.0
     },
     {
@@ -42588,7 +42589,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L409",
+      "source_location": "L411",
       "weight": 1.0
     },
     {
@@ -42600,7 +42601,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L411",
+      "source_location": "L413",
       "weight": 1.0
     },
     {
@@ -42612,7 +42613,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L411",
+      "source_location": "L413",
       "weight": 1.0
     },
     {
@@ -42624,7 +42625,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L411",
+      "source_location": "L413",
       "weight": 1.0
     },
     {
@@ -42636,7 +42637,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L416",
+      "source_location": "L418",
       "weight": 1.0
     },
     {
@@ -42648,7 +42649,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L421",
+      "source_location": "L423",
       "weight": 1.0
     },
     {
@@ -42660,7 +42661,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L435",
+      "source_location": "L437",
       "weight": 1.0
     },
     {
@@ -42672,7 +42673,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L446",
+      "source_location": "L448",
       "weight": 1.0
     },
     {
@@ -42696,7 +42697,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L382",
+      "source_location": "L384",
       "weight": 1.0
     },
     {
@@ -42756,7 +42757,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L690",
+      "source_location": "L692",
       "weight": 1.0
     },
     {
@@ -42768,7 +42769,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L693",
+      "source_location": "L695",
       "weight": 1.0
     },
     {
@@ -42780,7 +42781,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L694",
+      "source_location": "L696",
       "weight": 1.0
     },
     {
@@ -42792,7 +42793,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L706",
+      "source_location": "L708",
       "weight": 1.0
     },
     {
@@ -42804,7 +42805,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L741",
+      "source_location": "L743",
       "weight": 1.0
     },
     {
@@ -42816,7 +42817,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L747",
+      "source_location": "L749",
       "weight": 1.0
     },
     {
@@ -42828,7 +42829,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L749",
+      "source_location": "L751",
       "weight": 1.0
     },
     {
@@ -42840,7 +42841,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L751",
+      "source_location": "L753",
       "weight": 1.0
     },
     {
@@ -42852,7 +42853,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L755",
+      "source_location": "L757",
       "weight": 1.0
     },
     {
@@ -42864,7 +42865,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L768",
+      "source_location": "L770",
       "weight": 1.0
     },
     {
@@ -42876,7 +42877,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L771",
+      "source_location": "L773",
       "weight": 1.0
     },
     {
@@ -42888,7 +42889,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L780",
+      "source_location": "L782",
       "weight": 1.0
     },
     {
@@ -42900,7 +42901,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L785",
+      "source_location": "L787",
       "weight": 1.0
     },
     {
@@ -42912,7 +42913,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L791",
+      "source_location": "L793",
       "weight": 1.0
     },
     {
@@ -121596,7 +121597,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L324",
+      "source_location": "L326",
       "weight": 1.0
     },
     {
@@ -121629,7 +121630,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L381",
+      "source_location": "L383",
       "weight": 1.0
     },
     {
@@ -121640,18 +121641,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L406",
-      "weight": 1.0
-    },
-    {
-      "source": "client_src_views_dashboard_default_work_workchartstab",
-      "target": "client_src_views_dashboard_default_work_workchartstab_invoicedbycontract",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L459",
+      "source_location": "L408",
       "weight": 1.0
     },
     {
@@ -121667,13 +121657,24 @@
     },
     {
       "source": "client_src_views_dashboard_default_work_workchartstab",
+      "target": "client_src_views_dashboard_default_work_workchartstab_invoicedbycontract",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
+      "source_location": "L461",
+      "weight": 1.0
+    },
+    {
+      "source": "client_src_views_dashboard_default_work_workchartstab",
       "target": "client_src_views_dashboard_default_work_workchartstab_advances",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L532",
+      "source_location": "L534",
       "weight": 1.0
     },
     {
@@ -121684,7 +121685,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L584",
+      "source_location": "L586",
       "weight": 1.0
     },
     {
@@ -121706,7 +121707,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/dashboard/Default/work/WorkChartsTab.jsx",
-      "source_location": "L684",
+      "source_location": "L686",
       "weight": 1.0
     },
     {
@@ -121794,7 +121795,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L36",
+      "source_location": "L38",
       "weight": 1.0
     },
     {
@@ -121805,7 +121806,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L42",
+      "source_location": "L44",
       "weight": 1.0
     },
     {
@@ -121816,7 +121817,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L49",
+      "source_location": "L51",
       "weight": 1.0
     },
     {
@@ -121827,7 +121828,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L52",
+      "source_location": "L54",
       "weight": 1.0
     },
     {
@@ -121838,7 +121839,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L54",
+      "source_location": "L56",
       "weight": 1.0
     },
     {
@@ -121849,7 +121850,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L57",
+      "source_location": "L59",
       "weight": 1.0
     },
     {
@@ -121860,7 +121861,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/dashboard/Default/work/workDashboard.utils.js",
-      "source_location": "L62",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -142475,5 +142476,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "979744d03a25147fc47f3fa3f8df4beac0c02d2e"
+  "built_at_commit": "4f8552a9edc97151a8e5d377912457901e577efd"
 }
