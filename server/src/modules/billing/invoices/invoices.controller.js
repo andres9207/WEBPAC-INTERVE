@@ -6,6 +6,10 @@ import { workScopeOf } from "../../../common/services/workScope.service.js";
 import * as invoicesService from "./invoices.service.js";
 import { getInvoiceEvidence } from "./invoiceEvidence.service.js";
 import { grantedViews } from "./invoiceViews.js";
+import { SIMPLE_FIELDS } from "./simpleInvoiceTerms.js";
+
+// Importes capturados de la simple, salvo el valor (que comparte con las de contrato).
+const SIMPLE_AMOUNT_FIELDS = Object.keys(SIMPLE_FIELDS).filter((field) => field !== "value");
 
 // Solo leen la petición y delegan. El autor sale de req.user (DEC-005); la
 // clave de idempotencia, del encabezado (DEC-016). Nada más del body llega al
@@ -42,6 +46,8 @@ const INVOICE_FIELDS = [
   "amortizationObservation",
   "retention",
   "retentionObservation",
+  // Importes de la simple (DEC-065); `value` es compartido.
+  ...SIMPLE_AMOUNT_FIELDS,
 ];
 
 const grantedOf = async ({ useId, proId }) => new Set(await getEffectivePermissionIds({ useId, proId }));
@@ -125,6 +131,11 @@ export const getContractAdvanceController = handle(async (req) =>
     scope: await workScopeOf(req),
     views: (await accessOf(req.user)).views,
   })
+);
+
+// Composición de la factura simple para el panel Detalle (DEC-065): solo calcula, no lee datos.
+export const previewSimpleInvoiceController = handle(async (req) =>
+  invoicesService.previewSimpleInvoice(pick(req.body, ["value", ...SIMPLE_AMOUNT_FIELDS]))
 );
 
 export const saveInvoiceController = handle(async (req) => {

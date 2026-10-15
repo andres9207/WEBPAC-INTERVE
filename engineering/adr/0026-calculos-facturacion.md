@@ -273,18 +273,18 @@ TOTAL = VALOR DEVOLUCIÓN
 
 | # | Punto | Opciones | ADR |
 | --- | --- | --- | --- |
-| P1 | Lectura de la factura simple | A: orden literal de pantalla · B: retenciones fuera de la base del IVA (propuesta) | 0023 |
-| P2 | Base de la retención en la fuente | Subtotal o valor · subtotal + flete | 0023, 0021 |
-| P3 | Base del ICA | Subtotal o valor · total facturado | 0023, 0021 |
-| P4 | ¿El flete causa IVA? | No (propuesta) · sí | 0023 |
-| P5 | ¿El descuento pronto pago reduce la base? | No (propuesta) · sí | 0023 |
-| P6 | IVA con AIU | Sobre la utilidad (propuesta) · sobre la base | 0021, 0026 |
+| P1 | Lectura de la factura simple — **resuelto 2026-10-15 en [DEC-065](../decisiones/DEC-065-factura-simple-importes.md): B** (el IVA no se reduce por la retención) | A: orden literal de pantalla · B: retenciones fuera de la base del IVA (propuesta) | 0023 |
+| P2 | Base de la retención en la fuente — **simple: resuelto en [DEC-065](../decisiones/DEC-065-factura-simple-importes.md), el valor bruto**; liquidación: VALOR (DEC-03) | Subtotal o valor · subtotal + flete | 0023, 0021 |
+| P3 | Base del ICA — **simple: no aplica, el ICA se digita como valor ([DEC-065](../decisiones/DEC-065-factura-simple-importes.md))** | Subtotal o valor · total facturado | 0023, 0021 |
+| P4 | ¿El flete causa IVA? — **resuelto en [DEC-065](../decisiones/DEC-065-factura-simple-importes.md): no** | No (propuesta) · sí | 0023 |
+| P5 | ¿El descuento pronto pago reduce la base? — **resuelto en [DEC-065](../decisiones/DEC-065-factura-simple-importes.md): no** | No (propuesta) · sí | 0023 |
+| P6 | IVA con AIU — **liquidación: el usuario eligió VALOR × % IVA, como el sistema actual ([DEC-065](../decisiones/DEC-065-factura-simple-importes.md)); falta implementarlo con DEC-03** | Sobre la utilidad (propuesta) · sobre la base | 0021, 0026 |
 | P7 | `VALOR` de la factura de liquidación | Incluye AIU (propuesta) · es costo directo | 0021 |
 | P8 | Descuento de materiales | Reduce el neto (propuesta) · reduce la base | 0021 |
-| P9 | Semántica de `Descuento AI` | Administración e imprevistos · otro descuento | 0023 |
-| P10 | Retenciones tributarias | Tasa congelada (propuesta) · valor capturado | 0023 |
+| P9 | Semántica de `Descuento AI` — **resuelto en [DEC-065](../decisiones/DEC-065-factura-simple-importes.md): descuento comercial sobre el valor** | Administración e imprevistos · otro descuento | 0023 |
+| P10 | Retenciones tributarias — **resuelto en [DEC-065](../decisiones/DEC-065-factura-simple-importes.md): tasa, salvo el ICA, que es valor** | Tasa congelada (propuesta) · valor capturado | 0023 |
 | P11 | Impuestos en anticipo y devolución | Ninguno (propuesta, según alcance) · con impuestos | 0021 |
-| P12 | Precisión y modo de redondeo | Pesos enteros · dos decimales; modo por definir | 0026 |
+| P12 | Precisión y modo de redondeo — **resuelto en [DEC-028](../decisiones/DEC-028-convencion-monetaria.md) y DEC-045: dos decimales, medio hacia arriba, por línea** | Pesos enteros · dos decimales; modo por definir | 0026 |
 | P13 | Dónde se apaga el AIU — **resuelto 2026-10-06 en [DEC-046](../decisiones/DEC-046-aiu-por-contrato.md): por contrato**, con permiso propio y bitácora | Por contrato (propuesta) · solo en el tipo | 0026 |
 
 ### Estructura del módulo de cálculo

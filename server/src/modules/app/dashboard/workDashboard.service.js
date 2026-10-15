@@ -26,6 +26,7 @@ import {
 import { INVOICE_STATES, INVOICE_TYPES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
 import { grantedViews, viewsWhere } from "../../billing/invoices/invoiceViews.js";
 import { contractBalances } from "../../billing/invoices/invoices.service.js";
+import { composeSimpleInvoice } from "../../billing/invoices/simpleInvoiceTerms.js";
 
 /**
  * Tablero de una obra (ADR-0002; propuesta B del tablero, DEC-063): la obra
@@ -43,8 +44,8 @@ import { contractBalances } from "../../billing/invoices/invoices.service.js";
  *   retenido con contractBalances (las mismas sumas del expediente y de la
  *   conciliación, DEC-061), vigencia y estado de pólizas con policyTerms.
  * - Las facturas anuladas no cuentan en las cifras (DEC-052, B7). La simple
- *   no tiene importes todavía (DEC-02): cuenta en las cantidades, no en los
- *   valores.
+ *   vale su total facturado (DEC-065); una registrada antes de DEC-065, sin
+ *   importes, cuenta en las cantidades y no en los valores.
  */
 
 const can = PERMISSIONS;
@@ -294,14 +295,19 @@ const INVOICE_SELECT = {
   tbl_invoice_advance_details: { select: { iad_value: true } },
   tbl_invoice_liquidation_details: { select: { ild_value: true } },
   tbl_invoice_retention_refund_details: { select: { irr_value: true } },
+  tbl_invoice_simple_details: true,
 };
 
-/** Valor capturado de la factura según su tipo; null la simple, que aún no tiene importes (DEC-02). */
+/**
+ * Valor de la factura según su tipo: el capturado en las de contrato y el
+ * total facturado en la simple (DEC-065: el valor del documento, no el neto
+ * a pagar). null una simple registrada antes de DEC-065, sin importes.
+ */
 const invoiceValue = (row) =>
   row.tbl_invoice_advance_details?.iad_value ??
   row.tbl_invoice_liquidation_details?.ild_value ??
   row.tbl_invoice_retention_refund_details?.irr_value ??
-  null;
+  (row.tbl_invoice_simple_details ? composeSimpleInvoice(row.tbl_invoice_simple_details).billed : null);
 
 const invoiceDto = (row) => ({
   invId: row.inv_id,
@@ -359,7 +365,9 @@ const invoicesBlock = async (wrkId, views, today) => {
   const byType = TYPE_ORDER.map((type) => {
     const own = rows.filter((r) => r.inv_type === type);
     const value = sum(own);
-    return { type, name: INVOICE_TYPE_NAMES[type], count: own.length, value: type === INVOICE_TYPES.SIMPLE ? null : moneyText(value), pct: pct(value, total) };
+    // Sin ningún importe (simples anteriores a DEC-065), el valor es null y no 0.
+    const priced = own.some((r) => invoiceValue(r) !== null);
+    return { type, name: INVOICE_TYPE_NAMES[type], count: own.length, value: priced ? moneyText(value) : null, pct: pct(value, total) };
   }).filter((t) => t.count > 0);
 
   const contracts = new Map();

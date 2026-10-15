@@ -15,14 +15,22 @@ import { gridSpacing } from 'store/constant';
  * Con `to`, la tarjeta lleva al listado con el mismo filtro que produjo la
  * cifra (ADR-0002, decisión 2).
  */
-function Indicator({ label, value, hint, icon: Icon, tone, to }) {
+function Indicator({ label, value, hint, icon: Icon, tone, to, dense = false }) {
   const content = (
     <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%', textAlign: 'left' }}>
-      <Avatar variant="rounded" sx={{ width: 48, height: 48, bgcolor: tone.bg, color: tone.fg, borderRadius: 1.5 }} aria-hidden>
-        <Icon size={24} stroke={1.8} />
+      <Avatar
+        variant="rounded"
+        sx={{ width: dense ? 40 : 48, height: dense ? 40 : 48, bgcolor: tone.bg, color: tone.fg, borderRadius: 1.5 }}
+        aria-hidden
+      >
+        <Icon size={dense ? 20 : 24} stroke={1.8} />
       </Avatar>
       <Stack sx={{ minWidth: 0 }}>
-        <Typography variant="h2" component="p" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+        <Typography
+          variant={dense ? 'h4' : 'h2'}
+          component="p"
+          sx={{ fontVariantNumeric: 'tabular-nums', ...(dense ? { whiteSpace: 'nowrap' } : {}) }}
+        >
           {value}
         </Typography>
         <Typography variant="subtitle1" component="p">
@@ -34,7 +42,7 @@ function Indicator({ label, value, hint, icon: Icon, tone, to }) {
       </Stack>
     </Stack>
   );
-  const box = { bgcolor: 'background.paper', borderRadius: 1, p: 2.5, border: 1, borderColor: 'divider', width: '100%' };
+  const box = { bgcolor: 'background.paper', borderRadius: 1, p: dense ? 2 : 2.5, border: 1, borderColor: 'divider', width: '100%' };
   if (!to) return <Box sx={box}>{content}</Box>;
   return (
     <ButtonBase
@@ -55,22 +63,29 @@ Indicator.propTypes = {
   hint: PropTypes.string,
   icon: PropTypes.elementType.isRequired,
   tone: PropTypes.object.isRequired,
-  to: PropTypes.string
+  to: PropTypes.string,
+  dense: PropTypes.bool
 };
 
-export default function DashboardCards({ items }) {
+// `dense`: cifras de importes largos (el formulario de factura, DEC-065): la
+// cifra en un tamaño menor y en una sola línea.
+export default function DashboardCards({ items, dense = false, label = 'Indicadores' }) {
   if (items.length === 0) return null;
   return (
     <Box
       component="section"
-      aria-label="Indicadores"
-      sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: gridSpacing }}
+      aria-label={label}
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${dense ? 240 : 220}px), 1fr))`,
+        gap: dense ? 2 : gridSpacing
+      }}
     >
       {items.map((item) => (
-        <Indicator key={item.label} {...item} />
+        <Indicator key={item.label} {...item} dense={dense} />
       ))}
     </Box>
   );
 }
 
-DashboardCards.propTypes = { items: PropTypes.arrayOf(PropTypes.object).isRequired };
+DashboardCards.propTypes = { items: PropTypes.arrayOf(PropTypes.object).isRequired, dense: PropTypes.bool, label: PropTypes.string };

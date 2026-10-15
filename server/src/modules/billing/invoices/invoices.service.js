@@ -8,7 +8,7 @@ import { assertInScope, scopeWhere } from "../../../common/services/workScope.se
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
-import { moneyText, ratioText, toMoney } from "../../../common/utils/money.utils.js";
+import { moneyText, percentText, ratioText, toMoney } from "../../../common/utils/money.utils.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, getContractFormOptions } from "../../work/contracts/contracts.service.js";
 import {
@@ -51,6 +51,15 @@ import {
   retentionDto,
 } from "./retentionTerms.js";
 import { INVOICE_VIEWS, PROVIDER_VIEW_SELECT, assertViewGranted, providerViewOf, providerViewWhere, seesView, viewsWhere } from "./invoiceViews.js";
+import {
+  SIMPLE_FIELDS,
+  SIMPLE_MONEY_COLUMNS,
+  SIMPLE_PERCENT_COLUMNS,
+  composeSimpleInvoice,
+  hasSimpleAmounts,
+  simpleAmountsDto,
+  simpleDetailOf,
+} from "./simpleInvoiceTerms.js";
 
 /**
  * Facturas, fase A (ADR-0020, DEC-042): encabezado común, ciclo de vida y
@@ -77,8 +86,12 @@ import { INVOICE_VIEWS, PROVIDER_VIEW_SELECT, assertViewGranted, providerViewOf,
  *   (DEC-051). La liquidación guarda además su otrosí de liquidación, que
  *   resuelve el servidor, nunca el cliente (DEC-059). Los saldos de anticipo (ADR-0024) y de retenido (ADR-0025)
  *   se calculan bajo el bloqueo del contrato al registrar, editar, aprobar y
- *   anular, nunca se reciben ni se guardan. IVA y retenciones tributarias
- *   siguen pendientes (backlog DEC-03, DEC-07).
+ *   anular, nunca se reciben ni se guardan. IVA y retenciones tributarias de
+ *   las de contrato siguen pendientes (backlog DEC-03, DEC-07).
+ * - La simple lleva su detalle con lo capturado y las tasas congeladas
+ *   (DEC-065); subtotal, IVA, retenciones y totales los compone
+ *   `composeSimpleInvoice` y nunca se guardan. Las registradas antes de
+ *   DEC-065 no tienen detalle y pueden aprobarse así.
  */
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
@@ -152,6 +165,9 @@ const LOCKED_SELECT = {
     },
   },
   tbl_invoice_retention_refund_details: { select: { irr_value: true } },
+  tbl_invoice_simple_details: {
+    select: { ...Object.fromEntries(Object.values(SIMPLE_FIELDS).map((column) => [column, true])), isd_formula_version: true },
+  },
 };
 
 const NOT_FOUND = "No se encontró la factura.";
@@ -252,6 +268,27 @@ export const contractBalances = async (db, ctrId) => {
  * retenido por defecto de una liquidación por ese VALOR. Solo lectura: al
  * guardar se recalcula todo. Exige ver el menú del proveedor del contrato (DEC-056).
  */
+/**
+ * Previsualización de la factura simple (DEC-065; ADR-0026, decisión 2): el
+ * panel Detalle del formulario lo compone el servidor con la misma función
+ * que al guardar, mientras el usuario escribe. Sin base de datos ni efectos.
+ * Lo vacío cuenta como 0 para mostrar algo desde el primer campo; si lo
+ * capturado no se podría guardar, `message` dice por qué (no es un error:
+ * el formulario sigue en edición).
+ */
+export const previewSimpleInvoice = (input) => {
+  let message = null;
+  try {
+    simpleDetailOf(input);
+  } catch (err) {
+    if (!err.statusCode) throw err;
+    message = err.message;
+  }
+  const zeroed = Object.fromEntries(Object.keys(SIMPLE_FIELDS).map((field) => [field, optionalText(input[field]) ?? "0"]));
+  const draft = Object.fromEntries(Object.entries(SIMPLE_FIELDS).map(([field, column]) => [column, zeroed[field]]));
+  return { ...simpleAmountsDto(draft), valid: message === null, message };
+};
+
 export const getContractAdvance = async ({ ctrId, value, scope, views }) => {
   await assertContractInScope(scope, ctrId);
   const contract = await prisma.tbl_contracts.findFirst({
@@ -272,9 +309,11 @@ export const getContractAdvance = async ({ ctrId, value, scope, views }) => {
   };
 };
 
-/** Tipos con detalle de importes: todos los de contrato (la simple espera DEC-02). */
+/** Tipos con detalle que mueve saldos del contrato: los de contrato. */
 const hasDetail = (type) =>
   type === INVOICE_TYPES.ADVANCE || type === INVOICE_TYPES.LIQUIDATION || type === INVOICE_TYPES.RETENTION_REFUND;
+
+const isSimpleType = (type) => type === INVOICE_TYPES.SIMPLE;
 
 /** Columna del valor capturado de cada tipo de detalle. */
 const VALUE_COLUMN = Object.freeze({
@@ -334,6 +373,8 @@ const liquidationConceptOf = async (tx, ctrId) => {
  * - Devolución de retenido: valor ≤ saldo de retenido (I3).
  */
 const resolveDetail = async (tx, { type, ctrId, input, granted }) => {
+  // Simple (DEC-065): sin saldos; solo la forma y los rangos de lo capturado.
+  if (isSimpleType(type)) return { simple: simpleDetailOf(input) };
   if (!hasDetail(type)) return {};
   const balances = await contractBalances(tx, ctrId);
   if (type === INVOICE_TYPES.ADVANCE) {
@@ -400,21 +441,42 @@ const DETAIL_AUDITED = [
   "ild_default_retention",
   "ild_retention_observation",
   "irr_value",
+  ...Object.values(SIMPLE_FIELDS),
 ];
-const MONEY_COLUMNS = new Set(["iad_value", "ild_value", "ild_amortization", "ild_default_amortization", "ild_retention", "ild_default_retention", "irr_value"]);
+const MONEY_COLUMNS = new Set([
+  "iad_value",
+  "ild_value",
+  "ild_amortization",
+  "ild_default_amortization",
+  "ild_retention",
+  "ild_default_retention",
+  "irr_value",
+  ...SIMPLE_MONEY_COLUMNS,
+]);
+const PERCENT_COLUMNS = new Set(SIMPLE_PERCENT_COLUMNS);
 
 const detailText = (row) =>
-  Object.fromEntries(Object.entries(row ?? {}).map(([column, value]) => [column, MONEY_COLUMNS.has(column) ? moneyText(value) : value]));
+  Object.fromEntries(
+    Object.entries(row ?? {}).map(([column, value]) => [
+      column,
+      MONEY_COLUMNS.has(column) ? moneyText(value) : PERCENT_COLUMNS.has(column) ? percentText(value) : value,
+    ])
+  );
 
 /** Detalle guardado de una factura (de LOCKED_SELECT) como fila plana. */
 const storedDetail = (invoice) => ({
   ...(invoice.tbl_invoice_advance_details ?? {}),
   ...(invoice.tbl_invoice_liquidation_details ?? {}),
   ...(invoice.tbl_invoice_retention_refund_details ?? {}),
+  ...(invoice.tbl_invoice_simple_details ?? {}),
 });
 
 const detailChanges = (before, detail) =>
-  diffFields(detailText(storedDetail(before)), detailText({ ...detail.advance, ...detail.liquidation, ...detail.refund }), DETAIL_AUDITED);
+  diffFields(
+    detailText(storedDetail(before)),
+    detailText({ ...detail.advance, ...detail.liquidation, ...detail.refund, ...detail.simple }),
+    DETAIL_AUDITED
+  );
 
 /**
  * Importes que llegan para una factura que ya no admite cambios (aprobada):
@@ -423,6 +485,11 @@ const detailChanges = (before, detail) =>
  */
 const requestedDetailChanges = (before, input) => {
   const requested = {};
+  if (isSimpleType(before.inv_type)) {
+    if (!hasSimpleAmounts(input)) return [];
+    const { isd_formula_version: _version, ...captured } = simpleDetailOf(input);
+    return diffFields(detailText(storedDetail(before)), detailText(captured), DETAIL_AUDITED);
+  }
   const value = toMoney(input.value);
   if (value) requested[VALUE_COLUMN[before.inv_type]] = value;
   if (before.inv_type === INVOICE_TYPES.LIQUIDATION) {
@@ -455,6 +522,13 @@ const writeDetail = async (tx, { invId, detail, useBy }) => {
       where: { inv_id: invId },
       create: { inv_id: invId, ...detail.refund, irr_create_by: useBy, irr_update_by: useBy },
       update: { ...detail.refund, irr_update_by: useBy },
+    });
+  }
+  if (detail.simple) {
+    await tx.tbl_invoice_simple_details.upsert({
+      where: { inv_id: invId },
+      create: { inv_id: invId, ...detail.simple, isd_create_by: useBy, isd_update_by: useBy },
+      update: { ...detail.simple, isd_update_by: useBy },
     });
   }
 };
@@ -528,7 +602,31 @@ const SNAPSHOT_AMOUNTS = Object.freeze({
 });
 const snapshotText = (key, value) => (key === "effectivePct" ? ratioText(value) : moneyText(value));
 
+// Simple (DEC-065): sin saldos de contrato; la instantánea es su composición
+// completa, con la versión de fórmula con que se compuso.
+const SIMPLE_SNAPSHOT_KEYS = Object.freeze([
+  "value",
+  "withholding",
+  "discount",
+  "subtotal",
+  "vat",
+  "vatWithholding",
+  "icaWithholding",
+  "freight",
+  "earlyPaymentDiscount",
+  "total",
+  "billed",
+]);
+const simpleSnapshot = (detail) => {
+  const composed = composeSimpleInvoice(detail);
+  return [
+    ...SIMPLE_SNAPSHOT_KEYS.map((key) => ({ field: `${SNAPSHOT_PREFIX}invoice.${key}`, oldValue: null, newValue: moneyText(composed[key]) })),
+    { field: `${SNAPSHOT_PREFIX}invoice.formulaVersion`, oldValue: null, newValue: String(detail.isd_formula_version) },
+  ];
+};
+
 const approvalSnapshot = ({ invoice, before, after }) => {
+  if (isSimpleType(invoice.inv_type)) return invoice.tbl_invoice_simple_details ? simpleSnapshot(invoice.tbl_invoice_simple_details) : [];
   if (!before) return [];
   const amounts = Object.entries(SNAPSHOT_AMOUNTS)
     .map(([key, read]) => [key, read(invoice)])
@@ -722,6 +820,9 @@ const amountsDto = (row) => {
   const advance = row.tbl_invoice_advance_details;
   const liquidation = row.tbl_invoice_liquidation_details;
   const refund = row.tbl_invoice_retention_refund_details;
+  const simple = row.tbl_invoice_simple_details;
+  // Simple (DEC-065): lo capturado, las líneas del panel Detalle y los dos totales.
+  if (simple) return simpleAmountsDto(simple);
   if (advance) return { value: moneyText(advance.iad_value) };
   if (refund) return { value: moneyText(refund.irr_value) };
   if (liquidation) {
@@ -1053,7 +1154,8 @@ const createSimpleInvoice = ({ input, document, useBy, ctx, idempotencyData }) =
     await assertProviderAssigned(tx, { wrkId, prvId });
     await assertStage(tx, { wrkId, wksId });
     const values = { inv_type: input.type, inv_view: INVOICE_VIEWS.SIMPLE, prv_id: prvId, wrk_id: wrkId, wks_id: wksId, ctr_id: null, ...document };
-    return insertInvoice(tx, { values, useBy, ctx, idempotencyData });
+    // Toda simple nueva lleva sus importes (DEC-065).
+    return insertInvoice(tx, { values, detail: { simple: simpleDetailOf(input) }, useBy, ctx, idempotencyData });
   });
 };
 
@@ -1127,7 +1229,10 @@ const updateInvoice = async ({ invId, input, document, granted, useBy, ctx }) =>
 
       let detail = {};
       let amountChanges = [];
-      if (hasDetail(before.inv_type)) {
+      // Una simple registrada antes de DEC-065 puede seguir sin importes: solo
+      // se exigen si llegan o si ya los tenía.
+      const simpleAmounts = isSimple && (hasSimpleAmounts(input) || Boolean(before.tbl_invoice_simple_details));
+      if (hasDetail(before.inv_type) || simpleAmounts) {
         if (stateAllows(before.inv_state, "edit")) {
           detail = await resolveDetail(tx, { type: before.inv_type, ctrId: before.ctr_id, input, granted });
           amountChanges = detailChanges(before, detail);
@@ -1210,6 +1315,8 @@ export const saveInvoice = async ({ invId, input, useBy, granted, scope, views, 
       amortizationObservation: optionalText(input.amortizationObservation),
       retention: moneyText(toMoney(input.retention)),
       retentionObservation: optionalText(input.retentionObservation),
+      // Importes de la simple (DEC-065): la misma clave con otros importes es otra petición.
+      ...Object.fromEntries(Object.keys(SIMPLE_FIELDS).filter((field) => field !== "value").map((field) => [field, optionalText(input[field])])),
     },
     execute: (idempotencyData) => create({ input, document, granted, views, useBy: Number(useBy), ctx, idempotencyData }),
   });

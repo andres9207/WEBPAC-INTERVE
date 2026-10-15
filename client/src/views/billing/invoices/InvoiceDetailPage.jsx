@@ -25,6 +25,7 @@ import { showError } from 'services/ToastService';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
 import { fMoneyText, fPercentText } from 'utils/formatNumber';
 import { INVOICE_STATE_COLORS, invoicePath } from 'utils/constants';
+import InvoiceDetailPanel from './components/InvoiceDetailPanel';
 
 /**
  * Expediente de una factura (DEC-042), en un modal sobre el listado de su
@@ -86,7 +87,51 @@ function LiquidationRetention({ amounts, approved }) {
 
 LiquidationRetention.propTypes = { amounts: PropTypes.object.isRequired, approved: PropTypes.bool };
 
-/** Importes de una factura de contrato, como los guardó el servidor. */
+/**
+ * Panel Detalle de la factura guardada (DEC-065): la composición que manda el
+ * servidor. null si la factura no tiene importes.
+ */
+const detailPanelOf = ({ type, amounts }) => {
+  if (!amounts) return null;
+  if (amounts.lines) {
+    return {
+      lines: amounts.lines,
+      total: amounts.total,
+      extra: [{ label: 'Total facturado', value: amounts.billed, hint: 'Valor del documento; es el costo de la obra' }],
+      note: 'TOTAL es el neto a pagar: descuenta las retenciones y el pronto pago.'
+    };
+  }
+  const isLiquidation = type === 'LIQUIDATION';
+  return {
+    lines: [
+      { key: 'value', label: isLiquidation ? 'VALOR' : type === 'ADVANCE' ? 'ANTICIPO' : 'DEVOLUCIÓN RETENIDO', value: amounts.value },
+      ...(isLiquidation
+        ? [
+            { key: 'amortization', label: 'AMORTIZACIÓN', value: amounts.amortization },
+            { key: 'retention', label: 'RETENIDO', value: amounts.retention }
+          ]
+        : [])
+    ],
+    total: isLiquidation ? undefined : amounts.value,
+    note: isLiquidation
+      ? 'IVA, retenciones tributarias y el total a pagar llegan con la composición de la factura de liquidación (DEC-03).'
+      : 'Sin IVA ni retenciones tributarias: esperan la composición de las facturas de contrato (DEC-03).'
+  };
+};
+
+// Lo capturado de la simple (DEC-065), con su unidad: tasa o valor.
+const SIMPLE_CAPTURED = [
+  ['value', 'Valor', 'money'],
+  ['withholdingPct', 'Retención en la fuente', 'pct'],
+  ['discount', 'Descuento AI', 'money'],
+  ['vatPct', 'IVA', 'pct'],
+  ['vatWithholdingPct', 'Retención de IVA', 'pct'],
+  ['icaWithholding', 'Retención de ICA', 'money'],
+  ['freight', 'Flete', 'money'],
+  ['earlyPaymentDiscount', 'Descuento por pronto pago', 'money']
+];
+
+/** Importes de una factura, como los guardó el servidor. */
 function InvoiceAmounts({ invoice }) {
   const { amounts, type } = invoice;
   if (!amounts) {
@@ -97,9 +142,25 @@ function InvoiceAmounts({ invoice }) {
       />
     ) : (
       <Pending
-        title="Los importes de este tipo de factura todavía no se registran."
-        text="Llegan cuando se defina la composición de cada tipo de factura (decisiones contables pendientes). Hoy la factura registra el documento y su ciclo de vida."
+        title="La factura no tiene sus importes registrados."
+        text="Se registró antes de que la factura simple tuviera importes (DEC-065). Mientras esté registrada, se pueden capturar al editarla; también se puede aprobar sin ellos."
       />
+    );
+  }
+  if (amounts.captured) {
+    return (
+      <Stack spacing={2}>
+        <DataList
+          items={SIMPLE_CAPTURED.map(([key, label, unit]) => [
+            label,
+            unit === 'pct' ? pct(amounts.captured[key]) : fMoneyText(amounts.captured[key])
+          ])}
+        />
+        <Typography variant="caption" color="text.secondary">
+          Tasas congeladas al registrar. Subtotal, IVA, retenciones y totales se calculan con la fórmula v{amounts.formulaVersion} (DEC-065)
+          y no se guardan.
+        </Typography>
+      </Stack>
     );
   }
   const approved = invoice.state === 'APPROVED';
@@ -204,6 +265,7 @@ export default function InvoiceDetailPage() {
 
   if (!invoice) return <RouteDialog onClose={close} loading={loading} />;
 
+  const panel = detailPanelOf(invoice);
   const allows = (action) => invoice.allowedActions.includes(action);
   const canApprove = canDo(perms?.approve) && allows('approve');
   // Anular una aprobada exige además el permiso reforzado (ADR-0020).
@@ -294,60 +356,69 @@ export default function InvoiceDetailPage() {
           {invoice.state === 'CANCELLED' && (
             <Alert severity="info">Factura anulada: queda en el historial, fuera de todo cálculo, y su número sigue ocupado.</Alert>
           )}
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <SubCard title="Documento">
-                <DataList
-                  items={[
-                    ['Número', invoice.number],
-                    ['Tipo', invoice.typeName],
-                    ['Fecha de la factura', fDateOnly(invoice.date)],
-                    ['Fecha de aprobación', invoice.approvalDate ? fDateOnly(invoice.approvalDate) : 'Sin aprobar'],
-                    ['Número de comprobante', invoice.voucherNumber],
-                    ['Extracto', invoice.statement],
-                    ['Descripción', invoice.description]
-                  ]}
-                />
-              </SubCard>
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <SubCard title={invoice.ctrId ? 'Proveedor, obra y contrato' : 'Proveedor y obra'}>
-                <DataList
-                  items={[
-                    ['Proveedor', `${invoice.providerName} · ${invoice.providerIdentification}`],
-                    // La simple se imputa a una etapa de la obra, sin contrato (DEC-058).
-                    ['Obra', `${invoice.workCode} — ${invoice.workName}`],
-                    ['Etapa', invoice.stageName],
-                    ...(invoice.ctrId
-                      ? [
-                          ['Contrato', `${invoice.contractNumber} — ${invoice.contractName}`],
-                          ['Estado del contrato', invoice.contractStateName],
-                          // La liquidación se asocia al otrosí de liquidación del contrato (DEC-059).
-                          ...(invoice.amounts?.liquidationConcept
-                            ? [
-                                [
-                                  'Otrosí de liquidación',
-                                  [
-                                    invoice.amounts.liquidationConcept.number && `N.º ${invoice.amounts.liquidationConcept.number}`,
-                                    `desde ${fDateOnly(invoice.amounts.liquidationConcept.startDate)}`
+          <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
+            <Grid size={{ xs: 12, md: panel ? 8 : 12 }}>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: panel ? 12 : 6 }}>
+                  <SubCard title="Documento">
+                    <DataList
+                      items={[
+                        ['Número', invoice.number],
+                        ['Tipo', invoice.typeName],
+                        ['Fecha de la factura', fDateOnly(invoice.date)],
+                        ['Fecha de aprobación', invoice.approvalDate ? fDateOnly(invoice.approvalDate) : 'Sin aprobar'],
+                        ['Número de comprobante', invoice.voucherNumber],
+                        ['Extracto', invoice.statement],
+                        ['Descripción', invoice.description]
+                      ]}
+                    />
+                  </SubCard>
+                </Grid>
+                <Grid size={{ xs: 12, md: panel ? 12 : 6 }}>
+                  <SubCard title={invoice.ctrId ? 'Proveedor, obra y contrato' : 'Proveedor y obra'}>
+                    <DataList
+                      items={[
+                        ['Proveedor', `${invoice.providerName} · ${invoice.providerIdentification}`],
+                        // La simple se imputa a una etapa de la obra, sin contrato (DEC-058).
+                        ['Obra', `${invoice.workCode} — ${invoice.workName}`],
+                        ['Etapa', invoice.stageName],
+                        ...(invoice.ctrId
+                          ? [
+                              ['Contrato', `${invoice.contractNumber} — ${invoice.contractName}`],
+                              ['Estado del contrato', invoice.contractStateName],
+                              // La liquidación se asocia al otrosí de liquidación del contrato (DEC-059).
+                              ...(invoice.amounts?.liquidationConcept
+                                ? [
+                                    [
+                                      'Otrosí de liquidación',
+                                      [
+                                        invoice.amounts.liquidationConcept.number && `N.º ${invoice.amounts.liquidationConcept.number}`,
+                                        `desde ${fDateOnly(invoice.amounts.liquidationConcept.startDate)}`
+                                      ]
+                                        .filter(Boolean)
+                                        .join(' · ')
+                                    ]
                                   ]
-                                    .filter(Boolean)
-                                    .join(' · ')
-                                ]
-                              ]
-                            : [])
-                        ]
-                      : [['Contrato', 'Sin contrato (factura simple)']]),
-                    ['Registrada', `${fDateTime(invoice.createdAt)} por ${invoice.createdByName ?? '—'}`]
-                  ]}
-                />
-                {invoice.ctrId && (
-                  <Button size="small" sx={{ mt: 1 }} onClick={() => navigate(`/work/contracts/${invoice.ctrId}`)}>
-                    Ver contrato
-                  </Button>
-                )}
-              </SubCard>
+                                : [])
+                            ]
+                          : [['Contrato', 'Sin contrato (factura simple)']]),
+                        ['Registrada', `${fDateTime(invoice.createdAt)} por ${invoice.createdByName ?? '—'}`]
+                      ]}
+                    />
+                    {invoice.ctrId && (
+                      <Button size="small" sx={{ mt: 1 }} onClick={() => navigate(`/work/contracts/${invoice.ctrId}`)}>
+                        Ver contrato
+                      </Button>
+                    )}
+                  </SubCard>
+                </Grid>
+              </Grid>
             </Grid>
+            {panel && (
+              <Grid size={{ xs: 12, md: 4 }}>
+                <InvoiceDetailPanel {...panel} />
+              </Grid>
+            )}
           </Grid>
         </Stack>
       )}

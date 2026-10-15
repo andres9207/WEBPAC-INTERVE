@@ -42,6 +42,15 @@ export const getInvoiceContractsSelectAPI = (params) => httpCliente.get('billing
  */
 export const getContractAdvanceAPI = (params) => httpCliente.get('billing/invoices/get_contract_advance', params);
 
+/**
+ * Composición de la factura simple (DEC-065) para el panel Detalle: la
+ * calcula el servidor con la misma fórmula que al guardar. Lo vacío cuenta
+ * 0; si lo escrito no se podría guardar, `valid` es false y `message` dice
+ * por qué. No guarda nada.
+ * @param {{ value?, withholdingPct?, discount?, vatPct?, vatWithholdingPct?, icaWithholding?, freight?, earlyPaymentDiscount? }} params
+ */
+export const previewSimpleInvoiceAPI = (params) => httpCliente.post('billing/invoices/preview_simple_invoice', params);
+
 /** Transiciones: cada una con su endpoint y su permiso (WORKFLOW_STANDARD, regla 3). */
 export const invoiceTransitionsApi = {
   /** @param {{ invId, approvalDate, observation }} params */

@@ -81,6 +81,33 @@ describe("invoices.controller", () => {
     expect(emit).toHaveBeenCalledWith("refresh-invoices", {});
   });
 
+  it("saveInvoice pasa los importes de la simple y nunca los calculados del cliente (DEC-065)", async () => {
+    invoicesServiceMock.saveInvoice.mockResolvedValue({ invId: 71 });
+    const amounts = {
+      value: "20000",
+      withholdingPct: "10",
+      discount: "10",
+      vatPct: "19",
+      vatWithholdingPct: "10",
+      icaWithholding: "10",
+      freight: "10",
+      earlyPaymentDiscount: "10",
+    };
+    const req = mockReq(
+      {
+        user: { useId: 7, proId: 2 },
+        body: { invId: 0, type: "SIMPLE", wrkId: 8, wksId: 11, prvId: 77, number: "S-1", date: "2026-03-01", ...amounts, subtotal: "1", total: "1", billed: "1" },
+      },
+      { "Idempotency-Key": KEY }
+    );
+
+    await saveInvoiceController(req, buildRes(), jest.fn());
+
+    const { input } = invoicesServiceMock.saveInvoice.mock.calls[0][0];
+    expect(input).toMatchObject(amounts);
+    for (const field of ["subtotal", "total", "billed"]) expect(input).not.toHaveProperty(field);
+  });
+
   it("approveInvoice pasa solo la fecha y la observación, con la clave del encabezado", async () => {
     invoicesServiceMock.approveInvoice.mockResolvedValue({ invId: 70 });
     const req = mockReq(

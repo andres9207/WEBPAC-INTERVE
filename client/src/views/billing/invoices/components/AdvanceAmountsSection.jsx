@@ -11,7 +11,6 @@ import Typography from '@mui/material/Typography';
 
 import FormSection from 'ui-component/extended/FormSection';
 import MoneyField from 'ui-component/extended/MoneyField';
-import { Figure } from 'ui-component/extended/DetailBlocks';
 import { getContractAdvanceAPI } from 'api/requests/invoicesApi';
 import { fMoneyText, fPercentText } from 'utils/formatNumber';
 
@@ -142,14 +141,6 @@ function Row({ children }) {
 
 Row.propTypes = { children: PropTypes.node };
 
-function Figures({ figures }) {
-  return figures.map((figure) => (
-    <Grid key={figure.label} size={{ xs: 12, sm: 6, md: 3 }}>
-      <Figure {...figure} />
-    </Grid>
-  ));
-}
-
 const SUBTITLES = {
   ADVANCE: 'El valor del anticipo no puede superar lo que queda por facturar del anticipo pactado.',
   LIQUIDATION:
@@ -157,17 +148,29 @@ const SUBTITLES = {
   RETENTION_REFUND: 'El valor devuelto no puede superar el saldo de retenido del contrato. Se admiten varias devoluciones.'
 };
 
-export default function AdvanceAmountsSection({ control, setValue, type, ctrId, readOnly, canAdjust, canAdjustRetention, onError }) {
+export default function AdvanceAmountsSection({
+  control,
+  setValue,
+  type,
+  ctrId,
+  readOnly,
+  canAdjust,
+  canAdjustRetention,
+  onBalances,
+  onError
+}) {
   const isLiquidation = type === 'LIQUIDATION';
   const isRefund = type === 'RETENTION_REFUND';
   const [value, adjustAmortization, adjustRetention] = useWatch({ control, name: ['value', 'adjustAmortization', 'adjustRetention'] });
   const [balances, setBalances] = useState(null);
 
   // Saldos del contrato y, en la liquidación, la amortización y el retenido
-  // por defecto del VALOR escrito (se piden al dejar de escribir).
+  // por defecto del VALOR escrito (se piden al dejar de escribir). La página
+  // los recibe para las tarjetas de saldos (`onBalances`, DEC-065).
   useEffect(() => {
     if (!ctrId) {
       setBalances(null);
+      onBalances?.(null);
       return undefined;
     }
     let cancelled = false;
@@ -175,7 +178,11 @@ export default function AdvanceAmountsSection({ control, setValue, type, ctrId, 
     const timer = setTimeout(
       () =>
         getContractAdvanceAPI({ ctrId, ...(amount ? { value: amount } : {}) })
-          .then(({ data }) => !cancelled && setBalances(data))
+          .then(({ data }) => {
+            if (cancelled) return;
+            setBalances(data);
+            onBalances?.(data);
+          })
           .catch((err) => !cancelled && onError(err.response?.data?.message || 'Error al cargar los saldos del contrato')),
       amount ? 400 : 0
     );
@@ -183,7 +190,7 @@ export default function AdvanceAmountsSection({ control, setValue, type, ctrId, 
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [ctrId, isLiquidation, value, onError]);
+  }, [ctrId, isLiquidation, value, onBalances, onError]);
 
   // Sin ajuste, cada campo muestra su valor por defecto.
   const defaultAmortization = balances?.defaultAmortization ?? '';
@@ -196,30 +203,15 @@ export default function AdvanceAmountsSection({ control, setValue, type, ctrId, 
   }, [isLiquidation, adjustRetention, readOnly, defaultRetention, setValue]);
 
   const retention = balances?.retention;
-  const advanceFigures = isLiquidation
-    ? [
-        { label: 'Anticipo facturado', value: fMoneyText(balances?.invoiced) },
-        { label: 'Amortizado', value: fMoneyText(balances?.amortized) },
-        { label: 'Pendiente por amortizar', value: fMoneyText(balances?.toAmortize) },
-        { label: '% de anticipo efectivo', value: fPercentText(balances?.effectivePct), hint: 'Anticipo pactado / base del contrato' }
-      ]
-    : [
-        { label: 'Anticipo pactado', value: fMoneyText(balances?.agreed) },
-        { label: 'Anticipo facturado', value: fMoneyText(balances?.invoiced), hint: 'Solo facturas aprobadas' },
-        { label: 'Por facturar', value: fMoneyText(balances?.toInvoice) }
-      ];
-  const retentionFigures = isRefund
-    ? [
-        { label: 'Retenido acumulado', value: fMoneyText(retention?.retained), hint: 'Solo liquidaciones aprobadas' },
-        { label: 'Devuelto', value: fMoneyText(retention?.refunded), hint: 'Solo devoluciones aprobadas' },
-        { label: 'Saldo de retenido', value: fMoneyText(retention?.balance) }
-      ]
-    : [
-        { label: 'Retenido pactado', value: fMoneyText(retention?.agreed) },
-        { label: 'Retenido acumulado', value: fMoneyText(retention?.retained) },
-        { label: 'Por retener', value: fMoneyText(retention?.toRetain) },
-        { label: '% de retenido efectivo', value: fPercentText(retention?.effectivePct), hint: 'Retenido pactado / base del contrato' }
-      ];
+  // Lo que acota el valor de cada tipo, bajo su campo; los saldos generales
+  // van en las tarjetas de arriba (ContractBalanceCards).
+  const valueHint = !balances
+    ? undefined
+    : {
+        ADVANCE: `Por facturar del anticipo: ${fMoneyText(balances.toInvoice) || '—'}`,
+        LIQUIDATION: `Anticipo efectivo ${fPercentText(balances.effectivePct) || '—'} · retenido efectivo ${fPercentText(retention?.effectivePct) || '—'}`,
+        RETENTION_REFUND: `Saldo de retenido: ${fMoneyText(retention?.balance) || '—'}`
+      }[type];
 
   return (
     <FormSection title="Importes" subtitle={SUBTITLES[type]}>
@@ -231,7 +223,6 @@ export default function AdvanceAmountsSection({ control, setValue, type, ctrId, 
             </Typography>
           </Grid>
         )}
-        {ctrId && !isRefund && <Figures figures={advanceFigures} />}
 
         <Row>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
@@ -252,6 +243,7 @@ export default function AdvanceAmountsSection({ control, setValue, type, ctrId, 
                   required
                   disabled={readOnly}
                   error={fieldState.error?.message}
+                  helperText={valueHint}
                 />
               )}
             />
@@ -283,7 +275,6 @@ export default function AdvanceAmountsSection({ control, setValue, type, ctrId, 
             </Typography>
           </Grid>
         )}
-        {ctrId && (isLiquidation || isRefund) && <Figures figures={retentionFigures} />}
 
         {isLiquidation && (
           <AdjustableAmount
@@ -320,5 +311,7 @@ AdvanceAmountsSection.propTypes = {
   readOnly: PropTypes.bool,
   canAdjust: PropTypes.bool,
   canAdjustRetention: PropTypes.bool,
+  /** Recibe los saldos del contrato (o null sin contrato) para las tarjetas de la página. */
+  onBalances: PropTypes.func,
   onError: PropTypes.func.isRequired
 };

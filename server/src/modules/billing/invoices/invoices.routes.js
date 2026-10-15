@@ -11,6 +11,7 @@ import {
   getInvoiceFormOptionsSchema,
   selectInvoiceContractsSchema,
   getContractAdvanceSchema,
+  previewSimpleInvoiceSchema,
   saveInvoiceSchema,
   approveInvoiceSchema,
   cancelInvoiceSchema,
@@ -22,6 +23,7 @@ import {
   getInvoiceFormOptionsController,
   selectInvoiceContractsController,
   getContractAdvanceController,
+  previewSimpleInvoiceController,
   saveInvoiceController,
   approveInvoiceController,
   cancelInvoiceController,
@@ -87,6 +89,15 @@ invoicesRoutes.get(
   getContractAdvanceSchema,
   validate,
   getContractAdvanceController
+);
+// Panel Detalle de la factura simple (DEC-065): la composición del servidor mientras se escribe.
+invoicesRoutes.post(
+  "/preview_simple_invoice",
+  verifyToken,
+  requirePermission(VIEW_PERMISSIONS[INVOICE_VIEWS.SIMPLE]),
+  previewSimpleInvoiceSchema,
+  validate,
+  previewSimpleInvoiceController
 );
 // save_invoice sirve registrar (invId 0) y editar.
 invoicesRoutes.post(

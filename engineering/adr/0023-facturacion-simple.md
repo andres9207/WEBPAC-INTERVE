@@ -4,6 +4,8 @@
 
 **Propuesto.**
 
+> **Implementado el 2026-10-15 en [DEC-065](../decisiones/DEC-065-factura-simple-importes.md)**, con la fórmula del sistema que se migra. Respuestas del usuario: lectura B para el IVA, retención en la fuente sobre el valor bruto, flete sin IVA, pronto pago solo en el pago, Descuento AI como descuento comercial, total facturado aparte del neto y SUBTOTAL mostrado como en el sistema actual. **Se aparta de la decisión 6:** la retención de ICA se digita como valor; el resto, como tasa. Lo que sigue es el análisis original.
+
 La facturación simple **no existe** en el código ni en el esquema. Este ADR documenta la decisión arquitectónica recomendada, dentro del modelo común definido en [ADR-0020](0020-facturacion.md).
 
 Las fórmulas de composición económica **no existen en el código**. Las que aquí aparecen son **PROPUESTA PENDIENTE DE VALIDACIÓN** y no un hallazgo. Su versión autoritativa está en [ADR-0026](0026-calculos-facturacion.md).

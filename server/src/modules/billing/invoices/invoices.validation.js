@@ -1,5 +1,14 @@
 import { body, query } from "express-validator";
-import { paginationRules, optionalText, optionalId, optionalDate, requiredId, idempotencyKeyRule, moneyRule } from "../../../common/utils/validation.utils.js";
+import {
+  paginationRules,
+  optionalText,
+  optionalId,
+  optionalDate,
+  requiredId,
+  idempotencyKeyRule,
+  moneyRule,
+  percentRule,
+} from "../../../common/utils/validation.utils.js";
 import { INVOICE_STATES, INVOICE_TYPES, hasContract } from "./invoiceTerms.js";
 import { CONTRACT_VIEWS, INVOICE_VIEWS } from "./invoiceViews.js";
 
@@ -100,7 +109,24 @@ export const saveInvoiceSchema = [
   optionalLongText("amortizationObservation", "La observación del ajuste", 1000),
   moneyRule("retention", "valor del retenido", { optional: true }),
   optionalLongText("retentionObservation", "La observación del ajuste del retenido", 1000),
+  ...simpleAmountRules(),
 ];
+
+/** Importes de la factura simple (DEC-065). Su obligatoriedad y sus rangos los decide el service. */
+function simpleAmountRules() {
+  return [
+    percentRule("withholdingPct", "% de retención en la fuente", { optional: true }),
+    moneyRule("discount", "descuento AI", { optional: true }),
+    percentRule("vatPct", "% de IVA", { optional: true }),
+    percentRule("vatWithholdingPct", "% de retención de IVA", { optional: true }),
+    moneyRule("icaWithholding", "valor de la retención de ICA", { optional: true }),
+    moneyRule("freight", "flete", { optional: true }),
+    moneyRule("earlyPaymentDiscount", "descuento por pronto pago", { optional: true }),
+  ];
+}
+
+// Previsualización de la factura simple: los mismos importes, sin guardar nada.
+export const previewSimpleInvoiceSchema = [moneyRule("value", "valor de la factura", { optional: true }), ...simpleAmountRules()];
 
 export const approveInvoiceSchema = [
   idempotencyKeyRule(),

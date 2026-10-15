@@ -12,6 +12,7 @@ const MODULES = fileURLToPath(new URL("../../src/modules/", import.meta.url));
 const EXEMPT = {
   selectMyWorksController: "es la lista de obras que el usuario puede elegir: la arma selectMyWorks con sus propias reglas",
   previewWorkEndDateController: "solo suma un plazo a una fecha; no lee la BD",
+  previewSimpleInvoiceController: "solo compone los importes que recibe (DEC-065); no lee la BD",
   selectWorkManagersController: "lista usuarios candidatos a responsable, no datos de obras",
   checkIdentificationController: "coincidencia exacta en el catálogo de proveedores, para no crear duplicados (DEC-047)",
   selectProvidersController: "catálogo de proveedores para asignar a la obra, para no crear duplicados (DEC-047)",

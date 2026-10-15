@@ -85,6 +85,7 @@ const prismaMock = {
     aggregate: jest.fn(async () => ({ _sum: { irr_value: state.refundedSum } })),
     upsert: jest.fn(),
   },
+  tbl_invoice_simple_details: { upsert: jest.fn() },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
@@ -174,6 +175,15 @@ const simpleInput = (overrides = {}) => ({
   voucherNumber: "",
   statement: "",
   description: "",
+  // Importes de la pantalla del sistema que se migra (DEC-065).
+  value: "20000",
+  withholdingPct: "10",
+  discount: "10",
+  vatPct: "19",
+  vatWithholdingPct: "10",
+  icaWithholding: "10",
+  freight: "10",
+  earlyPaymentDiscount: "10",
   ...overrides,
 });
 
@@ -240,6 +250,40 @@ describe("registrar", () => {
       ish_origin: "AUTOMATIC",
     });
     expect(auditRows().find((r) => r.aud_field === "inv_state")).toMatchObject({ aud_entity: "FACTURA", aud_operation: "CREAR", aud_new_value: "REGISTERED" });
+  });
+
+  it("simple: guarda lo capturado y las tasas, nunca los calculados, con bitácora (DEC-065)", async () => {
+    await save(simpleInput());
+    const { create } = prismaMock.tbl_invoice_simple_details.upsert.mock.calls[0][0];
+    expect(Object.fromEntries(Object.entries(create).map(([k, v]) => [k, typeof v === "object" ? v.toFixed(2) : v]))).toEqual({
+      inv_id: 70,
+      isd_value: "20000.00",
+      isd_withholding_pct: "10.00",
+      isd_discount: "10.00",
+      isd_vat_pct: "19.00",
+      isd_vat_withholding_pct: "10.00",
+      isd_ica_withholding: "10.00",
+      isd_freight: "10.00",
+      isd_early_payment_discount: "10.00",
+      isd_formula_version: 1,
+      isd_create_by: 9,
+      isd_update_by: 9,
+    });
+    expect(auditRows().find((r) => r.aud_field === "isd_vat_pct")).toMatchObject({ aud_new_value: "19.00" });
+  });
+
+  it("simple: exige valor y % IVA; los demás vacíos valen 0; rangos y neto ≥ 0 (400)", async () => {
+    await expect(save(simpleInput({ value: "" }))).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/valor/) });
+    await expect(save(simpleInput({ vatPct: "" }))).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/IVA/) });
+    await expect(save(simpleInput({ discount: "20001" }))).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/descuento AI/) });
+    await expect(save(simpleInput({ vatPct: "101" }))).rejects.toMatchObject({ statusCode: 400 });
+    await expect(save(simpleInput({ earlyPaymentDiscount: "999999" }))).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/negativo/) });
+    expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
+
+    jest.clearAllMocks();
+    await save(simpleInput({ withholdingPct: "", discount: null, vatWithholdingPct: "", icaWithholding: "", freight: "", earlyPaymentDiscount: "" }));
+    const { create } = prismaMock.tbl_invoice_simple_details.upsert.mock.calls[0][0];
+    expect([create.isd_withholding_pct, create.isd_discount, create.isd_freight].map((v) => v.toFixed(2))).toEqual(["0.00", "0.00", "0.00"]);
   });
 
   it("simple: la obra existe y está activa (400)", async () => {
@@ -531,6 +575,65 @@ describe("anular", () => {
 
   it("una factura que no existe responde 404", async () => {
     await expect(cancel()).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+// Detalle guardado de la simple de la pantalla de referencia (DEC-065).
+const SIMPLE_DETAIL = {
+  isd_value: D("20000"),
+  isd_withholding_pct: D("10"),
+  isd_discount: D("10"),
+  isd_vat_pct: D("19"),
+  isd_vat_withholding_pct: D("10"),
+  isd_ica_withholding: D("10"),
+  isd_freight: D("10"),
+  isd_early_payment_discount: D("10"),
+  isd_formula_version: 1,
+};
+
+describe("importes de la factura simple (DEC-065)", () => {
+  it("una registrada antes de DEC-065 recibe sus importes al editarla, con bitácora", async () => {
+    state.invoice = storedSimple();
+    await save(simpleInput(), 70);
+    expect(prismaMock.tbl_invoice_simple_details.upsert.mock.calls[0][0].create).toMatchObject({ inv_id: 70, isd_formula_version: 1 });
+    expect(auditRows().find((r) => r.aud_field === "isd_value")).toMatchObject({ aud_old_value: null, aud_new_value: "20000.00" });
+  });
+
+  it("una registrada con importes no los pierde: editarla los exige (400)", async () => {
+    state.invoice = storedSimple({ tbl_invoice_simple_details: SIMPLE_DETAIL });
+    await expect(save({ number: "F-100", date: "2026-03-01" }, 70)).rejects.toMatchObject({ statusCode: 400 });
+    jest.clearAllMocks();
+    await save(simpleInput({ freight: "20" }), 70);
+    const changed = auditRows().filter((r) => r.aud_field.startsWith("isd_"));
+    expect(changed).toEqual([expect.objectContaining({ aud_field: "isd_freight", aud_old_value: "10.00", aud_new_value: "20.00" })]);
+  });
+
+  it("una aprobada no cambia sus importes (409); los mismos importes no son un cambio", async () => {
+    state.invoice = storedSimple({ inv_state: "APPROVED", tbl_invoice_simple_details: SIMPLE_DETAIL });
+    await expect(save(simpleInput({ freight: "20" }), 70)).rejects.toMatchObject({ statusCode: 409 });
+    await expect(save(simpleInput({ description: "Nota" }), 70)).resolves.toMatchObject({ invId: 70 });
+    expect(prismaMock.tbl_invoice_simple_details.upsert).not.toHaveBeenCalled();
+  });
+
+  it("aprobar deja en la bitácora la composición y la versión de fórmula (sin saldos de contrato)", async () => {
+    state.invoice = storedSimple({ tbl_invoice_simple_details: SIMPLE_DETAIL });
+    await approve();
+    const snapshot = Object.fromEntries(auditRows().filter((r) => r.aud_field.startsWith("snapshot.")).map((r) => [r.aud_field, r.aud_new_value]));
+    expect(snapshot).toMatchObject({ "snapshot.invoice.total": "21398.29", "snapshot.invoice.billed": "23798.10", "snapshot.invoice.formulaVersion": "1" });
+    expect(Object.keys(snapshot).some((key) => key.startsWith("snapshot.advance."))).toBe(false);
+  });
+
+  it("previsualizar: compone con la misma fórmula; lo vacío cuenta 0 y lo inválido trae su mensaje, sin error", () => {
+    expect(service.previewSimpleInvoice(simpleInput())).toMatchObject({ total: "21398.29", billed: "23798.10", valid: true, message: null });
+    const empty = service.previewSimpleInvoice({});
+    expect(empty).toMatchObject({ total: "0.00", valid: false, message: expect.stringMatching(/valor/) });
+    expect(empty.lines).toHaveLength(9);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("una registrada antes de DEC-065, sin importes, se aprueba así", async () => {
+    state.invoice = storedSimple();
+    await expect(approve()).resolves.toMatchObject({ invId: 70 });
   });
 });
 

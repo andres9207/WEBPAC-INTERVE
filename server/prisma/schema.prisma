@@ -266,6 +266,8 @@ model tbl_users {
   insurers_updated                         tbl_insurers[]                         @relation("InsurerUpdatedBy")
   invoice_advance_details_created          tbl_invoice_advance_details[]          @relation("InvoiceAdvanceDetailCreatedBy")
   invoice_advance_details_updated          tbl_invoice_advance_details[]          @relation("InvoiceAdvanceDetailUpdatedBy")
+  invoice_simple_details_created           tbl_invoice_simple_details[]           @relation("InvoiceSimpleDetailCreatedBy")
+  invoice_simple_details_updated           tbl_invoice_simple_details[]           @relation("InvoiceSimpleDetailUpdatedBy")
   invoice_liquidation_details_created      tbl_invoice_liquidation_details[]      @relation("InvoiceLiquidationDetailCreatedBy")
   invoice_liquidation_details_updated      tbl_invoice_liquidation_details[]      @relation("InvoiceLiquidationDetailUpdatedBy")
   invoice_retention_refund_details_created tbl_invoice_retention_refund_details[] @relation("InvoiceRetentionRefundDetailCreatedBy")
@@ -1022,6 +1024,7 @@ model tbl_invoices {
   inv_idempotency_key                  String?                               @unique(map: "uq_invoices_idempotency_key") @db.Char(36)
   inv_idempotency_hash                 String?                               @db.Char(64)
   tbl_invoice_advance_details          tbl_invoice_advance_details?
+  tbl_invoice_simple_details           tbl_invoice_simple_details?
   tbl_invoice_liquidation_details      tbl_invoice_liquidation_details?
   liquidation_detail_by_contract       tbl_invoice_liquidation_details[]     @relation("InvoiceLiquidationDetailContract")
   tbl_invoice_retention_refund_details tbl_invoice_retention_refund_details?
@@ -1071,6 +1074,32 @@ model tbl_invoice_status_history {
   @@index([inv_id, ish_create_at], map: "idx_invoice_status_history_invoice")
   @@index([ish_create_by], map: "tbl_invoice_status_history_create_by")
   @@index([rea_id], map: "tbl_invoice_status_history_reason")
+}
+
+/// Detalle de la factura simple (0098, DEC-065): lo capturado y las tasas congeladas. Subtotal, IVA,
+/// retenciones y totales se calculan con composeSimpleInvoice; nunca se guardan. Opcional: las
+/// simples registradas antes de DEC-065 no lo tienen.
+model tbl_invoice_simple_details {
+  inv_id                     Int          @id
+  isd_value                  Decimal      @db.Decimal(18, 2)
+  isd_withholding_pct        Decimal      @default(0.00) @db.Decimal(5, 2)
+  isd_discount               Decimal      @default(0.00) @db.Decimal(18, 2)
+  isd_vat_pct                Decimal      @db.Decimal(5, 2)
+  isd_vat_withholding_pct    Decimal      @default(0.00) @db.Decimal(5, 2)
+  isd_ica_withholding        Decimal      @default(0.00) @db.Decimal(18, 2)
+  isd_freight                Decimal      @default(0.00) @db.Decimal(18, 2)
+  isd_early_payment_discount Decimal      @default(0.00) @db.Decimal(18, 2)
+  isd_formula_version        Int          @default(1) @db.SmallInt
+  isd_create_by              Int?
+  isd_create_at              DateTime?    @default(now()) @db.Timestamp(0)
+  isd_update_by              Int?
+  isd_update_at              DateTime?    @default(now()) @db.Timestamp(0)
+  created_by_user            tbl_users?   @relation("InvoiceSimpleDetailCreatedBy", fields: [isd_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_simple_details_create_by")
+  tbl_invoices               tbl_invoices @relation(fields: [inv_id], references: [inv_id], onUpdate: NoAction, map: "tbl_invoice_simple_details_invoice")
+  updated_by_user            tbl_users?   @relation("InvoiceSimpleDetailUpdatedBy", fields: [isd_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_simple_details_update_by")
+
+  @@index([isd_create_by], map: "tbl_invoice_simple_details_create_by")
+  @@index([isd_update_by], map: "tbl_invoice_simple_details_update_by")
 }
 
 model tbl_invoice_advance_details {
