@@ -798,9 +798,9 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/index.jsx": {
-    "mtime": 1791982778.9221382,
-    "seen": 1791984457.8194702,
-    "ast_hash": "cb4428827b5d3c2bc67f4bc6492b6639",
+    "mtime": 1792069538.3419738,
+    "seen": 1792070160.791485,
+    "ast_hash": "cde09637ff572907c2fe660a0ff0dd35",
     "semantic_hash": ""
   },
   "client/src/views/pages/auth-forms/AuthForgotPassword.jsx": {
@@ -3108,9 +3108,9 @@
     "semantic_hash": ""
   },
   "client/src/api/requests/dashboardApi.js": {
-    "mtime": 1791470636.2279048,
-    "seen": 1791471398.8213785,
-    "ast_hash": "d867ec3eb52e7870550d58bbd47db9e9",
+    "mtime": 1792069539.448415,
+    "seen": 1792070160.7912784,
+    "ast_hash": "5a6183c1b327e0aa9add3879282fddd1",
     "semantic_hash": ""
   },
   "client/src/hooks/useLinkedFilters.js": {
@@ -3162,15 +3162,15 @@
     "semantic_hash": ""
   },
   "server/src/modules/app/dashboard/dashboard.controller.js": {
-    "mtime": 1791470352.2038414,
-    "seen": 1791471398.8218036,
-    "ast_hash": "cf5552844f9e00bbd5fecd518965a03d",
+    "mtime": 1792069357.5193255,
+    "seen": 1792070160.7917297,
+    "ast_hash": "8871200c37b9fc96c4c81030635b3d6a",
     "semantic_hash": ""
   },
   "server/src/modules/app/dashboard/dashboard.routes.js": {
-    "mtime": 1791470353.2401724,
-    "seen": 1791471398.8218043,
-    "ast_hash": "90ddb448b88ab138c029dd69455418c0",
+    "mtime": 1792069357.5197814,
+    "seen": 1792070160.7917306,
+    "ast_hash": "6ae53b827d2667197a1f46cbe6a9ef1d",
     "semantic_hash": ""
   },
   "server/src/modules/app/dashboard/dashboard.service.js": {
@@ -3429,6 +3429,48 @@
     "mtime": 1792013738.1838863,
     "seen": 1792014250.2865393,
     "ast_hash": "dc11c5980a9ab7d133ddcb3b2c6e3dde",
+    "semantic_hash": ""
+  },
+  "client/src/views/dashboard/Default/GeneralDashboard.jsx": {
+    "mtime": 1792069530.89964,
+    "seen": 1792070160.7914793,
+    "ast_hash": "ec9ef4cc0c66c6adf85fe80ac2e8f2ce",
+    "semantic_hash": ""
+  },
+  "client/src/views/dashboard/Default/work/WorkChartsTab.jsx": {
+    "mtime": 1792069772.5297234,
+    "seen": 1792070160.791486,
+    "ast_hash": "9ab3b7e263fa42a02c74e28ef90d0935",
+    "semantic_hash": ""
+  },
+  "client/src/views/dashboard/Default/work/WorkDashboard.jsx": {
+    "mtime": 1792069772.5493445,
+    "seen": 1792070160.791487,
+    "ast_hash": "c0eb76a23e0a72a88a715658b09ff2fc",
+    "semantic_hash": ""
+  },
+  "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx": {
+    "mtime": 1792069772.6579638,
+    "seen": 1792070160.791488,
+    "ast_hash": "48afb077f48f261f53d17abb49358f13",
+    "semantic_hash": ""
+  },
+  "client/src/views/dashboard/Default/work/workDashboard.utils.js": {
+    "mtime": 1792069807.1308851,
+    "seen": 1792070160.7914891,
+    "ast_hash": "2555bc74c7f63749c9be8f40bc34dca6",
+    "semantic_hash": ""
+  },
+  "server/src/modules/app/dashboard/workDashboard.service.js": {
+    "mtime": 1792069755.601045,
+    "seen": 1792070160.791733,
+    "ast_hash": "238ae4d80d2b448e4e90faad995966e1",
+    "semantic_hash": ""
+  },
+  "server/test/modules/app/dashboard/workDashboard.service.test.js": {
+    "mtime": 1792069854.9259832,
+    "seen": 1792070160.7918358,
+    "ast_hash": "d1af3e90aabb4194180a44dff6af193d",
     "semantic_hash": ""
   }
 }
