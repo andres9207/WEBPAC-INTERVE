@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Encabezado</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.tb-name{display:inline}
+.tb-work{width:280px;min-width:0}
+@media (max-width: 599px){.tb-name{display:none}.tb-work{width:170px}}
+</style>
+</helmet>
+<header style="position: relative; height: 88px; box-sizing: border-box; display: flex; align-items: center; gap: 16px; padding: 0 20px 0 16px; background: #ffffff; font-family: Roboto, sans-serif; color: #364152; font-size: 14px">
+<div style="width: 228px; display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<a href="Dashboard.dc.html" aria-label="Ir al Dashboard" style="display: block; width: 121px; height: 44px; overflow: hidden; position: relative; flex-shrink: 0">
+<img src="/_blob/71ef2a708318d7089c7367596b2c514e" alt="Interve" style="position: absolute; width: 139.3px; height: 59.4px; left: -9.5px; top: -8.9px; max-width: none">
+</a>
+<button type="button" onClick="{{menu}}" aria-label="Mostrar u ocultar el menú" style="width: 34px; height: 34px; border-radius: 8px; background: #ede7f6; color: #5e35b1; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
+</div>
+<div style="flex-grow: 1"></div>
+<div class="tb-work"><dc-import name="Combobox" label="Obra" hide-label="{{hideWorkLabel}}" options="{{works}}" value="{{work}}" on-change="{{setWork}}" placeholder="Elige una obra" hint-size="280px,40px"></dc-import></div>
+<button type="button" aria-label="Notificaciones" style="position: relative; width: 34px; height: 34px; border-radius: 8px; background: #e3f2fd; color: #1565c0; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"></path><path d="M9 17v1a3 3 0 0 0 6 0v-1"></path></svg><span style="position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; border-radius: 9px; background: #c62828; color: #ffffff; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center">2</span></button>
+<button type="button" onClick="{{toggleProfile}}" aria-expanded="{{profileExpanded}}" aria-label="Menú de la cuenta" style="display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px 0 6px; border-radius: 27px; border: 1px solid #e3f2fd; background: #e3f2fd; color: #1565c0; cursor: pointer; font-family: inherit; font-size: 14px">
+<span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 50%; background: #1565c0; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">LG</span>
+<span class="tb-name" style="font-weight: 500; color: #121926">Laura Gómez</span>
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 4.3c.4-1.8 3-1.8 3.4 0a1.7 1.7 0 0 0 2.6 1.1c1.5-.9 3.3.8 2.4 2.4a1.7 1.7 0 0 0 1 2.5c1.8.5 1.8 3 0 3.5a1.7 1.7 0 0 0-1 2.5c.9 1.6-.9 3.3-2.4 2.4a1.7 1.7 0 0 0-2.6 1.1c-.4 1.8-3 1.8-3.4 0a1.7 1.7 0 0 0-2.6-1.1c-1.5.9-3.3-.8-2.4-2.4a1.7 1.7 0 0 0-1-2.5c-1.8-.5-1.8-3 0-3.5a1.7 1.7 0 0 0 1-2.5c-.9-1.6.9-3.3 2.4-2.4a1.7 1.7 0 0 0 2.6-1.1z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+</button>
+<sc-if value="{{profileOpen}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; top: 80px; right: 20px; width: 280px; background: #ffffff; border: 1px solid #e3e8ef; border-radius: 8px; box-shadow: 0 8px 24px rgba(18, 25, 38, 0.16); z-index: 40; padding: 16px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 16px; font-weight: 600; color: #121926">Buenos días, Laura</span>
+<span style="font-size: 12px; color: #697586; padding-bottom: 8px; border-bottom: 1px solid #e3e8ef; margin-bottom: 8px">Perfil: Administrador</span>
+<button type="button" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border: none; background: transparent; border-radius: 8px; color: #364152; font-size: 14px; cursor: pointer; text-align: left; font-family: inherit">Configuración de la cuenta</button>
+<a href="Main.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 8px; color: #c62828; font-size: 14px; text-decoration: none">Cerrar sesión</a>
+</div>
+</sc-if>
+</header>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"onMenu":{"editor":null},"work":{"editor":null},"onWorkChange":{"editor":null},"$preview":{"width":1440,"height":88}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { profileOpen: false, work: props.work || 'ALL' };
+  }
+  renderVals() {
+    var self = this;
+    // Obra del alcance (DEC-047): las obras de las que el usuario es
+    // responsable y, con el permiso, "Ver todo". Siempre hay una elegida.
+    var works = [
+      { value: 'ALL', label: 'Ver todas las obras' },
+      { value: 'OB-007', label: 'OB-007 - Vía de acceso El Retiro' },
+      { value: 'OB-009', label: 'OB-009 - Centro Logístico Sur' },
+      { value: 'OB-012', label: 'OB-012 - Torre Norte' },
+      { value: 'OB-015', label: 'OB-015 - Colegio Las Acacias' },
+      { value: 'OB-018', label: 'OB-018 - Edificio Mirador 93' }
+    ];
+    return {
+      // Con onWorkChange la pantalla que lo usa controla la obra elegida.
+      works: works, work: this.props.onWorkChange ? (this.props.work || 'ALL') : this.state.work, hideWorkLabel: true,
+      // Solo cambia la obra elegida; nunca lleva a otra pantalla.
+      setWork: function (v) { if (!v) return; if (self.props.onWorkChange) self.props.onWorkChange(v); else self.setState({ work: v }); },
+      menu: function () { if (self.props.onMenu) self.props.onMenu(); },
+      profileOpen: this.state.profileOpen,
+      profileExpanded: this.state.profileOpen ? 'true' : 'false',
+      toggleProfile: function () { self.setState({ profileOpen: !self.state.profileOpen }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

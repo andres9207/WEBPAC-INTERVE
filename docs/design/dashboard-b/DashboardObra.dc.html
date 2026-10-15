@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Tablero de obra</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#ffffff}
+a{color:#1565c0}a:hover{color:#0d47a1}
+button{font-family:inherit}
+button:focus-visible,a:focus-visible{outline:3px solid #90caf9;outline-offset:2px}
+.sb{width:260px;flex-shrink:0;background:#ffffff}
+.sb.collapsed{display:none}
+.main{margin-right:20px;border-radius:8px 8px 0 0;padding:20px}
+.al:hover,.li:hover{background:#f8fafc}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:start}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}
+.mid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:20px}
+.low{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.ctr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width: 1199px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.mid{grid-template-columns:minmax(0,1fr)}.low{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width: 899px){
+.sb{display:none;position:fixed;top:88px;left:0;bottom:0;z-index:30;overflow-y:auto;box-shadow:4px 0 24px rgba(18,25,38,.16)}
+.sb.open{display:block}
+.main{margin-right:0;border-radius:0;padding:16px}
+.hero,.ctr,.low{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width: 599px){.kpis{grid-template-columns:minmax(0,1fr)}}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #ffffff; font-family: Roboto, sans-serif; color: #364152; font-size: 14px; line-height: 1.5">
+<dc-import name="Topbar" on-menu="{{toggleMenu}}" work="OB-012" hint-size="100%,88px"></dc-import>
+<div style="display: flex">
+<div class="{{sbClass}}"><dc-import name="Sidebar" active="dashboard" hint-size="260px,900px"></dc-import></div>
+<main class="main" style="flex-grow: 1; min-width: 0; background: #eef2f6; min-height: calc(100vh - 88px); box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+
+<div role="tablist" aria-label="Vistas del dashboard" style="display: flex; gap: 4px; background: #ffffff; border-radius: 8px; padding: 0 16px; overflow-x: auto">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="2">
+<button type="button" role="tab" aria-selected="{{t.selected}}" onClick="{{t.pick}}" style="{{t.style}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.icon}}"></path></svg>{{t.label}}</button>
+</sc-for>
+</div>
+
+<sc-if value="{{tab.resumen}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 20px">
+<section aria-labelledby="h-obra" style="background: #ffffff; border-radius: 8px; padding: 24px; display: flex; flex-direction: column; gap: 20px">
+<div class="hero">
+<div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+<span style="font-size: 13px; color: #4b5565">Tablero de la obra · cifras al 8 oct 2026</span>
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+<h1 id="h-obra" style="margin: 0; font-size: 30px; font-weight: 700; color: #121926; line-height: 1.2">OB-012 · Torre Norte</h1>
+<span style="display: inline-flex; padding: 2px 12px; border-radius: 16px; font-size: 13px; font-weight: 500; background: #b9f6ca; color: #1b5e20">Activa</span>
+</div>
+<span style="color: #4b5565">Constructora Horizonte S.A.S. · Obra a precio global · Interventoría técnica</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; min-width: 220px">
+<sc-for list="{{team}}" as="m" hint-placeholder-count="2">
+<div style="display: flex; align-items: center; gap: 10px">
+<span aria-hidden="true" style="{{m.avatarStyle}}">{{m.initials}}</span>
+<span style="display: flex; flex-direction: column"><span style="font-weight: 500; color: #121926">{{m.name}}</span><span style="font-size: 12px; color: #4b5565">{{m.role}}</span></span>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap">
+<span style="font-size: 16px; font-weight: 600; color: #121926">Avance del plazo: <span style="font-variant-numeric: tabular-nums">62 %</span></span>
+<span style="color: #4b5565">Faltan 163 días · termina el 20 mar 2027</span>
+</div>
+<div role="progressbar" aria-label="Avance del plazo" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100" style="height: 14px; border-radius: 7px; background: #e3e8ef; overflow: hidden"><span style="display: block; height: 100%; width: 62%; background: #1565c0; border-radius: 7px"></span></div>
+<div style="display: flex; justify-content: space-between; font-size: 12px; color: #4b5565"><span>Inicio 20 ene 2026</span><span>Plazo inicial 14 meses (ampliado: 16)</span><span>Fin 20 mar 2027</span></div>
+</div>
+</section>
+
+<section aria-label="Cifras de la obra" class="kpis">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="4">
+<a href="{{k.href}}" style="display: flex; flex-direction: column; gap: 6px; padding: 20px; background: #ffffff; border: 1px solid #e3e8ef; border-radius: 8px; text-decoration: none; color: inherit">
+<span style="display: flex; align-items: center; gap: 10px"><span aria-hidden="true" style="{{k.iconStyle}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{k.icon}}"></path></svg></span><span style="font-weight: 500; color: #121926">{{k.label}}</span></span>
+<span style="font-size: 26px; font-weight: 700; color: #121926; font-variant-numeric: tabular-nums; line-height: 1.2; overflow-wrap: anywhere">{{k.value}}</span>
+<sc-if value="{{k.hasBar}}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="height: 8px; border-radius: 4px; background: #e3e8ef; overflow: hidden"><span style="{{k.barStyle}}"></span></span></sc-if>
+<span style="font-size: 12px; color: #4b5565">{{k.hint}}</span>
+</a>
+</sc-for>
+</section>
+
+<div class="mid">
+<section aria-labelledby="h-ctr" style="background: #ffffff; border-radius: 8px">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 16px 24px; border-bottom: 1px solid #e3e8ef">
+<h2 id="h-ctr" style="margin: 0; font-size: 16px; font-weight: 600; color: #121926">Contratos de la obra</h2>
+<a href="Contratos.dc.html" style="font-size: 14px; text-decoration: none">Ver contratos</a>
+</div>
+<div class="ctr" style="padding: 20px 24px">
+<sc-for list="{{contracts}}" as="c" hint-placeholder-count="2">
+<a href="Contratos.dc.html" class="li" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #e3e8ef; border-radius: 8px; text-decoration: none; color: inherit">
+<span style="display: flex; justify-content: space-between; gap: 8px; align-items: flex-start">
+<span style="display: flex; flex-direction: column; min-width: 0"><span style="font-weight: 600; color: #121926">{{c.number}} · {{c.name}}</span><span style="font-size: 12px; color: #4b5565">{{c.provider}} · {{c.stage}}</span></span>
+<span style="{{c.chipStyle}}">{{c.state}}</span>
+</span>
+<span style="display: flex; flex-direction: column"><span style="font-size: 12px; color: #4b5565">Valor vigente</span><span style="font-size: 20px; font-weight: 700; color: #121926; font-variant-numeric: tabular-nums">{{c.value}}</span></span>
+<span style="display: flex; flex-direction: column; gap: 4px">
+<span style="display: flex; justify-content: space-between; gap: 8px; font-size: 13px"><span>Anticipo facturado</span><span style="font-variant-numeric: tabular-nums">{{c.advText}}</span></span>
+<span aria-hidden="true" style="height: 8px; border-radius: 4px; background: #e3e8ef; overflow: hidden"><span style="{{c.advBar}}"></span></span>
+<span style="font-size: 12px; color: #4b5565">{{c.advHint}}</span>
+</span>
+<sc-if value="{{c.hasRet}}" hint-placeholder-val="{{ false }}">
+<span style="display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding-top: 8px; border-top: 1px solid #e3e8ef"><span>Retenido por devolver</span><span style="font-weight: 600; font-variant-numeric: tabular-nums">{{c.retText}}</span></span>
+</sc-if>
+<span style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px"><span>Pólizas:</span><span style="{{c.polChipStyle}}">{{c.polState}}</span><span style="color: #4b5565">{{c.polHint}}</span></span>
+</a>
+</sc-for>
+</div>
+</section>
+
+<section id="por-atender" aria-labelledby="h-al" style="background: #ffffff; border-radius: 8px">
+<h2 id="h-al" style="margin: 0; padding: 16px 24px; font-size: 16px; font-weight: 600; color: #121926; border-bottom: 1px solid #e3e8ef">Por atender en la obra</h2>
+<ul style="list-style: none; margin: 0; padding: 12px; display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{alerts}}" as="a" hint-placeholder-count="5">
+<li><a href="{{a.href}}" class="al" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; text-decoration: none; color: inherit; min-height: 44px">
+<span aria-hidden="true" style="{{a.iconStyle}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{a.icon}}"></path></svg></span>
+<span style="display: flex; flex-direction: column"><span style="font-weight: 500; color: #121926">{{a.text}}</span><span style="font-size: 12px; color: #4b5565">{{a.hint}}</span></span>
+</a></li>
+</sc-for>
+</ul>
+</section>
+</div>
+
+<div class="low">
+<section aria-labelledby="h-et" style="background: #ffffff; border-radius: 8px">
+<h2 id="h-et" style="margin: 0; padding: 16px 24px; font-size: 16px; font-weight: 600; color: #121926; border-bottom: 1px solid #e3e8ef">Etapas</h2>
+<ul style="list-style: none; margin: 0; padding: 8px 24px 16px; display: flex; flex-direction: column">
+<sc-for list="{{stages}}" as="e" hint-placeholder-count="5">
+<li style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid #eef2f6"><span style="{{e.nameStyle}}">{{e.name}}</span><span style="font-size: 12px; color: #4b5565; text-align: right">{{e.detail}}</span></li>
+</sc-for>
+</ul>
+</section>
+
+<section aria-labelledby="h-fo" style="background: #ffffff; border-radius: 8px">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 16px 24px; border-bottom: 1px solid #e3e8ef">
+<h2 id="h-fo" style="margin: 0; font-size: 16px; font-weight: 600; color: #121926">Facturas de la obra</h2>
+<a href="Facturas.dc.html" style="font-size: 14px; text-decoration: none">Ver todas</a>
+</div>
+<ul style="list-style: none; margin: 0; padding: 8px 12px; display: flex; flex-direction: column">
+<sc-for list="{{invoices}}" as="i" hint-placeholder-count="4">
+<li><a href="Facturas.dc.html" class="li" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; text-decoration: none; color: inherit">
+<span style="display: flex; flex-direction: column; min-width: 0"><span style="font-weight: 500; color: #121926">{{i.title}}</span><span style="font-size: 12px; color: #4b5565">{{i.sub}}</span></span>
+<span style="{{i.chipStyle}}">{{i.state}}</span>
+</a></li>
+</sc-for>
+</ul>
+</section>
+
+<section aria-labelledby="h-pr" style="background: #ffffff; border-radius: 8px">
+<h2 id="h-pr" style="margin: 0; padding: 16px 24px; font-size: 16px; font-weight: 600; color: #121926; border-bottom: 1px solid #e3e8ef">Proveedores asignados</h2>
+<ul style="list-style: none; margin: 0; padding: 8px 24px 16px; display: flex; flex-direction: column">
+<sc-for list="{{providers}}" as="p" hint-placeholder-count="3">
+<li style="display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #eef2f6"><span style="display: flex; flex-direction: column; min-width: 0"><a href="Proveedores.dc.html" style="text-decoration: none; font-weight: 500">{{p.name}}</a><span style="font-size: 12px; color: #4b5565">{{p.detail}}</span></span><span style="{{p.chipStyle}}">{{p.state}}</span></li>
+</sc-for>
+</ul>
+</section>
+</div>
+
+<p style="margin: 0; font-size: 12px; color: #4b5565">El costo ejecutado de la obra llega cuando la factura simple tenga importes (decisiones contables pendientes). Facturado aprobado: solo facturas de contrato con importes.</p>
+
+</div>
+</sc-if>
+
+<sc-if value="{{tab.graficas}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 20px">
+
+<section aria-label="Cifras de contratos y facturas" class="kpis">
+<sc-for list="{{gk}}" as="k" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 20px; background: #ffffff; border: 1px solid #e3e8ef; border-radius: 8px">
+<span style="font-size: 13px; font-weight: 500; color: #4b5565">{{k.label}}</span>
+<span style="font-size: 24px; font-weight: 700; color: #121926; font-variant-numeric: tabular-nums; line-height: 1.2">{{k.value}}</span>
+<span aria-hidden="true" style="height: 6px; border-radius: 3px; background: #e3e8ef; overflow: hidden"><span style="{{k.barStyle}}"></span></span>
+<span style="font-size: 12px; color: #4b5565">{{k.hint}}</span>
+</div>
+</sc-for>
+</section>
+
+<section aria-labelledby="h-gantt" style="background: #ffffff; border-radius: 8px">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px 24px; border-bottom: 1px solid #e3e8ef">
+<div style="display: flex; flex-direction: column; gap: 2px"><h2 id="h-gantt" style="margin: 0; font-size: 16px; font-weight: 600; color: #121926">Línea de tiempo de contratos y pólizas</h2><span style="font-size: 12px; color: #4b5565">Ene 2026 a mar 2027 · la línea vertical marca el 8 oct 2026</span></div>
+<div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: #364152">
+<sc-for list="{{ganttLegend}}" as="l" hint-placeholder-count="4"><span style="display: inline-flex; align-items: center; gap: 6px"><span aria-hidden="true" style="{{l.swatch}}"></span>{{l.label}}</span></sc-for>
+</div>
+</div>
+<div style="padding: 16px 24px 20px; overflow-x: auto">
+<div style="min-width: 900px; display: flex; flex-direction: column">
+<div style="display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; padding-bottom: 6px">
+<span></span>
+<div style="position: relative; height: 18px">
+<sc-for list="{{months}}" as="m" hint-placeholder-count="15"><span style="{{m.labelStyle}}">{{m.label}}</span></sc-for>
+</div>
+</div>
+<sc-for list="{{gantt}}" as="g" hint-placeholder-count="5">
+<div style="{{g.rowStyle}}">
+<span style="display: flex; flex-direction: column; min-width: 0; justify-content: center"><span style="{{g.nameStyle}}">{{g.name}}</span><span style="font-size: 12px; color: #4b5565; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{g.sub}}</span></span>
+<div style="position: relative; height: 40px">
+<sc-for list="{{months}}" as="m" hint-placeholder-count="15"><span aria-hidden="true" style="{{m.gridStyle}}"></span></sc-for>
+<span title="{{g.tip}}" style="{{g.barStyle}}"><span style="{{g.barLabelStyle}}">{{g.barLabel}}</span></span>
+<sc-for list="{{g.marks}}" as="d" hint-placeholder-count="0"><span title="{{d.tip}}" style="{{d.style}}"></span></sc-for>
+<span aria-hidden="true" style="{{todayStyle}}"></span>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</section>
+
+<div class="mid">
+<section aria-labelledby="h-mes" style="background: #ffffff; border-radius: 8px">
+<div style="padding: 16px 24px; border-bottom: 1px solid #e3e8ef; display: flex; flex-direction: column; gap: 2px"><h2 id="h-mes" style="margin: 0; font-size: 16px; font-weight: 600; color: #121926">Facturado por mes</h2><span style="font-size: 12px; color: #4b5565">Millones de pesos · 2026 · la barra rayada está registrada, sin aprobar</span></div>
+<div style="padding: 20px 24px">
+<div role="img" aria-label="{{monthAria}}" style="display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 10px; align-items: end; height: 220px; border-bottom: 1px solid #cdd5df">
+<sc-for list="{{byMonth}}" as="b" hint-placeholder-count="10">
+<div title="{{b.tip}}" style="display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; height: 100%">
+<span style="font-size: 12px; font-weight: 600; color: #121926; font-variant-numeric: tabular-nums">{{b.valueLabel}}</span>
+<span style="{{b.barStyle}}"></span>
+</div>
+</sc-for>
+</div>
+<div style="display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 10px; padding-top: 6px">
+<sc-for list="{{byMonth}}" as="b" hint-placeholder-count="10"><span style="font-size: 12px; color: #4b5565; text-align: center">{{b.label}}</span></sc-for>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="h-tipo" style="background: #ffffff; border-radius: 8px">
+<div style="padding: 16px 24px; border-bottom: 1px solid #e3e8ef; display: flex; flex-direction: column; gap: 2px"><h2 id="h-tipo" style="margin: 0; font-size: 16px; font-weight: 600; color: #121926">Facturas por tipo</h2><span style="font-size: 12px; color: #4b5565">$ 125.000.000,00 en 4 facturas</span></div>
+<div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px">
+<div role="img" aria-label="{{typeAria}}" style="display: flex; gap: 2px; height: 28px; border-radius: 4px; overflow: hidden">
+<sc-for list="{{byType}}" as="t" hint-placeholder-count="3"><span title="{{t.tip}}" style="{{t.segStyle}}"></span></sc-for>
+</div>
+<ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{byType}}" as="t" hint-placeholder-count="3">
+<li style="display: flex; align-items: center; gap: 10px"><span aria-hidden="true" style="{{t.swatch}}"></span><span style="flex-grow: 1">{{t.label}} <span style="color: #4b5565; font-size: 12px">· {{t.count}}</span></span><span style="font-weight: 600; color: #121926; font-variant-numeric: tabular-nums">{{t.value}}</span><span style="width: 44px; text-align: right; font-size: 12px; color: #4b5565">{{t.pct}}</span></li>
+</sc-for>
+</ul>
+</div>
+</section>
+</div>
+
+<div class="mid">
+<section aria-labelledby="h-ctrf" style="background: #ffffff; border-radius: 8px">
+<div style="padding: 16px 24px; border-bottom: 1px solid #e3e8ef; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center">
+<div style="display: flex; flex-direction: column; gap: 2px"><h2 id="h-ctrf" style="margin: 0; font-size: 16px; font-weight: 600; color: #121926">Facturado por contrato</h2><span style="font-size: 12px; color: #4b5565">Millones de pesos, por tipo de factura</span></div>
+<div style="display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: #364152"><sc-for list="{{byType}}" as="t" hint-placeholder-count="3"><span style="display: inline-flex; align-items: center; gap: 6px"><span aria-hidden="true" style="{{t.swatch}}"></span>{{t.label}}</span></sc-for></div>
+</div>
+<div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 18px">
+<sc-for list="{{byContract}}" as="c" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; justify-content: space-between; gap: 8px"><span style="font-weight: 500; color: #121926">{{c.name}}</span><span style="font-weight: 600; color: #121926; font-variant-numeric: tabular-nums">{{c.total}}</span></div>
+<div style="display: flex; gap: 2px; height: 22px">
+<sc-for list="{{c.segs}}" as="sg" hint-placeholder-count="2"><span title="{{sg.tip}}" style="{{sg.style}}"></span></sc-for>
+</div>
+<span style="font-size: 12px; color: #4b5565">{{c.hint}}</span>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section aria-labelledby="h-ant" style="background: #ffffff; border-radius: 8px">
+<div style="padding: 16px 24px; border-bottom: 1px solid #e3e8ef; display: flex; flex-direction: column; gap: 2px"><h2 id="h-ant" style="margin: 0; font-size: 16px; font-weight: 600; color: #121926">Anticipos</h2><span style="font-size: 12px; color: #4b5565">Facturado y amortizado frente al anticipo pactado</span></div>
+<div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 20px">
+<sc-for list="{{advances}}" as="a" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between; gap: 8px"><span style="font-weight: 500; color: #121926">{{a.name}}</span><span style="font-size: 12px; color: #4b5565">Pactado {{a.agreed}}</span></div>
+<sc-for list="{{a.bars}}" as="b" hint-placeholder-count="2">
+<div style="display: grid; grid-template-columns: 90px minmax(0, 1fr) 130px; gap: 10px; align-items: center; font-size: 12px">
+<span style="color: #4b5565">{{b.label}}</span>
+<span title="{{b.tip}}" style="height: 10px; border-radius: 4px; background: #eef2f6; overflow: hidden; display: block"><span style="{{b.style}}"></span></span>
+<span style="text-align: right; font-weight: 500; color: #121926; font-variant-numeric: tabular-nums">{{b.value}}</span>
+</div>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</section>
+</div>
+
+<section aria-labelledby="h-est" style="background: #ffffff; border-radius: 8px">
+<div style="padding: 16px 24px; border-bottom: 1px solid #e3e8ef; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap">
+<div style="display: flex; flex-direction: column; gap: 2px"><h2 id="h-est" style="margin: 0; font-size: 16px; font-weight: 600; color: #121926">Contratos por estado</h2><span style="font-size: 12px; color: #4b5565">Cantidad de contratos de la obra y su valor vigente</span></div>
+<a href="Contratos.dc.html" style="font-size: 14px; text-decoration: none">Ver contratos</a>
+</div>
+<div style="padding: 24px; display: flex; gap: 40px; align-items: center; flex-wrap: wrap">
+<div role="img" aria-label="{{donutAria}}" style="{{donutStyle}}">
+<div style="position: absolute; inset: 34px; border-radius: 50%; background: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center">
+<span style="font-size: 36px; font-weight: 700; color: #121926; line-height: 1">{{donutTotal}}</span>
+<span style="font-size: 13px; color: #4b5565">contratos</span>
+</div>
+</div>
+<ul style="list-style: none; margin: 0; padding: 0; flex: 1 1 320px; display: flex; flex-direction: column">
+<sc-for list="{{byState}}" as="s" hint-placeholder-count="4">
+<li title="{{s.tip}}" style="display: grid; grid-template-columns: 14px minmax(0, 1fr) 40px 150px 48px; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid #eef2f6">
+<span aria-hidden="true" style="{{s.swatch}}"></span>
+<span style="{{s.labelStyle}}">{{s.label}}</span>
+<span style="text-align: right; font-weight: 600; color: #121926; font-variant-numeric: tabular-nums">{{s.count}}</span>
+<span style="text-align: right; font-size: 13px; color: #364152; font-variant-numeric: tabular-nums">{{s.value}}</span>
+<span style="text-align: right; font-size: 12px; color: #4b5565">{{s.pct}}</span>
+</li>
+</sc-for>
+</ul>
+</div>
+</section>
+
+<p style="margin: 0; font-size: 12px; color: #4b5565">Fechas de inicio y fin de los contratos y de vigencia de las pólizas: datos de ejemplo de OB-012.</p>
+</div>
+</sc-if>
+
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1400}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { collapsed: false, open: false, tab: 'resumen' };
+  }
+  renderVals() {
+    var self = this;
+    var st = this.state;
+    // Tablero de una obra (DEC-052, alcance DEC-047): OB-012 con los datos de
+    // ejemplo de las pantallas Obras, Contratos y Facturas.
+    var TONE = {
+      info: 'background:#e3f2fd;color:#1565c0', edit: 'background:#ede7f6;color:#5e35b1',
+      success: 'background:#b9f6ca;color:#364152', neutral: 'background:#eef2f6;color:#4b5565', danger: 'background:#fbe9e7;color:#c62828'
+    };
+    var icon = function (tone, size) { return 'width:' + size + 'px;height:' + size + 'px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;' + TONE[tone]; };
+    var chip = function (bg, fg) { return 'flex-shrink:0;display:inline-flex;align-items:center;font-size:12px;font-weight:500;padding:2px 10px;border-radius:16px;white-space:nowrap;background:' + bg + ';color:' + fg; };
+    var bar = function (pct, color) { return 'display:block;height:100%;border-radius:4px;background:' + color + ';width:' + Math.max(0, Math.min(100, pct)) + '%'; };
+    var I = {
+      money: 'M16.7 8A3 3 0 0 0 14 6h-4a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6h-4a3 3 0 0 1-2.7-2M12 3v3m0 12v3',
+      file: 'M14 3v4a1 1 0 0 0 1 1h4M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2zM9 17h6M9 13h6',
+      receipt: 'M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16l-3-2-2 2-2-2-2 2-2-2-3 2M9 7h6M9 11h6M13 15h2',
+      alert: 'M12 9v4M12 16v.01M10.4 3.9L2.3 18a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3L13.6 3.9a2 2 0 0 0-3.4 0z',
+      shieldX: 'M12 3l8 3v6c0 5-3.5 8-8 9c-4.5-1-8-4-8-9V6zM10 10l4 4M14 10l-4 4',
+      clock: 'M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0M12 7v5l3 3',
+      wallet: 'M17 8V5a1 1 0 0 0-1-1H6a2 2 0 0 0 0 4h12a1 1 0 0 1 1 1v3m0 4v3a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6M20 12v4h-4a2 2 0 0 1 0-4h4'
+    };
+
+    var kpis = [
+      { label: 'Valor vigente', value: '$ 5.320.000.000,00', hint: 'Ampliado · inicial $ 4.850.000.000,00', tone: 'info', icon: I.money, href: 'Obras.dc.html', hasBar: false },
+      { label: 'Contratado', value: '$ 3.586.655.000,00', hint: '67,4 % del valor vigente · 2 contratos', tone: 'success', icon: I.file, href: 'Contratos.dc.html', hasBar: true, barStyle: bar(67.4, '#1565c0') },
+      { label: 'Facturado aprobado', value: '$ 123.000.000,00', hint: '3 facturas de contrato · 1 por aprobar', tone: 'edit', icon: I.receipt, href: 'Facturas.dc.html', hasBar: false },
+      { label: 'Por atender', value: '5', hint: 'Pólizas, conceptos sin póliza, facturas y retenido', tone: 'danger', icon: I.alert, href: '#por-atender', hasBar: false }
+    ].map(function (k) { return Object.assign({}, k, { iconStyle: icon(k.tone, 36) }); });
+
+    var contracts = [
+      {
+        number: 'C-001', name: 'Suministro de concreto para cimentación y estructura', provider: 'Concretos del Valle S.A.S.', stage: 'Cimentación',
+        state: 'En ejecución', chipStyle: chip('#b9f6ca', '#1b5e20'), value: '$ 2.444.255.000,00',
+        advText: '$ 18.000.000,00 de $ 349.740.000,00', advBar: bar(18000000 / 349740000 * 100, '#1565c0'), advHint: 'Amortizado: $ 0,00',
+        hasRet: false, retText: '',
+        polState: 'A vencer', polChipStyle: chip('#fff8e1', '#6d4c00'), polHint: 'POL-4471 vence el 25 oct · Otrosí N.º 1 sin póliza'
+      },
+      {
+        number: 'C-002', name: 'Acero de refuerzo para estructura', provider: 'Aceros Andinos S.A.', stage: 'Estructura',
+        state: 'En liquidación', chipStyle: chip('#e3f2fd', '#0d47a1'), value: '$ 1.142.400.000,00',
+        advText: '$ 15.000.000,00 de $ 144.000.000,00', advBar: bar(15000000 / 144000000 * 100, '#1565c0'), advHint: 'Amortizado: $ 13.500.000,00 · pendiente $ 1.500.000,00',
+        hasRet: true, retText: '$ 4.500.000,00',
+        polState: 'Vencida', polChipStyle: chip('#fdecea', '#c62828'), polHint: 'POL-3920 venció el 30 sep · otrosí de liquidación sin póliza'
+      }
+    ];
+
+    var alerts = [
+      ['Póliza vencida en C-002', 'Buen manejo del anticipo · venció el 30 sep', 'danger', I.shieldX, 'Contratos.dc.html'],
+      ['Póliza por vencer en C-001', 'Cumplimiento · vence el 25 oct (en 17 días)', 'danger', I.clock, 'Contratos.dc.html'],
+      ['2 contratos con conceptos sin póliza', 'Otrosí N.º 1 de C-001 y el otrosí de liquidación de C-002', 'info', I.alert, 'Contratos.dc.html'],
+      ['1 factura por aprobar', 'Devolución de retenido AA-3412 · $ 2.000.000,00', 'edit', I.receipt, 'Facturas.dc.html'],
+      ['Retenido por devolver: $ 4.500.000,00', 'C-002 en liquidación · retenido pactado $ 48.000.000,00', 'neutral', I.wallet, 'Facturas.dc.html']
+    ].map(function (a) { return { text: a[0], hint: a[1], iconStyle: icon(a[2], 36), icon: a[3], href: a[4] }; });
+
+    var stages = [
+      ['Preliminares', 'Inactiva · 1 factura anulada', false],
+      ['Cimentación', 'C-001 · en ejecución', true],
+      ['Estructura', 'C-002 · en liquidación', true],
+      ['Mampostería', 'Sin contratos', true],
+      ['Acabados', 'Sin contratos', true]
+    ].map(function (e) { return { name: e[0], detail: e[1], nameStyle: e[2] ? 'font-weight:500;color:#121926' : 'color:#697586' }; });
+
+    var invoices = [
+      ['Devolución de retenido AA-3412', 'Aceros Andinos S.A. · 3 oct 2026 · $ 2.000.000,00', 'Registrada', chip('#fff8e1', '#6d4c00')],
+      ['Liquidación AA-3390', 'Aceros Andinos S.A. · 28 sep 2026 · $ 90.000.000,00', 'Aprobada', chip('#b9f6ca', '#1b5e20')],
+      ['Anticipo AA-3101', 'Aceros Andinos S.A. · 2 mar 2026 · $ 15.000.000,00', 'Aprobada', chip('#b9f6ca', '#1b5e20')],
+      ['Anticipo FE-1021', 'Concretos del Valle S.A.S. · 20 feb 2026 · $ 18.000.000,00', 'Aprobada', chip('#b9f6ca', '#1b5e20')]
+    ].map(function (r) { return { title: r[0], sub: r[1], state: r[2], chipStyle: r[3] }; });
+
+    var providers = [
+      ['Concretos del Valle S.A.S.', 'Asignado el 25 ene 2026 · C-001', 'Activa', chip('#b9f6ca', '#1b5e20')],
+      ['Aceros Andinos S.A.', 'Asignado el 3 feb 2026 · C-002', 'Activa', chip('#b9f6ca', '#1b5e20')],
+      ['Excavaciones Rojas S.A.S.', 'Terminó la excavación', 'Inactiva', chip('#eef2f6', '#364152')]
+    ].map(function (p) { return { name: p[0], detail: p[1], state: p[2], chipStyle: p[3] }; });
+
+    var team = [
+      { name: 'Laura Gómez', role: 'Responsable principal', initials: 'LG', avatarStyle: 'width:40px;height:40px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:600;background:#e3f2fd;color:#1565c0' },
+      { name: 'Andrés Ruiz', role: 'Apoyo', initials: 'AR', avatarStyle: 'width:40px;height:40px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:600;background:#ede7f6;color:#4527a0' }
+    ];
+
+    // ---------- pestañas ----------
+    var TABS = [
+      ['resumen', 'Resumen de la obra', 'M4 4h6v8H4zM14 4h6v5h-6zM14 13h6v7h-6zM4 16h6v4H4z'],
+      ['graficas', 'Contratos y facturas', 'M4 19h16M7 16V10M12 16V5M17 16v-4']
+    ];
+    var tab = {};
+    var tabs = TABS.map(function (t) {
+      var on = st.tab === t[0];
+      tab[t[0]] = on;
+      return {
+        label: t[1], icon: t[2], selected: on ? 'true' : 'false',
+        pick: function () { self.setState({ tab: t[0] }); },
+        style: 'background:transparent;border:none;border-bottom:2px solid ' + (on ? '#1565c0' : 'transparent') + ';color:' + (on ? '#0d47a1' : '#4b5565') + ';font-size:14px;font-weight:' + (on ? '600' : '500') + ';padding:14px 12px;min-height:52px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:8px'
+      };
+    });
+
+    // ---------- pestaña Contratos y facturas ----------
+    var C_ANT = '#1565c0', C_LIQ = '#ef6c00', C_DEV = '#00897b';
+    var M = 1000000;
+    var mm = function (v) { return '$ ' + String(Math.round(v / M * 10) / 10).replace('.', ',') + ' M'; };
+    var full = function (v) { return '$ ' + String(v).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',00'; };
+    var day = function (y, m, d) { return Date.UTC(y, m - 1, d); };
+    var T0 = day(2026, 1, 1), T1 = day(2027, 4, 1);
+    var pos = function (t) { return (t - T0) / (T1 - T0) * 100; };
+    var TODAY = day(2026, 10, 8);
+    var MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+    var gk = [
+      { label: 'Contratado', value: '$ 3.586,7 M', hint: '67,4 % del valor vigente de la obra', pct: 67.4, color: C_ANT },
+      { label: 'Facturado aprobado', value: '$ 123,0 M', hint: '3,4 % de lo contratado · 3 facturas', pct: 3.4, color: C_ANT },
+      { label: 'Anticipo amortizado', value: '$ 13,5 M', hint: 'De $ 33,0 M de anticipo facturado (40,9 %)', pct: 40.9, color: C_DEV },
+      { label: 'Retenido por devolver', value: '$ 4,5 M', hint: 'De $ 48,0 M retenidos en C-002', pct: 9.4, color: C_LIQ }
+    ].map(function (k) { return Object.assign({}, k, { barStyle: 'display:block;height:100%;border-radius:3px;width:' + k.pct + '%;background:' + k.color }); });
+
+    var months = [];
+    for (var i = 0; i < 15; i++) {
+      var y = 2026 + Math.floor(i / 12), mo = i % 12;
+      var left = pos(day(y, mo + 1, 1));
+      months.push({
+        label: MES[mo] + (mo === 0 ? ' ' + String(y).slice(2) : ''),
+        labelStyle: 'position:absolute;top:0;left:' + left + '%;font-size:11px;color:#4b5565;padding-left:4px;white-space:nowrap',
+        gridStyle: 'position:absolute;top:0;bottom:0;width:1px;background:#eef2f6;left:' + left + '%'
+      });
+    }
+    var todayStyle = 'position:absolute;top:-4px;bottom:-4px;width:2px;background:#c62828;left:' + pos(TODAY) + '%';
+    var span = function (a, b, bg, fg, border) {
+      return 'position:absolute;top:8px;height:24px;box-sizing:border-box;border-radius:4px;display:flex;align-items:center;overflow:hidden;left:' + pos(a) + '%;width:' + (pos(b) - pos(a)) + '%;background:' + bg + (border ? ';border:1px solid ' + border : '');
+    };
+    var lbl = function (fg) { return 'font-size:12px;font-weight:500;padding:0 8px;white-space:nowrap;color:' + fg; };
+    var dot = function (t, color, tip) { return { tip: tip, style: 'position:absolute;top:12px;width:14px;height:14px;margin-left:-7px;border-radius:50%;box-sizing:border-box;border:2px solid #ffffff;box-shadow:0 0 0 1px ' + color + ';background:' + color + ';left:' + pos(t) + '%' }; };
+    var rowBase = 'display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px;align-items:center;padding:4px 0;border-top:1px solid #eef2f6';
+    var gantt = [
+      { name: 'OB-012 · Torre Norte', sub: 'Plazo de la obra · 14 meses', a: day(2026, 1, 20), b: day(2027, 3, 20), bg: '#e3e8ef', fg: '#364152', barLabel: '20 ene 2026 → 20 mar 2027', marks: [] },
+      { name: 'C-001 · Concreto', sub: 'Concretos del Valle · en ejecución', a: day(2026, 2, 1), b: day(2026, 12, 31), bg: '#e3f2fd', fg: '#0d47a1', border: '#1565c0', barLabel: 'En ejecución', marks: [dot(day(2026, 2, 20), C_ANT, 'Anticipo FE-1021 · 20 feb 2026 · $ 18.000.000,00')] },
+      { name: 'Póliza POL-4471', sub: 'Cumplimiento de C-001 · a vencer', a: day(2026, 2, 1), b: day(2026, 10, 25), bg: '#fff8e1', fg: '#6d4c00', border: '#f9a825', barLabel: 'Vence el 25 oct', marks: [] },
+      { name: 'C-002 · Acero', sub: 'Aceros Andinos · en liquidación', a: day(2026, 2, 10), b: day(2026, 9, 30), bg: '#e3f2fd', fg: '#0d47a1', border: '#1565c0', barLabel: 'En liquidación', marks: [dot(day(2026, 3, 2), C_ANT, 'Anticipo AA-3101 · 2 mar 2026 · $ 15.000.000,00'), dot(day(2026, 9, 28), C_LIQ, 'Liquidación AA-3390 · 28 sep 2026 · $ 90.000.000,00'), dot(day(2026, 10, 3), C_DEV, 'Devolución de retenido AA-3412 · 3 oct 2026 · $ 2.000.000,00 · por aprobar')] },
+      { name: 'Póliza POL-3920', sub: 'Buen manejo del anticipo de C-002 · vencida', a: day(2026, 2, 10), b: day(2026, 9, 30), bg: '#fdecea', fg: '#b71c1c', border: '#c62828', barLabel: 'Venció el 30 sep', marks: [] }
+    ].map(function (g, i) {
+      return {
+        name: g.name, sub: g.sub, marks: g.marks, barLabel: g.barLabel,
+        tip: g.name + ' · ' + g.sub,
+        rowStyle: rowBase + (i === 0 ? ';border-top:none' : ''),
+        nameStyle: 'font-weight:' + (i === 0 ? '600' : '500') + ';color:#121926;white-space:nowrap;overflow:hidden;text-overflow:ellipsis',
+        barStyle: span(g.a, g.b, g.bg, g.fg, g.border),
+        barLabelStyle: lbl(g.fg)
+      };
+    });
+    var ganttLegend = [
+      ['Contrato', 'background:#e3f2fd;border:1px solid #1565c0'],
+      ['Póliza a vencer', 'background:#fff8e1;border:1px solid #f9a825'],
+      ['Póliza vencida', 'background:#fdecea;border:1px solid #c62828'],
+      ['Hoy', 'background:#c62828;width:2px;height:14px;border-radius:0']
+    ].map(function (l) { return { label: l[0], swatch: 'display:inline-block;width:14px;height:10px;border-radius:3px;box-sizing:border-box;' + l[1] }; });
+
+    var MONTHLY = [0, 18, 15, 0, 0, 0, 0, 0, 90, 2];
+    var maxM = 90;
+    var byMonth = MONTHLY.map(function (v, i) {
+      var pending = i === 9;
+      var h = v ? Math.max(3, v / maxM * 85) : 0;
+      return {
+        label: MES[i], valueLabel: v ? String(v) : '',
+        tip: MES[i] + ' 2026 · ' + (v ? full(v * M) : 'sin facturas') + (pending ? ' · registrada, sin aprobar' : ''),
+        barStyle: 'display:block;width:100%;max-width:36px;border-radius:4px 4px 0 0;height:' + h + '%;' + (pending ? 'background:repeating-linear-gradient(135deg,#1565c0 0 3px,#bbdefb 3px 7px)' : 'background:#1565c0')
+      };
+    });
+    var monthAria = 'Facturado por mes en 2026: febrero 18 millones, marzo 15, septiembre 90 y octubre 2 por aprobar.';
+
+    var TYPES = [['Anticipo', 33, 2, C_ANT], ['Liquidación', 90, 1, C_LIQ], ['Devolución de retenido', 2, 1, C_DEV]];
+    var totT = 125;
+    var byType = TYPES.map(function (t) {
+      return {
+        label: t[0], value: full(t[1] * M), count: t[2] + (t[2] === 1 ? ' factura' : ' facturas'),
+        pct: String(Math.round(t[1] / totT * 1000) / 10).replace('.', ',') + ' %',
+        tip: t[0] + ' · ' + full(t[1] * M),
+        segStyle: 'display:block;height:100%;flex:' + t[1] + ' 0 0;min-width:4px;background:' + t[3],
+        swatch: 'display:inline-block;width:12px;height:12px;border-radius:3px;flex-shrink:0;background:' + t[3]
+      };
+    });
+    var typeAria = 'Facturas por tipo: anticipo 33 millones, liquidación 90 millones, devolución de retenido 2 millones.';
+
+    var maxC = 107;
+    var seg = function (v, color, tip) { return { tip: tip, style: 'display:block;height:100%;border-radius:4px;min-width:4px;width:' + (v / maxC * 100) + '%;background:' + color }; };
+    var byContract = [
+      { name: 'C-001 · Concreto', total: '$ 18,0 M', hint: 'Valor vigente $ 2.444,3 M · facturado 0,7 %', segs: [seg(18, C_ANT, 'Anticipo · $ 18.000.000,00')] },
+      { name: 'C-002 · Acero', total: '$ 107,0 M', hint: 'Valor vigente $ 1.142,4 M · facturado 9,4 % · $ 2,0 M por aprobar', segs: [seg(15, C_ANT, 'Anticipo · $ 15.000.000,00'), seg(90, C_LIQ, 'Liquidación · $ 90.000.000,00'), seg(2, C_DEV, 'Devolución de retenido · $ 2.000.000,00 · por aprobar')] }
+    ];
+
+    var adv = function (label, v, of, color) {
+      var p = v / of * 100;
+      return { label: label, value: mm(v) + ' · ' + String(Math.round(p * 10) / 10).replace('.', ',') + ' %', tip: label + ' · ' + full(v), style: 'display:block;height:100%;border-radius:4px;width:' + Math.max(p, v ? 1 : 0) + '%;background:' + color };
+    };
+    var advances = [
+      { name: 'C-001 · Concreto', agreed: '$ 349,7 M', bars: [adv('Facturado', 18000000, 349740000, C_ANT), adv('Amortizado', 0, 349740000, C_DEV)] },
+      { name: 'C-002 · Acero', agreed: '$ 144,0 M', bars: [adv('Facturado', 15000000, 144000000, C_ANT), adv('Amortizado', 13500000, 144000000, C_DEV)] }
+    ];
+
+    // Contratos por estado (dona por cantidad). Orden fijo de estados y colores.
+    var ST = [
+      ['En ejecución', '#1565c0', 1, 2444255000, 'C-001'],
+      ['En liquidación', '#ef6c00', 1, 1142400000, 'C-002'],
+      ['Suspendido', '#8e24aa', 0, 0, ''],
+      ['Liquidado', '#00897b', 0, 0, '']
+    ];
+    var totN = ST.reduce(function (a, x) { return a + x[2]; }, 0);
+    var acc = 0, stops = [];
+    ST.forEach(function (x) {
+      if (!x[2]) return;
+      var from = acc / totN * 360, to = (acc + x[2]) / totN * 360;
+      stops.push(x[1] + ' ' + (from + 1) + 'deg ' + (to - 1) + 'deg', '#ffffff ' + (to - 1) + 'deg ' + to + 'deg');
+      acc += x[2];
+    });
+    var donutStyle = 'position:relative;width:200px;height:200px;border-radius:50%;flex-shrink:0;background:conic-gradient(' + stops.join(',') + ')';
+    var byState = ST.map(function (x) {
+      return {
+        label: x[0], count: String(x[2]), value: x[3] ? '$ ' + (Math.round(x[3] / 100000) / 10).toFixed(1).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' M' : '—',
+        pct: totN ? Math.round(x[2] / totN * 100) + ' %' : '',
+        tip: x[0] + ': ' + x[2] + (x[2] === 1 ? ' contrato' : ' contratos') + (x[4] ? ' (' + x[4] + ') · ' + full(x[3]) : ''),
+        swatch: 'display:inline-block;width:14px;height:14px;border-radius:4px;background:' + (x[2] ? x[1] : '#ffffff') + ';box-sizing:border-box;border:2px solid ' + x[1],
+        labelStyle: x[2] ? 'font-weight:500;color:#121926' : 'color:#4b5565'
+      };
+    });
+    var donutAria = 'Contratos por estado: ' + ST.map(function (x) { return x[0] + ' ' + x[2]; }).join(', ') + '.';
+
+    return {
+      sbClass: 'sb' + (st.collapsed ? ' collapsed' : '') + (st.open ? ' open' : ''),
+      toggleMenu: function () { self.setState({ collapsed: !st.collapsed, open: !st.open }); },
+      tabs: tabs, tab: tab, gk: gk, months: months, todayStyle: todayStyle, gantt: gantt, ganttLegend: ganttLegend,
+      byMonth: byMonth, monthAria: monthAria, byType: byType, typeAria: typeAria, byContract: byContract, advances: advances, byState: byState, donutStyle: donutStyle, donutTotal: String(totN), donutAria: donutAria,
+      kpis: kpis, contracts: contracts, alerts: alerts, stages: stages, invoices: invoices, providers: providers, team: team
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -7,3 +7,10 @@ import httpCliente from 'api/services/httpCliente';
  * el usuario no puede ver su módulo.
  */
 export const getDashboardSummaryAPI = () => httpCliente.get('app/dashboard/get_summary');
+
+/**
+ * Tablero de la obra elegida en el encabezado (DEC-063): la obra viaja en
+ * `X-Work-Id` y el servidor la verifica. Con "Ver todo" o sin obra, todos
+ * los bloques llegan en null.
+ */
+export const getWorkDashboardAPI = () => httpCliente.get('app/dashboard/get_work_summary');

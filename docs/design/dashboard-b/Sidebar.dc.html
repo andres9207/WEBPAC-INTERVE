@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Menú lateral</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.nv{display:flex;align-items:center;gap:14px;padding:10px 14px;min-height:44px;box-sizing:border-box;border-radius:8px;text-decoration:none;font-size:14px;margin-bottom:4px;color:#364152}
+.nv:hover{background:#ede7f6;color:#5e35b1}
+.nv:focus-visible{outline:3px solid #90caf9;outline-offset:1px}
+.nv svg{flex-shrink:0}
+</style>
+</helmet>
+<nav aria-label="Menú principal" style="width: 260px; box-sizing: border-box; padding: 0 16px 24px; background: #ffffff; font-family: Roboto, sans-serif; color: #364152">
+
+<h2 style="margin: 0; padding: 10px 6px 8px; font-size: 14px; font-weight: 500; color: #121926">Dashboard</h2>
+<a href="Dashboard.dc.html" class="nv" aria-current="{{c.dashboard}}" style="{{s.dashboard}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="2"></circle><path d="M13.45 11.55l2.05-2.05"></path><path d="M6.4 20a9 9 0 1 1 11.2 0z"></path></svg>Dashboard</a>
+
+<hr style="border: none; border-top: 1px solid #e3e8ef; margin: 8px 0">
+<h2 style="margin: 0; padding: 10px 6px 8px; font-size: 14px; font-weight: 500; color: #121926">Obras</h2>
+<a href="Obras.dc.html" class="nv" aria-current="{{c.works}}" style="{{s.works}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path></svg>Obras</a>
+<a href="Proveedores.dc.html" class="nv" aria-current="{{c.providers}}" style="{{s.providers}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="17" r="2"></circle><circle cx="17" cy="17" r="2"></circle><path d="M5 17H3V6a1 1 0 0 1 1-1h9v12m-4 0h6m4 0h2v-6h-8m0-5h5l3 5"></path></svg>Proveedores</a>
+<a href="Contratos.dc.html" class="nv" aria-current="{{c.contracts}}" style="{{s.contracts}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"></path><path d="M9 17h6M9 13h6"></path></svg>Contratos</a>
+
+<hr style="border: none; border-top: 1px solid #e3e8ef; margin: 8px 0">
+<h2 style="margin: 0; padding: 10px 6px 8px; font-size: 14px; font-weight: 500; color: #121926">Facturación</h2>
+<a href="Facturas.dc.html" class="nv" aria-current="{{c.invoices}}" style="{{s.invoices}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"></path><path d="M9 7h1M9 13h6M13 17h2"></path></svg>Facturas</a>
+
+<hr style="border: none; border-top: 1px solid #e3e8ef; margin: 8px 0">
+<h2 style="margin: 0; padding: 10px 6px 8px; font-size: 14px; font-weight: 500; color: #121926">Administración</h2>
+<a href="TiposIdentificacion.dc.html" class="nv" aria-current="{{c.identityDocuments}}" style="{{s.identityDocuments}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"></rect><circle cx="9" cy="10" r="2"></circle><path d="M15 8h2M15 12h2M7 16h10"></path></svg>Tipos de identificación</a>
+<a href="TiposProveedor.dc.html" class="nv" aria-current="{{c.providerTypes}}" style="{{s.providerTypes}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="17" r="2"></circle><circle cx="17" cy="17" r="2"></circle><path d="M5 17H3V6a1 1 0 0 1 1-1h9v12m-4 0h6m4 0h2v-6h-8m0-5h5l3 5"></path></svg>Tipos de proveedor</a>
+<a href="TiposDireccion.dc.html" class="nv" aria-current="{{c.addressTypes}}" style="{{s.addressTypes}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="11" r="3"></circle><path d="M17.66 16.66l-4.25 4.24a2 2 0 0 1-2.82 0l-4.25-4.24a8 8 0 1 1 11.32 0z"></path></svg>Tipos de dirección</a>
+<a href="Aseguradoras.dc.html" class="nv" aria-current="{{c.insurers}}" style="{{s.insurers}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 16 0z"></path><path d="M12 12v6a2 2 0 0 0 4 0"></path></svg>Aseguradoras</a>
+<a href="TiposInterventoria.dc.html" class="nv" aria-current="{{c.supervisionTypes}}" style="{{s.supervisionTypes}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>Tipos de interventoría</a>
+<a href="Constructoras.dc.html" class="nv" aria-current="{{c.constructionCompanies}}" style="{{s.constructionCompanies}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path></svg>Constructoras</a>
+<a href="TiposContrato.dc.html" class="nv" aria-current="{{c.contractTypes}}" style="{{s.contractTypes}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21H6a3 3 0 0 1-3-3v-1h5.5M17 8.5V5a2 2 0 1 1 2 2h-2M19 3H8a3 3 0 0 0-3 3v11M9 7h4M9 11h4M18.42 12.61a2.1 2.1 0 0 1 2.97 2.97L15 22h-3v-3z"></path></svg>Tipos de contrato</a>
+<a href="Motivos.dc.html" class="nv" aria-current="{{c.reasons}}" style="{{s.reasons}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-5l-5 3v-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"></path><path d="M12 8v3M12 14v.01"></path></svg>Motivos</a>
+<a href="TiposPoliza.dc.html" class="nv" aria-current="{{c.policyTypes}}" style="{{s.policyTypes}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9c-4.5-1-8-4-8-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>Tipos de póliza</a>
+
+<hr style="border: none; border-top: 1px solid #e3e8ef; margin: 8px 0">
+<h2 style="margin: 0; padding: 10px 6px 8px; font-size: 14px; font-weight: 500; color: #121926">Seguridad</h2>
+<a href="Perfiles.dc.html" class="nv" aria-current="{{c.profiles}}" style="{{s.profiles}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"></rect><circle cx="9" cy="10" r="2"></circle><path d="M15 8h2M15 12h2M7 16h10"></path></svg>Perfiles</a>
+<a href="Usuarios.dc.html" class="nv" aria-current="{{c.users}}" style="{{s.users}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="7" r="4"></circle><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2M16 3.13a4 4 0 0 1 0 7.75M21 21v-2a4 4 0 0 0-3-3.85"></path></svg>Usuarios</a>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"active":{"editor":"enum","options":["dashboard","works","providers","contracts","identityDocuments","providerTypes","addressTypes","insurers","supervisionTypes","constructionCompanies","contractTypes","reasons","policyTypes","invoices","profiles","users"],"default":"dashboard"},"$preview":{"width":260,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var active = this.props.active || 'dashboard';
+    var keys = ['dashboard', 'works', 'providers', 'contracts', 'identityDocuments', 'providerTypes', 'addressTypes', 'insurers', 'supervisionTypes', 'constructionCompanies', 'contractTypes', 'reasons', 'policyTypes', 'invoices', 'profiles', 'users'];
+    var s = {};
+    var c = {};
+    keys.forEach(function (k) {
+      var on = k === active;
+      s[k] = on ? 'background:#ede7f6;color:#5e35b1;font-weight:600' : '';
+      c[k] = on ? 'page' : 'false';
+    });
+    return { s: s, c: c };
+  }
+}
+</script>
+</body>
+</html>
