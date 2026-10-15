@@ -31,7 +31,9 @@ const adapter = new PrismaMariaDb(withUtcSession(process.env.DATABASE_URL));
 // Instancia única: evitar abrir un cliente/pool de conexiones nuevo en cada
 // import (nodemon recarga el proceso completo, así que un solo módulo = una
 // sola instancia por proceso).
-const prisma = new PrismaClient({ adapter });
+// PRISMA_QUERY_EVENTS=1 emite cada consulta como evento (`prisma.$on("query")`):
+// lo usa la medición del tablero (prisma/dashboard.measure.js). Nunca en el servidor.
+const prisma = new PrismaClient({ adapter, ...(process.env.PRISMA_QUERY_EVENTS === "1" ? { log: [{ emit: "event", level: "query" }] } : {}) });
 
 // Destino de la conexión para el log de arranque, sin credenciales.
 const describeTarget = (databaseUrl) => {

@@ -30,6 +30,7 @@ El usuario decidió el 2026-10-15:
 - Un bloque nuevo del tablero de la obra exige el permiso de ver su módulo y lee con la obra del alcance.
 - Si cambia la regla de un saldo, de la vigencia o del valor del contrato, cambia en su función, y el tablero la sigue.
 - Cuando exista el diseño del tablero de todas las obras, reemplaza a `GeneralDashboard.jsx` con "Ver todo".
+- Rendimiento: medido con el volumen acordado junto con el tablero general ([DEC-052](DEC-052-tablero.md), "Rendimiento"). Son 70 consultas, 40 de ellas de `contractBalances`, y la mediana es de 25 ms. No hace falta índice.
 
 ## Dónde
 

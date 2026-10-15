@@ -54,7 +54,22 @@ El usuario decidió el 2026-10-08:
 
 ## Rendimiento (PRO-BD-24)
 
-Medido el 2026-10-08 sobre los datos de demostración (10 contratos, 11 pólizas, 15 conceptos, 2 facturas): el resumen completo tarda entre 9 y 75 ms. Con `EXPLAIN`, las consultas usan índices existentes: `idx_policies_end_date` y `idx_policies_contract_current` (categorías y conceptos sin póliza), `idx_invoices_state` (facturas por estado) y las claves de concepto. **No se agregó ningún índice:** no hay evidencia que lo pida. Falta medir con un volumen representativo acordado.
+**Volumen acordado (2026-10-15):** 10 obras, cada una con 10 contratos con sus pólizas y facturas. Lo siembra `prisma/seed.volume.js` (`yarn db:seed:volume`) en una copia de la BD de desarrollo cuyo nombre termina en `_volume`, porque deja Subcontratista y Contrato mayor con todos los campos del contrato. Por obra hay 5 proveedores de contrato y uno de facturas simples. De sus 10 contratos, 6 están en ejecución, 1 suspendido y 3 en liquidación, con 2 o 3 pólizas cada uno (vencidas, a vencer, vigentes y sin fecha). Cada obra tiene además 10 anticipos (8 aprobados, 1 registrado y 1 anulado), 3 liquidaciones, 1 devolución de retenido y 10 facturas simples. Con los datos que ya había, la base medida tenía 17 obras, 117 contratos, 153 conceptos, 262 pólizas y 263 facturas.
+
+**Medición:** `prisma/dashboard.measure.js` (`yarn db:measure-dashboard [archivo.json]`), como el Superadmin, sobre la obra con más contratos. Calienta con 2 corridas y mide 20. De una corrida captura cada consulta de Prisma y le pide a MySQL 8.0 `EXPLAIN` y `EXPLAIN ANALYZE`, del que toma el menor de 3. El archivo guarda el SQL, el plan y el árbol de cada consulta.
+
+| Escenario | Consultas (distintas) | Pared, mediana · p95 | SQL ejecutado, suma |
+| --- | --- | --- | --- |
+| Tablero general, "Ver todo" | 26 (23) | 12 ms · 16–26 ms | 4,7 ms |
+| Tablero general, una obra | 26 (23) | 10 ms · 11 ms | 1,0 ms |
+| Tablero de la obra ([DEC-063](DEC-063-tablero-obra.md)) | 70 (34) | 25 ms · 29 ms | 1,2 ms |
+
+- Ninguna consulta pasa de 1 ms. Las más caras son las categorías de pólizas y los contratos con conceptos sin póliza con "Ver todo", entre 0,5 y 0,85 ms cada una. Usan `idx_policies_contract_current`, `idx_policies_end_date` y `uq_contract_concepts_number`.
+- Con una obra, todo entra por la obra: `uq_contracts_work_number_active`, `tbl_invoices_work_provider` e `idx_policies_contract_current`. No hay lecturas completas.
+- Lecturas completas que quedan: con "Ver todo", las facturas por obra y estado y las 5 últimas facturas (`tbl_invoices`, 0,2–0,4 ms), que agregan u ordenan todas las facturas. En `tbl_works` y en los detalles de factura, el optimizador prefiere leer la tabla, que es chica. En el tablero de la obra, sus pólizas vigentes recorren `tbl_policies` entera ordenada por fecha fin (0,44 ms).
+- El tiempo de pared se va en ida y vuelta, no en MySQL. En el tablero de la obra, 40 de las 70 consultas son `contractBalances`: 4 por contrato, para usar las mismas sumas del expediente (DEC-061).
+
+**Resultado: no se agrega ningún índice, ni precálculo, ni caché.** La medición no lo pide (ADR-0002, decisión 10). Si el volumen real crece, hay que volver a medir primero lo que crece con el total del sistema y no con la obra: las facturas por obra y las últimas facturas con "Ver todo", y las pólizas del tablero de la obra.
 
 ## Qué implica
 
