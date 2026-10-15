@@ -53,6 +53,10 @@ export function buildPalette(presetColor) {
       200: colors.lilacBorder,
       contrastText: colors.lilacText
     },
+    // Cian: solo para series de gráficos (DESIGN_SYSTEM, "Gráficos").
+    cyan: {
+      main: colors.cyanMain
+    },
     success: {
       light: colors.successLight,
       200: colors.success200,

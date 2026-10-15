@@ -46,6 +46,10 @@ const defaultColor = {
   lilacText: '#4527a0',
   lilacBorder: '#b39ddb',
 
+  // cian (gráficos): tercer color de las series junto a primary800 y orangeDark.
+  // El morado (secondaryDark) no se distingue del azul (ΔE 12,7; 5,1 con deuteranopía).
+  cyanMain: '#0097a7',
+
   // grey
   grey50: '#f8fafc',
   grey100: '#eef2f6',

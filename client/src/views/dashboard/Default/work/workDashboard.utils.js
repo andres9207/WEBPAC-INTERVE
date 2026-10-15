@@ -32,16 +32,18 @@ export const initialsOf = (name) =>
 export const MANAGER_ROLE_NAMES = { MAIN: 'Responsable principal', SUPPORT: 'Apoyo' };
 
 // Colores por clave de la paleta (DESIGN_SYSTEM, "Gráficos"): tipos de factura
-// y estados del contrato, separables con daltonismo y ≥ 3:1 sobre el fondo.
+// y estados del contrato, separables con daltonismo y ≥ 3:1 sobre el fondo
+// (validado en DEC-063). El gris es el neutro: la simple no tiene importe y
+// liquidado es terminal.
 export const INVOICE_TYPE_COLORS = {
   ADVANCE: 'primary.800',
   LIQUIDATION: 'orange.dark',
-  RETENTION_REFUND: 'secondary.dark',
+  RETENTION_REFUND: 'cyan.main',
   SIMPLE: 'grey.600'
 };
 export const CONTRACT_STATE_CHART_COLORS = {
   IN_PROGRESS: 'primary.800',
-  SUSPENDED: 'secondary.dark',
+  SUSPENDED: 'cyan.main',
   IN_LIQUIDATION: 'orange.dark',
   LIQUIDATED: 'grey.600'
 };

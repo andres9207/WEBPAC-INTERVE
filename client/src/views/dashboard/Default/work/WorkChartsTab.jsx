@@ -108,7 +108,7 @@ const DAY_MS = 86400000;
 const dayOf = (text) => (text ? Date.parse(`${text}T00:00:00Z`) : null);
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const VALIDITY_BAR = {
-  EXPIRED: { bg: 'error.light', border: 'error.dark', fg: 'error.dark' },
+  EXPIRED: { bg: 'error.light', border: 'error.dark', fg: 'grey.900' },
   EXPIRING: { bg: 'warning.light', border: 'orange.dark', fg: 'grey.900' },
   ACTIVE: { bg: 'success.light', border: 'success.dark', fg: 'grey.900' },
   NO_DATE: { bg: 'grey.100', border: 'grey.500', fg: 'grey.700' }
@@ -142,7 +142,7 @@ function Timeline({ work, contracts, policies, marks, referenceDate }) {
       from: c.startDate,
       to: c.endDate,
       label: c.stateName,
-      tone: { bg: 'primary.light', border: 'primary.800', fg: 'primary.dark' },
+      tone: { bg: 'primary.light', border: 'primary.800', fg: 'primary.800' },
       marks: marks.filter((m) => m.ctrId === c.ctrId),
       href: `/work/contracts/${c.ctrId}`
     });
@@ -284,7 +284,7 @@ function Timeline({ work, contracts, policies, marks, referenceDate }) {
                   >
                     <Box
                       tabIndex={0}
-                      aria-label={`${m.typeName} ${m.number}, ${fDateOnly(m.date)}`}
+                      aria-label={`${m.typeName} ${m.number}, ${fDateOnly(m.date)}, ${m.stateName.toLowerCase()}`}
                       sx={{
                         position: 'absolute',
                         top: 12,
@@ -293,9 +293,11 @@ function Timeline({ work, contracts, policies, marks, referenceDate }) {
                         ml: '-7px',
                         borderRadius: '50%',
                         border: 2,
-                        borderColor: 'background.paper',
-                        bgcolor: INVOICE_TYPE_COLORS[m.type],
-                        opacity: m.state === 'APPROVED' ? 1 : 0.55,
+                        // Aprobada: relleno con aro del fondo. Registrada: hueca, con el
+                        // borde en el color del tipo (la opacidad bajaba de 3:1).
+                        ...(m.state === 'APPROVED'
+                          ? { borderColor: 'background.paper', bgcolor: INVOICE_TYPE_COLORS[m.type] }
+                          : { borderColor: INVOICE_TYPE_COLORS[m.type], bgcolor: 'background.paper' }),
                         left: `${pos(dayOf(m.date))}%`
                       }}
                     />
@@ -570,7 +572,7 @@ function Advances({ contracts }) {
                 </Typography>
               </Stack>
               {row('Facturado', c.advance.invoiced, c.advance.invoicedPct, 'primary.800')}
-              {row('Amortizado', c.advance.amortized, c.advance.amortizedPct, 'secondary.dark')}
+              {row('Amortizado', c.advance.amortized, c.advance.amortizedPct, 'cyan.main')}
             </Stack>
           ))}
         </Stack>
@@ -717,7 +719,7 @@ export default function WorkChartsTab({ data }) {
         value: fMillions(contracts.advance.amortized),
         percent: contracts.advance.amortizedPct,
         hint: `De ${fMoneyText(contracts.advance.invoiced)} de anticipo facturado (${fPercentText(contracts.advance.amortizedPct, 1)})`,
-        color: 'secondary.dark'
+        color: 'cyan.main'
       },
       {
         label: 'Retenido por devolver',
@@ -748,7 +750,7 @@ export default function WorkChartsTab({ data }) {
           title={
             <CardTitle
               title="Línea de tiempo de contratos y pólizas"
-              sub={`La línea vertical marca el ${fDateOnly(referenceDate)}; los puntos son las facturas de cada contrato (atenuados, por aprobar)`}
+              sub={`La línea vertical marca el ${fDateOnly(referenceDate)}; los puntos son las facturas de cada contrato (huecos, por aprobar)`}
             />
           }
         >
