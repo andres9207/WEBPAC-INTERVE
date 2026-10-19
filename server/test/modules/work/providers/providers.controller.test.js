@@ -86,7 +86,7 @@ describe("providers.controller", () => {
 
     const args = serviceMock.assignProviderToWork.mock.calls[0][0];
     expect(args).toMatchObject({ wrkId: 8, prvId: 77, useBy: 7, idempotencyKey: KEY });
-    expect(Object.keys(args.input).sort()).toEqual(["assignmentDate", "observation", "staId"]);
+    expect(Object.keys(args.input).sort()).toEqual(["assignmentDate", "observation", "pvtIds", "staId"]);
     expect(emit).toHaveBeenCalledWith("refresh-works", {});
     expect(emit).toHaveBeenCalledWith("refresh-providers", {});
   });

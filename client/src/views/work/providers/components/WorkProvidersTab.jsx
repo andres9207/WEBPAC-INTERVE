@@ -105,7 +105,8 @@ export default function WorkProvidersTab({ wrkId, workCode, onChanged }) {
       ),
       cardRender: (row) => `${row.providerName} · ${row.identityCode} ${row.identification}`
     },
-    { id: 'providerTypes', label: 'Tipos', render: (row) => row.providerTypes.join(', ') },
+    // Los tipos con que trabaja en esta obra (DEC-066), no los de su ficha.
+    { id: 'workTypes', label: 'Tipos en la obra', render: (row) => row.workTypes.map((t) => t.name).join(', ') || '—' },
     { id: 'assignmentDate', label: 'Asignado el', render: (row) => fDateOnly(row.assignmentDate) },
     { id: 'observation', label: 'Observaciones', render: (row) => row.observation || '—' },
     {

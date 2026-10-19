@@ -10,7 +10,7 @@ import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudi
 import { identityDocumentsService } from "../../admin/identityDocuments/identityDocuments.service.js";
 import { identificationError } from "../../admin/identityDocuments/identityDocuments.formats.js";
 import { providerTypesService } from "../../admin/providerTypes/providerTypes.service.js";
-import { applyProviderViewChanges, assertNotMixed, providerViewOf, resolveProviderView } from "../../billing/invoices/invoiceViews.js";
+import { PROVIDER_INVOICE_VIEWS } from "../../billing/invoices/invoiceViews.js";
 import { defineContacts } from "../../admin/addressTypes/addressTypes.contacts.js";
 import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
@@ -23,13 +23,15 @@ import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/
  *   Las dos responden igual: 409 con el proveedor existente en `data`, para
  *   que el cliente ofrezca asignarlo en vez de crear otro (decisión 7).
  * - Contactos y tipos de proveedor (uno o varios, DEC-041): parte del
- *   proveedor, guardados con él por diferencial. Sus tipos no pueden tener
- *   menús de facturas distintos; si el menú cambia y hay facturas de
- *   contrato, el usuario decide moverlas o dejarlas como histórico (DEC-056).
+ *   proveedor, guardados con él por diferencial. Los tipos del maestro solo
+ *   se proponen al asignarlo a una obra: en cada obra trabaja con los tipos
+ *   de su asignación, cualquiera de ellos (DEC-066). Cambiar los del maestro
+ *   no toca obras, contratos ni facturas.
  * - Cambiar la identificación de un proveedor existente exige su propio
  *   permiso (ADR-0012, regla 5): el controller pasa los permisos efectivos.
- * - Asignar, editar la asignación y desasignar tienen endpoints propios
- *   (DEC-031). Bloqueo: obra → proveedor → maestros (LOCK_ORDER).
+ * - Asignar, editar la asignación (con sus tipos) y desasignar tienen
+ *   endpoints propios (DEC-031). Bloqueo: obra → proveedor → maestros
+ *   (LOCK_ORDER).
  * - Bitácora funcional: identidad, nombre, tipos, estado, y la asignación y
  *   desasignación a obras. Técnica (columnas de autoría) para el resto.
  */
@@ -51,12 +53,17 @@ const SORT_FIELDS = {
   updatedAt: (order) => ({ prv_update_at: order }),
 };
 
-// Tipos del proveedor (DEC-041), por nombre, con su menú de facturas (DEC-056).
+// Tipos del proveedor (DEC-041), por nombre, con su menú de facturas.
 const CLASSIFICATIONS_SELECT = {
   select: { pvt_id: true, tbl_provider_types: { select: { pvt_name: true, pvt_invoice_view: true } } },
   orderBy: { tbl_provider_types: { pvt_name: "asc" } },
 };
 const typeNamesOf = (classifications = []) => classifications.map((c) => c.tbl_provider_types?.pvt_name).filter(Boolean);
+
+// Tipos con que trabaja el proveedor en una obra (DEC-066), del mismo modo.
+const WORK_TYPES_SELECT = CLASSIFICATIONS_SELECT;
+const workTypesOf = (rows = []) =>
+  rows.map((r) => ({ pvtId: r.pvt_id, name: r.tbl_provider_types?.pvt_name ?? null, invoiceView: r.tbl_provider_types?.pvt_invoice_view ?? null }));
 
 const LIST_SELECT = {
   prv_id: true,
@@ -163,6 +170,8 @@ const toAssignmentDto = (a) => ({
   identityCode: a.tbl_providers?.tbl_identity_documents?.idd_code ?? null,
   identification: a.tbl_providers?.prv_identification ?? null,
   providerTypes: typeNamesOf(a.tbl_providers?.tbl_provider_classifications),
+  // Los de la obra (DEC-066): con ellos se firman sus contratos.
+  workTypes: workTypesOf(a.tbl_work_provider_types),
   providerStaId: a.tbl_providers?.sta_id ?? null,
   assignmentDate: dateOnlyText(a.wkp_assignment_date),
   observation: a.wkp_observation,
@@ -200,6 +209,7 @@ export const getProvider = async ({ prvId, scope }) => {
           sta_id: true,
           wkp_update_at: true,
           tbl_works: { select: { wrk_code: true, wrk_name: true, sta_id: true } },
+          tbl_work_provider_types: WORK_TYPES_SELECT,
         },
         orderBy: { wkp_assignment_date: "desc" },
         take: MAX_ROWS,
@@ -218,8 +228,6 @@ export const getProvider = async ({ prvId, scope }) => {
     name: row.prv_name,
     pvtIds: row.tbl_provider_classifications.map((c) => c.pvt_id),
     providerTypes: typeNamesOf(row.tbl_provider_classifications),
-    // Menú de sus facturas de contrato nuevas (DEC-056); null si ningún tipo lo tiene.
-    invoiceView: providerViewOf(row),
     serviceType: row.prv_service_type,
     email: row.prv_email,
     observation: row.prv_observation,
@@ -281,7 +289,9 @@ export const checkIdentification = async ({ iddId, identification, excludeId }) 
 
 /**
  * Proveedores activos para asignar a una obra (regla 13): razón social o
- * documento, con tope fijo. Con `wrkId`, se excluyen los ya asignados.
+ * documento, con tope fijo. Con `wrkId`, se excluyen los ya asignados. Cada
+ * opción trae los tipos de su maestro (`pvtIds`): el formulario los propone
+ * como los tipos de la obra (DEC-066).
  */
 export const selectProviders = async ({ search, wrkId } = {}) => {
   const rows = await prisma.tbl_providers.findMany({
@@ -290,7 +300,7 @@ export const selectProviders = async ({ search, wrkId } = {}) => {
       ...searchWhereOf(search),
       ...(Number(wrkId) > 0 ? { tbl_work_providers: { none: { wrk_id: Number(wrkId) } } } : {}),
     },
-    select: EXISTING_SELECT,
+    select: { ...EXISTING_SELECT, tbl_provider_classifications: { select: { pvt_id: true } } },
     orderBy: { prv_name: "asc" },
     take: MAX_ROWS,
   });
@@ -298,6 +308,7 @@ export const selectProviders = async ({ search, wrkId } = {}) => {
     value: row.prv_id,
     label: `${row.prv_name} · ${row.tbl_identity_documents?.idd_code ?? ""} ${row.prv_identification}`.trim(),
     ...toExistingDto(row),
+    pvtIds: row.tbl_provider_classifications.map((c) => c.pvt_id),
   }));
 };
 
@@ -364,16 +375,6 @@ const assertProviderTypes = async (tx, pvtIds, currentIds = []) => {
   }
 };
 
-// Menú de facturas de un conjunto de tipos (DEC-056), con los tipos ya
-// bloqueados: 409 si mezclan menús.
-const providerViewOfTypes = async (tx, pvtIds, providerName) => {
-  if (pvtIds.length === 0) return null;
-  const types = await tx.tbl_provider_types.findMany({ where: { pvt_id: { in: pvtIds } }, select: { pvt_invoice_view: true } });
-  const menus = types.map((t) => t.pvt_invoice_view);
-  assertNotMixed(menus, providerName);
-  return resolveProviderView(menus).view;
-};
-
 // Diferencial de tipos contra la BD: altas y bajas de la tabla de unión.
 const applyProviderTypes = async (tx, { prvId, currentIds, pvtIds }) => {
   const toDelete = currentIds.filter((id) => !pvtIds.includes(id));
@@ -389,7 +390,7 @@ const AUDITED_HEADER = ["idd_id", "prv_identification", "prv_name", "pvt_ids"];
 // ─── Asignación proveedor-obra ───────────────────────────────────────────────
 
 const assignmentText = (a) =>
-  `proveedor=${a.prv_id} obra=${a.wrk_id} fecha=${dateOnlyText(a.wkp_assignment_date)} estado=${a.sta_id}${a.wkp_observation ? ` obs=${a.wkp_observation}` : ""}`;
+  `proveedor=${a.prv_id} obra=${a.wrk_id} fecha=${dateOnlyText(a.wkp_assignment_date)} estado=${a.sta_id} tipos=${(a.pvt_ids ?? []).join(",")}${a.wkp_observation ? ` obs=${a.wkp_observation}` : ""}`;
 
 // La asignación cambia la obra y la participación del proveedor: se registra
 // en la bitácora de ambos, con el mismo id de operación (ADR-0012, dec. 14).
@@ -407,6 +408,57 @@ const assignmentValuesOf = (input) => ({
 
 const assertAssignmentDate = (values) => {
   if (!values.wkp_assignment_date) throw httpError(400, "La fecha de asignación no es una fecha válida.");
+};
+
+// Tipos de la asignación (DEC-066): cualquiera, aunque el proveedor no lo
+// tenga en su maestro; al menos uno. `undefined` si la petición no los trae.
+const assignmentTypeIdsOf = (input) => {
+  if (input?.pvtIds === undefined || input?.pvtIds === null) return undefined;
+  const pvtIds = typeIdsOf(input);
+  if (pvtIds.length === 0 || pvtIds.some((id) => !(id > 0))) throw httpError(400, "Selecciona al menos un tipo de proveedor para la obra.");
+  return pvtIds;
+};
+
+const findAssignmentTypeIds = async (db, { wrkId, prvId }) =>
+  (await db.tbl_work_provider_types.findMany({ where: { wrk_id: Number(wrkId), prv_id: Number(prvId) }, select: { pvt_id: true } }))
+    .map((t) => t.pvt_id)
+    .sort((a, b) => a - b);
+
+/**
+ * Diferencial de los tipos de una asignación, con obra, proveedor y los
+ * tipos pedidos ya bloqueados. Un tipo que se quita no puede estar en uso:
+ * - 409 si algún contrato de la obra (también eliminado) se firmó bajo él;
+ *   la FK compuesta del contrato es la garantía, esto da el mensaje.
+ * - 409 si era el último de menú simples y el proveedor tiene facturas
+ *   simples en la obra (DEC-058, DEC-066).
+ */
+const applyAssignmentTypes = async (tx, { wrkId, prvId, currentIds, pvtIds }) => {
+  const toDelete = currentIds.filter((id) => !pvtIds.includes(id));
+  const toInsert = pvtIds.filter((id) => !currentIds.includes(id));
+  const where = { wrk_id: Number(wrkId), prv_id: Number(prvId) };
+
+  if (toDelete.length > 0) {
+    const types = await tx.tbl_provider_types.findMany({
+      where: { pvt_id: { in: [...currentIds, ...pvtIds] } },
+      select: { pvt_id: true, pvt_name: true, pvt_invoice_view: true },
+    });
+    const byId = Object.fromEntries(types.map((t) => [t.pvt_id, t]));
+    const contracts = await tx.tbl_contracts.findMany({ where: { ...where, pvt_id: { in: toDelete } }, select: { pvt_id: true, ctr_number: true } });
+    if (contracts.length > 0) {
+      const names = [...new Set(contracts.map((c) => byId[c.pvt_id]?.pvt_name))].join(", ");
+      const numbers = contracts.map((c) => c.ctr_number).join(", ");
+      throw httpError(409, `No se puede quitar el tipo ${names} de la obra: lo usa(n) ${contracts.length} contrato(s) (${numbers}).`);
+    }
+    const isSimple = (id) => byId[id]?.pvt_invoice_view === PROVIDER_INVOICE_VIEWS.SIMPLE;
+    if (toDelete.some(isSimple) && !pvtIds.some(isSimple)) {
+      const invoices = await tx.tbl_invoices.count({ where: { ...where, ctr_id: null } });
+      if (invoices > 0) {
+        throw httpError(409, `No se puede quitar el último tipo de facturas simples de la obra: el proveedor tiene ${invoices} factura(s) simple(s) en ella.`);
+      }
+    }
+    await tx.tbl_work_provider_types.deleteMany({ where: { ...where, pvt_id: { in: toDelete } } });
+  }
+  if (toInsert.length > 0) await tx.tbl_work_provider_types.createMany({ data: toInsert.map((pvt_id) => ({ ...where, pvt_id })) });
 };
 
 // Con la obra bloqueada: existe y no está eliminada.
@@ -429,7 +481,9 @@ const assertProviderAssignable = async (tx, { wrkId, prvId }) => {
   if (already) throw httpError(409, `El proveedor ${provider.prv_name} ya está asignado a esta obra.`);
 };
 
-const insertAssignment = async (tx, { wrkId, prvId, values, useBy, ctx, operationId, idempotencyData = {} }) => {
+// Con obra, proveedor y tipos ya bloqueados: la asignación nace con sus tipos (DEC-066).
+const insertAssignment = async (tx, { wrkId, prvId, values, pvtIds, useBy, ctx, operationId, idempotencyData = {} }) => {
+  await assertProviderTypes(tx, pvtIds);
   const created = await tx.tbl_work_providers.create({
     data: {
       wrk_id: Number(wrkId),
@@ -441,7 +495,8 @@ const insertAssignment = async (tx, { wrkId, prvId, values, useBy, ctx, operatio
       ...idempotencyData,
     },
   });
-  await auditAssignment(tx, { operation: AUDIT_OPERATIONS.GRANT, after: created, ctx, operationId });
+  await applyAssignmentTypes(tx, { wrkId, prvId, currentIds: [], pvtIds });
+  await auditAssignment(tx, { operation: AUDIT_OPERATIONS.GRANT, after: { ...created, pvt_ids: pvtIds }, ctx, operationId });
   return created;
 };
 
@@ -458,12 +513,11 @@ const PROVIDER_IDEMPOTENCY = {
 
 const createProvider = ({ values, pvtIds, contacts, assignment, useBy, ctx, idempotencyData }) =>
   withLockedTransaction(
-    { ...(assignment ? { OBRA: assignment.wrkId } : {}), ...masterLocksOf(values, pvtIds, contacts) },
+    { ...(assignment ? { OBRA: assignment.wrkId } : {}), ...masterLocksOf(values, [...pvtIds, ...(assignment?.pvtIds ?? [])], contacts) },
     async (tx) => {
       if (assignment) await assertWorkAssignable(tx, assignment.wrkId);
       await assertIdentification(tx, values);
       await assertProviderTypes(tx, pvtIds);
-      await providerViewOfTypes(tx, pvtIds, values.prv_name);
       await contactsHelper.assertAddressTypes(tx, contacts);
 
       // Cortesía: el mensaje claro y el proveedor existente. El UNIQUE es la
@@ -491,8 +545,10 @@ const createProvider = ({ values, pvtIds, contacts, assignment, useBy, ctx, idem
       // Crear desde una obra: el proveedor nuevo queda asignado en la misma
       // transacción (ADR-0012, decisión 6). La obra se bloqueó y verificó
       // primero; el proveedor recién creado está activo y en ninguna obra.
+      // Sin tipos para la obra, toma los del maestro (DEC-066).
       if (assignment) {
-        await insertAssignment(tx, { wrkId: assignment.wrkId, prvId, values: assignment.values, useBy, ctx, operationId });
+        const assignmentTypes = assignment.pvtIds ?? pvtIds;
+        await insertAssignment(tx, { wrkId: assignment.wrkId, prvId, values: assignment.values, pvtIds: assignmentTypes, useBy, ctx, operationId });
       }
       return {
         message: assignment ? "Proveedor creado y asignado a la obra" : "Proveedor creado correctamente",
@@ -506,14 +562,12 @@ const findTypeIds = async (db, prvId) =>
     .map((c) => c.pvt_id)
     .sort((a, b) => a - b);
 
-// Editar fija la cabecera y los contactos: repetirlo deja lo mismo, así que
-// se puede reintentar ante un interbloqueo. Bloquea también los tipos que el
-// proveedor tenía (no solo los nuevos): un cambio del menú de facturas de uno
-// de ellos (DEC-056) no se cruza con quitárselo.
-const updateProvider = async ({ prvId, values, pvtIds, contacts, invoiceMove, useBy, granted, ctx }) => {
-  const knownIds = await findTypeIds(prisma, Number(prvId));
-  return withLockedTransaction(
-    { PROVEEDOR: prvId, ...masterLocksOf(values, [...knownIds, ...pvtIds], contacts) },
+// Editar fija la cabecera, los tipos y los contactos: repetirlo deja lo
+// mismo, así que se puede reintentar ante un interbloqueo. Los tipos del
+// maestro no tocan las asignaciones a obras ni sus contratos (DEC-066).
+const updateProvider = async ({ prvId, values, pvtIds, contacts, useBy, granted, ctx }) =>
+  withLockedTransaction(
+    { PROVEEDOR: prvId, ...masterLocksOf(values, pvtIds, contacts) },
     async (tx) => {
       const id = Number(prvId);
       const before = await tx.tbl_providers.findUnique({ where: { prv_id: id }, select: { ...HEADER_SELECT, sta_id: true } });
@@ -527,14 +581,9 @@ const updateProvider = async ({ prvId, values, pvtIds, contacts, invoiceMove, us
       const currentContacts = await contactsHelper.findCurrent(tx, id);
       const contactDiff = contactsHelper.diff(currentContacts, contacts);
       const currentIds = await findTypeIds(tx, id);
-      if (currentIds.some((typeId) => !knownIds.includes(typeId))) {
-        throw httpError(409, "Los tipos del proveedor cambiaron mientras se guardaba. Vuelve a intentarlo.");
-      }
 
       await assertIdentification(tx, values, before);
       await assertProviderTypes(tx, pvtIds, currentIds);
-      const viewBefore = await providerViewOfTypes(tx, currentIds);
-      const viewAfter = await providerViewOfTypes(tx, pvtIds, values.prv_name);
       await contactsHelper.assertAddressTypes(tx, contacts, currentContacts);
 
       if (identityChanged) {
@@ -545,27 +594,16 @@ const updateProvider = async ({ prvId, values, pvtIds, contacts, invoiceMove, us
       await tx.tbl_providers.update({ where: { prv_id: id }, data: { ...values, prv_update_by: useBy } });
 
       const changes = diffFields({ ...before, pvt_ids: currentIds }, { ...values, pvt_ids: pvtIds }, AUDITED_HEADER);
-      const operationId = newOperationId();
       if (changes.length > 0) {
-        await writeAudit(tx, { operationId, entity: AUDIT_ENTITIES.PROVIDER, recordId: id, operation: AUDIT_OPERATIONS.UPDATE, ctx, changes });
+        await writeAudit(tx, { entity: AUDIT_ENTITIES.PROVIDER, recordId: id, operation: AUDIT_OPERATIONS.UPDATE, ctx, changes });
       }
-      const { moved = 0 } = await applyProviderViewChanges(tx, {
-        changes: [{ prvId: id, name: values.prv_name, from: viewBefore, to: viewAfter }],
-        invoiceMove,
-        ctx,
-        operationId,
-      });
       await applyProviderTypes(tx, { prvId: id, currentIds, pvtIds });
       await contactsHelper.apply(tx, { ownerId: id, diff: contactDiff, useBy });
 
-      return {
-        message: moved > 0 ? `Proveedor modificado correctamente; ${moved} factura(s) movida(s) al nuevo menú` : "Proveedor modificado correctamente",
-        prvId: id,
-      };
+      return { message: "Proveedor modificado correctamente", prvId: id };
     },
     { idempotent: true }
   );
-};
 
 // El UNIQUE saltó porque otra petición registró la misma identidad entre la
 // verificación y el INSERT: misma respuesta que la verificación (409 con el
@@ -598,7 +636,7 @@ export const saveProvider = async ({ prvId, input, useBy, granted, scope, ctx = 
   if (Number(prvId) > 0) {
     await assertProviderInScope(scope, prvId);
     try {
-      return await updateProvider({ prvId, values, pvtIds, contacts, invoiceMove: input.invoiceMove || undefined, useBy: Number(useBy), granted, ctx });
+      return await updateProvider({ prvId, values, pvtIds, contacts, useBy: Number(useBy), granted, ctx });
     } catch (err) {
       return translateDuplicate(err, values, prvId);
     }
@@ -613,7 +651,11 @@ export const saveProvider = async ({ prvId, input, useBy, granted, scope, ctx = 
   if (input.assignment) {
     if (restricted) assertInScope(scope, input.assignment.wrkId, "No se encontró la obra.");
     if (!granted.has(CAN.assignWork)) throw httpError(403, "No tienes permiso para asignar proveedores a obras.");
-    assignment = { wrkId: Number(input.assignment.wrkId), values: assignmentValuesOf(input.assignment) };
+    assignment = {
+      wrkId: Number(input.assignment.wrkId),
+      values: assignmentValuesOf(input.assignment),
+      pvtIds: assignmentTypeIdsOf(input.assignment),
+    };
     assertAssignmentDate(assignment.values);
   }
 
@@ -628,7 +670,7 @@ export const saveProvider = async ({ prvId, input, useBy, granted, scope, ctx = 
         ...values,
         pvtIds,
         contacts,
-        assignment: assignment && { wrkId: assignment.wrkId, ...assignment.values },
+        assignment: assignment && { wrkId: assignment.wrkId, ...assignment.values, pvtIds: assignment.pvtIds ?? null },
       },
       execute: (idempotencyData) => createProvider({ values, pvtIds, contacts, assignment, useBy: Number(useBy), ctx, idempotencyData }),
     });
@@ -729,6 +771,7 @@ const ASSIGNMENT_LIST_SELECT = {
       tbl_provider_classifications: CLASSIFICATIONS_SELECT,
     },
   },
+  tbl_work_provider_types: WORK_TYPES_SELECT,
 };
 
 /** Proveedores asignados a una obra, paginados (ENDPOINT_STANDARD, "Listados"). */
@@ -758,21 +801,27 @@ const ASSIGNMENT_IDEMPOTENCY = {
   toResult: (row) => ({ message: "Proveedor asignado a la obra", wkpId: row.wkp_id }),
 };
 
-/** Asignar un proveedor existente a una obra (bloqueo obra → proveedor). */
+/**
+ * Asignar un proveedor existente a una obra con los tipos con que trabajará
+ * en ella (DEC-066; el cliente propone los del maestro). Bloqueo obra →
+ * proveedor → tipos.
+ */
 export const assignProviderToWork = async ({ wrkId, prvId, input, useBy, scope, ctx = { useId: useBy }, idempotencyKey }) => {
   assertInScope(scope, wrkId, "No se encontró la obra.");
   const values = assignmentValuesOf(input);
   assertAssignmentDate(values);
+  const pvtIds = assignmentTypeIdsOf(input);
+  if (!pvtIds) throw httpError(400, "Selecciona al menos un tipo de proveedor para la obra.");
   return runIdempotent({
     target: ASSIGNMENT_IDEMPOTENCY,
     key: idempotencyKey,
     ownerId: useBy,
-    payload: { wrkId: Number(wrkId), prvId: Number(prvId), ...values },
+    payload: { wrkId: Number(wrkId), prvId: Number(prvId), ...values, pvtIds },
     execute: (idempotencyData) =>
-      withLockedTransaction({ OBRA: wrkId, PROVEEDOR: prvId }, async (tx) => {
+      withLockedTransaction({ OBRA: wrkId, PROVEEDOR: prvId, TIPO_PROVEEDOR: pvtIds }, async (tx) => {
         await assertWorkAssignable(tx, wrkId);
         await assertProviderAssignable(tx, { wrkId, prvId });
-        const created = await insertAssignment(tx, { wrkId, prvId, values, useBy: Number(useBy), ctx, idempotencyData });
+        const created = await insertAssignment(tx, { wrkId, prvId, values, pvtIds, useBy: Number(useBy), ctx, idempotencyData });
         return { message: "Proveedor asignado a la obra", wkpId: created.wkp_id };
       }),
   });
@@ -786,23 +835,34 @@ const findLockedAssignment = async (tx, { wrkId, prvId }) => {
   return row;
 };
 
-/** Editar fecha, observaciones o estado de la asignación. Reintentable. */
+/**
+ * Editar fecha, observaciones, estado o tipos de la asignación (DEC-066). Sin
+ * `pvtIds`, los tipos no cambian. Un tipo nuevo debe estar activo; quitar uno
+ * en uso responde 409 (applyAssignmentTypes). Reintentable.
+ */
 export const updateWorkProvider = async ({ wrkId, prvId, input, useBy, scope, ctx = { useId: useBy } }) => {
   assertInScope(scope, wrkId, "No se encontró la obra.");
   const values = { ...assignmentValuesOf(input), sta_id: Number(input.staId ?? ACTIVE_STATUS) };
   assertAssignmentDate(values);
   if (values.sta_id !== ACTIVE_STATUS && values.sta_id !== INACTIVE_STATUS) throw httpError(400, "El estado debe ser activo o inactivo.");
+  const pvtIds = assignmentTypeIdsOf(input);
 
   return withLockedTransaction(
-    { OBRA: wrkId, PROVEEDOR: prvId },
+    { OBRA: wrkId, PROVEEDOR: prvId, ...(pvtIds ? { TIPO_PROVEEDOR: pvtIds } : {}) },
     async (tx) => {
-      const before = await findLockedAssignment(tx, { wrkId, prvId });
-      const after = { ...before, ...values };
+      const row = await findLockedAssignment(tx, { wrkId, prvId });
+      const currentIds = await findAssignmentTypeIds(tx, { wrkId, prvId });
+      const before = { ...row, pvt_ids: currentIds };
+      const after = { ...before, ...values, pvt_ids: pvtIds ?? currentIds };
       if (assignmentText(before) !== assignmentText(after)) {
-        await tx.tbl_work_providers.update({ where: { wkp_id: before.wkp_id }, data: { ...values, wkp_update_by: Number(useBy) } });
+        if (pvtIds) {
+          await assertProviderTypes(tx, pvtIds, currentIds);
+          await applyAssignmentTypes(tx, { wrkId, prvId, currentIds, pvtIds });
+        }
+        await tx.tbl_work_providers.update({ where: { wkp_id: row.wkp_id }, data: { ...values, wkp_update_by: Number(useBy) } });
         await auditAssignment(tx, { operation: AUDIT_OPERATIONS.UPDATE, before, after, ctx });
       }
-      return { message: "Asignación modificada correctamente", wkpId: before.wkp_id };
+      return { message: "Asignación modificada correctamente", wkpId: row.wkp_id };
     },
     { idempotent: true }
   );
@@ -830,8 +890,10 @@ export const unassignProviderFromWork = async ({ wrkId, prvId, useBy, scope, ctx
     if (invoices > 0) {
       throw httpError(409, `No se puede desasignar el proveedor: tiene ${invoices} factura(s) en esta obra. Inactiva la asignación en su lugar.`);
     }
+    const pvtIds = await findAssignmentTypeIds(tx, { wrkId, prvId });
+    // Sus tipos (DEC-066) se borran con ella (ON DELETE CASCADE).
     await tx.tbl_work_providers.delete({ where: { wkp_id: before.wkp_id } });
-    await auditAssignment(tx, { operation: AUDIT_OPERATIONS.REVOKE, before, ctx });
+    await auditAssignment(tx, { operation: AUDIT_OPERATIONS.REVOKE, before: { ...before, pvt_ids: pvtIds }, ctx });
     return { message: "Proveedor desasignado de la obra" };
   });
 };

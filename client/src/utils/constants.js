@@ -128,12 +128,13 @@ export const INVOICE_VIEWS = {
 export const invoicePath = (view, invId, suffix) =>
   ['/billing/invoices', INVOICE_VIEWS[view]?.path ?? INVOICE_VIEWS.SIMPLE.path, invId, suffix].filter(Boolean).join('/');
 
-// Menú de facturas de un tipo de proveedor (DEC-056): la vista de las facturas
-// de contrato de sus proveedores. Sin valor, el tipo no da menú; un proveedor
-// sin ningún tipo con menú no admite facturas de contrato.
+// Menú de facturas de un tipo de proveedor (DEC-066): contrato mayor y
+// subcontratistas admiten contratos, que guardan su menú al crearse; simples
+// habilita la factura simple en la obra. Sin valor, el tipo no da menú.
 export const PROVIDER_INVOICE_VIEW_OPTIONS = [
   { value: 'MAJOR', label: INVOICE_VIEWS.MAJOR.title },
-  { value: 'SUBCONTRACTOR', label: INVOICE_VIEWS.SUBCONTRACTOR.title }
+  { value: 'SUBCONTRACTOR', label: INVOICE_VIEWS.SUBCONTRACTOR.title },
+  { value: 'SIMPLE', label: INVOICE_VIEWS.SIMPLE.title }
 ];
 
 export const providerInvoiceViewName = (view) => PROVIDER_INVOICE_VIEW_OPTIONS.find((o) => o.value === view)?.label ?? 'Sin menú';

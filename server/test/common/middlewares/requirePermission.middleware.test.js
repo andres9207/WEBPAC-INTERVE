@@ -75,7 +75,7 @@ describe("requirePermission middleware", () => {
 
     expect(prismaMock.tbl_user_permissions.findFirst).toHaveBeenCalledWith({
       where: { use_id: 2, per_id: 5 },
-      select: { usp_id: true },
+      select: { usp_granted: true },
     });
     expect(prismaMock.tbl_profile_permissions.findFirst).toHaveBeenCalledWith({
       where: { pro_id: 3, per_id: 5 },
@@ -86,7 +86,7 @@ describe("requirePermission middleware", () => {
   });
 
   it("llama a next() si el permiso está asignado individualmente (tbl_user_permissions)", async () => {
-    prismaMock.tbl_user_permissions.findFirst.mockResolvedValue({ usp_id: 10 });
+    prismaMock.tbl_user_permissions.findFirst.mockResolvedValue({ usp_granted: true });
     prismaMock.tbl_profile_permissions.findFirst.mockResolvedValue(null);
     const req = { user: { useId: 2, proId: 3 }, body: {} };
     const res = buildRes();
@@ -130,14 +130,14 @@ describe("requirePermission middleware", () => {
     await requirePermission(resolver)(reqEdit, buildRes(), jest.fn());
     expect(prismaMock.tbl_user_permissions.findFirst).toHaveBeenLastCalledWith({
       where: { use_id: 2, per_id: 6 },
-      select: { usp_id: true },
+      select: { usp_granted: true },
     });
 
     const reqCreate = { user: { useId: 2, proId: 3 }, body: {} };
     await requirePermission(resolver)(reqCreate, buildRes(), jest.fn());
     expect(prismaMock.tbl_user_permissions.findFirst).toHaveBeenLastCalledWith({
       where: { use_id: 2, per_id: 5 },
-      select: { usp_id: true },
+      select: { usp_granted: true },
     });
   });
 

@@ -63,7 +63,7 @@ export const paginationUsers = async ({
     ...(email ? { use_email: { contains: email } } : {}),
     ...(identification ? { use_identification: { contains: identification } } : {}),
     ...(username ? { use_user: { contains: username } } : {}),
-    // Búsqueda general (DEC-024): nombre, apellido, correo, número de documento o usuario.
+    // Búsqueda general (DEC-024; el servidor la conserva tras DEC-048): nombre, apellido, correo, número de documento o usuario.
     ...searchWhere(["use_name", "use_last_name", "use_email", "use_identification", "use_user"], search),
     sta_id: { not: DELETED_STATUS },
     // Antes filtraba por perfil activo: inactivar un perfil hacía desaparecer

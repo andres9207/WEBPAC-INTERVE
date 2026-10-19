@@ -239,7 +239,9 @@ export default function ContractDetailPage() {
                     ['Etapa', contract.stageName],
                     ['Proveedor', `${contract.providerName} · ${contract.providerIdentification}`],
                     ['Tipo de contrato', contract.contractType],
-                    ['Menú de facturas (del proveedor)', providerInvoiceViewName(contract.invoiceView)],
+                    ['Tipo de proveedor', contract.providerTypeName],
+                    // El menú que el contrato guardó al crearse (DEC-066).
+                    ['Menú de facturas', providerInvoiceViewName(contract.invoiceView)],
                     ['AIU', contract.aiuRequested === false ? 'No solicitado' : 'Solicitado'],
                     ['Observaciones', contract.observation]
                   ]}

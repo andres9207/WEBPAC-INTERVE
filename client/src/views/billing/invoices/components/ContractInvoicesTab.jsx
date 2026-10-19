@@ -14,10 +14,10 @@ import { INVOICE_TYPE_OPTIONS, invoicePath } from 'utils/constants';
 /**
  * Facturas de un contrato, en su expediente (DEC-042). Registrar ofrece solo
  * los tipos que el estado del contrato admite hoy (`allowedActions` del
- * contrato, ADR-0017), y abre el formulario del menú de facturas de los tipos
- * de su proveedor (DEC-056) con el tipo y el contrato ya elegidos. Exige ver
- * ese menú. Un proveedor sin tipo con menú no admite facturas nuevas: la
- * pestaña lo avisa y sigue mostrando las que ya tiene (cada una, en su menú).
+ * contrato, ADR-0017), y abre el formulario del menú de facturas que guardó
+ * el contrato (DEC-066) con el tipo y el contrato ya elegidos. Exige ver ese
+ * menú. Un contrato anterior sin menú no admite facturas nuevas: la pestaña
+ * lo avisa y sigue mostrando las que ya tiene (cada una, en su menú).
  */
 
 // Acción del contrato (STATE_ALLOWS) que habilita cada tipo de factura.
@@ -56,7 +56,7 @@ export default function ContractInvoicesTab({ contract }) {
       hideColumns={['work', 'provider']}
       actions={actions || null}
       emptyTitle="Todavía no hay facturas en este contrato."
-      emptyText="En ejecución se registran facturas de anticipo; en liquidación, de liquidación y de devolución de retenido. Un contrato con facturas no se puede eliminar ni cambiar de proveedor."
+      emptyText="En ejecución se registran facturas de anticipo; en liquidación, de liquidación y de devolución de retenido. Un contrato con facturas no se puede eliminar ni cambiar de proveedor ni de tipo de proveedor."
     />
   );
   if (view) return list;
@@ -64,8 +64,7 @@ export default function ContractInvoicesTab({ contract }) {
   return (
     <Stack spacing={2}>
       <Alert severity="warning">
-        El proveedor «{contract.providerName}» no tiene un tipo de proveedor con menú de facturas: este contrato no admite facturas nuevas
-        hasta que se defina en el maestro de tipos de proveedor.
+        Este contrato se firmó bajo un tipo de proveedor sin menú de contrato mayor ni de subcontratistas: no admite facturas nuevas.
       </Alert>
       {list}
     </Stack>

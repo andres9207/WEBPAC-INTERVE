@@ -1,6 +1,8 @@
 # DEC-055 — Sin facturación de avance de obra durante la ejecución: todo el valor ejecutado se factura en la liquidación
 
-**Fecha:** 2026-10-13 · **Tipo:** Vigente · **ADR:** [0021](../adr/0021-facturacion-contrato-mayor.md), [0017](../adr/0017-estados-contrato.md)
+> **Retirada el 2026-10-16, sin reemplazo.** Los datos del sistema que se migra (`dbwebpac`, volcado del 2026-10-16) la contradicen: tiene unas 69.900 facturas ligadas a un contrato que no son de anticipo, de liquidación ni de devolución de retenido (30.040 de contrato mayor y 39.840 de subcontratistas): el avance se factura contra el contrato. Tiene además 535 de anticipo, 106 de liquidación y 149 de devolución de retenido. La decisión de negocio **DEC-01** vuelve a estar abierta, y PRO-BD-13, PRO-BE-25 y PRO-FE-11, pendientes de ella. El código no cambia: en ejecución sigue admitiéndose solo el anticipo porque todavía no existe un tipo de factura de avance, no porque se haya decidido no facturarlo. Lo que sigue queda como registro de lo que se decidió el 2026-10-13.
+
+**Fecha:** 2026-10-13 · **Tipo:** Retirada (2026-10-16) · **ADR:** [0021](../adr/0021-facturacion-contrato-mayor.md), [0017](../adr/0017-estados-contrato.md)
 
 Resuelve la decisión de negocio **DEC-01** del backlog (cómo se factura el avance de obra durante la ejecución). El usuario la decidió el 2026-10-13: alternativa **a** de ADR-0021.
 

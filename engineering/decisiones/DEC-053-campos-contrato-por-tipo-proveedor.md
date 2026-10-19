@@ -4,6 +4,8 @@
 
 Reemplaza a [DEC-037](DEC-037-configuracion-campos-tipo-contrato.md) en **dónde** vive la configuración: la mueve del tipo de contrato al tipo de proveedor. El modelo no cambia: catálogo cerrado, jerarquía, ausencia = no aplica, resolución única y valores heredados. Reemplaza también la parte de [DEC-023](DEC-023-tipo-proveedor-clasificacion.md) que decía que el tipo de proveedor no condiciona campos. Decidido por el usuario el 2026-10-08.
 
+> **Reemplazada en parte por [DEC-066](DEC-066-tipo-proveedor-por-obra-y-contrato.md)** (2026-10-19): los campos del contrato son los del tipo de proveedor bajo el que se firma, no la unión de los tipos del proveedor (`mergeTypeRows` se retiró). El resto del modelo sigue vigente.
+
 ## Contexto
 
 Qué campos tiene un contrato (etapa, observaciones, descripción del otrosí y los seis porcentajes) depende de con quién se contrata, no de la clase de contrato. El tipo de contrato queda como una clasificación simple.

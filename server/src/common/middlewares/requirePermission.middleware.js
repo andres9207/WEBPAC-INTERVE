@@ -30,10 +30,11 @@ export const requirePermission = (perIdOrResolver) => async (req, res, next) => 
 
     const perId = typeof perIdOrResolver === "function" ? perIdOrResolver(req) : perIdOrResolver;
 
-    // Permiso efectivo = unión de los permisos del perfil (req.user.proId,
-    // resuelto en cada petición contra tbl_profile_permissions — así un
-    // cambio a los permisos del perfil se propaga de inmediato a todos sus
-    // usuarios) y las excepciones individuales (tbl_user_permissions).
+    // Permiso efectivo = (perfil ∪ concedidos) − negados (DEC-067): los
+    // permisos del perfil (req.user.proId, resuelto en cada petición contra
+    // tbl_profile_permissions — así un cambio a los permisos del perfil se
+    // propaga de inmediato a todos sus usuarios) y las excepciones
+    // individuales (tbl_user_permissions), que conceden o niegan.
     const perIds = Array.isArray(perId) ? perId : [perId];
     const granted = perIds.length > 0 && (await Promise.all(perIds.map((id) => hasEffectivePermission({ useId, proId, perId: id })))).some(Boolean);
 

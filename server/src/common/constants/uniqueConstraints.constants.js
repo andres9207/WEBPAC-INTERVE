@@ -91,6 +91,9 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   "uq_provider_type_field_versions",
   // Tipos de un proveedor (DEC-041): el service quita repetidos
   "uq_provider_classifications_provider_type",
+  // Tipos del proveedor en una obra (DEC-066): el service quita repetidos;
+  // apoyo de la FK compuesta contrato → tipo de la asignación
+  "uq_work_provider_types_work_provider_type",
   // Apoyo de la FK compuesta contrato → etapa de la obra
   "uq_work_stages_id_work",
   // Un otrosí levanta a lo sumo una suspensión; lo garantiza el service

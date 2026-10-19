@@ -8,9 +8,10 @@ import { lockedIdsOf, transactionRawMocks } from "../../../helpers/transaction.m
 
 const state = { provider: null, assignment: null };
 
-// Menú de facturas de cada tipo de proveedor (DEC-056): 1 Simple (sin menú),
-// 2 Subcontratista, 3 Contrato mayor.
-const TYPE_MENUS = { 1: null, 2: "SUBCONTRACTOR", 3: "MAJOR" };
+// Menú de facturas de cada tipo de proveedor (DEC-066): 1 Simple, 2
+// Subcontratista, 3 Contrato mayor.
+const TYPE_MENUS = { 1: "SIMPLE", 2: "SUBCONTRACTOR", 3: "MAJOR" };
+const TYPE_NAMES = { 1: "Simple", 2: "Subcontratista", 3: "Contrato mayor" };
 
 const prismaMock = {
   tbl_providers: {
@@ -26,7 +27,8 @@ const prismaMock = {
   },
   tbl_provider_contacts: { findMany: jest.fn(), deleteMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
   tbl_provider_classifications: { findMany: jest.fn(), deleteMany: jest.fn(), createMany: jest.fn() },
-  tbl_contracts: { count: jest.fn() },
+  tbl_contracts: { count: jest.fn(), findMany: jest.fn() },
+  tbl_work_provider_types: { findMany: jest.fn(), createMany: jest.fn(), deleteMany: jest.fn() },
   tbl_invoices: { count: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
   tbl_work_providers: {
     findMany: jest.fn(),
@@ -121,8 +123,10 @@ beforeEach(() => {
   prismaMock.tbl_invoices.count.mockResolvedValue(0);
   prismaMock.tbl_invoices.findMany.mockResolvedValue([]);
   prismaMock.tbl_provider_types.findMany.mockImplementation(async ({ where }) =>
-    where.pvt_id.in.map((id) => ({ pvt_invoice_view: TYPE_MENUS[id] ?? null }))
+    where.pvt_id.in.map((id) => ({ pvt_id: id, pvt_name: TYPE_NAMES[id] ?? `Tipo ${id}`, pvt_invoice_view: TYPE_MENUS[id] ?? null }))
   );
+  prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+  prismaMock.tbl_work_provider_types.findMany.mockResolvedValue([]);
   prismaMock.tbl_works.findUnique.mockResolvedValue({ sta_id: 1 });
   prismaMock.tbl_identity_documents.findUnique.mockResolvedValue({ idd_code: "CC", idd_name: "Cédula de ciudadanía", sta_id: 1 });
   prismaMock.tbl_provider_types.findUnique.mockResolvedValue({ pvt_name: "Simple", sta_id: 1 });
@@ -261,6 +265,8 @@ describe("saveProvider — crear", () => {
       wkp_create_by: 9,
     });
     expect(prismaMock.tbl_work_providers.create.mock.calls[0][0].data.wkp_assignment_date.toISOString()).toBe("2026-10-01T00:00:00.000Z");
+    // Sin tipos para la obra, toma los del maestro (DEC-066).
+    expect(prismaMock.tbl_work_provider_types.createMany.mock.calls[0][0].data).toEqual([{ wrk_id: 8, prv_id: 50, pvt_id: 2 }]);
     const grants = auditRows().filter((r) => r.aud_operation === "ASIGNAR");
     expect(grants.map((r) => [r.aud_entity, r.aud_record_id])).toEqual([
       ["OBRA", 8],
@@ -395,9 +401,13 @@ describe("saveProvider — editar", () => {
   });
 });
 
-describe("menú de facturas del proveedor (DEC-056)", () => {
+describe("tipos del proveedor en la obra (DEC-066)", () => {
   const edit = (overrides = {}) =>
     service.saveProvider({ prvId: 77, input: input({ contacts: [contact({ contactId: 11 })], ...overrides }), useBy: 9, granted: ALL, ctx });
+  const typeLocks = () =>
+    prismaMock.$queryRaw.mock.calls
+      .filter(([, ...values]) => values.some((v) => v?.strings?.join("") === "tbl_provider_types"))
+      .flatMap(([, ...values]) => lockedIdsOf(values));
 
   beforeEach(() => {
     state.provider = { ...storedProvider };
@@ -405,77 +415,109 @@ describe("menú de facturas del proveedor (DEC-056)", () => {
     prismaMock.tbl_provider_classifications.findMany.mockResolvedValue([{ pvt_id: 2 }]);
   });
 
-  it("no admite tipos de menús distintos (409), al crear ni al editar, y no escribe nada", async () => {
+  it("el maestro admite tipos de menús distintos, al crear y al editar", async () => {
     await expect(
-      service.saveProvider({ prvId: 0, input: input({ pvtIds: [2, 3] }), useBy: 9, granted: ALL, ctx, idempotencyKey: KEY })
-    ).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("menús de facturas distintos") });
-    expect(prismaMock.tbl_providers.create).not.toHaveBeenCalled();
-
-    await expect(edit({ pvtIds: [2, 3] })).rejects.toMatchObject({ statusCode: 409 });
-    expect(prismaMock.tbl_providers.update).not.toHaveBeenCalled();
+      service.saveProvider({ prvId: 0, input: input({ pvtIds: [1, 2, 3] }), useBy: 9, granted: ALL, ctx, idempotencyKey: KEY })
+    ).resolves.toMatchObject({ prvId: 50 });
+    await expect(edit({ pvtIds: [2, 3] })).resolves.toMatchObject({ message: "Proveedor modificado correctamente", prvId: 77 });
   });
 
-  it("un tipo sin menú se combina con cualquiera", async () => {
-    await expect(edit({ pvtIds: [1, 2] })).resolves.toMatchObject({ prvId: 77 });
-    expect(prismaMock.tbl_invoices.findMany).not.toHaveBeenCalled();
-  });
-
-  it("si cambia el menú y tiene facturas de contrato, sin decisión responde 409 con cuántas y no guarda", async () => {
-    prismaMock.tbl_invoices.findMany.mockResolvedValue([
-      { inv_id: 5, inv_view: "SUBCONTRACTOR" },
-      { inv_id: 6, inv_view: "SUBCONTRACTOR" },
-    ]);
-
-    await expect(edit({ pvtIds: [3] })).rejects.toMatchObject({
-      statusCode: 409,
-      data: { code: "INVOICE_VIEW_CHANGE", invoices: 2, canMove: true, providers: [expect.objectContaining({ prvId: 77, from: "SUBCONTRACTOR", to: "MAJOR" })] },
-    });
-    expect(prismaMock.tbl_invoices.findMany.mock.calls[0][0].where).toMatchObject({ prv_id: 77, inv_type: { not: "SIMPLE" }, NOT: { inv_view: "MAJOR" } });
-    expect(prismaMock.tbl_provider_classifications.createMany).not.toHaveBeenCalled();
-  });
-
-  it("MOVE: pasa todas al menú nuevo, con bitácora por factura en la misma operación", async () => {
-    prismaMock.tbl_invoices.findMany.mockResolvedValue([
-      { inv_id: 5, inv_view: "SUBCONTRACTOR" },
-      { inv_id: 6, inv_view: "SUBCONTRACTOR" },
-    ]);
-
-    await expect(edit({ pvtIds: [3], invoiceMove: "MOVE" })).resolves.toMatchObject({ message: expect.stringContaining("2 factura(s) movida(s)") });
-
-    expect(prismaMock.tbl_invoices.updateMany).toHaveBeenCalledWith({ where: { inv_id: { in: [5, 6] } }, data: { inv_view: "MAJOR" } });
-    const moves = auditRows().filter((r) => r.aud_field === "inv_view");
-    expect(moves).toEqual([
-      expect.objectContaining({ aud_entity: "FACTURA", aud_record_id: 5, aud_old_value: "SUBCONTRACTOR", aud_new_value: "MAJOR" }),
-      expect.objectContaining({ aud_entity: "FACTURA", aud_record_id: 6 }),
-    ]);
-    const types = auditRows().find((r) => r.aud_field === "pvt_ids");
-    expect(new Set(auditRows().map((r) => r.aud_operation_id))).toEqual(new Set([types.aud_operation_id]));
-    expect(prismaMock.tbl_provider_classifications.createMany).toHaveBeenCalled();
-  });
-
-  it("KEEP: las deja como histórico y guarda el cambio", async () => {
-    prismaMock.tbl_invoices.findMany.mockResolvedValue([{ inv_id: 5, inv_view: "SUBCONTRACTOR" }]);
-
-    await expect(edit({ pvtIds: [3], invoiceMove: "KEEP" })).resolves.toMatchObject({ message: "Proveedor modificado correctamente" });
-    expect(prismaMock.tbl_invoices.updateMany).not.toHaveBeenCalled();
-    expect(prismaMock.tbl_provider_classifications.createMany).toHaveBeenCalled();
-  });
-
-  it("sin menú nuevo no se pueden mover (409); como histórico, sí", async () => {
-    prismaMock.tbl_invoices.findMany.mockResolvedValue([{ inv_id: 5, inv_view: "SUBCONTRACTOR" }]);
-
-    await expect(edit({ pvtIds: [1] })).rejects.toMatchObject({ statusCode: 409, data: expect.objectContaining({ canMove: false }) });
-    await expect(edit({ pvtIds: [1], invoiceMove: "MOVE" })).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("histórico") });
-    await expect(edit({ pvtIds: [1], invoiceMove: "KEEP" })).resolves.toMatchObject({ prvId: 77 });
-  });
-
-  it("bloquea también los tipos que tenía, no solo los nuevos", async () => {
+  it("cambiar los tipos del maestro no toca obras, contratos ni facturas", async () => {
     await edit({ pvtIds: [3] });
 
-    const typeLocks = prismaMock.$queryRaw.mock.calls
-      .filter(([, ...values]) => values.some((v) => v?.strings?.join("") === "tbl_provider_types"))
-      .flatMap(([, ...values]) => lockedIdsOf(values));
-    expect(typeLocks).toEqual(expect.arrayContaining([2, 3]));
+    expect(prismaMock.tbl_provider_classifications.createMany).toHaveBeenCalled();
+    expect(prismaMock.tbl_work_provider_types.createMany).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_work_provider_types.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_invoices.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_invoices.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("crear desde una obra con tipos propios: la obra toma esos, no los del maestro, y los bloquea", async () => {
+    const withAssignment = input({ pvtIds: [2], assignment: { wrkId: 8, assignmentDate: "2026-10-01", pvtIds: [3, 1] } });
+
+    await service.saveProvider({ prvId: 0, input: withAssignment, useBy: 9, granted: ALL, ctx, idempotencyKey: KEY });
+
+    expect(prismaMock.tbl_provider_classifications.createMany.mock.calls[0][0].data).toEqual([{ prv_id: 50, pvt_id: 2 }]);
+    expect(prismaMock.tbl_work_provider_types.createMany.mock.calls[0][0].data).toEqual([
+      { wrk_id: 8, prv_id: 50, pvt_id: 1 },
+      { wrk_id: 8, prv_id: 50, pvt_id: 3 },
+    ]);
+    expect(typeLocks()).toEqual(expect.arrayContaining([1, 2, 3]));
+  });
+
+  it("asignar exige al menos un tipo (400) y no abre la transacción", async () => {
+    await expect(
+      service.assignProviderToWork({ wrkId: 8, prvId: 77, input: { assignmentDate: "2026-10-01" }, useBy: 9, ctx, idempotencyKey: KEY })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    await expect(
+      service.assignProviderToWork({ wrkId: 8, prvId: 77, input: { assignmentDate: "2026-10-01", pvtIds: [] }, useBy: 9, ctx, idempotencyKey: KEY })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("asignar con cualquier tipo, aunque el proveedor no lo tenga en su maestro; uno inactivo se rechaza", async () => {
+    state.provider = { sta_id: 1, prv_name: "Andina" };
+    prismaMock.tbl_provider_classifications.findMany.mockResolvedValue([{ pvt_id: 2 }]);
+
+    await service.assignProviderToWork({ wrkId: 8, prvId: 77, input: { assignmentDate: "2026-10-01", pvtIds: [3, 2] }, useBy: 9, ctx, idempotencyKey: KEY });
+    expect(prismaMock.tbl_work_provider_types.createMany.mock.calls[0][0].data).toEqual([
+      { wrk_id: 8, prv_id: 77, pvt_id: 2 },
+      { wrk_id: 8, prv_id: 77, pvt_id: 3 },
+    ]);
+    expect(auditRows().find((r) => r.aud_entity === "OBRA").aud_new_value).toContain("tipos=2,3");
+
+    prismaMock.tbl_provider_types.findUnique.mockResolvedValue({ pvt_name: "Contrato mayor", sta_id: 2 });
+    await expect(
+      service.assignProviderToWork({ wrkId: 8, prvId: 77, input: { assignmentDate: "2026-10-01", pvtIds: [3] }, useBy: 9, ctx, idempotencyKey: KEY })
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  describe("editar los tipos de la asignación", () => {
+    const stored = { wkp_id: 300, wrk_id: 8, prv_id: 77, wkp_assignment_date: new Date("2026-10-01T00:00:00Z"), wkp_observation: null, sta_id: 1 };
+    const update = (pvtIds) =>
+      service.updateWorkProvider({ wrkId: 8, prvId: 77, input: { assignmentDate: "2026-10-01", staId: 1, ...(pvtIds ? { pvtIds } : {}) }, useBy: 9, ctx });
+
+    beforeEach(() => {
+      state.assignment = { ...stored };
+      prismaMock.tbl_work_provider_types.findMany.mockResolvedValue([{ pvt_id: 1 }, { pvt_id: 3 }]);
+    });
+
+    it("agrega y quita por diferencial, bloquea los pedidos y lo audita en la obra y en el proveedor", async () => {
+      await update([3, 2]);
+
+      expect(prismaMock.tbl_work_provider_types.deleteMany).toHaveBeenCalledWith({ where: { wrk_id: 8, prv_id: 77, pvt_id: { in: [1] } } });
+      expect(prismaMock.tbl_work_provider_types.createMany.mock.calls[0][0].data).toEqual([{ wrk_id: 8, prv_id: 77, pvt_id: 2 }]);
+      expect(typeLocks()).toEqual([2, 3]);
+      const rows = auditRows();
+      expect(rows.map((r) => r.aud_entity)).toEqual(["OBRA", "PROVEEDOR"]);
+      expect(rows[0]).toMatchObject({ aud_operation: "EDITAR", aud_old_value: expect.stringContaining("tipos=1,3"), aud_new_value: expect.stringContaining("tipos=2,3") });
+    });
+
+    it("sin tipos en la petición, no cambian", async () => {
+      await update();
+      expect(prismaMock.tbl_work_provider_types.deleteMany).not.toHaveBeenCalled();
+      expect(prismaMock.tbl_work_provider_types.createMany).not.toHaveBeenCalled();
+      expect(prismaMock.tbl_work_providers.update).not.toHaveBeenCalled();
+    });
+
+    it("no quita un tipo con contratos de la obra firmados bajo él (409)", async () => {
+      prismaMock.tbl_contracts.findMany.mockResolvedValue([{ pvt_id: 3, ctr_number: "C-01" }]);
+
+      await expect(update([1])).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("Contrato mayor") });
+      expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where).toEqual({ wrk_id: 8, prv_id: 77, pvt_id: { in: [3] } });
+      expect(prismaMock.tbl_work_provider_types.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("no quita el último tipo de facturas simples si tiene simples en la obra (409); dejando otro, sí", async () => {
+      prismaMock.tbl_invoices.count.mockResolvedValue(2);
+
+      await expect(update([3])).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("2 factura(s) simple(s)") });
+      expect(prismaMock.tbl_invoices.count).toHaveBeenCalledWith({ where: { wrk_id: 8, prv_id: 77, ctr_id: null } });
+
+      prismaMock.tbl_invoices.count.mockResolvedValue(0);
+      await expect(update([3])).resolves.toMatchObject({ wkpId: 300 });
+      expect(prismaMock.tbl_work_provider_types.deleteMany).toHaveBeenCalled();
+    });
   });
 });
 
@@ -527,16 +569,16 @@ describe("estado y eliminación", () => {
 });
 
 describe("asignación proveedor-obra", () => {
-  const assignInput = { assignmentDate: "2026-10-01", observation: " Acero " };
+  const assignInput = { assignmentDate: "2026-10-01", observation: " Acero ", pvtIds: [2] };
 
-  it("asigna bloqueando obra → proveedor y audita en la obra y en el proveedor", async () => {
+  it("asigna bloqueando obra → proveedor → tipos y audita en la obra y en el proveedor", async () => {
     state.provider = { sta_id: 1, prv_name: "Andina" };
 
     await expect(
       service.assignProviderToWork({ wrkId: 8, prvId: 77, input: assignInput, useBy: 9, ctx, idempotencyKey: KEY })
     ).resolves.toEqual({ message: "Proveedor asignado a la obra", wkpId: 300 });
 
-    expect(lockedTables()).toEqual(["tbl_works", "tbl_providers"]);
+    expect(lockedTables()).toEqual(["tbl_works", "tbl_providers", "tbl_provider_types"]);
     expect(prismaMock.tbl_work_providers.create.mock.calls[0][0].data).toMatchObject({
       wrk_id: 8,
       prv_id: 77,
@@ -614,6 +656,7 @@ describe("asignación proveedor-obra", () => {
 
   it("editar la asignación sin cambios no escribe", async () => {
     state.assignment = { wkp_id: 300, wrk_id: 8, prv_id: 77, wkp_assignment_date: new Date("2026-10-01T00:00:00Z"), wkp_observation: "Acero", sta_id: 1 };
+    prismaMock.tbl_work_provider_types.findMany.mockResolvedValue([{ pvt_id: 2 }]);
 
     await service.updateWorkProvider({ wrkId: 8, prvId: 77, input: { ...assignInput, staId: 1 }, useBy: 9, ctx });
     expect(prismaMock.tbl_work_providers.update).not.toHaveBeenCalled();
@@ -681,11 +724,11 @@ describe("consultas", () => {
     });
   });
 
-  it("el selector para asignar devuelve solo activos y excluye los ya asignados a la obra", async () => {
-    prismaMock.tbl_providers.findMany.mockResolvedValue([existingRow]);
+  it("el selector para asignar devuelve solo activos y excluye los ya asignados a la obra, con los tipos de su maestro (DEC-066)", async () => {
+    prismaMock.tbl_providers.findMany.mockResolvedValue([{ ...existingRow, tbl_provider_classifications: [{ pvt_id: 3 }, { pvt_id: 1 }] }]);
 
     await expect(service.selectProviders({ search: "andina", wrkId: "8" })).resolves.toEqual([
-      expect.objectContaining({ value: 77, label: "Ferretería Andina · CC 1020304050" }),
+      expect.objectContaining({ value: 77, label: "Ferretería Andina · CC 1020304050", pvtIds: [3, 1] }),
     ]);
     expect(prismaMock.tbl_providers.findMany.mock.calls[0][0]).toMatchObject({
       where: { sta_id: 1, tbl_work_providers: { none: { wrk_id: 8 } } },

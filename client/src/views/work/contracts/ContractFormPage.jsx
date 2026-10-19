@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { Controller, FormProvider, useForm, useWatch } from 'react-hook-form';
 
@@ -36,7 +36,7 @@ import { useWorkScope } from 'contexts/WorkScopeContext';
 import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
-import { TERM_UNIT_OPTIONS } from 'utils/constants';
+import { TERM_UNIT_OPTIONS, providerInvoiceViewName } from 'utils/constants';
 import { ALL_WORKS } from 'utils/workScope';
 
 /**
@@ -58,20 +58,24 @@ import { ALL_WORKS } from 'utils/workScope';
  *   (useEndDatePreview); se guarda con el contrato.
  * - Editar solo cambia la cabecera; el valor inicial y los otrosí se
  *   modifican en la pestaña "Valor" del detalle, con su permiso.
+ * - Tipo de proveedor (DEC-066): el contrato se firma bajo uno de los tipos
+ *   con que el proveedor trabaja en la obra, de menú contrato mayor o
+ *   subcontratistas; si tiene uno solo, se elige solo. Decide el menú de sus
+ *   facturas, que el contrato guarda al crearse. Con facturas, el servidor no
+ *   deja cambiar el proveedor ni el tipo.
  * - Campos configurables (ADR-0006, DEC-053): etapa, observaciones y los
- *   porcentajes del valor inicial dependen de los tipos del proveedor. Sus
- *   descriptores los entrega el servidor al elegir el proveedor y los dibuja
+ *   porcentajes del valor inicial dependen del tipo de proveedor elegido. Sus
+ *   descriptores los entrega el servidor al elegir el tipo y los dibuja
  *   GenericFormSection. Al editar, un valor guardado en un campo que dejó de
  *   aplicar se muestra en solo lectura, marcado como heredado. Se envían
  *   solo los campos visibles: el resto lo resuelve el servidor.
- * - El menú de facturas lo deciden los tipos del proveedor (DEC-056); con
- *   facturas, el servidor no deja cambiar el proveedor del contrato.
  */
 
 const EMPTY_FORM = {
   wrkId: '',
   wksId: '',
   prvId: '',
+  pvtId: '',
   cttId: '',
   number: '',
   name: '',
@@ -108,6 +112,7 @@ const toPayload = (ctrId, form, descriptors) => {
     ctrId,
     ...(ctrId ? {} : { wrkId: form.wrkId }),
     prvId: form.prvId,
+    pvtId: form.pvtId,
     cttId: form.cttId,
     number: text(form.number),
     name: text(form.name),
@@ -157,8 +162,8 @@ export default function ContractFormPage() {
   const [options, setOptions] = useState({ stages: [], providers: [] });
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
-  // Descriptores de los campos configurables del proveedor elegido (`prvId` dice de cuál son).
-  const [fieldConfig, setFieldConfig] = useState({ prvId: null, fields: [], typeAppliesAiu: false });
+  // Descriptores de los campos configurables del tipo de proveedor elegido (`pvtId` dice de cuál son).
+  const [fieldConfig, setFieldConfig] = useState({ pvtId: null, fields: [], typeAppliesAiu: false });
   const [loadingFields, setLoadingFields] = useState(false);
   const [addingPolicy, setAddingPolicy] = useState(false);
 
@@ -197,35 +202,35 @@ export default function ContractFormPage() {
     load();
   }, [isEdit, ctrId, headerWrkId, reset, resetEndDate, navigate]);
 
-  const [wrkId, prvId, aiuRequested] = useWatch({ control, name: ['wrkId', 'prvId', 'aiuRequested'] });
+  const [wrkId, prvId, pvtId, aiuRequested] = useWatch({ control, name: ['wrkId', 'prvId', 'pvtId', 'aiuRequested'] });
   const { permissionsCatalog, hasPermission } = useAuth();
   const aiuPermission = permissionsCatalog.work?.contracts?.changeAiu;
   const canChangeAiu = aiuPermission != null && hasPermission(aiuPermission);
   const policyPermission = permissionsCatalog.work?.policies?.create;
   const canCreatePolicies = !isEdit && policyPermission != null && hasPermission(policyPermission);
 
-  // Configuración vigente de los tipos del proveedor elegido (ADR-0006
-  // decisión 5, DEC-053). Cambiar de proveedor la vuelve a pedir.
+  // Configuración vigente del tipo de proveedor elegido (ADR-0006 decisión 5,
+  // DEC-066). Cambiar de tipo la vuelve a pedir.
   useEffect(() => {
-    if (!prvId) {
-      setFieldConfig({ prvId: null, fields: [], typeAppliesAiu: false });
+    if (!prvId || !pvtId) {
+      setFieldConfig({ pvtId: null, fields: [], typeAppliesAiu: false });
       return;
     }
     let cancelled = false;
     setLoadingFields(true);
-    getContractFieldsAPI({ prvId })
+    getContractFieldsAPI({ prvId, pvtId })
       .then(({ data }) => {
         if (cancelled) return;
-        setFieldConfig({ prvId: data.prvId, fields: data.fields, typeAppliesAiu: data.typeAppliesAiu });
-        // Al crear, la solicitud de AIU la dan los tipos del proveedor (DEC-046).
+        setFieldConfig({ pvtId: data.pvtId, fields: data.fields, typeAppliesAiu: data.typeAppliesAiu });
+        // Al crear, la solicitud de AIU la da el tipo de proveedor (DEC-046).
         if (!isEdit) setValue('aiuRequested', data.typeAppliesAiu);
       })
-      .catch((err) => showError(err.response?.data?.message || 'Error al cargar los campos del proveedor'))
+      .catch((err) => showError(err.response?.data?.message || 'Error al cargar los campos del tipo de proveedor'))
       .finally(() => !cancelled && setLoadingFields(false));
     return () => {
       cancelled = true;
     };
-  }, [prvId, isEdit, setValue]);
+  }, [prvId, pvtId, isEdit, setValue]);
 
   // Etapas y proveedores de la obra elegida; al editar, también los actuales aunque estén inactivos.
   useEffect(() => {
@@ -235,7 +240,10 @@ export default function ContractFormPage() {
     }
     let cancelled = false;
     setLoadingOptions(true);
-    getContractFormOptionsAPI({ wrkId, ...(loaded ? { includeWksId: loaded.wksId, includePrvId: loaded.prvId } : {}) })
+    getContractFormOptionsAPI({
+      wrkId,
+      ...(loaded ? { includeWksId: loaded.wksId, includePrvId: loaded.prvId, includePvtId: loaded.pvtId } : {})
+    })
       .then(({ data }) => !cancelled && setOptions(data))
       .catch((err) => showError(err.response?.data?.message || 'Error al cargar las etapas y proveedores de la obra'))
       .finally(() => !cancelled && setLoadingOptions(false));
@@ -244,12 +252,25 @@ export default function ContractFormPage() {
     };
   }, [wrkId, loaded]);
 
+  // Tipos con que el proveedor elegido trabaja en la obra y admiten contratos (DEC-066).
+  const providerOption = useMemo(() => options.providers.find((p) => p.value === Number(prvId)) ?? null, [options.providers, prvId]);
+  const providerTypes = useMemo(() => providerOption?.types ?? [], [providerOption]);
+  // Si el tipo elegido no es del proveedor (cambió el proveedor), se limpia;
+  // si el proveedor tiene uno solo, se elige solo. Espera a tener las opciones.
+  useEffect(() => {
+    if (loadingOptions || !providerOption) return;
+    if (providerTypes.some((t) => t.value === Number(pvtId))) return;
+    const next = providerTypes.length === 1 ? providerTypes[0].value : '';
+    if (String(next) !== String(pvtId ?? '')) setValue('pvtId', next, { shouldDirty: true });
+  }, [providerOption, providerTypes, pvtId, loadingOptions, setValue]);
+
   const fetchContractTypes = useCallback(() => getContractTypesSelectAPI(loaded?.cttId), [loaded?.cttId]);
 
   const changeWork = (value) => {
     setValue('wrkId', value ?? '', { shouldDirty: true });
     setValue('wksId', '', { shouldDirty: true });
     setValue('prvId', '', { shouldDirty: true });
+    setValue('pvtId', '', { shouldDirty: true });
   };
 
   const blocked = isEdit && loaded && !loaded.allowedActions.includes('editContract');
@@ -279,7 +300,8 @@ export default function ContractFormPage() {
   const hasErrors = Object.keys(errors).length > 0;
   const noOptions = wrkId && !loadingOptions;
 
-  const fieldsReady = Boolean(prvId) && Number(fieldConfig.prvId) === Number(prvId) && !loadingFields;
+  const fieldsReady = Boolean(prvId) && Boolean(pvtId) && Number(fieldConfig.pvtId) === Number(pvtId) && !loadingFields;
+  const chosenType = providerTypes.find((t) => t.value === Number(pvtId));
   const descriptors = fieldsReady ? fieldConfig.fields : [];
   const stored = loaded ? { wksId: loaded.wksId, observation: loaded.observation } : null;
   const contractFields = shownFields(descriptors, 'CONTRACT', stored);
@@ -296,7 +318,7 @@ export default function ContractFormPage() {
   );
   const otherContractFields = toFormFields(contractFields.filter((field) => field.key !== 'STAGE'));
   const conceptFields = shownFields(withContractAiu(descriptors, Boolean(aiuRequested)), 'CONCEPT', null, NO_DESCRIPTION);
-  // Cambiar la solicitud de AIU respecto de la de los tipos del proveedor (al crear) o la guardada (al editar) exige permiso.
+  // Cambiar la solicitud de AIU respecto de la del tipo de proveedor (al crear) o la guardada (al editar) exige permiso.
   const aiuDefault = isEdit ? loaded?.aiuRequested !== false : fieldConfig.typeAppliesAiu;
   const showAiu = fieldsReady && (fieldConfig.typeAppliesAiu || (isEdit && loaded?.aiuRequested !== false));
   const inherited = contractFields.filter((field) => field.inherited);
@@ -346,21 +368,22 @@ export default function ContractFormPage() {
               Revisa los campos marcados antes de guardar.
             </Alert>
           )}
-          {!prvId && (
+          {(!prvId || !pvtId) && (
             <Alert severity="info">
-              Elige el proveedor: la etapa, las observaciones y los porcentajes del valor dependen de la configuración de sus tipos.
+              Elige el proveedor y su tipo en esta obra: la etapa, las observaciones y los porcentajes del valor dependen de la
+              configuración de ese tipo, y el tipo decide el menú de sus facturas.
             </Alert>
           )}
           {inherited.length > 0 && (
             <Alert severity="warning">
-              {inherited.map((field) => field.label).join(', ')}: ya no aplica para los tipos del proveedor. Se muestra en solo lectura con
-              el valor que se capturó con una configuración anterior, y se conserva al guardar.
+              {inherited.map((field) => field.label).join(', ')}: ya no aplica para el tipo de proveedor. Se muestra en solo lectura con el
+              valor que se capturó con una configuración anterior, y se conserva al guardar.
             </Alert>
           )}
 
           <FormSection
-            title="Obra, etapa y proveedor"
-            subtitle="La etapa y el proveedor se eligen entre los de la obra. La obra no cambia después de crear el contrato."
+            title="Obra, proveedor y etapa"
+            subtitle="El proveedor, su tipo y la etapa se eligen entre los de la obra. La obra no cambia después de crear el contrato."
           >
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 4 }}>
@@ -412,6 +435,32 @@ export default function ContractFormPage() {
                           : noOptions && options.providers.length === 0
                             ? 'Asigna antes un proveedor a la obra'
                             : ''
+                      }
+                    />
+                  )}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Controller
+                  name="pvtId"
+                  control={control}
+                  rules={{ required: 'Selecciona el tipo de proveedor.' }}
+                  render={({ field, fieldState }) => (
+                    <SearchSelect
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={providerTypes}
+                      loading={loadingOptions}
+                      disabled={!prvId}
+                      label="Tipo de proveedor"
+                      required
+                      error={fieldState.error?.message}
+                      helperText={
+                        !prvId
+                          ? 'Elige primero el proveedor'
+                          : providerTypes.length === 0
+                            ? 'En esta obra no trabaja como contrato mayor ni subcontratista: edita su asignación'
+                            : `Facturas: ${providerInvoiceViewName(chosenType?.invoiceView)}`
                       }
                     />
                   )}
@@ -611,7 +660,9 @@ export default function ContractFormPage() {
                 <ConceptFields control={control} prefix="initialConcept." fields={conceptFields} />
               ) : (
                 <Typography variant="body2" color="text.secondary">
-                  {prvId ? 'Cargando los campos del proveedor…' : 'Elige el proveedor para capturar el valor inicial.'}
+                  {prvId && pvtId
+                    ? 'Cargando los campos del tipo de proveedor…'
+                    : 'Elige el proveedor y su tipo para capturar el valor inicial.'}
                 </Typography>
               )}
             </FormSection>

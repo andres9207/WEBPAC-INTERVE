@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { format } from 'date-fns';
 
@@ -11,7 +11,9 @@ import Typography from '@mui/material/Typography';
 import BaseDialog from 'ui-component/extended/BaseDialog';
 import DateField from 'ui-component/extended/DateField';
 import SearchSelect from 'ui-component/extended/SearchSelect';
+import SelectSocket from 'ui-component/extended/SelectSocket';
 import { getAssignableWorksAPI, getProvidersSelectAPI, workProvidersApi } from 'api/requests/providersApi';
+import { getProviderTypesSelectAPI } from 'api/requests/providerTypesApi';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
 import { STATUS, STATUS_OPTIONS } from 'utils/constants';
@@ -27,17 +29,23 @@ import { STATUS, STATUS_OPTIONS } from 'utils/constants';
  *     "crear nuevo" cuando el documento ya existía: el proveedor viene elegido.
  *   - desde el proveedor (`prvId`): el proveedor es fijo y se busca la obra
  *     entre las activas donde todavía no está.
- * Editar: ni la obra ni el proveedor cambian; sí la fecha, las observaciones y
- * el estado de la asignación, que es independiente del estado del proveedor.
+ * Editar: ni la obra ni el proveedor cambian; sí la fecha, las observaciones,
+ * el estado de la asignación, que es independiente del estado del proveedor,
+ * y los tipos.
+ *
+ * Tipos de proveedor en la obra (DEC-066): con cuáles trabaja aquí. Cualquiera
+ * del catálogo; al asignar se proponen los de su maestro (`defaultTypeIds`
+ * desde el proveedor, o los de la opción elegida desde la obra). Con ellos se
+ * firman sus contratos de la obra, y el de facturas simples habilita la simple.
  */
 
 const today = () => format(new Date(), 'yyyy-MM-dd');
 
-export default function WorkProviderDialog({ open, wrkId, prvId, assignment, preset, onClose, onSaved }) {
+export default function WorkProviderDialog({ open, wrkId, prvId, assignment, preset, defaultTypeIds, onClose, onSaved }) {
   const isEdit = Boolean(assignment);
   // Lado desde el que se abre: qué se elige en el buscador.
   const fromProvider = Boolean(prvId) && !wrkId;
-  const [form, setForm] = useState({ targetId: '', assignmentDate: '', observation: '', staId: STATUS.ACTIVE });
+  const [form, setForm] = useState({ targetId: '', assignmentDate: '', observation: '', staId: STATUS.ACTIVE, pvtIds: [] });
   const [errors, setErrors] = useState({});
   const [options, setOptions] = useState([]);
   // Opción elegida: se conserva aunque una búsqueda nueva no la traiga.
@@ -60,15 +68,32 @@ export default function WorkProviderDialog({ open, wrkId, prvId, assignment, pre
             targetId: fromProvider ? assignment.wrkId : assignment.prvId,
             assignmentDate: assignment.assignmentDate,
             observation: assignment.observation ?? '',
-            staId: assignment.staId
+            staId: assignment.staId,
+            pvtIds: (assignment.workTypes ?? []).map((t) => t.pvtId)
           }
-        : { targetId: preset?.prvId ?? '', assignmentDate: today(), observation: '', staId: STATUS.ACTIVE }
+        : {
+            targetId: preset?.prvId ?? '',
+            assignmentDate: today(),
+            observation: '',
+            staId: STATUS.ACTIVE,
+            pvtIds: defaultTypeIds ?? preset?.pvtIds ?? []
+          }
     );
     setOptions([]);
     setChosen(
       preset ? { ...preset, value: preset.prvId, label: `${preset.name} · ${preset.identityCode ?? ''} ${preset.identification}` } : null
     );
-  }, [open, isEdit, fromProvider, assignment, preset]);
+  }, [open, isEdit, fromProvider, assignment, preset, defaultTypeIds]);
+
+  // Tipos activos del catálogo, más los que ya tiene la asignación aunque estén inactivos.
+  const fetchProviderTypes = useCallback(() => getProviderTypesSelectAPI(), []);
+  const withCurrentTypes = useCallback(
+    (options) => {
+      const current = (assignment?.workTypes ?? []).map((t) => ({ value: t.pvtId, label: t.name }));
+      return [...options, ...current.filter((c) => !options.some((o) => o.value === c.value))];
+    },
+    [assignment]
+  );
 
   // Búsqueda en el servidor (tope de 100), al dejar de escribir.
   useEffect(() => {
@@ -101,13 +126,14 @@ export default function WorkProviderDialog({ open, wrkId, prvId, assignment, pre
     const found = {};
     if (!form.targetId) found.targetId = fromProvider ? 'Selecciona la obra.' : 'Selecciona el proveedor.';
     if (!form.assignmentDate) found.assignmentDate = 'La fecha de asignación es requerida.';
+    if (form.pvtIds.length === 0) found.pvtIds = 'Selecciona al menos un tipo de proveedor para esta obra.';
     setErrors(found);
     if (Object.keys(found).length > 0) return;
 
     setSaving(true);
     try {
       const pair = fromProvider ? { wrkId: form.targetId, prvId } : { wrkId, prvId: form.targetId };
-      const payload = { ...pair, assignmentDate: form.assignmentDate, observation: form.observation.trim() };
+      const payload = { ...pair, assignmentDate: form.assignmentDate, observation: form.observation.trim(), pvtIds: form.pvtIds };
       const { data } = isEdit
         ? await workProvidersApi.update({ ...payload, staId: form.staId })
         : await workProvidersApi.assign(payload, idempotencyKey);
@@ -155,6 +181,8 @@ export default function WorkProviderDialog({ open, wrkId, prvId, assignment, pre
             onChange={(_, option) => {
               setChosen(option);
               set('targetId')(option?.value ?? '');
+              // Desde la obra: se proponen los tipos del maestro del proveedor elegido.
+              if (!fromProvider && option?.pvtIds) set('pvtIds')(option.pvtIds);
             }}
             inputValue={inputValue}
             onInputChange={(_, value, reason) => {
@@ -190,6 +218,17 @@ export default function WorkProviderDialog({ open, wrkId, prvId, assignment, pre
             )}
           />
         )}
+        <SelectSocket
+          multiple
+          value={form.pvtIds}
+          onChange={set('pvtIds')}
+          label="Tipos de proveedor en esta obra"
+          required
+          error={errors.pvtIds ? { message: errors.pvtIds } : undefined}
+          fetchApi={fetchProviderTypes}
+          mapOptions={withCurrentTypes}
+          socketEvent="refresh-provider-types"
+        />
         <DateField
           value={form.assignmentDate}
           onChange={set('assignmentDate')}
@@ -218,10 +257,10 @@ export default function WorkProviderDialog({ open, wrkId, prvId, assignment, pre
         )}
         <Typography variant="caption" color="text.secondary">
           {isEdit
-            ? 'Inactivar la asignación no cambia el proveedor ni sus otras obras.'
+            ? 'Inactivar la asignación o cambiar sus tipos no cambia el proveedor ni sus otras obras. Un tipo con contratos en la obra no se puede quitar.'
             : fromProvider
-              ? 'Solo obras activas donde el proveedor todavía no está.'
-              : 'Solo proveedores activos que todavía no están en esta obra. Asignarlo no crea otro proveedor.'}
+              ? 'Solo obras activas donde el proveedor todavía no está. Los tipos se proponen desde su ficha y valen solo para esta obra.'
+              : 'Solo proveedores activos que todavía no están en esta obra. Asignarlo no crea otro proveedor; los tipos valen solo para esta obra.'}
         </Typography>
       </Stack>
     </BaseDialog>
@@ -238,6 +277,8 @@ WorkProviderDialog.propTypes = {
   assignment: PropTypes.object,
   /** Proveedor ya elegido al llegar desde "crear nuevo" con un documento existente. */
   preset: PropTypes.object,
+  /** Tipos que se proponen al asignar desde el proveedor: los de su maestro (DEC-066). */
+  defaultTypeIds: PropTypes.arrayOf(PropTypes.number),
   onClose: PropTypes.func.isRequired,
   onSaved: PropTypes.func.isRequired
 };

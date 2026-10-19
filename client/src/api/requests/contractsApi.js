@@ -30,9 +30,9 @@ export const previewContractEndDateAPI = (params) => httpCliente.get('work/contr
 
 /**
  * Descriptores de los campos configurables del contrato (ADR-0006, DEC-053):
- * la configuración vigente de los tipos del proveedor, unidos. Con `ctrId`,
- * los de ese contrato (sin `prvId`, con su proveedor) y su solicitud de AIU.
- * @param {{ prvId?: number, ctrId?: number }} params
+ * la configuración vigente del tipo de proveedor del contrato (DEC-066). Con
+ * `ctrId`, los de ese contrato (sin `pvtId`, con su tipo) y su solicitud de AIU.
+ * @param {{ prvId?: number, pvtId?: number, ctrId?: number }} params
  */
 export const getContractFieldsAPI = (params) => httpCliente.get('work/contracts/get_contract_fields', params);
 

@@ -17,9 +17,9 @@ import { CONTRACT_STATES } from "./contractTerms.js";
 // negocio (etapa de la obra, estado que admite el acto, cronología…) viven en
 // el service. La fecha fin, el estado, el número de otrosí y los valores
 // derivados no se aceptan: si llegan, se ignoran. Los campos configurables
-// (etapa, observaciones, descripción, porcentajes; DEC-037) son opcionales
+// (etapa, observaciones, descripción, porcentajes; DEC-053) son opcionales
 // aquí: si aplican o son obligatorios lo decide la configuración del tipo de
-// contrato, en el service.
+// proveedor del contrato (DEC-066), en el service.
 
 const isCreate = (req) => !(Number(req.body.ctrId) > 0);
 
@@ -81,6 +81,7 @@ export const getContractFormOptionsSchema = [
   query("wrkId").isInt({ min: 1 }).withMessage("wrkId es obligatorio y debe ser un entero positivo."),
   query("includeWksId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includeWksId debe ser un entero positivo."),
   query("includePrvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePrvId debe ser un entero positivo."),
+  query("includePvtId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePvtId debe ser un entero positivo."),
 ];
 
 export const previewContractEndDateSchema = [
@@ -90,14 +91,15 @@ export const previewContractEndDateSchema = [
   query("termUnit").isIn(TERM_UNITS).withMessage("La unidad del plazo debe ser días, meses o años."),
 ];
 
-// Los campos son los de los tipos del proveedor (DEC-053): el proveedor
+// Los campos son los del tipo de proveedor del contrato (DEC-066): el tipo
 // elegido, o el del contrato.
 export const getContractFieldsSchema = [
   query("prvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("prvId debe ser un entero positivo."),
+  query("pvtId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("pvtId debe ser un entero positivo."),
   query("ctrId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("ctrId debe ser un entero positivo."),
-  query("prvId")
-    .custom((prvId, { req }) => Number(prvId) > 0 || Number(req.query.ctrId) > 0)
-    .withMessage("Indica el proveedor (prvId) o el contrato (ctrId)."),
+  query("pvtId")
+    .custom((pvtId, { req }) => Number(pvtId) > 0 || Number(req.query.ctrId) > 0)
+    .withMessage("Indica el tipo de proveedor (pvtId) o el contrato (ctrId)."),
 ];
 
 export const saveContractSchema = [
@@ -106,6 +108,8 @@ export const saveContractSchema = [
   // La obra solo se elige al crear: después no cambia.
   body("wrkId").if((_value, { req }) => isCreate(req)).isInt({ min: 1 }).withMessage("Selecciona la obra."),
   requiredId("prvId").withMessage("Selecciona el proveedor."),
+  // Tipo de proveedor bajo el que se firma (DEC-066).
+  requiredId("pvtId").withMessage("Selecciona el tipo de proveedor del contrato."),
   optionalId("wksId"),
   requiredId("cttId").withMessage("Selecciona el tipo de contrato."),
   requiredText("number", "número de contrato", 50),

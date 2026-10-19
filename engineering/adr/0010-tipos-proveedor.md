@@ -10,6 +10,8 @@ La columna `pvt_id` (obligatoria, FK `RESTRICT`) llegó con `tbl_providers` (mig
 
 Desde [DEC-041](../decisiones/DEC-041-varios-tipos-proveedor.md), un proveedor tiene uno o varios tipos. Desde [DEC-053](../decisiones/DEC-053-campos-contrato-por-tipo-proveedor.md) (2026-10-08), el tipo configura los campos de los contratos de sus proveedores con el modelo de [ADR-0006](0006-tipos-contrato.md): la decisión 2 pasa de clasificación pura a clasificación con configuración de campos (alternativa de comportamiento, sin condicionales en código).
 
+Desde [DEC-066](../decisiones/DEC-066-tipo-proveedor-por-obra-y-contrato.md) (2026-10-19), el tipo se define en tres niveles: el maestro del proveedor dice lo que puede ser (y solo se propone al asignarlo), la asignación a cada obra dice con qué tipos trabaja en ella (`tbl_work_provider_types`, cualquiera) y cada contrato se firma bajo uno de esos tipos (`tbl_contracts.pvt_id`). Los campos del contrato son los de su tipo, no la unión de los del proveedor. El menú de facturas del tipo admite contrato mayor, subcontratistas y simples.
+
 ## Fecha
 
 2026-09-10 — versión inicial.

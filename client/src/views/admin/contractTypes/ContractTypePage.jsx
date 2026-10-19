@@ -4,7 +4,7 @@ import { useAuth } from 'contexts/AuthContext';
 
 // Maestro de tipos de contrato (ADR-0006) sobre la vista reutilizable de
 // maestro (MAE-FE-01): el nombre. La configuración de los campos del contrato
-// (DEC-053) y el menú de facturas (DEC-056) son del tipo de proveedor.
+// (DEC-053) y el menú de facturas (DEC-066) son del tipo de proveedor.
 
 const COLUMNS = [{ id: 'name', label: 'Nombre', sortable: true }];
 

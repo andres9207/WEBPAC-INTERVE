@@ -124,7 +124,7 @@ export const getSessionInfo = async ({ useId }) => {
 
   const fullName = userFullName(userData) ?? "";
 
-  // Unión de los permisos del perfil y las excepciones individuales — ver
+  // Perfil más excepciones individuales, que conceden o niegan — ver
   // effectivePermissions.service.js.
   const permissions = await getEffectivePermissionIds({ useId, proId: userData.pro_id });
 
@@ -139,12 +139,11 @@ export const getSessionInfo = async ({ useId }) => {
   };
 };
 
-export const getUserPermissions = async ({ useId }) => {
-  const permissionRows = await prisma.tbl_user_permissions.findMany({
-    where: { use_id: Number(useId) },
-    select: { per_id: true },
-  });
-  const permissions = permissionRows.map((p) => ({ perId: p.per_id }));
+export const getUserPermissions = async ({ useId, proId }) => {
+  // Efectivo, no las filas de tbl_user_permissions: una fila puede negar un
+  // permiso (DEC-067).
+  const permissionIds = await getEffectivePermissionIds({ useId, proId });
+  const permissions = permissionIds.map((perId) => ({ perId }));
 
   // tbl_user_pages reemplaza el FIND_IN_SET sobre el viejo CSV
   // tbl_users.use_pages (ver database/migrations/0005_create_user_pages.sql).

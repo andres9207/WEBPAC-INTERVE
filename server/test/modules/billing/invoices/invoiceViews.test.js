@@ -4,27 +4,25 @@ import {
   ANY_VIEW_PERMISSION,
   INVOICE_VIEWS,
   PROVIDER_INVOICE_VIEWS,
+  CONTRACT_VIEWS,
   VIEW_PERMISSIONS,
-  assertNotMixed,
   assertViewGranted,
   grantedViews,
-  providerViewOf,
-  providerViewWhere,
-  resolveProviderView,
+  isContractView,
   seesView,
   viewsWhere,
 } from "../../../../src/modules/billing/invoices/invoiceViews.js";
 
-// Vistas de facturas (DEC-054, DEC-056): cada factura en una sola, cada vista
+// Vistas de facturas (DEC-054, DEC-066): cada factura en una sola, cada vista
 // con su permiso de ver, guardada en la factura y resuelta al registrarla
-// desde el menú de los tipos de su proveedor.
+// desde el menú de su contrato o, la simple, fija.
 
 const can = PERMISSIONS.billing.invoices;
 
 describe("vistas y permisos", () => {
-  it("cada vista tiene su permiso de ver, y las de contrato son los menús de los tipos de proveedor", () => {
+  it("cada vista tiene su permiso de ver, y son los tres menús de los tipos de proveedor", () => {
     expect(VIEW_PERMISSIONS).toEqual({ SIMPLE: can.viewSimple, MAJOR: can.viewMajor, SUBCONTRACTOR: can.viewSubcontractor });
-    expect([INVOICE_VIEWS.MAJOR, INVOICE_VIEWS.SUBCONTRACTOR]).toEqual(Object.values(PROVIDER_INVOICE_VIEWS));
+    expect(Object.values(INVOICE_VIEWS).sort()).toEqual(Object.values(PROVIDER_INVOICE_VIEWS).sort());
     expect(ANY_VIEW_PERMISSION).toEqual([105, 106, 107]);
     expect(ANY_CONTRACT_VIEW_PERMISSION).toEqual([106, 107]);
   });
@@ -36,27 +34,13 @@ describe("vistas y permisos", () => {
   });
 });
 
-describe("menú de un proveedor", () => {
-  const provider = (...menus) => ({ tbl_provider_classifications: menus.map((m, i) => ({ pvt_id: i + 1, tbl_provider_types: { pvt_invoice_view: m } })) });
-
-  it("es el único menú de sus tipos; los tipos sin menú no cuentan; sin ninguno, null", () => {
-    expect(providerViewOf(provider("MAJOR", null))).toBe("MAJOR");
-    expect(providerViewOf(provider("SUBCONTRACTOR", "SUBCONTRACTOR"))).toBe("SUBCONTRACTOR");
-    expect(providerViewOf(provider(null))).toBeNull();
-    expect(providerViewOf(provider())).toBeNull();
-    expect(providerViewOf(undefined)).toBeNull();
-  });
-
-  it("dos menús distintos es una mezcla: sin menú y 409 al guardar", () => {
-    expect(resolveProviderView(["MAJOR", "SUBCONTRACTOR"])).toEqual({ view: null, mixed: true });
-    expect(() => assertNotMixed(["MAJOR", "SUBCONTRACTOR", null], "Aceros SA")).toThrow(
-      expect.objectContaining({ statusCode: 409, message: expect.stringContaining('"Aceros SA"') })
-    );
-    expect(() => assertNotMixed(["MAJOR", null])).not.toThrow();
-  });
-
-  it("los proveedores de un menú se filtran por cualquiera de sus tipos", () => {
-    expect(providerViewWhere("MAJOR")).toEqual({ tbl_provider_classifications: { some: { tbl_provider_types: { pvt_invoice_view: "MAJOR" } } } });
+describe("menús de contrato (DEC-066)", () => {
+  it("solo contrato mayor y subcontratistas admiten contratos; simples y sin menú, no", () => {
+    expect(CONTRACT_VIEWS).toEqual(["MAJOR", "SUBCONTRACTOR"]);
+    expect(isContractView("MAJOR")).toBe(true);
+    expect(isContractView("SUBCONTRACTOR")).toBe(true);
+    expect(isContractView("SIMPLE")).toBe(false);
+    expect(isContractView(null)).toBe(false);
   });
 });
 

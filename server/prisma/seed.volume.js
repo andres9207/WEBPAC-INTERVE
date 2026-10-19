@@ -119,6 +119,8 @@ async function main() {
   for (const pvtId of [PROVIDER_TYPE.SUBCONTRACTOR, PROVIDER_TYPE.MAJOR]) await saveProviderTypeFields({ pvtId, fields: ALL_FIELDS, useBy, ctx });
 
   console.log("Proveedores");
+  // Tipo de cada proveedor: con él trabaja en sus obras y firma sus contratos (DEC-066).
+  const providerTypeOf = {};
   const contractProviders = [];
   for (let i = 1; i <= CONTRACT_PROVIDERS; i++) {
     const identification = nit(`9009002${pad(i)}`);
@@ -131,7 +133,9 @@ async function main() {
       email: `contratista${pad(i)}@volumen.demo`,
       contacts: [],
     };
-    contractProviders.push((await saveProvider({ input, useBy, granted, ctx, idempotencyKey: volumeKey(`provider:${identification}`) })).prvId);
+    const { prvId } = await saveProvider({ input, useBy, granted, ctx, idempotencyKey: volumeKey(`provider:${identification}`) });
+    contractProviders.push(prvId);
+    providerTypeOf[prvId] = input.pvtIds[0];
   }
   const simpleProviders = [];
   for (let i = 1; i <= SIMPLE_PROVIDERS; i++) {
@@ -145,7 +149,9 @@ async function main() {
       email: `suministros${pad(i)}@volumen.demo`,
       contacts: [],
     };
-    simpleProviders.push((await saveProvider({ input, useBy, granted, ctx, idempotencyKey: volumeKey(`provider:${identification}`) })).prvId);
+    const { prvId } = await saveProvider({ input, useBy, granted, ctx, idempotencyKey: volumeKey(`provider:${identification}`) });
+    simpleProviders.push(prvId);
+    providerTypeOf[prvId] = PROVIDER_TYPE.SIMPLE;
   }
 
   for (let w = 1; w <= WORKS; w++) {
@@ -185,7 +191,7 @@ async function main() {
       await assignProviderToWork({
         wrkId,
         prvId,
-        input: { assignmentDate: startDate, observation: "Asignación de volumen." },
+        input: { assignmentDate: startDate, observation: "Asignación de volumen.", pvtIds: [providerTypeOf[prvId]] },
         useBy,
         ctx,
         idempotencyKey: volumeKey(`assignment:${code}:${prvId}`),
@@ -204,6 +210,7 @@ async function main() {
         input: {
           wrkId,
           prvId: assigned[j % PROVIDERS_PER_WORK],
+          pvtId: providerTypeOf[assigned[j % PROVIDERS_PER_WORK]],
           wksId: stages[j % stages.length].wks_id,
           cttId: contractTypes[j % contractTypes.length],
           number,

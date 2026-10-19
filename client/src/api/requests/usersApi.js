@@ -55,7 +55,7 @@ export const updateUserPhotoAPI = (params) =>
 
 /**
  * Actualizar permisos de un usuario
- * @param {{ useId: number, permissions: number[] }} params
+ * @param {{ useId: number, pagIds: number[], permissions: number[] }} params
  */
 export const updateUserPermissionsAPI = (params) =>
   httpCliente.post('security/permissions/update_permissions_user', params);

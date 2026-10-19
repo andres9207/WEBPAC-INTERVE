@@ -167,8 +167,9 @@ export const createMasterService = (config) => {
         .map((f) => [f.column, normalize(f, input[f.name])])
     );
 
-  // Búsqueda general de la vista (DEC-024): el mismo texto en cualquiera de
-  // los campos `filter`. Se suma a los filtros por campo.
+  // Búsqueda general de la vista (DEC-024; DEC-048 la reemplazó en la
+  // interfaz, el servidor la conserva): el mismo texto en cualquiera de los
+  // campos `filter`. Se suma a los filtros por campo.
   const searchColumns = fields.filter((f) => f.filter).map((f) => f.column);
 
   const pagination = async ({ filters = {}, search, staId, rows, first, sortField, sortOrder }) => {

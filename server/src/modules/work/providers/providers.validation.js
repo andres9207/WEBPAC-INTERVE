@@ -9,7 +9,6 @@ import {
   contactsRules,
 } from "../../../common/utils/validation.utils.js";
 import { EDITABLE_STATUS_VALUES } from "../../../common/constants/status.constants.js";
-import { INVOICE_MOVES } from "../../billing/invoices/invoiceViews.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). El formato del
 // número según su tipo, la unicidad de la identidad y "un solo principal"
@@ -22,6 +21,14 @@ const requiredText = (field, label, max) =>
 
 const optionalBodyText = (field, label, max) =>
   body(field).optional({ values: "null" }).isString().withMessage(`${label} debe ser texto.`).trim().isLength({ max }).withMessage(`${label} admite hasta ${max} caracteres.`);
+
+// Tipos con que trabaja el proveedor en la obra (DEC-066).
+const assignmentTypes = (field, { optional = false } = {}) => [
+  (optional ? body(field).optional({ values: "null" }) : body(field))
+    .isArray({ min: 1, max: 20 })
+    .withMessage("Selecciona al menos un tipo de proveedor para la obra."),
+  body(`${field}.*`).isInt({ min: 1 }).withMessage("Cada tipo de proveedor debe ser un id válido."),
+];
 
 const assignmentDate = (field) => body(field).matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("La fecha de asignación es requerida (AAAA-MM-DD).");
 
@@ -63,8 +70,6 @@ export const saveProviderSchema = [
   // Uno o varios tipos (DEC-041).
   body("pvtIds").isArray({ min: 1, max: 20 }).withMessage("Selecciona al menos un tipo de proveedor."),
   body("pvtIds.*").isInt({ min: 1 }).withMessage("Cada tipo de proveedor debe ser un id válido."),
-  // Si cambia el menú de facturas y hay facturas de contrato (DEC-056).
-  body("invoiceMove").optional({ values: "falsy" }).isIn(Object.values(INVOICE_MOVES)).withMessage("La decisión sobre las facturas no es válida."),
   optionalBodyText("serviceType", "El tipo de servicio", 150),
   emailRule("email", { optional: true }),
   optionalBodyText("observation", "La observación", 500),
@@ -76,6 +81,8 @@ export const saveProviderSchema = [
   body("assignment.wrkId").if(body("assignment").exists({ values: "null" })).isInt({ min: 1 }).withMessage("La obra de la asignación no es válida."),
   body("assignment.assignmentDate").if(body("assignment").exists({ values: "null" })).matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("La fecha de asignación es requerida (AAAA-MM-DD)."),
   optionalBodyText("assignment.observation", "La observación de la asignación", 500),
+  // Sin tipos, toma los del proveedor.
+  ...assignmentTypes("assignment.pvtIds", { optional: true }),
 ];
 
 export const changeProviderStatusSchema = [
@@ -93,6 +100,7 @@ export const assignProviderSchema = [
   requiredId("prvId").withMessage("Selecciona el proveedor."),
   assignmentDate("assignmentDate"),
   optionalBodyText("observation", "La observación", 500),
+  ...assignmentTypes("pvtIds"),
 ];
 
 export const updateWorkProviderSchema = [
@@ -101,6 +109,8 @@ export const updateWorkProviderSchema = [
   assignmentDate("assignmentDate"),
   optionalBodyText("observation", "La observación", 500),
   body("staId").isIn(EDITABLE_STATUS_VALUES).withMessage("El estado debe ser activo o inactivo."),
+  // Sin tipos, no cambian.
+  ...assignmentTypes("pvtIds", { optional: true }),
 ];
 
 export const unassignProviderSchema = [requiredId("wrkId"), requiredId("prvId")];

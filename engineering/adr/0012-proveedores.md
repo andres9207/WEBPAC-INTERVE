@@ -8,6 +8,8 @@ Implementado: decisiones 1 a 14 (fases 1 a 5 del plan) en el área `work/`, mód
 
 La tabla del esquema de origen no estaba en este repositorio: se creó limpia, así que no hubo duplicados ni contacto embebido que migrar (B16 sin datos). "Tipo de servicio" queda en texto libre. Falta: la fase 6 (documentos de proveedor), el bloqueo por contratos al desasignar y al eliminar, y la exportación. El texto de abajo es el análisis original.
 
+**Actualización 2026-10-19 ([DEC-066](../decisiones/DEC-066-tipo-proveedor-por-obra-y-contrato.md)):** la asignación proveedor-obra guarda los tipos con que el proveedor trabaja en esa obra (`tbl_work_provider_types`). Al asignar se proponen los del maestro, pero se puede elegir cualquiera; cambiar los tipos del maestro no toca las asignaciones. Quitar un tipo de la asignación responde 409 si un contrato de la obra se firmó bajo él o si era el último de facturas simples con simples en la obra.
+
 ## Fecha
 
 2026-09-10 — versión inicial.

@@ -89,7 +89,7 @@ export const getUserPermissions = async ({ pagIds, useId }) => {
     }),
     prisma.tbl_user_permissions.findMany({
       where: { use_id: Number(useId) },
-      select: { per_id: true },
+      select: { per_id: true, usp_granted: true },
     }),
     prisma.tbl_users.findUnique({
       where: { use_id: Number(useId) },
@@ -97,7 +97,7 @@ export const getUserPermissions = async ({ pagIds, useId }) => {
     }),
   ]);
 
-  const individualSet = new Set(individualRows.map((r) => r.per_id));
+  const individualById = new Map(individualRows.map((r) => [r.per_id, r.usp_granted]));
   const profilePermissionRows = user?.pro_id
     ? await prisma.tbl_profile_permissions.findMany({
         where: { pro_id: user.pro_id },
@@ -106,15 +106,22 @@ export const getUserPermissions = async ({ pagIds, useId }) => {
     : [];
   const profileSet = new Set(profilePermissionRows.map((r) => r.per_id));
 
-  // "assigned" refleja el permiso EFECTIVO (unión perfil + individual), no
-  // solo tbl_user_permissions — de lo contrario esta pantalla mostraría
-  // como "no asignado" un permiso que el usuario sí tiene vía su perfil.
-  return permissions.map((p) => ({
-    pagId: p.pag_id,
-    perId: p.per_id,
-    name: p.per_name,
-    assigned: individualSet.has(p.per_id) || profileSet.has(p.per_id) ? 1 : 0,
-  }));
+  // "assigned" refleja el permiso EFECTIVO ((perfil ∪ concedidos) − negados,
+  // DEC-067), no solo tbl_user_permissions — de lo contrario esta pantalla
+  // mostraría como "no asignado" un permiso que el usuario sí tiene vía su
+  // perfil. "fromProfile" dice si el perfil lo da, para que la pantalla lo
+  // distinga de una excepción.
+  return permissions.map((p) => {
+    const individual = individualById.get(p.per_id);
+    const effective = individual ?? profileSet.has(p.per_id);
+    return {
+      pagId: p.pag_id,
+      perId: p.per_id,
+      name: p.per_name,
+      assigned: effective ? 1 : 0,
+      fromProfile: profileSet.has(p.per_id),
+    };
+  });
 };
 
 export const getProfilePermissions = async ({ pagIds, proId }) => {
@@ -232,10 +239,10 @@ export const updateProfilePermissions = async ({ permissions, proId, actingProId
   return { message: "Permisos actualizados" };
 };
 
-export const updateUserPermissions = async ({ permissions, useId, actingUseId, ctx = { useId: actingUseId } }) => {
-  if (!permissions || !useId) {
+export const updateUserPermissions = async ({ permissions, pagIds, useId, actingUseId, ctx = { useId: actingUseId } }) => {
+  if (!permissions || !Array.isArray(pagIds) || pagIds.length === 0 || !useId) {
     const error = new Error(
-      "Los permisos (permissions) y el usuario (useId) son obligatorios"
+      "Los permisos (permissions), las ventanas (pagIds) y el usuario (useId) son obligatorios"
     );
     error.status = 400;
     throw error;
@@ -251,17 +258,17 @@ export const updateUserPermissions = async ({ permissions, useId, actingUseId, c
   }
 
   // tbl_user_permissions guarda solo las EXCEPCIONES individuales del
-  // usuario, no su set completo de permisos (ese es el perfil + estas
-  // excepciones, ver effectivePermissions.service.js). El drawer del cliente
-  // sigue enviando el set completo deseado (incluye lo heredado del perfil,
-  // que llega marcado como "assigned"), así que hay que descartar de ahí lo
-  // que el perfil ya otorga — guardarlo igual sería una excepción redundante
-  // que sobrevive aunque luego se le quite el permiso al perfil.
-  //
-  // Limitación conocida y aceptada: como el permiso efectivo es una unión
-  // (nunca una resta), desde esta pantalla no se puede revocarle a un
-  // usuario puntual un permiso que su perfil ya le da — eso solo se quita
-  // editando el perfil (afecta a todos sus usuarios) o cambiándolo de perfil.
+  // usuario, no su set completo de permisos: el efectivo es
+  // (perfil ∪ concedidos) − negados (DEC-067, ver
+  // effectivePermissions.service.js). El drawer del cliente envía el set
+  // completo deseado de las ventanas que muestra (pagIds), y aquí se traduce
+  // a excepciones, permiso por permiso:
+  //   - deseado y el perfil no lo da   → excepción que concede
+  //   - no deseado y el perfil lo da   → excepción que niega
+  //   - lo demás                       → sin excepción (decide el perfil)
+  // Así no quedan excepciones redundantes que sobrevivan a un cambio del
+  // perfil. Solo se tocan los permisos de esas ventanas: un permiso de una
+  // ventana que el drawer no mostró no se concede ni se niega por omisión.
   //
   // Todo se lee DESPUÉS de bloquear al usuario (ADR-0027): con REPEATABLE
   // READ, leer antes fijaría una instantánea que no vería un cambio de
@@ -272,6 +279,21 @@ export const updateUserPermissions = async ({ permissions, useId, actingUseId, c
       select: { pro_id: true },
     });
 
+    const scopeRows = await tx.tbl_permissions.findMany({
+      where: { pag_id: { in: pagIds.map(Number) } },
+      select: { per_id: true },
+    });
+    const scope = scopeRows.map((p) => p.per_id);
+    const scopeSet = new Set(scope);
+
+    const outOfScope = permissions.filter((perId) => !scopeSet.has(perId));
+    if (outOfScope.length > 0) {
+      const error = new Error("Hay permisos que no pertenecen a las ventanas enviadas.");
+      error.status = 400;
+      throw error;
+    }
+    const desiredSet = new Set(permissions);
+
     const profilePermissions = target?.pro_id
       ? await tx.tbl_profile_permissions.findMany({
           where: { pro_id: target.pro_id },
@@ -279,18 +301,40 @@ export const updateUserPermissions = async ({ permissions, useId, actingUseId, c
         })
       : [];
     const profileGrantedSet = new Set(profilePermissions.map((p) => p.per_id));
-    const desiredIndividual = permissions.filter((perId) => !profileGrantedSet.has(perId));
 
-    const currentPermissions = await tx.tbl_user_permissions.findMany({
-      where: { use_id: Number(useId) },
-      select: { per_id: true },
+    const currentRows = await tx.tbl_user_permissions.findMany({
+      where: { use_id: Number(useId), per_id: { in: scope } },
+      select: { per_id: true, usp_granted: true },
     });
+    const currentById = new Map(currentRows.map((r) => [r.per_id, r.usp_granted]));
 
-    const currentSet = new Set(currentPermissions.map((p) => p.per_id));
-    const toDelete = Array.from(currentSet).filter(
-      (perId) => !desiredIndividual.includes(perId)
-    );
-    const toInsert = desiredIndividual.filter((perId) => !currentSet.has(perId));
+    // Excepción que debe quedar por permiso: true concede, false niega,
+    // undefined ninguna.
+    const targetOf = (perId) => {
+      const desired = desiredSet.has(perId);
+      const fromProfile = profileGrantedSet.has(perId);
+      if (desired && !fromProfile) return true;
+      if (!desired && fromProfile) return false;
+      return undefined;
+    };
+
+    const toDelete = [];
+    const toInsert = [];
+    const granted = [];
+    const revoked = [];
+    for (const perId of scope) {
+      const current = currentById.get(perId);
+      const next = targetOf(perId);
+      if (current !== next) {
+        if (current !== undefined) toDelete.push(perId);
+        if (next !== undefined) toInsert.push({ perId, granted: next });
+      }
+      // La bitácora registra el cambio del permiso efectivo, no de la fila.
+      const before = current ?? profileGrantedSet.has(perId);
+      const after = desiredSet.has(perId);
+      if (!before && after) granted.push(perId);
+      if (before && !after) revoked.push(perId);
+    }
 
     if (toDelete.length > 0) {
       await tx.tbl_user_permissions.deleteMany({
@@ -300,15 +344,19 @@ export const updateUserPermissions = async ({ permissions, useId, actingUseId, c
 
     if (toInsert.length > 0) {
       await tx.tbl_user_permissions.createMany({
-        data: toInsert.map((perId) => ({ per_id: perId, use_id: Number(useId) })),
+        data: toInsert.map(({ perId, granted: uspGranted }) => ({
+          per_id: perId,
+          use_id: Number(useId),
+          usp_granted: uspGranted,
+        })),
       });
     }
 
     await auditPermissionChanges(tx, {
       entity: AUDIT_ENTITIES.USER,
       recordId: useId,
-      granted: toInsert,
-      revoked: toDelete,
+      granted,
+      revoked,
       ctx,
     });
 

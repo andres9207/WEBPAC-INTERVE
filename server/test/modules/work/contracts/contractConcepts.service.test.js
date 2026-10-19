@@ -51,6 +51,7 @@ const lockedTables = () => prismaMock.$queryRaw.mock.calls.map((call) => call.sl
 const contract = (overrides = {}) => ({
   ctr_id: 30,
   wrk_id: 8,
+  pvt_id: 3,
   ctt_id: 2,
   ctr_start_date: new Date("2026-01-31T00:00:00Z"),
   ctr_term: 6,
@@ -319,14 +320,17 @@ describe("updateConcept", () => {
   });
 });
 
-describe("campos configurables de los tipos del proveedor (DEC-053)", () => {
+describe("campos configurables del tipo de proveedor del contrato (DEC-053, DEC-066)", () => {
   it("un otrosí con valor en un campo que no aplica se rechaza", async () => {
     state.typeFields = typeFieldRows({ RETENTION_PCT: { ptf_applies: null } });
     await expect(service.createAmendment({ ctrId: 30, input: act(), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
       statusCode: 400,
-      message: "Retenido: no aplica para los tipos del proveedor.",
+      message: "Retenido: no aplica para el tipo de proveedor del contrato.",
     });
     expect(prismaMock.tbl_contract_concepts.create).not.toHaveBeenCalled();
+    // La configuración es la del tipo del contrato, no la de los tipos del proveedor.
+    expect(prismaMock.tbl_provider_type_fields.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { pvt_id: { in: [3] } } }));
+    expect(prismaMock.tbl_provider_classifications.findMany).not.toHaveBeenCalled();
   });
 
   it("la liquidación toma el valor por defecto de un campo oculto", async () => {

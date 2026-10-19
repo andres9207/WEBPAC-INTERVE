@@ -4,7 +4,7 @@ import { dateOnlyText } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
-import { resolveProviderFields } from "../../admin/providerTypes/providerTypeFields.service.js";
+import { resolveContractTypeFields } from "../../admin/providerTypes/providerTypeFields.service.js";
 import { FIELD_GROUPS, enforceFields, withContractAiu } from "../../admin/providerTypes/contractFields.js";
 import { CONCEPT_TYPES, assertStateAllows, assertTransition, chronologyError, contractTotals, historyRow, sortConcepts } from "./contractTerms.js";
 import {
@@ -60,7 +60,7 @@ const valueText = (concepts) => moneyText(contractTotals(concepts).value);
  * (DEC-046): sin AIU, A, I y U no se aceptan.
  */
 const configuredConcept = async (tx, contract, input, { before = null, skip = [] } = {}) => {
-  const descriptors = withContractAiu(await resolveProviderFields(tx, contract.prv_id), contract.ctr_aiu_requested);
+  const descriptors = withContractAiu(await resolveContractTypeFields(tx, contract.pvt_id), contract.ctr_aiu_requested);
   return conceptValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONCEPT, input, before, skip }));
 };
 

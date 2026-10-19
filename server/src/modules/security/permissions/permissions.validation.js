@@ -12,4 +12,4 @@ export const getProfilePermissionsSchema = [...idArray("pagIds"), requiredId("pr
 
 export const updateProfilePermissionsSchema = [...idArray("permissions"), requiredId("proId")];
 
-export const updateUserPermissionsSchema = [...idArray("permissions"), requiredId("useId")];
+export const updateUserPermissionsSchema = [...idArray("permissions"), ...idArray("pagIds"), requiredId("useId")];

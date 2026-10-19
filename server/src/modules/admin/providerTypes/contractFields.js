@@ -14,7 +14,7 @@ import { decimal } from "../../../common/utils/money.utils.js";
  *   del guardado (`enforceFields`), así que no pueden divergir (ADR-0006,
  *   decisiones 5 y 6).
  * - Por defecto restrictivo: un campo sin configuración no aplica.
- * - Un proveedor con varios tipos (DEC-041) toma la unión (`mergeTypeRows`).
+ * - El contrato toma la del tipo bajo el que se firma (DEC-066).
  */
 
 export const FIELD_GROUPS = Object.freeze({ CONTRACT: "CONTRACT", CONCEPT: "CONCEPT" });
@@ -57,33 +57,6 @@ const sameValue = (kind, a, b) => {
 const fromColumn = (value) => (value === null || value === undefined ? null : String(value));
 
 /**
- * Unión de la configuración de varios tipos de proveedor, campo por campo
- * (DEC-053): aplica, visible y obligatorio si lo es en alguno de los tipos;
- * el orden, el menor. La jerarquía se conserva: un campo obligatorio en un
- * tipo es visible y aplica en ese mismo tipo. `rows` son filas normalizadas
- * de cualquier tipo; devuelve una por campo.
- */
-export const mergeTypeRows = (rows) => {
-  const byField = new Map();
-  for (const row of rows) {
-    const merged = byField.get(row.cfd_id);
-    byField.set(
-      row.cfd_id,
-      merged
-        ? {
-            cfd_id: row.cfd_id,
-            applies: merged.applies || row.applies,
-            visible: merged.visible || row.visible,
-            required: merged.required || row.required,
-            order: Math.min(merged.order, row.order),
-          }
-        : { ...row }
-    );
-  }
-  return [...byField.values()];
-};
-
-/**
  * Configuración resuelta: un descriptor por campo del catálogo que el código
  * conoce, ordenado por grupo y orden. `rows` son las filas de configuración
  * normalizadas `{ cfd_id, applies, visible, required, order }` (de la
@@ -120,7 +93,7 @@ export const resolveFields = (catalog, rows) => {
 /** Campos del AIU desagregado: administración, imprevistos y utilidad. */
 export const AIU_FIELDS = Object.freeze(["ADMIN_PCT", "CONTINGENCY_PCT", "PROFIT_PCT"]);
 
-/** Los tipos del proveedor aplican AIU si alguno de A, I o U aplica en su configuración (DEC-046, DEC-053). */
+/** El tipo de proveedor aplica AIU si alguno de A, I o U aplica en su configuración (DEC-046, DEC-066). */
 export const typeAppliesAiu = (descriptors) => descriptors.some((d) => AIU_FIELDS.includes(d.key) && d.applies);
 
 /**
@@ -161,17 +134,17 @@ export const enforceFields = ({ descriptors, group, input, before = null, skip =
     if (!descriptor.applies) {
       if (hasValue(kind, stored)) {
         if (hasValue(kind, raw) && !sameValue(kind, raw, stored)) {
-          throw httpError(400, `${descriptor.label}: ${descriptor.notApplicableReason ?? "ya no aplica para los tipos del proveedor"} y conserva su valor heredado; no se puede cambiar.`);
+          throw httpError(400, `${descriptor.label}: ${descriptor.notApplicableReason ?? "ya no aplica para el tipo de proveedor del contrato"} y conserva su valor heredado; no se puede cambiar.`);
         }
         output[name] = stored;
       } else {
-        if (hasValue(kind, raw)) throw httpError(400, `${descriptor.label}: ${descriptor.notApplicableReason ?? "no aplica para los tipos del proveedor"}.`);
+        if (hasValue(kind, raw)) throw httpError(400, `${descriptor.label}: ${descriptor.notApplicableReason ?? "no aplica para el tipo de proveedor del contrato"}.`);
         output[name] = null;
       }
     } else if (!descriptor.visible) {
       output[name] = before ? stored : descriptor.defaultValue;
     } else if (descriptor.required && (kind === "percent" ? isBlank(raw) : !hasValue(kind, raw))) {
-      throw httpError(400, `${descriptor.label}: es obligatorio para los tipos del proveedor.`);
+      throw httpError(400, `${descriptor.label}: es obligatorio para el tipo de proveedor del contrato.`);
     }
   }
   return output;

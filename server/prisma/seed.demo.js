@@ -534,7 +534,8 @@ async function main() {
           assignProviderToWork({
             wrkId,
             prvId,
-            input: { assignmentDate: WORKS.find((w) => w.code === code).startDate, observation: "Asignación de demostración." },
+            // En la obra trabaja con los tipos de su maestro (DEC-066).
+            input: { assignmentDate: WORKS.find((w) => w.code === code).startDate, observation: "Asignación de demostración.", pvtIds: provider.pvtIds },
             useBy,
             ctx,
             idempotencyKey: demoKey(`assignment:${code}:${provider.identification}`),
@@ -562,6 +563,8 @@ async function main() {
         const input = {
           wrkId,
           prvId: providerIds[contract.provider],
+          // El tipo de contrato del proveedor (DEC-066): el que no es simple.
+          pvtId: PROVIDERS.find((p) => p.key === contract.provider).pvtIds.find((id) => id !== PROVIDER_TYPE.SIMPLE),
           wksId,
           cttId: typeIds[contract.type],
           number: contract.number,

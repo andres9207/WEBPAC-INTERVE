@@ -10,7 +10,8 @@ import { IconSearch, IconX } from '@tabler/icons-react';
 const SEARCH_DELAY_MS = 400;
 
 /**
- * Campo de búsqueda general de un listado (DEC-024). Avisa con `onSearch(texto)`
+ * Campo de búsqueda general de un listado (DEC-024). Desde DEC-048 los listados
+ * filtran por campo con FilterPopper y ninguno lo usa. Avisa con `onSearch(texto)`
  * cuando el usuario deja de escribir y el texto recortado cambió. La búsqueda
  * la hace el servidor (parámetro `search`), nunca en memoria.
  *

@@ -1,17 +1,17 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, writeAudit } from "../../../common/services/audit.service.js";
-import { mergeTypeRows, resolveFields } from "./contractFields.js";
+import { resolveFields } from "./contractFields.js";
 import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
  * Configuración de los campos del contrato por tipo de proveedor (DEC-053,
  * que reemplaza a DEC-037; ADR-0006 sigue rigiendo el modelo).
  *
- * - `resolveProviderFields` es la única lectura de la configuración para el
- *   formulario de contrato y para su guardado (contracts.service.js y
+ * - `resolveContractTypeFields` es la única lectura de la configuración para
+ *   el formulario de contrato y para su guardado (contracts.service.js y
  *   contractConcepts.service.js la usan dentro de su transacción). Resuelve
- *   la unión de los tipos del proveedor (mergeTypeRows).
+ *   la del tipo del contrato (DEC-066).
  * - Guardar es un diferencial (altas, cambios, bajas) en una transacción,
  *   con el tipo bloqueado, como updateProfilePermissions. Solo se guardan los
  *   campos que aplican: la ausencia de fila es "no aplica".
@@ -43,18 +43,12 @@ const resolveTypeFields = async (db, pvtId) => {
 };
 
 /**
- * Descriptores de campo del contrato de un proveedor: la unión de la
- * configuración de todos sus tipos (DEC-041: uno o varios). Un campo aplica,
- * se ve o es obligatorio si lo es en alguno de ellos. Los tipos del proveedor
- * no cambian mientras quien llama tenga bloqueado el PROVEEDOR: se guardan
- * con él (DEC-041).
+ * Descriptores de campo de un contrato: la configuración del tipo de
+ * proveedor bajo el que se firma (DEC-066, que reemplaza la unión de los
+ * tipos del proveedor de DEC-053). Quien llama tiene bloqueado el contrato o,
+ * al crearlo, la obra y el proveedor: el tipo del contrato no cambia en medio.
  */
-export const resolveProviderFields = async (db, prvId) => {
-  const classifications = await db.tbl_provider_classifications.findMany({ where: { prv_id: Number(prvId) }, select: { pvt_id: true } });
-  const pvtIds = classifications.map((c) => c.pvt_id);
-  const [catalog, rows] = await Promise.all([loadCatalog(db), pvtIds.length > 0 ? currentRows(db, pvtIds) : []]);
-  return resolveFields(catalog, mergeTypeRows(rows));
-};
+export const resolveContractTypeFields = (db, pvtId) => resolveTypeFields(db, pvtId);
 
 const findType = async (db, pvtId) => {
   const type = await db.tbl_provider_types.findUnique({

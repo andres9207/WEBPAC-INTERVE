@@ -57,11 +57,12 @@ export const updateProfilePermissionsController = async (req, res, next) => {
 
 export const updateUserPermissionsController = async (req, res, next) => {
   try {
-    const { permissions, useId } = req.body;
+    const { permissions, pagIds, useId } = req.body;
     // Idem: impide que un usuario se conceda permisos a sí mismo.
     const { useId: actingUseId } = req.user;
     const result = await permissionsService.updateUserPermissions({
       permissions,
+      pagIds,
       useId,
       actingUseId,
       ctx: auditContext(req),

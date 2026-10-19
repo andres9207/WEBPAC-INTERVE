@@ -24,9 +24,9 @@ const handle = (fn) => async (req, res, next) => {
 };
 
 // Campos del proveedor que el service acepta. Nada más del body llega al service.
-const INPUT_FIELDS = ["iddId", "identification", "name", "pvtIds", "serviceType", "email", "observation", "contacts", "assignment", "invoiceMove"];
+const INPUT_FIELDS = ["iddId", "identification", "name", "pvtIds", "serviceType", "email", "observation", "contacts", "assignment"];
 
-const ASSIGNMENT_FIELDS = ["assignmentDate", "observation", "staId"];
+const ASSIGNMENT_FIELDS = ["assignmentDate", "observation", "staId", "pvtIds"];
 const pick = (source, fields) => Object.fromEntries(fields.map((field) => [field, source[field]]));
 
 export const paginationProvidersController = handle(async (req) => {

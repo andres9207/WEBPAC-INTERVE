@@ -69,33 +69,21 @@ describe("getProviderTypeFields", () => {
   });
 });
 
-describe("resolveProviderFields", () => {
-  it("lee la configuración de todos los tipos del proveedor y resuelve su unión", async () => {
-    state.classifications = [{ pvt_id: 1 }, { pvt_id: 3 }];
-    // Tipo 1: solo IVA, visible. Tipo 3: IVA obligatorio y la etapa oculta.
+describe("resolveContractTypeFields (DEC-066)", () => {
+  it("lee solo la configuración del tipo de proveedor del contrato", async () => {
     state.rows = [
-      { cfd_id: fieldId("VAT_PCT"), ptf_applies: true, ptf_visible: true, ptf_required: false, ptf_order: 4 },
       { cfd_id: fieldId("VAT_PCT"), ptf_applies: true, ptf_visible: true, ptf_required: true, ptf_order: 2 },
       { cfd_id: fieldId("STAGE"), ptf_applies: true, ptf_visible: false, ptf_required: false, ptf_order: 1 },
     ];
 
-    const fields = await service.resolveProviderFields(prismaMock, 40);
+    const fields = await service.resolveContractTypeFields(prismaMock, 3);
 
-    expect(prismaMock.tbl_provider_classifications.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { prv_id: 40 } }));
-    expect(prismaMock.tbl_provider_type_fields.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { pvt_id: { in: [1, 3] } } }));
+    expect(prismaMock.tbl_provider_type_fields.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { pvt_id: { in: [3] } } }));
+    expect(prismaMock.tbl_provider_classifications.findMany).not.toHaveBeenCalled();
     expect(fields.find((f) => f.key === "VAT_PCT")).toMatchObject({ applies: true, visible: true, required: true, order: 2 });
     expect(fields.find((f) => f.key === "STAGE")).toMatchObject({ applies: true, visible: false, required: false });
     // Ordenados por grupo (CONCEPT antes que CONTRACT) y orden.
     expect(fields.filter((f) => f.applies).map((f) => f.key)).toEqual(["VAT_PCT", "STAGE"]);
-  });
-
-  it("un proveedor sin tipos no aplica ningún campo, sin consultar la configuración", async () => {
-    state.classifications = [];
-    const fields = await service.resolveProviderFields(prismaMock, 40);
-
-    expect(prismaMock.tbl_provider_type_fields.findMany).not.toHaveBeenCalled();
-    expect(fields).toHaveLength(9);
-    expect(fields.every((f) => !f.applies)).toBe(true);
   });
 });
 

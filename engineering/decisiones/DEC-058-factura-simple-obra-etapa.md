@@ -4,6 +4,8 @@
 
 Decidido por el usuario el 2026-10-14. Reemplaza lo que [DEC-054](DEC-054-vistas-facturas-simple-sin-obra.md) decía de la factura simple (del proveedor, sin obra ni etapa, vista en las obras de su proveedor). Las tres vistas, sus permisos y la vista guardada en la factura ([DEC-056](DEC-056-menu-facturas-tipo-proveedor.md)) no cambian. Vuelve, en lo esencial, a la regla de [DEC-042](DEC-042-facturas-area-ciclo-vida.md) y resuelve otra vez la decisión 3 de ADR-0023: la simple tiene obra.
 
+> **Reemplazada en parte por [DEC-066](DEC-066-tipo-proveedor-por-obra-y-contrato.md)** (2026-10-19): además de estar asignado a la obra, el proveedor de la simple debe trabajar en ella con un tipo de menú de facturas simples.
+
 ## Contexto
 
 - DEC-054 dejó la factura simple sin obra ni etapa: un gasto del proveedor.

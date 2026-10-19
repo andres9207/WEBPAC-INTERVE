@@ -9,8 +9,8 @@ import { withLockedTransaction } from "../../../common/services/transaction.serv
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
 import { assertProviderInScope } from "../providers/providers.service.js";
-import { PROVIDER_VIEW_SELECT, providerViewOf } from "../../billing/invoices/invoiceViews.js";
-import { resolveProviderFields } from "../../admin/providerTypes/providerTypeFields.service.js";
+import { PROVIDER_INVOICE_VIEWS, isContractView } from "../../billing/invoices/invoiceViews.js";
+import { resolveContractTypeFields } from "../../admin/providerTypes/providerTypeFields.service.js";
 import { FIELD_GROUPS, enforceFields, typeAppliesAiu, withContractAiu } from "../../admin/providerTypes/contractFields.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import {
@@ -42,22 +42,26 @@ import { contractPolicyStatuses, insertPolicy, policyValuesOf } from "./contract
  *
  * - Bloqueo: obra → proveedor → contrato → maestros (ADR-0027, DEC-019).
  *   Crear bloquea la obra (sus etapas y asignaciones solo cambian bajo ese
- *   bloqueo), el proveedor y el tipo de contrato.
+ *   bloqueo), el proveedor, el tipo de proveedor y el tipo de contrato.
+ * - Tipo de proveedor (DEC-066): el contrato se firma bajo uno de los tipos
+ *   con que el proveedor trabaja en la obra (FK compuesta a
+ *   tbl_work_provider_types), con menú de contrato. Guarda ese menú al
+ *   crearse (`ctr_invoice_view`): cambiar el del tipo en el maestro no lo
+ *   mueve. Con facturas, el tipo no cambia (409).
  * - La obra no cambia después de crear el contrato. Etapa y proveedor deben
  *   ser de esa obra: lo valida el service y lo garantizan las FK compuestas.
  * - Fecha fin: la calcula contractEndDate, nunca el cliente.
  * - Estado: solo cambia por las transiciones de contractTerms.js, con
  *   historial. Editar exige que el estado lo admita (409 si no).
  * - Campos configurables (etapa, observaciones, porcentajes; DEC-053): se
- *   aplican con la configuración actual de los tipos del proveedor (su
- *   unión), resuelta dentro de la transacción, con el proveedor bloqueado,
- *   por la misma función que entrega los descriptores al formulario.
- * - AIU en cadena (ADR-0026, P13; DEC-046): los tipos del proveedor declaran
- *   si aplica, el contrato lo solicita (`ctr_aiu_requested`) y el concepto
+ *   aplican con la configuración actual del tipo de proveedor del contrato
+ *   (DEC-066), resuelta dentro de la transacción, con el contrato o la
+ *   asignación bloqueados, por la misma función que entrega los descriptores
+ *   al formulario.
+ * - AIU en cadena (ADR-0026, P13; DEC-046): el tipo de proveedor declara si
+ *   aplica, el contrato lo solicita (`ctr_aiu_requested`) y el concepto
  *   pacta A, I y U.
  *   Apagarlo o encenderlo exige el permiso propio.
- * - El tipo de contrato decide la vista de sus facturas (su menú de
- *   facturas, DEC-054): con facturas, el contrato no cambia de tipo.
  */
 
 export const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
@@ -188,6 +192,8 @@ export const findLockedContract = async (tx, ctrId) => {
       ctr_id: true,
       wrk_id: true,
       prv_id: true,
+      pvt_id: true,
+      ctr_invoice_view: true,
       wks_id: true,
       ctt_id: true,
       ctr_number: true,
@@ -428,6 +434,8 @@ export const getContract = async ({ ctrId, scope }) => {
       ctr_id: true,
       wrk_id: true,
       prv_id: true,
+      pvt_id: true,
+      ctr_invoice_view: true,
       wks_id: true,
       ctt_id: true,
       ctr_number: true,
@@ -447,8 +455,9 @@ export const getContract = async ({ ctrId, scope }) => {
       updated_by_user: USER_NAME_SELECT,
       tbl_works: { select: { wrk_code: true, wrk_name: true } },
       tbl_providers: {
-        select: { prv_name: true, prv_identification: true, tbl_identity_documents: { select: { idd_code: true } }, ...PROVIDER_VIEW_SELECT },
+        select: { prv_name: true, prv_identification: true, tbl_identity_documents: { select: { idd_code: true } } },
       },
+      tbl_work_provider_types: { select: { tbl_provider_types: { select: { pvt_name: true } } } },
       tbl_work_stages: { select: { wks_name: true } },
       tbl_contract_types: { select: { ctt_name: true } },
       tbl_contract_concepts: { select: CONCEPT_SELECT },
@@ -494,6 +503,7 @@ export const getContract = async ({ ctrId, scope }) => {
     ctrId: row.ctr_id,
     wrkId: row.wrk_id,
     prvId: row.prv_id,
+    pvtId: row.pvt_id,
     wksId: row.wks_id,
     cttId: row.ctt_id,
     number: row.ctr_number,
@@ -504,8 +514,10 @@ export const getContract = async ({ ctrId, scope }) => {
     providerIdentification: [row.tbl_providers?.tbl_identity_documents?.idd_code, row.tbl_providers?.prv_identification].filter(Boolean).join(" "),
     stageName: row.tbl_work_stages?.wks_name ?? null,
     contractType: row.tbl_contract_types?.ctt_name ?? null,
-    // Menú de sus facturas nuevas (DEC-056): el de los tipos de su proveedor; null si no tiene.
-    invoiceView: providerViewOf(row.tbl_providers),
+    providerTypeName: row.tbl_work_provider_types?.tbl_provider_types?.pvt_name ?? null,
+    // Menú de sus facturas (DEC-066): el de su tipo de proveedor al crearlo;
+    // null en un contrato anterior sin menú de contrato.
+    invoiceView: row.ctr_invoice_view,
     startDate: dateOnlyText(row.ctr_start_date),
     term: row.ctr_term,
     termUnit: row.ctr_term_unit,
@@ -584,7 +596,7 @@ export const selectContractWorks = async ({ search, includeWrkId, scope } = {}) 
  * proveedor actuales del contrato aunque ya no lo estén (mismo criterio que
  * los maestros, DOM-21).
  */
-export const getContractFormOptions = async ({ wrkId, includeWksId, includePrvId, scope }) => {
+export const getContractFormOptions = async ({ wrkId, includeWksId, includePrvId, includePvtId, scope }) => {
   assertInScope(scope, wrkId, "No se encontró la obra.");
   const id = Number(wrkId);
   const [stages, assignments] = await Promise.all([
@@ -601,7 +613,14 @@ export const getContractFormOptions = async ({ wrkId, includeWksId, includePrvId
           ...(includePrvId ? [{ prv_id: Number(includePrvId) }] : []),
         ],
       },
-      select: { prv_id: true, tbl_providers: { select: { prv_name: true, prv_identification: true } } },
+      select: {
+        prv_id: true,
+        tbl_providers: { select: { prv_name: true, prv_identification: true } },
+        tbl_work_provider_types: {
+          select: { pvt_id: true, tbl_provider_types: { select: { pvt_name: true, pvt_invoice_view: true, sta_id: true } } },
+          orderBy: { tbl_provider_types: { pvt_name: "asc" } },
+        },
+      },
       orderBy: { tbl_providers: { prv_name: "asc" } },
       take: MAX_ROWS,
     }),
@@ -611,36 +630,53 @@ export const getContractFormOptions = async ({ wrkId, includeWksId, includePrvId
     providers: assignments.map((a) => ({
       value: a.prv_id,
       label: `${a.tbl_providers.prv_name} · ${a.tbl_providers.prv_identification}`,
+      // Tipos de la obra con menú de contrato (DEC-066), activos, más el del
+      // contrato que se edita aunque ya no lo esté o no tenga menú.
+      types: a.tbl_work_provider_types
+        .filter(
+          (t) =>
+            (isContractView(t.tbl_provider_types.pvt_invoice_view) && t.tbl_provider_types.sta_id === ACTIVE_STATUS) ||
+            (Number(includePvtId) === t.pvt_id && Number(includePrvId) === a.prv_id)
+        )
+        .map((t) => ({ value: t.pvt_id, label: t.tbl_provider_types.pvt_name, invoiceView: t.tbl_provider_types.pvt_invoice_view })),
+      // Admite facturas simples en la obra: tiene un tipo de menú simples (lo usa el formulario de factura).
+      simpleInvoices: a.tbl_work_provider_types.some((t) => t.tbl_provider_types.pvt_invoice_view === PROVIDER_INVOICE_VIEWS.SIMPLE),
     })),
   };
 };
 
 /**
  * Descriptores de los campos configurables del contrato para el formulario
- * (ADR-0006, decisión 5): la configuración vigente de los tipos del
- * proveedor, unidos (DEC-053). El cliente no deduce la configuración: la recibe.
+ * (ADR-0006, decisión 5): la configuración vigente del tipo de proveedor del
+ * contrato (DEC-066). El cliente no deduce la configuración: la recibe.
  *
- * - `prvId`: el proveedor elegido en el formulario (crear, o editar cambiando
- *   de proveedor). Debe estar en el alcance por obra (DEC-047).
- * - `ctrId`: los campos de ese contrato; sin `prvId`, con su proveedor. Si no
+ * - `prvId` y `pvtId`: el proveedor y el tipo elegidos en el formulario
+ *   (crear, o editar cambiándolos). El proveedor debe estar en el alcance por
+ *   obra (DEC-047).
+ * - `ctrId`: los campos de ese contrato; sin `pvtId`, con su tipo. Si no
  *   solicita AIU, A, I y U no aplican (DEC-046).
  */
-export const getContractFields = async ({ prvId, ctrId, scope }) => {
+export const getContractFields = async ({ prvId, pvtId, ctrId, scope }) => {
   let contract = null;
   if (Number(ctrId) > 0) {
     await assertContractInScope(scope, ctrId);
-    contract = await prisma.tbl_contracts.findUnique({ where: { ctr_id: Number(ctrId) }, select: { prv_id: true, ctr_aiu_requested: true } });
+    contract = await prisma.tbl_contracts.findUnique({
+      where: { ctr_id: Number(ctrId) },
+      select: { prv_id: true, pvt_id: true, ctr_aiu_requested: true },
+    });
   }
   const providerId = Number(prvId) > 0 ? Number(prvId) : contract?.prv_id;
   if (Number(prvId) > 0 && providerId !== contract?.prv_id) await assertProviderInScope(scope, providerId);
-  const provider = providerId
-    ? await prisma.tbl_providers.findUnique({ where: { prv_id: providerId }, select: { prv_id: true, sta_id: true } })
+  const typeId = Number(pvtId) > 0 ? Number(pvtId) : contract?.pvt_id;
+  const type = typeId
+    ? await prisma.tbl_provider_types.findUnique({ where: { pvt_id: typeId }, select: { pvt_id: true, sta_id: true } })
     : null;
-  if (!provider || provider.sta_id === DELETED_STATUS) throw httpError(404, "No se encontró el proveedor.");
+  if (!type || type.sta_id === DELETED_STATUS) throw httpError(404, "No se encontró el tipo de proveedor.");
 
-  const fields = await resolveProviderFields(prisma, provider.prv_id);
+  const fields = await resolveContractTypeFields(prisma, type.pvt_id);
   return {
-    prvId: provider.prv_id,
+    prvId: providerId ?? null,
+    pvtId: type.pvt_id,
     typeAppliesAiu: typeAppliesAiu(fields),
     ...(contract ? { aiuRequested: contract.ctr_aiu_requested } : {}),
     fields: contract ? withContractAiu(fields, contract.ctr_aiu_requested) : fields,
@@ -652,6 +688,7 @@ export const getContractFields = async ({ prvId, ctrId, scope }) => {
 /** Cabecera del cliente → columnas. La fecha fin y el estado nunca vienen del cliente. */
 const headerValuesOf = (input) => ({
   prv_id: Number(input.prvId),
+  pvt_id: Number(input.pvtId),
   wks_id: Number(input.wksId) > 0 ? Number(input.wksId) : null,
   ctt_id: Number(input.cttId),
   ctr_number: text(input.number),
@@ -666,6 +703,8 @@ const headerValuesOf = (input) => ({
 const CONTRACT_AUDITED = [
   "wrk_id",
   "prv_id",
+  "pvt_id",
+  "ctr_invoice_view",
   "wks_id",
   "ctt_id",
   "ctr_number",
@@ -711,6 +750,30 @@ const assertProviderAssigned = async (tx, { wrkId, prvId, currentPrvId }) => {
   }
 };
 
+/**
+ * Tipo de proveedor del contrato (DEC-066), con obra, proveedor y tipo
+ * bloqueados: uno de los tipos con que el proveedor trabaja en la obra (la
+ * FK compuesta es la garantía), con menú de contrato y activo, salvo que sea
+ * el que ya tenía. Devuelve el menú de facturas que guarda el contrato: el
+ * del tipo, o el guardado si el tipo no cambia.
+ */
+const resolveContractType = async (tx, { wrkId, prvId, pvtId, before = null }) => {
+  const unchanged = before && before.prv_id === prvId && before.pvt_id === pvtId;
+  if (unchanged) return before.ctr_invoice_view;
+  if (!(pvtId > 0)) throw httpError(400, "Selecciona el tipo de proveedor del contrato.");
+  const row = await tx.tbl_work_provider_types.findUnique({
+    where: { wrk_id_prv_id_pvt_id: { wrk_id: wrkId, prv_id: prvId, pvt_id: pvtId } },
+    select: { tbl_provider_types: { select: { pvt_name: true, pvt_invoice_view: true, sta_id: true } } },
+  });
+  if (!row) throw httpError(400, "El proveedor no trabaja en esta obra con el tipo de proveedor seleccionado.");
+  const type = row.tbl_provider_types;
+  if (type.sta_id !== ACTIVE_STATUS) throw httpError(400, `El tipo de proveedor "${type.pvt_name}" está inactivo y no se puede asignar.`);
+  if (!isContractView(type.pvt_invoice_view)) {
+    throw httpError(400, `El tipo de proveedor "${type.pvt_name}" no admite contratos: su menú de facturas no es contrato mayor ni subcontratistas.`);
+  }
+  return type.pvt_invoice_view;
+};
+
 // El número es único dentro de la obra entre los no eliminados (DEC-035). El
 // UNIQUE de la BD es la garantía ante dos peticiones simultáneas; esto da el
 // mensaje claro.
@@ -746,13 +809,13 @@ const hasAgreedAiu = async (tx, ctrId) =>
 
 /**
  * Solicitud de AIU del contrato (ADR-0026, P13; DEC-046), con la
- * configuración de los tipos del proveedor ya resuelta bajo bloqueo (DEC-053):
+ * configuración de su tipo de proveedor ya resuelta bajo bloqueo (DEC-066):
  *
- * - Valor por defecto: al crear, el de los tipos (solicita AIU si alguno lo
- *   aplica); al editar, el guardado. Sin `aiuRequested` en la petición se
- *   conserva el valor por defecto.
+ * - Valor por defecto: al crear, el del tipo (solicita AIU si lo aplica); al
+ *   editar, el guardado. Sin `aiuRequested` en la petición se conserva el
+ *   valor por defecto.
  * - Apartarse de él (apagarlo o encenderlo) exige el permiso propio.
- * - No se enciende si los tipos del proveedor no aplican AIU (400).
+ * - No se enciende si el tipo de proveedor no aplica AIU (400).
  * - No se apaga si algún concepto vigente ya pactó A, I o U (409): se
  *   corrigen antes los conceptos, con su propio permiso.
  */
@@ -765,7 +828,7 @@ const resolveAiuRequested = async (tx, { input, descriptors, before = null, gran
   if (!granted?.has(PERMISSIONS.work.contracts.changeAiu)) {
     throw httpError(403, `${requested ? "Solicitar" : "Apagar"} el AIU del contrato exige el permiso de cambiar la solicitud de AIU.`);
   }
-  if (requested && !typeApplies) throw httpError(400, "Los tipos del proveedor no aplican AIU: el contrato no puede solicitarlo.");
+  if (requested && !typeApplies) throw httpError(400, "El tipo de proveedor del contrato no aplica AIU: el contrato no puede solicitarlo.");
   if (!requested && before && (await hasAgreedAiu(tx, before.ctr_id))) {
     throw httpError(409, "Algún concepto del contrato ya pactó porcentajes de AIU. Llévalos a 0 en cada concepto antes de apagar el AIU.");
   }
@@ -790,18 +853,21 @@ const createContract = ({ wrkId, input, policies, granted, useBy, ctx, idempoten
     {
       OBRA: wrkId,
       PROVEEDOR: Number(input.prvId),
+      ...(Number(input.pvtId) > 0 ? { TIPO_PROVEEDOR: Number(input.pvtId) } : {}),
       TIPO_CONTRATO: Number(input.cttId),
       ...(policies.length > 0 && { ASEGURADORA: policies.map((p) => p.ins_id), TIPO_POLIZA: policies.map((p) => p.plt_id) }),
     },
     async (tx) => {
       await contractTypesService.assertAssignable(tx, Number(input.cttId));
       await assertProviderAssigned(tx, { wrkId, prvId: Number(input.prvId) });
-      // Configuración de los tipos del proveedor (DEC-053), con el proveedor
-      // bloqueado: sus tipos no cambian en medio.
-      const descriptors = await resolveProviderFields(tx, Number(input.prvId));
+      // Tipo de proveedor del contrato y su configuración (DEC-066), con obra,
+      // proveedor y tipo bloqueados: no cambian en medio.
+      const invoiceView = await resolveContractType(tx, { wrkId, prvId: Number(input.prvId), pvtId: Number(input.pvtId) });
+      const descriptors = await resolveContractTypeFields(tx, Number(input.pvtId));
       const aiuRequested = await resolveAiuRequested(tx, { input, descriptors, granted });
       const values = {
         ...headerValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONTRACT, input })),
+        ctr_invoice_view: invoiceView,
         ctr_aiu_requested: aiuRequested,
       };
       // El valor inicial toma la fecha del contrato y no lleva descripción
@@ -897,7 +963,13 @@ const updateContract = async ({ ctrId, input, granted, useBy, ctx }) => {
   if (!known) throw httpError(404, "No se encontró el contrato.");
 
   return withLockedTransaction(
-    { OBRA: known.wrk_id, PROVEEDOR: Number(input.prvId), CONTRATO: ctrId, TIPO_CONTRATO: Number(input.cttId) },
+    {
+      OBRA: known.wrk_id,
+      PROVEEDOR: Number(input.prvId),
+      CONTRATO: ctrId,
+      ...(Number(input.pvtId) > 0 ? { TIPO_PROVEEDOR: Number(input.pvtId) } : {}),
+      TIPO_CONTRATO: Number(input.cttId),
+    },
     async (tx) => {
       const before = await findLockedContract(tx, ctrId);
       assertStateAllows(before.ctr_state, "editContract");
@@ -905,12 +977,14 @@ const updateContract = async ({ ctrId, input, granted, useBy, ctx }) => {
       await contractTypesService.assertAssignable(tx, Number(input.cttId), before.ctt_id);
       await assertProviderAssigned(tx, { wrkId, prvId: Number(input.prvId), currentPrvId: before.prv_id });
 
-      // Configuración actual de los tipos del proveedor elegido (DEC-053). Un
-      // valor guardado en un campo que dejó de aplicar se conserva como
-      // heredado (ADR-0006, decisiones 7 y 8).
-      const descriptors = await resolveProviderFields(tx, Number(input.prvId));
+      // Tipo de proveedor y su configuración actual (DEC-066). Un valor
+      // guardado en un campo que dejó de aplicar se conserva como heredado
+      // (ADR-0006, decisiones 7 y 8).
+      const invoiceView = await resolveContractType(tx, { wrkId, prvId: Number(input.prvId), pvtId: Number(input.pvtId), before });
+      const descriptors = await resolveContractTypeFields(tx, Number(input.pvtId));
       const values = {
         ...headerValuesOf(enforceFields({ descriptors, group: FIELD_GROUPS.CONTRACT, input, before })),
+        ctr_invoice_view: invoiceView,
         ctr_aiu_requested: await resolveAiuRequested(tx, { input, descriptors, before, granted }),
       };
 
@@ -918,9 +992,13 @@ const updateContract = async ({ ctrId, input, granted, useBy, ctx }) => {
       await assertStage(tx, { wrkId, wksId: values.wks_id, currentWksId: before.wks_id });
       await assertUniqueNumber(tx, { wrkId, number: values.ctr_number, excludeId: before.ctr_id });
       // Las facturas son del proveedor del contrato: con facturas, no cambia
-      // (lo garantiza también la FK compuesta de tbl_invoices, DEC-042).
+      // (lo garantiza también la FK compuesta de tbl_invoices, DEC-042). Su
+      // menú tampoco (DEC-066): con facturas, el tipo de proveedor no cambia.
       if (values.prv_id !== before.prv_id && (await countInvoices(tx, before.ctr_id)) > 0) {
         throw httpError(409, "El contrato tiene facturas registradas: no se puede cambiar su proveedor.");
+      }
+      if (values.pvt_id !== before.pvt_id && (await countInvoices(tx, before.ctr_id)) > 0) {
+        throw httpError(409, "El contrato tiene facturas registradas: no se puede cambiar su tipo de proveedor.");
       }
 
       // La fecha fin se recalcula en la misma transacción (ADR-0015, decisión 5).

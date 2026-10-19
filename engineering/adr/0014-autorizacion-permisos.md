@@ -178,7 +178,7 @@ Situación agravada por `saveUser`: cuando recibe `ProfileMode`, ejecuta `UPDATE
 
 3. **Los permisos efectivos se resuelven en el servidor a partir de la base de datos, en cada petición**, no desde el token ni desde el cuerpo de la petición. El JWT actual no contiene permisos, y esa decisión se mantiene: un token de 24 horas con permisos embebidos quedaría desactualizado ante cualquier cambio.
 
-4. **`tbl_profile_permissions` es la fuente de verdad de los permisos del perfil; `tbl_user_permissions` expresa excepciones individuales.** El permiso efectivo es la unión de ambos. El modelo actual de "copiar al crear" se reemplaza por resolución en consulta.
+4. **`tbl_profile_permissions` es la fuente de verdad de los permisos del perfil; `tbl_user_permissions` expresa excepciones individuales.** El permiso efectivo es la unión de ambos. *Cambiado el 2026-10-19 por [DEC-067](../decisiones/DEC-067-permisos-usuario-negados.md): una excepción concede o niega (`usp_granted`), y el permiso efectivo es (perfil ∪ concedidos) − negados.* El modelo actual de "copiar al crear" se reemplaza por resolución en consulta.
 
 5. **La visibilidad de páginas se resuelve exclusivamente por `tbl_page_permissions`.** Los campos `use_pages` y `pro_pages` se declaran obsoletos: son una fuente concurrente, desnormalizada y vector de inyección SQL.
 
@@ -242,7 +242,7 @@ Usuario
    │
    └── Permisos individuales            (tbl_user_permissions)
               │
-              └── permisos efectivos = unión de ambos
+              └── permisos efectivos = (perfil ∪ concedidos) − negados (DEC-067)
                         │
 Acción en la interfaz
    │
@@ -287,7 +287,7 @@ Reglas vigentes en la implementación actual:
 
 Reglas objetivo adicionales:
 
-9. El permiso efectivo es la unión de los permisos del perfil y los individuales.
+9. El permiso efectivo es la unión de los permisos del perfil y los individuales concedidos, menos los individuales negados ([DEC-067](../decisiones/DEC-067-permisos-usuario-negados.md)).
 10. Sin permiso explícito, la operación se deniega. La ausencia de configuración no concede acceso.
 11. Un usuario no puede otorgarse a sí mismo un permiso que no posee.
 12. Toda concesión o revocación de permiso queda auditada.

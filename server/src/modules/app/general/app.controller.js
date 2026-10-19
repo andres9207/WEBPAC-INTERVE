@@ -38,8 +38,8 @@ export const getUserPermissionsController = async (req, res, next) => {
   try {
     // Autoservicio: siempre los permisos del propio usuario autenticado, no
     // los de un useId ajeno provisto por query.
-    const { useId } = req.user;
-    const result = await appService.getUserPermissions({ useId });
+    const { useId, proId } = req.user;
+    const result = await appService.getUserPermissions({ useId, proId });
     res.status(200).json(result);
   } catch (err) {
     next(err);

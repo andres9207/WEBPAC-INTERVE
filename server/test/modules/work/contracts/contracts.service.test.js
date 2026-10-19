@@ -36,6 +36,8 @@ const prismaMock = {
   tbl_contract_fields: { findMany: jest.fn(async () => CONTRACT_FIELDS_CATALOG) },
   tbl_provider_classifications: { findMany: jest.fn(async () => [{ pvt_id: 1 }]) },
   tbl_provider_type_fields: { findMany: jest.fn(async () => state.typeFields) },
+  tbl_provider_types: { findUnique: jest.fn() },
+  tbl_work_provider_types: { findUnique: jest.fn() },
   tbl_providers: { findUnique: jest.fn(), findFirst: jest.fn() },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
@@ -55,6 +57,7 @@ const lockedTables = () => prismaMock.$queryRaw.mock.calls.map((call) => call.sl
 const input = (overrides = {}) => ({
   wrkId: 8,
   prvId: 77,
+  pvtId: 3,
   wksId: 11,
   cttId: 2,
   number: " C-001 ",
@@ -79,6 +82,8 @@ const storedContract = {
   ctr_id: 30,
   wrk_id: 8,
   prv_id: 77,
+  pvt_id: 3,
+  ctr_invoice_view: "MAJOR",
   wks_id: 11,
   ctt_id: 2,
   ctr_number: "C-001",
@@ -109,6 +114,11 @@ beforeEach(() => {
   prismaMock.tbl_work_providers.findUnique.mockResolvedValue({ sta_id: 1, tbl_providers: { prv_name: "Aceros SA", sta_id: 1 } });
   prismaMock.tbl_contract_types.findUnique.mockResolvedValue({ ctt_id: 2, ctt_name: "Suministro", sta_id: 1 });
   prismaMock.tbl_providers.findUnique.mockResolvedValue({ prv_id: 77, sta_id: 1 });
+  // El proveedor trabaja en la obra como contrato mayor (DEC-066).
+  prismaMock.tbl_work_provider_types.findUnique.mockResolvedValue({
+    tbl_provider_types: { pvt_name: "Contrato mayor", pvt_invoice_view: "MAJOR", sta_id: 1 },
+  });
+  prismaMock.tbl_provider_types.findUnique.mockResolvedValue({ pvt_id: 3, sta_id: 1 });
   prismaMock.tbl_providers.findFirst.mockResolvedValue({ prv_id: 77 });
   prismaMock.tbl_policy_types.findUnique.mockImplementation(async ({ where }) => ({ plt_name: `Tipo ${where.plt_id}`, plt_base: "TOTAL_VALUE", sta_id: 1 }));
   prismaMock.tbl_insurers.findUnique.mockResolvedValue({ ins_description: "Seguros SA", sta_id: 1 });
@@ -125,6 +135,8 @@ describe("saveContract — crear", () => {
     expect(data).toMatchObject({
       wrk_id: 8,
       prv_id: 77,
+      pvt_id: 3,
+      ctr_invoice_view: "MAJOR",
       wks_id: 11,
       ctr_number: "C-001",
       ctr_state: "IN_PROGRESS",
@@ -155,10 +167,15 @@ describe("saveContract — crear", () => {
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
   });
 
-  it("bloquea obra, proveedor y tipo de contrato antes de leer nada", async () => {
+  it("bloquea obra, proveedor, tipo de proveedor y tipo de contrato antes de leer nada", async () => {
     await service.saveContract({ ctrId: 0, input: input(), useBy: 9, ctx, idempotencyKey: KEY });
 
-    expect(lockedTables()).toEqual([expect.stringMatching(/tbl_works/), expect.stringMatching(/tbl_providers/), expect.stringMatching(/tbl_contract_types/)]);
+    expect(lockedTables()).toEqual([
+      expect.stringMatching(/tbl_works/),
+      expect.stringMatching(/tbl_providers /),
+      expect.stringMatching(/tbl_provider_types/),
+      expect.stringMatching(/tbl_contract_types/),
+    ]);
     const lastLock = prismaMock.$queryRaw.mock.invocationCallOrder.at(-1);
     expect(prismaMock.tbl_work_stages.findUnique.mock.invocationCallOrder[0]).toBeGreaterThan(lastLock);
     expect(prismaMock.tbl_work_providers.findUnique.mock.invocationCallOrder[0]).toBeGreaterThan(lastLock);
@@ -253,7 +270,8 @@ describe("saveContract — crear con pólizas (PRO-BE-09)", () => {
     await create([policy({ pltId: 5 }), policy({ pltId: 4, insId: 7 })]);
     expect(lockedTables()).toEqual([
       expect.stringMatching(/tbl_works/),
-      expect.stringMatching(/tbl_providers/),
+      expect.stringMatching(/tbl_providers /),
+      expect.stringMatching(/tbl_provider_types/),
       expect.stringMatching(/tbl_insurers/),
       expect.stringMatching(/tbl_contract_types/),
       expect.stringMatching(/tbl_policy_types/),
@@ -263,7 +281,7 @@ describe("saveContract — crear con pólizas (PRO-BE-09)", () => {
   it("sin pólizas no las pide ni bloquea sus maestros", async () => {
     await create([], new Set());
     expect(prismaMock.tbl_policies.create).not.toHaveBeenCalled();
-    expect(lockedTables()).toHaveLength(3);
+    expect(lockedTables()).toHaveLength(4);
   });
 
   it("sin el permiso de registrar pólizas responde 403 y no abre la transacción", async () => {
@@ -292,7 +310,7 @@ describe("saveContract — editar", () => {
     state.contract = { ...storedContract };
   });
 
-  it("bloquea obra, proveedor, contrato y tipo; recalcula la fecha fin con las prórrogas", async () => {
+  it("bloquea obra, proveedor, contrato y tipos; recalcula la fecha fin con las prórrogas", async () => {
     prismaMock.tbl_contract_concepts.findMany.mockResolvedValue([
       { ccp_type: "INITIAL", ccp_extension: null, sta_id: 1 },
       { ccp_type: "AMENDMENT", ccp_extension: 2, sta_id: 1 },
@@ -305,8 +323,9 @@ describe("saveContract — editar", () => {
 
     expect(lockedTables()).toEqual([
       expect.stringMatching(/tbl_works/),
-      expect.stringMatching(/tbl_providers/),
+      expect.stringMatching(/tbl_providers /),
       expect.stringMatching(/tbl_contracts/),
+      expect.stringMatching(/tbl_provider_types/),
       expect.stringMatching(/tbl_contract_types/),
     ]);
     const { data } = prismaMock.tbl_contracts.update.mock.calls[0][0];
@@ -354,10 +373,10 @@ describe("saveContract — editar", () => {
     await expect(service.saveContract({ ctrId: 30, input: input({ term: 8 }), useBy: 9, ctx })).resolves.toMatchObject({ ctrId: 30 });
   });
 
-  it("con facturas el tipo de contrato sí cambia: el menú de sus facturas es del proveedor (DEC-056)", async () => {
+  it("con facturas el tipo de contrato sí cambia: el menú de sus facturas es el del contrato (DEC-066)", async () => {
     prismaMock.tbl_invoices.count.mockResolvedValue(1);
     await service.saveContract({ ctrId: 30, input: input({ cttId: 3 }), useBy: 9, ctx });
-    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ ctt_id: 3 });
+    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ ctt_id: 3, ctr_invoice_view: "MAJOR" });
   });
 });
 
@@ -508,22 +527,23 @@ describe("paginationContracts", () => {
   });
 });
 
-describe("campos configurables de los tipos del proveedor (DEC-053)", () => {
-  it("al crear, aplica la configuración de los tipos del proveedor elegido", async () => {
+describe("campos configurables del tipo de proveedor del contrato (DEC-053, DEC-066)", () => {
+  it("al crear, aplica la configuración del tipo de proveedor elegido, no la de los tipos del proveedor", async () => {
     state.typeFields = typeFieldRows({ ADVANCE_PCT: { ptf_visible: false } });
     await service.saveContract({ ctrId: 0, input: input({ initialConcept: { ...input().initialConcept, advancePct: "40" } }), useBy: 9, ctx, idempotencyKey: KEY });
 
-    expect(prismaMock.tbl_provider_classifications.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { prv_id: 77 } }));
+    expect(prismaMock.tbl_provider_type_fields.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { pvt_id: { in: [3] } } }));
+    expect(prismaMock.tbl_provider_classifications.findMany).not.toHaveBeenCalled();
     expect(prismaMock.tbl_contracts.create.mock.calls[0][0].data).not.toHaveProperty("ctr_config_version");
     // Aplica y no se muestra: el valor por defecto, no el que mandó el cliente.
     expect(prismaMock.tbl_contract_concepts.create.mock.calls[0][0].data.ccp_advance_pct.toFixed(2)).toBe("15.00");
   });
 
-  it("rechaza un valor en un campo que no aplica para los tipos del proveedor", async () => {
+  it("rechaza un valor en un campo que no aplica para el tipo de proveedor", async () => {
     state.typeFields = typeFieldRows({ VAT_PCT: { ptf_applies: null } });
     await expect(service.saveContract({ ctrId: 0, input: input(), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
       statusCode: 400,
-      message: "IVA: no aplica para los tipos del proveedor.",
+      message: "IVA: no aplica para el tipo de proveedor del contrato.",
     });
     expect(prismaMock.tbl_contracts.create).not.toHaveBeenCalled();
   });
@@ -536,10 +556,10 @@ describe("campos configurables de los tipos del proveedor (DEC-053)", () => {
     expect(prismaMock.tbl_work_stages.findUnique).not.toHaveBeenCalled();
   });
 
-  it("exige los campos obligatorios de los tipos del proveedor", async () => {
+  it("exige los campos obligatorios del tipo de proveedor", async () => {
     await expect(service.saveContract({ ctrId: 0, input: input({ wksId: null }), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
       statusCode: 400,
-      message: "Etapa: es obligatorio para los tipos del proveedor.",
+      message: "Etapa: es obligatorio para el tipo de proveedor del contrato.",
     });
   });
 
@@ -555,24 +575,27 @@ describe("campos configurables de los tipos del proveedor (DEC-053)", () => {
     });
   });
 
-  it("al editar con otro proveedor, aplica la configuración de los tipos del nuevo", async () => {
+  it("al editar con otro tipo de proveedor, aplica la configuración del nuevo", async () => {
     state.contract = { ...storedContract };
     state.typeFields = typeFieldRows({ VAT_PCT: { ptf_applies: null } });
-    await service.saveContract({ ctrId: 30, input: input({ prvId: 78 }), useBy: 9, ctx });
+    prismaMock.tbl_work_provider_types.findUnique.mockResolvedValue({
+      tbl_provider_types: { pvt_name: "Subcontratista", pvt_invoice_view: "SUBCONTRACTOR", sta_id: 1 },
+    });
+    await service.saveContract({ ctrId: 30, input: input({ pvtId: 2, initialConcept: undefined }), useBy: 9, ctx });
 
-    expect(prismaMock.tbl_provider_classifications.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { prv_id: 78 } }));
-    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ prv_id: 78 });
+    expect(prismaMock.tbl_provider_type_fields.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { pvt_id: { in: [2] } } }));
+    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ pvt_id: 2, ctr_invoice_view: "SUBCONTRACTOR" });
     expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).not.toHaveProperty("ctr_config_version");
   });
 
-  it("un proveedor sin tipos configurados deja todo sin aplicar: un valor en un porcentaje es 400", async () => {
-    prismaMock.tbl_provider_classifications.findMany.mockResolvedValueOnce([]);
+  it("un tipo sin campos configurados deja todo sin aplicar: un valor en un porcentaje es 400", async () => {
+    state.typeFields = [];
     const noAiu = { ...input().initialConcept, adminPct: "0", contingencyPct: "0", profitPct: "0" };
     await expect(
       service.saveContract({ ctrId: 0, input: input({ wksId: "", observation: "", initialConcept: noAiu }), useBy: 9, ctx, idempotencyKey: KEY })
     ).rejects.toMatchObject({
       statusCode: 400,
-      message: expect.stringMatching(/no aplica para los tipos del proveedor/),
+      message: expect.stringMatching(/no aplica para el tipo de proveedor del contrato/),
     });
     expect(prismaMock.tbl_contracts.create).not.toHaveBeenCalled();
   });
@@ -583,28 +606,113 @@ describe("campos configurables de los tipos del proveedor (DEC-053)", () => {
       statusCode: 400,
       message: "El proveedor seleccionado no está asignado a la obra del contrato.",
     });
-    expect(prismaMock.tbl_provider_classifications.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_provider_type_fields.findMany).not.toHaveBeenCalled();
   });
 
-  it("getContractFields entrega los descriptores vigentes de los tipos del proveedor", async () => {
-    const current = await service.getContractFields({ prvId: 77 });
-    expect(current).toMatchObject({ prvId: 77, typeAppliesAiu: true });
+  it("getContractFields entrega los descriptores vigentes del tipo de proveedor", async () => {
+    const current = await service.getContractFields({ prvId: 77, pvtId: 3 });
+    expect(current).toMatchObject({ prvId: 77, pvtId: 3, typeAppliesAiu: true });
     expect(current).not.toHaveProperty("configVersion");
     expect(current.fields.find((f) => f.key === "STAGE")).toMatchObject({ applies: true, visible: true, required: true, label: "Etapa" });
-    expect(prismaMock.tbl_provider_classifications.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { prv_id: 77 } }));
+    expect(prismaMock.tbl_provider_type_fields.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { pvt_id: { in: [3] } } }));
   });
 
-  it("getContractFields con solo el contrato usa su proveedor", async () => {
-    prismaMock.tbl_contracts.findUnique.mockResolvedValueOnce({ prv_id: 77, ctr_aiu_requested: true });
-    await expect(service.getContractFields({ ctrId: 30 })).resolves.toMatchObject({ prvId: 77, aiuRequested: true });
-    expect(prismaMock.tbl_providers.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { prv_id: 77 } }));
+  it("getContractFields con solo el contrato usa su tipo de proveedor", async () => {
+    prismaMock.tbl_contracts.findUnique.mockResolvedValueOnce({ prv_id: 77, pvt_id: 2, ctr_aiu_requested: true });
+    prismaMock.tbl_provider_types.findUnique.mockResolvedValueOnce({ pvt_id: 2, sta_id: 1 });
+    await expect(service.getContractFields({ ctrId: 30 })).resolves.toMatchObject({ prvId: 77, pvtId: 2, aiuRequested: true });
+    expect(prismaMock.tbl_provider_types.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { pvt_id: 2 } }));
   });
 
-  it("getContractFields: 404 si el proveedor no existe o está eliminado", async () => {
-    prismaMock.tbl_providers.findUnique.mockResolvedValueOnce({ prv_id: 77, sta_id: 3 });
-    await expect(service.getContractFields({ prvId: 77 })).rejects.toMatchObject({ statusCode: 404, message: "No se encontró el proveedor." });
-    prismaMock.tbl_providers.findUnique.mockResolvedValueOnce(null);
-    await expect(service.getContractFields({ prvId: 77 })).rejects.toMatchObject({ statusCode: 404 });
+  it("getContractFields: 404 si el tipo de proveedor no existe o está eliminado", async () => {
+    prismaMock.tbl_provider_types.findUnique.mockResolvedValueOnce({ pvt_id: 3, sta_id: 3 });
+    await expect(service.getContractFields({ prvId: 77, pvtId: 3 })).rejects.toMatchObject({ statusCode: 404, message: "No se encontró el tipo de proveedor." });
+    prismaMock.tbl_provider_types.findUnique.mockResolvedValueOnce(null);
+    await expect(service.getContractFields({ pvtId: 3 })).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe("tipo de proveedor del contrato (DEC-066)", () => {
+  const mockType = (type) => prismaMock.tbl_work_provider_types.findUnique.mockResolvedValue(type && { tbl_provider_types: type });
+
+  it("es uno de los tipos con que el proveedor trabaja en la obra (400 si no)", async () => {
+    mockType(null);
+    await expect(service.saveContract({ ctrId: 0, input: input(), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "El proveedor no trabaja en esta obra con el tipo de proveedor seleccionado.",
+    });
+    expect(prismaMock.tbl_work_provider_types.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { wrk_id_prv_id_pvt_id: { wrk_id: 8, prv_id: 77, pvt_id: 3 } } })
+    );
+    expect(prismaMock.tbl_contracts.create).not.toHaveBeenCalled();
+  });
+
+  it("solo un tipo de menú contrato mayor o subcontratistas, y activo (400)", async () => {
+    mockType({ pvt_name: "Simple", pvt_invoice_view: "SIMPLE", sta_id: 1 });
+    await expect(service.saveContract({ ctrId: 0, input: input(), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining("no admite contratos"),
+    });
+    mockType({ pvt_name: "Contrato mayor", pvt_invoice_view: "MAJOR", sta_id: 2 });
+    await expect(service.saveContract({ ctrId: 0, input: input(), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining("inactivo"),
+    });
+    expect(prismaMock.tbl_contracts.create).not.toHaveBeenCalled();
+  });
+
+  it("guarda el menú de su tipo al crearlo, y lo audita", async () => {
+    mockType({ pvt_name: "Subcontratista", pvt_invoice_view: "SUBCONTRACTOR", sta_id: 1 });
+    await service.saveContract({ ctrId: 0, input: input({ pvtId: 2 }), useBy: 9, ctx, idempotencyKey: KEY });
+
+    expect(prismaMock.tbl_contracts.create.mock.calls[0][0].data).toMatchObject({ pvt_id: 2, ctr_invoice_view: "SUBCONTRACTOR" });
+    expect(auditRows().find((r) => r.aud_field === "ctr_invoice_view")).toMatchObject({ aud_new_value: "SUBCONTRACTOR" });
+  });
+
+  it("al editar sin cambiar el tipo conserva el menú guardado, aunque el del tipo haya cambiado en el maestro", async () => {
+    state.contract = { ...storedContract };
+    mockType({ pvt_name: "Contrato mayor", pvt_invoice_view: "SUBCONTRACTOR", sta_id: 2 });
+
+    await service.saveContract({ ctrId: 30, input: input({ term: 8 }), useBy: 9, ctx });
+
+    expect(prismaMock.tbl_work_provider_types.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ pvt_id: 3, ctr_invoice_view: "MAJOR" });
+  });
+
+  it("con facturas no cambia el tipo de proveedor (409)", async () => {
+    state.contract = { ...storedContract };
+    prismaMock.tbl_invoices.count.mockResolvedValue(1);
+    mockType({ pvt_name: "Subcontratista", pvt_invoice_view: "SUBCONTRACTOR", sta_id: 1 });
+
+    await expect(service.saveContract({ ctrId: 30, input: input({ pvtId: 2 }), useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: "El contrato tiene facturas registradas: no se puede cambiar su tipo de proveedor.",
+    });
+    expect(prismaMock.tbl_contracts.update).not.toHaveBeenCalled();
+  });
+
+  it("el formulario ofrece por proveedor sus tipos de contrato en la obra y si admite facturas simples", async () => {
+    prismaMock.tbl_work_stages.findMany = jest.fn(async () => []);
+    prismaMock.tbl_work_providers.findMany = jest.fn(async () => [
+      {
+        prv_id: 77,
+        tbl_providers: { prv_name: "Aceros SA", prv_identification: "900" },
+        tbl_work_provider_types: [
+          { pvt_id: 3, tbl_provider_types: { pvt_name: "Contrato mayor", pvt_invoice_view: "MAJOR", sta_id: 1 } },
+          { pvt_id: 1, tbl_provider_types: { pvt_name: "Simple", pvt_invoice_view: "SIMPLE", sta_id: 1 } },
+          { pvt_id: 2, tbl_provider_types: { pvt_name: "Subcontratista", pvt_invoice_view: "SUBCONTRACTOR", sta_id: 2 } },
+        ],
+      },
+    ]);
+
+    const { providers } = await service.getContractFormOptions({ wrkId: 8 });
+    expect(providers).toEqual([
+      { value: 77, label: "Aceros SA · 900", types: [{ value: 3, label: "Contrato mayor", invoiceView: "MAJOR" }], simpleInvoices: true },
+    ]);
+
+    // El del contrato que se edita vuelve aunque esté inactivo.
+    const editing = await service.getContractFormOptions({ wrkId: 8, includePrvId: 77, includePvtId: 2 });
+    expect(editing.providers[0].types.map((t) => t.value)).toEqual([3, 2]);
   });
 });
 
@@ -647,7 +755,7 @@ describe("solicitud de AIU del contrato (ADR-0026, P13; DEC-046)", () => {
     service.saveContract({ ctrId, input: data, useBy: 9, granted: new Set(granted), ctx, idempotencyKey: ctrId ? undefined : KEY });
   const noAiuConcept = { ...input().initialConcept, adminPct: "0", contingencyPct: "0", profitPct: "0" };
 
-  it("al crear, el valor por defecto lo dan los tipos del proveedor: solicita AIU si lo aplican", async () => {
+  it("al crear, el valor por defecto lo da el tipo de proveedor: solicita AIU si lo aplica", async () => {
     await save(input());
     expect(prismaMock.tbl_contracts.create.mock.calls[0][0].data.ctr_aiu_requested).toBe(true);
 
@@ -670,11 +778,11 @@ describe("solicitud de AIU del contrato (ADR-0026, P13; DEC-046)", () => {
     expect(auditRows().find((r) => r.aud_field === "ctr_aiu_requested")).toMatchObject({ aud_new_value: "false" });
   });
 
-  it("no se solicita si los tipos del proveedor no aplican AIU (400)", async () => {
+  it("no se solicita si el tipo de proveedor no aplica AIU (400)", async () => {
     state.typeFields = typeFieldRows({ ADMIN_PCT: { ptf_applies: null }, CONTINGENCY_PCT: { ptf_applies: null }, PROFIT_PCT: { ptf_applies: null } });
     await expect(save(input({ aiuRequested: true, initialConcept: noAiuConcept }), { granted: [CHANGE_AIU] })).rejects.toMatchObject({
       statusCode: 400,
-      message: "Los tipos del proveedor no aplican AIU: el contrato no puede solicitarlo.",
+      message: "El tipo de proveedor del contrato no aplica AIU: el contrato no puede solicitarlo.",
     });
   });
 
@@ -700,7 +808,7 @@ describe("solicitud de AIU del contrato (ADR-0026, P13; DEC-046)", () => {
   });
 
   it("getContractFields con el contrato: sin AIU, A, I y U no aplican", async () => {
-    prismaMock.tbl_contracts.findUnique.mockResolvedValueOnce({ prv_id: 77, ctr_aiu_requested: false });
+    prismaMock.tbl_contracts.findUnique.mockResolvedValueOnce({ prv_id: 77, pvt_id: 3, ctr_aiu_requested: false });
     const result = await service.getContractFields({ prvId: 77, ctrId: 30 });
     expect(result).toMatchObject({ typeAppliesAiu: true, aiuRequested: false });
     expect(result.fields.filter((f) => ["ADMIN_PCT", "CONTINGENCY_PCT", "PROFIT_PCT"].includes(f.key)).every((f) => !f.applies && !f.visible)).toBe(true);
@@ -758,7 +866,7 @@ describe("alcance por obra (DEC-047)", () => {
       prv_id: 77,
       tbl_work_providers: { some: { wrk_id: { in: [9] } } },
     });
-    expect(prismaMock.tbl_provider_classifications.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_provider_type_fields.findMany).not.toHaveBeenCalled();
   });
 
   it("en su obra, sí", async () => {

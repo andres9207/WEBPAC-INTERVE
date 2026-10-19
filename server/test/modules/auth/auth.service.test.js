@@ -143,7 +143,7 @@ describe("login", () => {
     prismaMock.tbl_login_attempts.findUnique.mockResolvedValue({ lat_locked_until: null });
     mockComparePassword.mockResolvedValue(true);
     prismaMock.tbl_profile_permissions.findMany.mockResolvedValue([{ per_id: 5 }]);
-    prismaMock.tbl_user_permissions.findMany.mockResolvedValue([{ per_id: 9 }]);
+    prismaMock.tbl_user_permissions.findMany.mockResolvedValue([{ per_id: 9, usp_granted: true }]);
 
     const result = await authService.login({ usuario: "admin", password: "buena" });
 
@@ -161,7 +161,7 @@ describe("login", () => {
     prismaMock.tbl_users.findFirst.mockResolvedValue(activeUser);
     mockComparePassword.mockResolvedValue(true);
     prismaMock.tbl_profile_permissions.findMany.mockResolvedValue([{ per_id: 5 }]);
-    prismaMock.tbl_user_permissions.findMany.mockResolvedValue([{ per_id: 5 }]);
+    prismaMock.tbl_user_permissions.findMany.mockResolvedValue([{ per_id: 5, usp_granted: true }]);
 
     const result = await authService.login({ usuario: "admin", password: "buena" });
 

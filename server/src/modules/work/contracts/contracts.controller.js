@@ -26,7 +26,7 @@ const handle = (fn) => async (req, res, next) => {
 const pick = (source, fields) => Object.fromEntries(fields.map((field) => [field, source?.[field]]));
 
 const CONCEPT_FIELDS = ["directCost", "adminPct", "contingencyPct", "profitPct", "vatPct", "advancePct", "retentionPct"];
-const CONTRACT_FIELDS = ["wrkId", "prvId", "wksId", "cttId", "number", "name", "startDate", "term", "termUnit", "observation", "aiuRequested"];
+const CONTRACT_FIELDS = ["wrkId", "prvId", "pvtId", "wksId", "cttId", "number", "name", "startDate", "term", "termUnit", "observation", "aiuRequested"];
 const ACT_FIELDS = ["startDate", "description", ...CONCEPT_FIELDS];
 
 export const paginationContractsController = handle(async (req) => {
@@ -63,8 +63,8 @@ export const selectContractWorksController = handle(async (req) =>
 );
 
 export const getContractFormOptionsController = handle(async (req) => {
-  const { wrkId, includeWksId, includePrvId } = req.query;
-  return contractsService.getContractFormOptions({ wrkId, includeWksId, includePrvId, scope: await workScopeOf(req) });
+  const { wrkId, includeWksId, includePrvId, includePvtId } = req.query;
+  return contractsService.getContractFormOptions({ wrkId, includeWksId, includePrvId, includePvtId, scope: await workScopeOf(req) });
 });
 
 export const previewContractEndDateController = handle(async (req) => {
@@ -75,6 +75,7 @@ export const previewContractEndDateController = handle(async (req) => {
 export const getContractFieldsController = handle(async (req) =>
   contractsService.getContractFields({
     prvId: req.query.prvId,
+    pvtId: req.query.pvtId,
     ctrId: req.query.ctrId,
     scope: await workScopeOf(req),
   })

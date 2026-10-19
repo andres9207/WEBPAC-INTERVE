@@ -24,6 +24,21 @@ import Divider from '@mui/material/Divider';
 // Tabler icons
 import { IconSearch, IconShield, IconX } from '@tabler/icons-react';
 
+// De dónde sale el permiso de un usuario (DEC-067): su perfil, una
+// excepción que lo concede o una que lo niega aunque el perfil lo dé.
+function PermissionOrigin({ fromProfile, checked }) {
+  if (fromProfile && checked) {
+    return <Typography variant="caption" color="text.secondary">Del perfil</Typography>;
+  }
+  if (fromProfile) {
+    return <Typography variant="caption" color="warning.dark">Quitado (el perfil lo da)</Typography>;
+  }
+  if (checked) {
+    return <Typography variant="caption" color="secondary.main">Asignado solo a este usuario</Typography>;
+  }
+  return null;
+}
+
 export default function PermissionsDrawer({ visible, setVisible, title, prfId, opc, usuId }) {
   const [ventanas, setVentanas] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -143,9 +158,11 @@ export default function PermissionsDrawer({ visible, setVisible, title, prfId, o
         ? 'security/permissions/update_permissions_profile'
         : 'security/permissions/update_permissions_user';
 
-      const payload = isProfile 
-        ? { permissions: permisosAdd, proId: prfId } 
-        : { permissions: permisosAdd, useId: usuId };
+      // Al usuario se le envían también las ventanas mostradas: el servidor
+      // solo concede o niega los permisos de esas ventanas (DEC-067).
+      const payload = isProfile
+        ? { permissions: permisosAdd, proId: prfId }
+        : { permissions: permisosAdd, pagIds: ventanas.map((v) => v.pagId), useId: usuId };
 
       const { data } = await httpCliente.post(endpoint, payload);
 
@@ -263,11 +280,14 @@ export default function PermissionsDrawer({ visible, setVisible, title, prfId, o
                       </Stack>
                       <Divider sx={{ my: 1 }} />
                       <Stack spacing={1}>
-                        {pagePerms.map(({ perId, name }) => (
+                        {pagePerms.map(({ perId, name, fromProfile }) => (
                           <Stack key={perId} direction="row" alignItems="center" justifyContent="space-between">
                             <Stack direction="row" alignItems="center" spacing={1}>
                               <IconShield size={16} style={{ color: '#0eb0e9' }} />
-                              <Typography variant="body2">{name}</Typography>
+                              <Box>
+                                <Typography variant="body2">{name}</Typography>
+                                {opc !== 1 && <PermissionOrigin fromProfile={fromProfile} checked={permisosAdd.includes(perId)} />}
+                              </Box>
                             </Stack>
                             <Switch
                               size="small"

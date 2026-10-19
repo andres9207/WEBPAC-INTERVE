@@ -32,7 +32,7 @@ const FILTER_FIELDS = [
 ];
 
 export default function UsersPage() {
-  const { hasPermission, permissionsCatalog } = useAuth();
+  const { hasPermission, permissionsCatalog, user: sessionUser } = useAuth();
 
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -157,7 +157,9 @@ export default function UsersPage() {
   ];
 
   const actionItems = (row) => [
-    ...(canAssignPermission
+    // Nadie edita sus propios permisos: el servidor responde 403
+    // (updateUserPermissions), así que la acción no se ofrece en la propia fila.
+    ...(canAssignPermission && row.useId !== sessionUser?.useId
       ? [{ label: 'Permisos', icon: <IconKey size={16} />, command: () => handleOpenPermissions(row), tone: 'info' }]
       : []),
     ...(canEdit ? [{ label: 'Editar', icon: <IconEdit size={16} />, command: () => handleEditUser(row), tone: 'edit' }] : []),

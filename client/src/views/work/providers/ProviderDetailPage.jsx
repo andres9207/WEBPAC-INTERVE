@@ -31,12 +31,11 @@ import { providersApi, workProvidersApi } from 'api/requests/providersApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkScope } from 'contexts/WorkScopeContext';
 import useInvoiceViews from 'hooks/useInvoiceViews';
-import useInvoiceViewChange from 'hooks/useInvoiceViewChange';
 import { showError, showSuccess } from 'services/ToastService';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
 import { newIdempotencyKey } from 'utils/idempotency';
 import { ALL_WORKS } from 'utils/workScope';
-import { STATUS, invoicePath, providerInvoiceViewName } from 'utils/constants';
+import { STATUS, invoicePath } from 'utils/constants';
 
 /**
  * Un proveedor en un solo modal (ADR-0012, DEC-031, DEC-057), sobre el
@@ -57,7 +56,8 @@ import { STATUS, invoicePath, providerInvoiceViewName } from 'utils/constants';
  *   servidor da el mismo aviso si otro usuario lo registró entretanto.
  * - En la pestaña Obras se asigna el proveedor a una obra, se edita la
  *   asignación y se desasigna, con los mismos endpoints y permisos que la
- *   pestaña Proveedores de la obra (ADR-0012, decisión 2; DEC-031).
+ *   pestaña Proveedores de la obra (ADR-0012, decisión 2; DEC-031). Cada
+ *   obra tiene sus tipos de proveedor (DEC-066): se proponen los de la ficha.
  * - La pestaña Facturas lista las del proveedor (DEC-042); la simple, que es
  *   del proveedor (DEC-054), se registra desde aquí.
  */
@@ -113,7 +113,6 @@ function ProviderView() {
   const [addingContact, setAddingContact] = useState(false);
   const [identityOptions, setIdentityOptions] = useState([]);
   const [conflict, setConflict] = useState(null);
-  const { withInvoiceMove, dialog: invoiceMoveDialog } = useInvoiceViewChange();
 
   const { control, handleSubmit, reset, formState } = useForm({ defaultValues: EMPTY_FORM });
   const { errors, isDirty } = formState;
@@ -169,7 +168,7 @@ function ProviderView() {
     }
     setSaving(true);
     try {
-      const { data } = await withInvoiceMove(providersApi.save)(toPayload(prvId, form), isNew ? idempotencyKey : undefined);
+      const { data } = await providersApi.save(toPayload(prvId, form), isNew ? idempotencyKey : undefined);
       showSuccess(data.message || 'Guardado correctamente.');
       refresh?.();
       // El nuevo se abre en el resumen, con todas las pestañas habilitadas.
@@ -385,7 +384,7 @@ function ProviderView() {
               {
                 label: provider.providerTypes.length === 1 ? 'Tipo de proveedor' : 'Tipos de proveedor',
                 value: typesText,
-                hint: `Menú de facturas: ${providerInvoiceViewName(provider.invoiceView)}`
+                hint: 'Se proponen al asignarlo a una obra; en cada obra trabaja con los suyos'
               },
               {
                 label: 'Obras',
@@ -542,6 +541,7 @@ function ProviderView() {
                     )}
                     <Typography variant="caption" color="text.secondary" component="p">
                       Asignado el {fDateOnly(w.assignmentDate)}
+                      {w.workTypes?.length ? ` · Trabaja como ${w.workTypes.map((t) => t.name).join(', ')}` : ''}
                       {w.observation ? ` · ${w.observation}` : ''}
                     </Typography>
                   </Box>
@@ -609,6 +609,7 @@ function ProviderView() {
         <WorkProviderDialog
           open={Boolean(assignDialog)}
           prvId={provider.prvId}
+          defaultTypeIds={provider.pvtIds}
           assignment={assignDialog?.assignment ?? null}
           onClose={() => setAssignDialog(null)}
           onSaved={assignmentSaved}
@@ -633,7 +634,6 @@ function ProviderView() {
         message="Hay cambios sin guardar en el proveedor. ¿Salir sin guardarlos?"
         confirmLabel="Descartar"
       />
-      {invoiceMoveDialog}
     </RouteDialog>
   );
 }

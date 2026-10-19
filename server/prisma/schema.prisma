@@ -208,6 +208,7 @@ model tbl_user_permissions {
   usp_id          Int             @id @default(autoincrement())
   per_id          Int
   use_id          Int
+  usp_granted     Boolean         @default(true)
   tbl_permissions tbl_permissions @relation(fields: [per_id], references: [per_id], onUpdate: Restrict, map: "tbl_user_permissions_permissions")
   tbl_users       tbl_users       @relation(fields: [use_id], references: [use_id], onUpdate: Restrict, map: "tbl_user_permissions_users")
 
@@ -430,6 +431,7 @@ model tbl_provider_types {
   deleted_by_user                  tbl_users?                         @relation("ProviderTypeDeletedBy", fields: [pvt_delete_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_provider_types_delete_by")
   tbl_status                       tbl_status                         @relation(fields: [sta_id], references: [sta_id], onUpdate: Restrict, map: "tbl_provider_types_status")
   updated_by_user                  tbl_users?                         @relation("ProviderTypeUpdatedBy", fields: [pvt_update_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_provider_types_update_by")
+  tbl_work_provider_types          tbl_work_provider_types[]
 
   @@index([pvt_create_by], map: "tbl_provider_types_create_by")
   @@index([pvt_delete_by], map: "tbl_provider_types_delete_by")
@@ -768,25 +770,26 @@ model tbl_provider_contacts {
 /// Asignación proveedor-obra (database/migrations/0046_create_work_providers.sql). Entidad propia N:M,
 /// con estado, fecha y observaciones de la participación. Desasignar borra la fila; la bitácora la conserva.
 model tbl_work_providers {
-  wkp_id               Int             @id @default(autoincrement())
-  wrk_id               Int
-  prv_id               Int
-  wkp_assignment_date  DateTime        @db.Date
-  wkp_observation      String?         @db.VarChar(500)
-  sta_id               Int             @default(1)
-  wkp_create_by        Int?
-  wkp_create_at        DateTime?       @default(now()) @db.Timestamp(0)
-  wkp_update_by        Int?
-  wkp_update_at        DateTime?       @default(now()) @db.Timestamp(0)
-  wkp_idempotency_key  String?         @unique(map: "uq_work_providers_idempotency_key") @db.Char(36)
-  wkp_idempotency_hash String?         @db.Char(64)
-  tbl_contracts        tbl_contracts[]
-  tbl_invoices         tbl_invoices[]
-  created_by_user      tbl_users?      @relation("WorkProviderCreatedBy", fields: [wkp_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_work_providers_create_by")
-  tbl_providers        tbl_providers   @relation(fields: [prv_id], references: [prv_id], onUpdate: NoAction, map: "tbl_work_providers_provider")
-  tbl_status           tbl_status      @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_work_providers_status")
-  updated_by_user      tbl_users?      @relation("WorkProviderUpdatedBy", fields: [wkp_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_work_providers_update_by")
-  tbl_works            tbl_works       @relation(fields: [wrk_id], references: [wrk_id], onUpdate: NoAction, map: "tbl_work_providers_work")
+  wkp_id                  Int                       @id @default(autoincrement())
+  wrk_id                  Int
+  prv_id                  Int
+  wkp_assignment_date     DateTime                  @db.Date
+  wkp_observation         String?                   @db.VarChar(500)
+  sta_id                  Int                       @default(1)
+  wkp_create_by           Int?
+  wkp_create_at           DateTime?                 @default(now()) @db.Timestamp(0)
+  wkp_update_by           Int?
+  wkp_update_at           DateTime?                 @default(now()) @db.Timestamp(0)
+  wkp_idempotency_key     String?                   @unique(map: "uq_work_providers_idempotency_key") @db.Char(36)
+  wkp_idempotency_hash    String?                   @db.Char(64)
+  tbl_contracts           tbl_contracts[]
+  tbl_invoices            tbl_invoices[]
+  tbl_work_provider_types tbl_work_provider_types[]
+  created_by_user         tbl_users?                @relation("WorkProviderCreatedBy", fields: [wkp_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_work_providers_create_by")
+  tbl_providers           tbl_providers             @relation(fields: [prv_id], references: [prv_id], onUpdate: NoAction, map: "tbl_work_providers_provider")
+  tbl_status              tbl_status                @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_work_providers_status")
+  updated_by_user         tbl_users?                @relation("WorkProviderUpdatedBy", fields: [wkp_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_work_providers_update_by")
+  tbl_works               tbl_works                 @relation(fields: [wrk_id], references: [wrk_id], onUpdate: NoAction, map: "tbl_work_providers_work")
 
   @@unique([wrk_id, prv_id], map: "uq_work_providers_work_provider")
   @@index([wkp_create_by], map: "tbl_work_providers_create_by")
@@ -805,6 +808,8 @@ model tbl_contracts {
   ctr_id                      Int                           @id @default(autoincrement())
   wrk_id                      Int
   prv_id                      Int
+  pvt_id                      Int
+  ctr_invoice_view            String?                       @db.VarChar(20)
   wks_id                      Int?
   ctt_id                      Int
   ctr_number                  String                        @db.VarChar(50)
@@ -838,6 +843,7 @@ model tbl_contracts {
   updated_by_user             tbl_users?                    @relation("ContractUpdatedBy", fields: [ctr_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contracts_update_by")
   tbl_works                   tbl_works                     @relation(fields: [wrk_id], references: [wrk_id], onUpdate: NoAction, map: "tbl_contracts_work")
   tbl_work_providers          tbl_work_providers            @relation(fields: [wrk_id, prv_id], references: [wrk_id, prv_id], onUpdate: NoAction, map: "tbl_contracts_work_provider")
+  tbl_work_provider_types     tbl_work_provider_types       @relation(fields: [wrk_id, prv_id, pvt_id], references: [wrk_id, prv_id, pvt_id], onUpdate: NoAction, map: "tbl_contracts_work_provider_type")
   tbl_work_stages             tbl_work_stages?              @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: NoAction, map: "tbl_contracts_work_stage")
   tbl_invoices                tbl_invoices[]
   tbl_policies                tbl_policies[]
@@ -851,7 +857,8 @@ model tbl_contracts {
   @@index([prv_id], map: "tbl_contracts_provider")
   @@index([sta_id], map: "tbl_contracts_status")
   @@index([ctr_update_by], map: "tbl_contracts_update_by")
-  @@index([wrk_id, prv_id], map: "tbl_contracts_work_provider")
+  @@index([ctr_invoice_view], map: "idx_contracts_invoice_view")
+  @@index([wrk_id, prv_id, pvt_id], map: "tbl_contracts_work_provider_type")
   @@index([wks_id, wrk_id], map: "tbl_contracts_work_stage")
 }
 
@@ -1318,6 +1325,21 @@ model tbl_provider_type_field_versions {
   @@unique([pvt_id, pfv_version, cfd_id], map: "uq_provider_type_field_versions")
   @@index([cfd_id], map: "idx_provider_type_field_versions_field")
   @@index([pfv_create_by], map: "tbl_provider_type_field_versions_create_by")
+}
+
+/// Tipos con que trabaja el proveedor en una obra (database/migrations/0099_provider_types_per_work_and_contract.sql,
+/// DEC-066): cualquiera, aunque el proveedor no lo tenga en su maestro. El contrato se firma bajo uno de ellos.
+model tbl_work_provider_types {
+  wpt_id             Int                @id @default(autoincrement())
+  wrk_id             Int
+  prv_id             Int
+  pvt_id             Int
+  tbl_contracts      tbl_contracts[]
+  tbl_provider_types tbl_provider_types @relation(fields: [pvt_id], references: [pvt_id], onUpdate: NoAction, map: "tbl_work_provider_types_provider_type")
+  tbl_work_providers tbl_work_providers @relation(fields: [wrk_id, prv_id], references: [wrk_id, prv_id], onDelete: Cascade, onUpdate: NoAction, map: "tbl_work_provider_types_work_provider")
+
+  @@unique([wrk_id, prv_id, pvt_id], map: "uq_work_provider_types_work_provider_type")
+  @@index([pvt_id], map: "tbl_work_provider_types_provider_type")
 }
 
 enum tbl_documents_doc_type {

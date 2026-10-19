@@ -209,8 +209,8 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
           )}
           {inherited.length > 0 && (
             <Alert severity="warning">
-              {inherited.map((field) => field.label).join(', ')}: ya no aplica para los tipos del proveedor. Se muestra en solo lectura con
-              el valor pactado con una configuración anterior, y se conserva al guardar.
+              {inherited.map((field) => field.label).join(', ')}: ya no aplica para el tipo de proveedor del contrato. Se muestra en solo
+              lectura con el valor pactado con una configuración anterior, y se conserva al guardar.
             </Alert>
           )}
           <Grid container spacing={2}>

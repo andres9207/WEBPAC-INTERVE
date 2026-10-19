@@ -4,6 +4,8 @@
 
 Decidido por el usuario el 2026-10-13. Reemplaza lo que [DEC-054](DEC-054-vistas-facturas-simple-sin-obra.md) decía del menú de facturas del **tipo de contrato** (`ctt_invoice_view`, su bloqueo con facturas y el de cambiar el tipo de un contrato con facturas). Las tres vistas, sus permisos, sus páginas y la factura simple sin obra siguen como dice DEC-054. Cierra la tarea PRO-BE-40 del backlog.
 
+> **Reemplazada en parte por [DEC-066](DEC-066-tipo-proveedor-por-obra-y-contrato.md)** (2026-10-19): un proveedor puede tener tipos de menús distintos; el tipo se define en cada obra y en cada contrato, que guarda su menú (`ctr_invoice_view`), y la factura de contrato toma el de su contrato. Se retiraron `assertNotMixed`, el menú calculado del proveedor y la decisión de mover las facturas o dejarlas como histórico. Siguen vigentes el menú en el tipo de proveedor y la vista guardada en la factura.
+
 ## Contexto
 
 - Desde [DEC-053](DEC-053-campos-contrato-por-tipo-proveedor.md), la configuración del contrato sale del tipo de proveedor. El usuario pidió que el menú de facturas (contrato mayor o subcontratistas) también salga de ahí.
