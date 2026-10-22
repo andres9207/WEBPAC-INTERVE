@@ -126,6 +126,18 @@ export const updateAccountController = async (req, res, next) => {
   }
 };
 
+export const updateThemeModeController = async (req, res, next) => {
+  try {
+    const { themeMode } = req.body;
+    // Autoservicio: el usuario siempre sale del JWT (DEC-073).
+    const { useId } = req.user;
+    const result = await authService.updateThemeMode({ themeMode, useId });
+    return res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const updatePasswordController = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;

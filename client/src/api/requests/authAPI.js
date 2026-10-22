@@ -34,3 +34,10 @@ export const validateCodeAPI = (params) =>
 
 export const restorePasswordAPI = (params) =>
   httpCliente.post('/auth/restore_password', params);
+
+/**
+ * Guardar el tema de la interfaz del propio usuario (DEC-073).
+ * @param {'light' | 'dark'} themeMode
+ */
+export const updateThemeModeAPI = (themeMode) =>
+  httpCliente.put('/auth/update_theme_mode', { themeMode });

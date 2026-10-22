@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography';
 
 import MainCard from 'ui-component/cards/MainCard';
 import { invoicePath } from 'utils/constants';
+import useSchemePalette from 'hooks/useSchemePalette';
 
 /**
  * Facturas recibidas por obra (DEC-052): registradas y aprobadas, sin las
@@ -19,6 +20,7 @@ import { invoicePath } from 'utils/constants';
  */
 export default function InvoicesByWorkCard({ byWork, view }) {
   const theme = useTheme();
+  const palette = useSchemePalette();
   const navigate = useNavigate();
   const open = (index) => {
     const work = byWork[index];
@@ -37,19 +39,20 @@ export default function InvoicesByWorkCard({ byWork, view }) {
       }
     },
     plotOptions: { bar: { borderRadius: 4, borderRadiusApplication: 'end', borderRadiusWhenStacked: 'last', columnWidth: '45%' } },
-    colors: [theme.palette.orange.dark, theme.palette.primary[800]],
-    stroke: { show: true, width: 2, colors: [theme.palette.background.paper] },
+    colors: [palette.orange.dark, palette.primary[800]],
+    stroke: { show: true, width: 2, colors: [palette.background.paper] },
     dataLabels: { enabled: false },
-    legend: { position: 'top', horizontalAlign: 'left', labels: { colors: theme.palette.text.primary } },
+    legend: { position: 'top', horizontalAlign: 'left', labels: { colors: palette.text.primary } },
     xaxis: {
       categories: byWork.map((w) => w.workCode ?? '—'),
-      labels: { style: { colors: theme.palette.text.secondary }, rotate: -30, hideOverlappingLabels: true },
+      labels: { style: { colors: palette.text.secondary }, rotate: -30, hideOverlappingLabels: true },
       axisBorder: { show: false },
       axisTicks: { show: false }
     },
-    yaxis: { forceNiceScale: true, labels: { formatter: (v) => String(Math.round(v)), style: { colors: theme.palette.text.secondary } } },
-    grid: { borderColor: theme.palette.divider, strokeDashArray: 3 },
+    yaxis: { forceNiceScale: true, labels: { formatter: (v) => String(Math.round(v)), style: { colors: palette.text.secondary } } },
+    grid: { borderColor: palette.divider, strokeDashArray: 3 },
     tooltip: {
+      theme: palette.mode,
       shared: true,
       intersect: false,
       x: { formatter: (_v, { dataPointIndex }) => `${byWork[dataPointIndex]?.workCode} — ${byWork[dataPointIndex]?.workName ?? ''}` },

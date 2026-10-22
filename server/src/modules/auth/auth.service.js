@@ -123,6 +123,7 @@ export const login = async ({ usuario, clave, password, ctx = {} }) => {
       use_name: true,
       use_last_name: true,
       use_email: true,
+      use_theme_mode: true,
       pro_id: true,
       tbl_profiles: { select: { pro_name: true } },
     },
@@ -194,6 +195,7 @@ export const login = async ({ usuario, clave, password, ctx = {} }) => {
     email: userData.use_email,
     proId: userData.pro_id,
     profileName: userData.tbl_profiles?.pro_name ?? null,
+    themeMode: userData.use_theme_mode,
     permissions,
   };
 };
@@ -251,6 +253,25 @@ export const updateAccount = async ({ name, lastName, username, email, useId, ct
     // token coincida con el de la BD: el controller reemite el token con los
     // datos nuevos para que cambiar el propio correo no cierre la sesión.
     return { useId: before.use_id, name, email, proId: before.pro_id };
+  }, { idempotent: true });
+
+// Preferencia visual (DEC-073): sin bitácora y sin autoría. Asignar
+// use_update_at a sí mismo evita su ON UPDATE CURRENT_TIMESTAMP, para que
+// cambiar el tema no figure como una modificación del usuario.
+export const updateThemeMode = async ({ themeMode, useId }) =>
+  withTransaction(async (tx) => {
+    const updated = await tx.$executeRaw`
+      UPDATE tbl_users
+         SET use_theme_mode = ${themeMode}, use_update_at = use_update_at
+       WHERE use_id = ${Number(useId)}`;
+
+    if (updated === 0) {
+      const error = new Error("No se encontró el usuario.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return { themeMode };
   }, { idempotent: true });
 
 export const updatePassword = async ({ currentPassword, newPassword, useId, ctx = { useId } }) => {

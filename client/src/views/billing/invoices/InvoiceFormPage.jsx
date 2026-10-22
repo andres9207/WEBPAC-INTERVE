@@ -467,7 +467,7 @@ export default function InvoiceFormPage() {
               bgcolor: 'grey.50',
               // Tapa el formulario que pasa por encima y por debajo de las
               // tarjetas, sin cambiar el espacio que ocupan.
-              boxShadow: { md: `0 -${CARDS_GAP}px 0 0 ${theme.palette.grey[50]}, 0 ${CARDS_GAP}px 0 0 ${theme.palette.grey[50]}` }
+              boxShadow: { md: `0 -${CARDS_GAP}px 0 0 ${theme.vars.palette.grey[50]}, 0 ${CARDS_GAP}px 0 0 ${theme.vars.palette.grey[50]}` }
             })}
           >
             <ContractBalanceCards balances={balances} />

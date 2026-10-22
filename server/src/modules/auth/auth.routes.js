@@ -12,6 +12,7 @@ import {
   restorePasswordSchema,
   updatePasswordSchema,
   updateAccountSchema,
+  updateThemeModeSchema,
 } from "./auth.validation.js";
 import {
   loginController,
@@ -19,6 +20,7 @@ import {
   logoutController,
   getSettlementController,
   updateAccountController,
+  updateThemeModeController,
   updatePasswordController,
   getWindowsByProfileController,
   validateCodePasswordController,
@@ -71,6 +73,16 @@ authRoutes.put(
   updateAccountSchema,
   validate,
   updateAccountController
+);
+
+// Tema de la interfaz del propio usuario (DEC-073): autoservicio, sin
+// requirePermission.
+authRoutes.put(
+  "/update_theme_mode",
+  verifyToken,
+  updateThemeModeSchema,
+  validate,
+  updateThemeModeController
 );
 
 authRoutes.post(

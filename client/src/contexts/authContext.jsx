@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import Cookies from 'js-cookie';
+import { useColorScheme } from '@mui/material/styles';
 import { loginAPI, logoutAPI, verifyTokenAPI } from 'api/requests/authAPI';
 import { getPermissionsCatalogAPI } from 'api/requests/permissionsApi';
 
@@ -27,6 +28,9 @@ export function AuthProvider({ children }) {
   const [loading, setLoading]             = useState(false);
   const [error, setError]                 = useState(null);
   const [initializing, setInitializing]   = useState(true); // ✅
+  // Tema guardado del usuario (DEC-073): se aplica al verificar la sesión y
+  // al iniciarla; sin sesión, el claro.
+  const { setMode } = useColorScheme();
 
 const isAuthenticated = useMemo(
   () => !!user,
@@ -65,6 +69,7 @@ const isAuthenticated = useMemo(
           proName: data.profileName,
         });
         setPermissions(data.permissions ?? []);
+        setMode(data.themeMode ?? 'light');
         Cookies.set('id', JSON.stringify({
           useId: data.useId,
           username: data.username,
@@ -81,13 +86,14 @@ const isAuthenticated = useMemo(
         Cookies.remove('id');
         setUser(null);
         setPermissions([]);
+        setMode('light');
       } finally {
         setInitializing(false); // ✅ siempre se ejecuta, tanto en éxito como en error
       }
     };
 
     verifySession();
-  }, [fetchPermissionsCatalog]);
+  }, [fetchPermissionsCatalog, setMode]);
 
   // ── Login ──────────────────────────────────────────────────────────────────
   const login = useCallback(async (credentials) => {
@@ -98,12 +104,13 @@ const isAuthenticated = useMemo(
 
       // El backend fija la sesión vía cookie httpOnly; el body solo trae los
       // datos del usuario: { useId, username, fullName, email, proId, profileName, permissions }
-      const { permissions, ...user } = data;
+      const { permissions, themeMode, ...user } = data;
 
       Cookies.set('id', JSON.stringify(user), { expires: 1 });
 
       setUser(user);
       setPermissions(permissions ?? []);
+      setMode(themeMode ?? 'light');
       await fetchPermissionsCatalog();
 
       return data;
@@ -114,7 +121,7 @@ const isAuthenticated = useMemo(
     } finally {
       setLoading(false);
     }
-  }, [fetchPermissionsCatalog]);
+  }, [fetchPermissionsCatalog, setMode]);
   // ── Logout ─────────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
     try { await logoutAPI(); } catch { /* silencioso */ }
@@ -122,7 +129,8 @@ const isAuthenticated = useMemo(
     setUser(null);
     setPermissions([]);
     setPermissionsCatalog({});
-  }, []);
+    setMode('light');
+  }, [setMode]);
 
   // ── Verificar permiso puntual ──────────────────────────────────────────────
   const hasPermission = useCallback(

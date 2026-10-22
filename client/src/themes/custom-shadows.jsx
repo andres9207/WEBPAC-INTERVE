@@ -25,6 +25,7 @@ function createCustomShadow(palette, baseColor) {
 }
 
 export default function CustomShadows(palette, mode) {
-  const baseColor = palette.grey[900];
+  // En oscuro, grey.900 es un tono claro (texto): la sombra sale del fondo.
+  const baseColor = mode === 'dark' ? palette.dark[900] : palette.grey[900];
   return createCustomShadow(palette, baseColor);
 }

@@ -285,7 +285,7 @@ export default function PermissionsDrawer({ visible, setVisible, title, prfId, o
                         {pagePerms.map(({ perId, name, fromProfile }) => (
                           <Stack key={perId} direction="row" alignItems="center" justifyContent="space-between">
                             <Stack direction="row" alignItems="center" spacing={1}>
-                              <IconShield size={16} style={{ color: '#0eb0e9' }} />
+                              <Box component={IconShield} size={16} sx={{ color: 'primary.main', flexShrink: 0 }} />
                               <Box>
                                 <Typography variant="body2">{name}</Typography>
                                 {opc !== 1 && <PermissionOrigin fromProfile={fromProfile} checked={permisosAdd.includes(perId)} />}

@@ -51,8 +51,8 @@ export const CONTRACT_STATE_CHART_COLORS = {
 
 export const POLICY_STATUS_COLORS = { NONE: 'default', NO_DATE: 'default', ACTIVE: 'success', EXPIRING: 'warning', EXPIRED: 'error' };
 
-/** Lee "primary.800" de la paleta del tema. */
-export const paletteColor = (theme, key) => key.split('.').reduce((node, part) => node?.[part], theme.palette) ?? key;
+/** Lee "primary.800" de la paleta del tema activo (`useSchemePalette`). */
+export const paletteColor = (palette, key) => key.split('.').reduce((node, part) => node?.[part], palette) ?? key;
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 

@@ -26,9 +26,9 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DescriptionIcon from "@mui/icons-material/Description";
 
 const getFileIcon = (extension, mimeType) => {
-    if (mimeType?.startsWith("image/")) return <ImageIcon sx={{ fontSize: 32, color: "#4caf50" }} />;
-    if (extension === "pdf" || mimeType === "application/pdf") return <PictureAsPdfIcon sx={{ fontSize: 32, color: "#f44336" }} />;
-    return <DescriptionIcon sx={{ fontSize: 32, color: "#1976d2" }} />;
+    if (mimeType?.startsWith("image/")) return <ImageIcon sx={{ fontSize: 32, color: "success.dark" }} />;
+    if (extension === "pdf" || mimeType === "application/pdf") return <PictureAsPdfIcon sx={{ fontSize: 32, color: "error.main" }} />;
+    return <DescriptionIcon sx={{ fontSize: 32, color: "primary.main" }} />;
 };
 
 const getFileSize = (bytes) => {

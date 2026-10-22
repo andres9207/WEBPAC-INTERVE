@@ -10,26 +10,29 @@ import Button from '@mui/material/Button';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import { IconFilter, IconCheck } from '@tabler/icons-react';
+import useSchemePalette from 'hooks/useSchemePalette';
 
-const chipBg = (theme, color) => {
+// `palette` es la del tema activo (useSchemePalette, DEC-073).
+const chipBg = (palette, color) => {
   const map = {
-    success: theme.palette.success.main,
-    warning: theme.palette.warning.main,
-    lilac: theme.palette.lilac.main,
-    error: theme.palette.error.main,
-    info: theme.palette.info.main,
+    success: palette.success.main,
+    warning: palette.warning.main,
+    lilac: palette.lilac.main,
+    error: palette.error.main,
+    info: palette.info.main,
   };
   return map[color] ?? undefined;
 };
 
 // Lila: texto morado oscuro del tema; el resto, el contraste automático.
-const chipText = (theme, color) => {
-  if (color === 'lilac') return theme.palette.lilac.contrastText;
-  return chipBg(theme, color) ? theme.palette.getContrastText(chipBg(theme, color)) : undefined;
+const chipText = (theme, palette, color) => {
+  if (color === 'lilac') return palette.lilac.contrastText;
+  return chipBg(palette, color) ? theme.palette.getContrastText(chipBg(palette, color)) : undefined;
 };
 
 export default function StatusTabs({ statusTabs, selectedStatus, onChange, hideAll }) {
   const theme = useTheme();
+  const palette = useSchemePalette();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [anchorEl, setAnchorEl] = useState(null);
 
@@ -86,8 +89,8 @@ export default function StatusTabs({ statusTabs, selectedStatus, onChange, hideA
                     label={status.total ?? status.count}
                     size="small"
                    sx={{
-                      bgcolor: chipBg(theme, status.staColor ?? status.color),
-                      color: chipText(theme, status.staColor ?? status.color),
+                      bgcolor: chipBg(palette, status.staColor ?? status.color),
+                      color: chipText(theme, palette, status.staColor ?? status.color),
                     }}
                   />
                 </Stack>
@@ -129,8 +132,8 @@ export default function StatusTabs({ statusTabs, selectedStatus, onChange, hideA
                 label={status.total ?? status.count}
                 size="small"
                 sx={{
-                  bgcolor: chipBg(theme, status.staColor ?? status.color),
-                  color: chipText(theme, status.staColor ?? status.color),
+                  bgcolor: chipBg(palette, status.staColor ?? status.color),
+                  color: chipText(theme, palette, status.staColor ?? status.color),
                 }}
               />
             </Stack>

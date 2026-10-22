@@ -11,12 +11,14 @@ const mockLogin = jest.fn();
 const mockGetBasicInformation = jest.fn();
 const mockUpdateAccount = jest.fn();
 const mockUpdatePassword = jest.fn();
+const mockUpdateThemeMode = jest.fn();
 
 jest.unstable_mockModule("../../../src/modules/auth/auth.service.js", () => ({
   login: mockLogin,
   getBasicInformation: mockGetBasicInformation,
   updateAccount: mockUpdateAccount,
   updatePassword: mockUpdatePassword,
+  updateThemeMode: mockUpdateThemeMode,
 }));
 
 const sessionMock = {
@@ -40,6 +42,7 @@ const {
   getSettlementController,
   updateAccountController,
   updatePasswordController,
+  updateThemeModeController,
 } = await import("../../../src/modules/auth/auth.controller.js");
 const { default: jwt } = await import("jsonwebtoken");
 
@@ -111,6 +114,18 @@ describe("auth.controller — el sujeto siempre sale de req.user", () => {
     });
     expect(sessionMock.createSession).toHaveBeenCalledWith({ user, ip: "1.2.3.4", userAgent: "jest" });
     expect(sessionMock.setSessionCookies).toHaveBeenCalledWith(res, { accessToken: "a", refreshToken: "r" });
+  });
+
+  it("updateThemeModeController usa req.user.useId, ignora useId del body", async () => {
+    mockUpdateThemeMode.mockResolvedValue({ themeMode: "dark" });
+    const req = { user: { useId: 1 }, body: { themeMode: "dark", useId: 999 } };
+    const res = buildRes();
+
+    await updateThemeModeController(req, res, jest.fn());
+
+    expect(mockUpdateThemeMode).toHaveBeenCalledWith({ themeMode: "dark", useId: 1 });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({ themeMode: "dark" });
   });
 
   it("delega al next(err) si el service lanza, sin responder el error directamente", async () => {

@@ -236,6 +236,7 @@ model tbl_users {
   sta_id                                   Int?                                   @default(1)
   use_access                               Int?                                   @default(1) @db.SmallInt
   use_change_password                      Int?                                   @default(1) @db.SmallInt
+  use_theme_mode                           String                                 @default("light") @db.VarChar(10)
   use_create_by                            Int?
   use_create_at                            DateTime?                              @default(now()) @db.Timestamp(0)
   use_update_by                            Int?

@@ -9,6 +9,7 @@ import LogoSection from '../LogoSection';
 import ProfileSection from './ProfileSection';
 import WorkSection from './WorkSection';
 import NotificationSection from './NotificationSection';
+import ThemeModeSection from './ThemeModeSection';
 
 import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
 
@@ -59,6 +60,9 @@ export default function Header() {
 
       {/* notificaciones de la obra elegida (DEC-072) */}
       <NotificationSection />
+
+      {/* modo claro / oscuro del usuario (DEC-073) */}
+      <ThemeModeSection />
 
       {/* profile */}
       <ProfileSection />

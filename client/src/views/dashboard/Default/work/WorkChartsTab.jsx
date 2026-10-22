@@ -30,6 +30,7 @@ import {
   paletteColor,
   plural
 } from './workDashboard.utils';
+import useSchemePalette from 'hooks/useSchemePalette';
 
 // Contratos y facturas de la obra en gráficos (DEC-063). Los importes y
 // porcentajes llegan del servidor; aquí solo se dibujan. Cada gráfico lleva
@@ -369,6 +370,7 @@ const monthDrill = (items, entry, state) => ({
 
 function InvoicedByMonth({ byMonth, items, onDrill }) {
   const theme = useTheme();
+  const palette = useSchemePalette();
   const options = {
     chart: {
       type: 'bar',
@@ -382,19 +384,20 @@ function InvoicedByMonth({ byMonth, items, onDrill }) {
       }
     },
     plotOptions: { bar: { borderRadius: 4, borderRadiusApplication: 'end', borderRadiusWhenStacked: 'last', columnWidth: '50%' } },
-    colors: [theme.palette.primary[800], theme.palette.orange.dark],
-    stroke: { show: true, width: 2, colors: [theme.palette.background.paper] },
+    colors: [palette.primary[800], palette.orange.dark],
+    stroke: { show: true, width: 2, colors: [palette.background.paper] },
     dataLabels: { enabled: false },
-    legend: { position: 'top', horizontalAlign: 'left', labels: { colors: theme.palette.text.primary } },
+    legend: { position: 'top', horizontalAlign: 'left', labels: { colors: palette.text.primary } },
     xaxis: {
       categories: byMonth.map((m) => monthLabel(m.month)),
-      labels: { style: { colors: theme.palette.text.secondary } },
+      labels: { style: { colors: palette.text.secondary } },
       axisBorder: { show: false },
       axisTicks: { show: false }
     },
-    yaxis: { labels: { formatter: (v) => fMillions(String(v)), style: { colors: theme.palette.text.secondary } } },
-    grid: { borderColor: theme.palette.divider, strokeDashArray: 3 },
+    yaxis: { labels: { formatter: (v) => fMillions(String(v)), style: { colors: palette.text.secondary } } },
+    grid: { borderColor: palette.divider, strokeDashArray: 3 },
     tooltip: {
+      theme: palette.mode,
       shared: true,
       intersect: false,
       y: {
@@ -636,7 +639,7 @@ InvoicedByContract.propTypes = {
 };
 
 function Advances({ contracts }) {
-  const theme = useTheme();
+  const palette = useSchemePalette();
   const list = contracts.filter((c) => c.advance.agreed !== '0.00');
   const row = (label, value, percent, color) => (
     // En el teléfono la cifra baja a su propia línea: la barra conserva el ancho.
@@ -660,7 +663,7 @@ function Advances({ contracts }) {
           height: 10,
           borderRadius: 1,
           bgcolor: 'grey.100',
-          '& .MuiLinearProgress-bar': { bgcolor: paletteColor(theme, color), borderRadius: 1 }
+          '& .MuiLinearProgress-bar': { bgcolor: paletteColor(palette, color), borderRadius: 1 }
         }}
       />
       <Typography variant="caption" sx={{ ...num, textAlign: 'right', fontWeight: 500, gridColumn: { xs: 2, sm: 'auto' } }}>
@@ -698,6 +701,7 @@ Advances.propTypes = { contracts: PropTypes.arrayOf(PropTypes.object).isRequired
 
 function ContractsByState({ contracts, onDrill }) {
   const theme = useTheme();
+  const palette = useSchemePalette();
   const present = contracts.byState.filter((s) => s.count > 0);
   const drill = (s) =>
     onDrill({
@@ -715,10 +719,10 @@ function ContractsByState({ contracts, onDrill }) {
       events: { dataPointSelection: (_e, _c, { dataPointIndex }) => present[dataPointIndex] && drill(present[dataPointIndex]) }
     },
     labels: present.map((s) => s.name),
-    colors: present.map((s) => paletteColor(theme, CONTRACT_STATE_CHART_COLORS[s.state])),
+    colors: present.map((s) => paletteColor(palette, CONTRACT_STATE_CHART_COLORS[s.state])),
     legend: { show: false },
     dataLabels: { enabled: false },
-    stroke: { width: 2, colors: [theme.palette.background.paper] },
+    stroke: { width: 2, colors: [palette.background.paper] },
     plotOptions: {
       pie: {
         donut: {
@@ -731,7 +735,7 @@ function ContractsByState({ contracts, onDrill }) {
         }
       }
     },
-    tooltip: { y: { formatter: (v) => plural(v, 'contrato', 'contratos') } }
+    tooltip: { theme: palette.mode, y: { formatter: (v) => plural(v, 'contrato', 'contratos') } }
   };
   return (
     <MainCard

@@ -1,4 +1,5 @@
 import { RouterProvider } from 'react-router-dom';
+import { useColorScheme } from '@mui/material/styles';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -16,6 +17,12 @@ import ThemeCustomization from 'themes';
 // auth provider
 import { AuthContext, AuthProvider } from 'contexts/AuthContext';
 import { SocketProvider } from 'socket/SocketProvider';
+
+// Los avisos siguen el tema activo (DEC-073).
+function ThemedToastContainer() {
+  const { colorScheme } = useColorScheme();
+  return <ToastContainer position="top-right" autoClose={3000} theme={colorScheme === 'dark' ? 'dark' : 'light'} />;
+}
 
 // ==============================|| APP ||============================== //
 
@@ -35,7 +42,7 @@ export default function App() {
                 <NavigationScroll>
                   <>
                     <RouterProvider router={router} />
-                    <ToastContainer position="top-right" autoClose={3000} theme="light" />
+                    <ThemedToastContainer />
                   </>
                 </NavigationScroll>
               </SocketProvider>

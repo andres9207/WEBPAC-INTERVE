@@ -10,6 +10,7 @@ import ListItem from '@mui/material/ListItem';
 import Typography from '@mui/material/Typography';
 
 import MainCard from 'ui-component/cards/MainCard';
+import useSchemePalette from 'hooks/useSchemePalette';
 
 /**
  * Estado de pólizas por contrato (ADR-0002, DEC-052, DEC-064): cada contrato
@@ -20,6 +21,7 @@ import MainCard from 'ui-component/cards/MainCard';
  */
 export default function PolicyStatusCard({ policies, expiringDays }) {
   const theme = useTheme();
+  const palette = useSchemePalette();
   const navigate = useNavigate();
   const linkTo = (status) => `/work/contracts?policyStatus=${status}`;
 
@@ -31,17 +33,18 @@ export default function PolicyStatusCard({ policies, expiringDays }) {
       events: { dataPointSelection: (_e, _c, { dataPointIndex }) => navigate(linkTo(policies.byStatus[dataPointIndex].status)) }
     },
     plotOptions: { bar: { horizontal: true, borderRadius: 4, borderRadiusApplication: 'end', barHeight: '60%' } },
-    colors: [theme.palette.primary[800]],
-    dataLabels: { enabled: true, style: { colors: [theme.palette.common.white], fontWeight: 500 } },
+    colors: [palette.primary[800]],
+    // En oscuro la barra es clara (primary.800): el texto va con el color del fondo.
+    dataLabels: { enabled: true, style: { colors: [palette.mode === 'dark' ? palette.background.paper : palette.common.white], fontWeight: 500 } },
     xaxis: {
       categories: policies.byStatus.map((s) => s.name),
-      labels: { style: { colors: theme.palette.text.secondary } },
+      labels: { style: { colors: palette.text.secondary } },
       axisBorder: { show: false },
       axisTicks: { show: false }
     },
-    yaxis: { labels: { style: { colors: theme.palette.text.primary, fontSize: '12px' }, maxWidth: 200 } },
-    grid: { borderColor: theme.palette.divider, strokeDashArray: 3, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
-    tooltip: { y: { formatter: (value) => `${value} contrato${value === 1 ? '' : 's'}`, title: { formatter: () => '' } } },
+    yaxis: { labels: { style: { colors: palette.text.primary, fontSize: '12px' }, maxWidth: 200 } },
+    grid: { borderColor: palette.divider, strokeDashArray: 3, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
+    tooltip: { theme: palette.mode, y: { formatter: (value) => `${value} contrato${value === 1 ? '' : 's'}`, title: { formatter: () => '' } } },
     states: { hover: { filter: { type: 'darken', value: 0.85 } } }
   };
 

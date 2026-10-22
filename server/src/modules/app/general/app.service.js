@@ -111,6 +111,7 @@ export const getSessionInfo = async ({ useId }) => {
       use_name: true,
       use_last_name: true,
       use_email: true,
+      use_theme_mode: true,
       pro_id: true,
       tbl_profiles: { select: { pro_name: true } },
     },
@@ -135,6 +136,7 @@ export const getSessionInfo = async ({ useId }) => {
     email: userData.use_email,
     proId: userData.pro_id,
     profileName: userData.tbl_profiles?.pro_name ?? null,
+    themeMode: userData.use_theme_mode,
     permissions,
   };
 };

@@ -27,7 +27,7 @@ function ListItemWrapper({ children, onClick }) {
         borderColor: 'divider',
         cursor: onClick ? 'pointer' : 'default',
         '&:hover': {
-          bgcolor: withAlpha(theme.palette.grey[200], 0.3)
+          bgcolor: withAlpha(theme.vars.palette.grey[200], 0.3)
         }
       }}
     >
@@ -88,7 +88,7 @@ export default function NotificationList({ notifications = [], onMarkAsRead, onO
               <Avatar
                 sx={{
                   color: `${config.color}.dark`,
-                  bgcolor: withAlpha(theme.palette[config.color]?.light || '#e0e0e0', 0.5)
+                  bgcolor: withAlpha(theme.vars.palette[config.color].light, 0.5)
                 }}
               >
                 <Icon stroke={1.5} size="20px" />

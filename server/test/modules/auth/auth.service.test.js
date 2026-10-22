@@ -26,6 +26,7 @@ const prismaMock = {
     deleteMany: jest.fn(),
   },
   ...transactionRawMocks(),
+  $executeRaw: jest.fn(),
   $transaction: jest.fn(runTransaction),
 };
 
@@ -243,6 +244,30 @@ describe("updateAccount", () => {
         use_id: 1,
       }),
     ]);
+  });
+});
+
+describe("updateThemeMode", () => {
+  const sqlOf = (call) => call[0].join("?");
+
+  it("guarda el tema sin tocar use_update_at ni use_update_by, y sin bitácora", async () => {
+    prismaMock.$executeRaw.mockResolvedValue(1);
+
+    await expect(authService.updateThemeMode({ themeMode: "dark", useId: 1 })).resolves.toEqual({ themeMode: "dark" });
+
+    const [call] = prismaMock.$executeRaw.mock.calls;
+    expect(sqlOf(call)).toContain("use_update_at = use_update_at");
+    expect(sqlOf(call)).not.toContain("use_update_by");
+    expect(call.slice(1)).toEqual(["dark", 1]);
+    expect(prismaMock.tbl_audit_log.createMany).not.toHaveBeenCalled();
+  });
+
+  it("lanza 404 si el usuario no existe", async () => {
+    prismaMock.$executeRaw.mockResolvedValue(0);
+
+    await expect(authService.updateThemeMode({ themeMode: "dark", useId: 999 })).rejects.toMatchObject({
+      statusCode: 404,
+    });
   });
 });
 

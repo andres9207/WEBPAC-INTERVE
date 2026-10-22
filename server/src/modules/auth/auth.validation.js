@@ -1,5 +1,6 @@
 import { body, query } from "express-validator";
 import { emailRule } from "../../common/utils/validation.utils.js";
+import { THEME_MODES } from "../../common/constants/themeMode.constants.js";
 
 export const getWindowsByProfileSchema = [
   query("proId").isInt({ min: 1 }).withMessage("El perfil (proId) debe ser un entero positivo."),
@@ -54,4 +55,8 @@ export const updateAccountSchema = [
   body("lastName").trim().notEmpty().withMessage("El apellido es requerido."),
   body("username").trim().notEmpty().withMessage("El usuario es requerido."),
   emailRule(),
+];
+
+export const updateThemeModeSchema = [
+  body("themeMode").isIn(THEME_MODES).withMessage("El tema debe ser light o dark."),
 ];

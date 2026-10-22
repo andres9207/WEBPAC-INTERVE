@@ -92,9 +92,93 @@ export function buildPalette(presetColor) {
     }
   };
 
+  // Modo oscuro (DEC-073): las mismas claves con el sentido invertido, para que
+  // los componentes que usan la paleta cambien sin tocarlos. `.light` es un
+  // fondo teñido y `.dark`, el acento claro que va sobre él.
+  const darkColors = {
+    primary: {
+      light: colors.darkPrimaryTint,
+      main: colors.darkPrimaryMain,
+      dark: colors.darkPrimaryAccent,
+      200: colors.darkPrimaryTint200,
+      800: colors.darkPrimaryChart
+    },
+    secondary: {
+      light: colors.darkSecondaryTint,
+      main: colors.darkSecondaryMain,
+      dark: colors.darkSecondaryAccent,
+      200: colors.darkSecondaryTint200,
+      800: colors.darkSecondaryLight
+    },
+    error: {
+      light: colors.darkErrorTint,
+      main: colors.darkErrorMain,
+      dark: colors.darkErrorAccent
+    },
+    orange: {
+      light: colors.darkOrangeTint,
+      main: colors.orangeMain,
+      dark: colors.darkOrangeAccent
+    },
+    warning: {
+      light: colors.darkWarningTint,
+      main: colors.warningMain,
+      dark: colors.darkWarningAccent,
+      contrastText: colors.darkWarningText
+    },
+    lilac: {
+      light: colors.darkLilacTint,
+      main: colors.darkLilacTint,
+      dark: colors.darkLilacHover,
+      200: colors.darkLilacBorder,
+      contrastText: colors.darkLilacText
+    },
+    cyan: {
+      main: colors.darkCyanMain
+    },
+    success: {
+      light: colors.darkSuccessTint,
+      200: colors.darkSuccess200,
+      main: colors.successMain,
+      dark: colors.darkSuccessAccent
+    },
+    grey: {
+      50: colors.darkGrey50,
+      100: colors.darkGrey100,
+      200: colors.darkGrey200,
+      300: colors.darkGrey300,
+      400: colors.darkGrey400,
+      500: colors.darkGrey500,
+      600: colors.darkGrey600,
+      700: colors.darkGrey700,
+      800: colors.darkGrey800,
+      900: colors.darkGrey900
+    },
+    dark: {
+      light: colors.darkTextPrimary,
+      main: colors.darkLevel1,
+      dark: colors.darkLevel2,
+      800: colors.darkBackground,
+      900: colors.darkPaper
+    },
+    text: {
+      primary: colors.darkTextPrimary,
+      secondary: colors.darkTextSecondary,
+      dark: colors.darkTextTitle,
+      hint: colors.darkLevel1,
+      heading: colors.darkTextTitle
+    },
+    divider: colors.darkGrey200,
+    background: {
+      paper: colors.darkLevel2,
+      default: colors.darkLevel2
+    }
+  };
+
   const commonColor = { common: { black: colors.darkPaper, white: '#fff' } };
 
   const extendedLight = extendPaletteWithChannels(lightColors);
+  const extendedDark = extendPaletteWithChannels(darkColors);
   const extendedCommon = extendPaletteWithChannels(commonColor);
 
   return {
@@ -102,6 +186,11 @@ export function buildPalette(presetColor) {
       mode: 'light',
       ...extendedCommon,
       ...extendedLight
+    },
+    dark: {
+      mode: 'dark',
+      ...extendedCommon,
+      ...extendedDark
     }
   };
 }

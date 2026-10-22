@@ -87,7 +87,53 @@ const defaultColor = {
   darkSecondaryMain: '#7c4dff',
   darkSecondaryDark: '#651fff',
   darkSecondary200: '#b39ddb',
-  darkSecondary800: '#6200ea'
+  darkSecondary800: '#6200ea',
+
+  // ==============================|| MODO OSCURO DEL PROYECTO (DEC-073) ||============================== //
+  // Mismas claves que el claro, invertidas: `.light` es el fondo teñido, `.dark` el
+  // acento claro que va encima, y la escala de grises va de superficie a texto.
+
+  darkGrey50: '#1d2645',
+  darkGrey100: '#1a223f',
+  darkGrey200: '#323b5e',
+  darkGrey300: '#454f75',
+  darkGrey400: '#5f698f',
+  darkGrey500: '#8492c4',
+  darkGrey600: '#a3aed6',
+  darkGrey700: '#bdc8f0',
+  darkGrey800: '#cdd5f3',
+  darkGrey900: '#e3e8f8',
+
+  darkPrimaryTint: '#1b2b50',
+  darkPrimaryTint200: '#26406b',
+  darkPrimaryAccent: '#64b5f6',
+  darkPrimaryChart: '#90caf9',
+
+  darkSecondaryTint: '#2a2452',
+  darkSecondaryTint200: '#3d3470',
+  darkSecondaryAccent: '#b39ddb',
+
+  darkSuccessTint: '#173a2b',
+  darkSuccess200: '#2e6b4b',
+  darkSuccessAccent: '#69f0ae',
+
+  darkErrorTint: '#45202b',
+  darkErrorMain: '#f44336',
+  darkErrorAccent: '#ef9a9a',
+
+  darkOrangeTint: '#3f2a26',
+  darkOrangeAccent: '#ff8a65',
+
+  darkWarningTint: '#3b3320',
+  darkWarningAccent: '#ffc107',
+  darkWarningText: '#121926',
+
+  darkLilacTint: '#2a2452',
+  darkLilacHover: '#3d3470',
+  darkLilacBorder: '#5e4f9a',
+  darkLilacText: '#d1c4e9',
+
+  darkCyanMain: '#4dd0e1'
 };
 
 export default defaultColor;

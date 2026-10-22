@@ -76,8 +76,8 @@ function PendingDropdownField({ field }) {
                     variant="caption"
                     sx={{
                       flex: 1,
-                      bgcolor: "#f5f5f5",
-                      color: "#000000e8",
+                      bgcolor: "grey.100",
+                      color: "text.dark",
                       px: 1,
                       py: 0.5,
                       borderRadius: 1,
