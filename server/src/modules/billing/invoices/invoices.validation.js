@@ -40,6 +40,7 @@ export const paginationInvoicesSchema = [
   // Filtros por campo (DEC-048).
   optionalText("number", 50),
   optionalText("voucherNumber", 50),
+  optionalText("statement", 100),
   optionalText("contractNumber", 50),
   optionalText("providerName", 255),
   optionalDate("dateFrom"),
@@ -62,12 +63,31 @@ export const getInvoiceFormOptionsSchema = [
   query("includePrvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePrvId debe ser un entero positivo."),
 ];
 
-export const selectInvoiceContractsSchema = [
+const contractSelectRules = [
+  // Sin tipo, los contratos que admiten alguno: el formulario elige el tipo después del contrato.
   query("type")
+    .optional({ values: "falsy" })
     .isIn(Object.values(INVOICE_TYPES).filter(hasContract))
     .withMessage("El tipo debe ser uno de factura de contrato."),
   query("view").isIn(CONTRACT_VIEWS).withMessage("La vista debe ser contrato mayor o subcontratista."),
   query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
+];
+
+export const selectInvoiceProvidersSchema = [
+  ...contractSelectRules,
+  query("includePrvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePrvId debe ser un entero positivo."),
+];
+
+// Filtro Proveedor del listado: la vista es obligatoria (cada listado es de una).
+export const selectInvoiceFilterProvidersSchema = [
+  query("view").isIn(Object.values(INVOICE_VIEWS)).withMessage("La vista de facturas no es válida."),
+  query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
+  query("includePrvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePrvId debe ser un entero positivo."),
+];
+
+export const selectInvoiceContractsSchema = [
+  ...contractSelectRules,
+  query("prvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("prvId debe ser un entero positivo."),
   query("includeCtrId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includeCtrId debe ser un entero positivo."),
 ];
 
@@ -87,9 +107,9 @@ export const saveInvoiceSchema = [
   body("ctrId").if((_value, { req }) => isContractCreate(req)).isInt({ min: 1 }).withMessage("Selecciona el contrato."),
   body("wrkId").if((_value, { req }) => isSimpleCreate(req)).isInt({ min: 1 }).withMessage("Selecciona la obra."),
   body("prvId").if((_value, { req }) => isSimpleCreate(req)).isInt({ min: 1 }).withMessage("Selecciona el proveedor."),
-  body("wksId").if((_value, { req }) => isSimpleCreate(req)).isInt({ min: 1 }).withMessage("Selecciona la etapa."),
   // Proveedor y etapa: de la factura simple (DEC-058), al crear y al editar.
-  // Si aplican lo decide el service con el tipo guardado.
+  // Si aplican lo decide el service con el tipo guardado; la etapa, además,
+  // solo es obligatoria si la obra tiene etapas (DEC-069).
   optionalId("prvId"),
   optionalId("wksId"),
   body("number")
@@ -143,6 +163,17 @@ export const cancelInvoiceSchema = [
     .trim()
     .notEmpty()
     .withMessage("La observación de la anulación es requerida.")
+    .isLength({ max: 1000 })
+    .withMessage("La observación admite hasta 1000 caracteres."),
+];
+
+// Eliminar (DEC-068): sin clave de idempotencia, repetirla da 404.
+export const deleteInvoiceSchema = [
+  requiredId("invId"),
+  body("observation")
+    .trim()
+    .notEmpty()
+    .withMessage("La observación de la eliminación es requerida.")
     .isLength({ max: 1000 })
     .withMessage("La observación admite hasta 1000 caracteres."),
 ];

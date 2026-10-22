@@ -1,4 +1,4 @@
-import httpCliente from 'api/services/httpCliente';
+﻿import httpCliente from 'api/services/httpCliente';
 import { createMasterApi } from 'api/services/masterApi';
 import { idempotencyConfig } from 'utils/idempotency';
 
@@ -26,10 +26,26 @@ export const getInvoiceWorksSelectAPI = (params = {}) => httpCliente.get('billin
 export const getInvoiceFormOptionsAPI = (params) => httpCliente.get('billing/invoices/get_invoice_form_options', params);
 
 /**
+ * Proveedores con facturas de la vista, en el alcance por obra: el filtro
+ * Proveedor del listado. Busca por razón social o identificación.
+ * @param {{ view: string, search?: string, includePrvId?: number }} params  el ya elegido vuelve aunque la búsqueda lo deje fuera
+ */
+export const getInvoiceFilterProvidersAPI = (params) => httpCliente.get('billing/invoices/select_invoice_filter_providers', params);
+
+/**
+ * Proveedores con algún contrato de la vista cuyo estado admite el tipo de
+ * factura: se eligen antes que el contrato. Busca por razón social o
+ * identificación.
+ * @param {{ type?: string, view: 'MAJOR'|'SUBCONTRACTOR', search?: string, includePrvId?: number }} params  el ya elegido vuelve aunque la búsqueda lo deje fuera
+ */
+export const getInvoiceProvidersSelectAPI = (params) => httpCliente.get('billing/invoices/select_invoice_providers', params);
+
+/**
  * Contratos de la clase de la vista (DEC-054) cuyo estado admite el tipo de
  * factura (ADR-0017): el anticipo, en ejecución; liquidación y devolución de
- * retenido, en liquidación. Busca por número, nombre, proveedor y obra.
- * @param {{ type: string, view: 'MAJOR'|'SUBCONTRACTOR', search?: string, includeCtrId?: number }} params  el contrato ya elegido vuelve aunque la búsqueda lo deje fuera
+ * retenido, en liquidación. Busca por número, nombre, proveedor y obra; con
+ * `prvId`, solo los de ese proveedor.
+ * @param {{ type?: string, view: 'MAJOR'|'SUBCONTRACTOR', prvId?: number, search?: string, includeCtrId?: number }} params  el contrato ya elegido vuelve aunque la búsqueda lo deje fuera
  */
 export const getInvoiceContractsSelectAPI = (params) => httpCliente.get('billing/invoices/select_invoice_contracts', params);
 
@@ -56,5 +72,7 @@ export const invoiceTransitionsApi = {
   /** @param {{ invId, approvalDate, observation }} params */
   approve: (params, idempotencyKey) => httpCliente.post('billing/invoices/approve_invoice', params, idempotencyConfig(idempotencyKey)),
   /** Anular una aprobada exige además el permiso reforzado. @param {{ invId, reaId, observation }} params */
-  cancel: (params, idempotencyKey) => httpCliente.post('billing/invoices/cancel_invoice', params, idempotencyConfig(idempotencyKey))
+  cancel: (params, idempotencyKey) => httpCliente.post('billing/invoices/cancel_invoice', params, idempotencyConfig(idempotencyKey)),
+  /** Eliminación lógica (DEC-068); una aprobada exige además el permiso reforzado. @param {{ invId, observation }} params */
+  remove: (params) => httpCliente.post('billing/invoices/delete_invoice', params)
 };

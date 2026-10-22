@@ -44,7 +44,7 @@ export const UNIQUE_CONSTRAINT_MESSAGES = Object.freeze({
   uq_contract_concepts_initial: "El contrato ya tiene su valor inicial.",
   uq_contract_concepts_liquidation: "El contrato ya tiene un otrosí de liquidación.",
   uq_contract_suspensions_open: "El contrato ya tiene una suspensión abierta.",
-  uq_invoices_provider_number: "Ya existe una factura con ese número para el proveedor.",
+  uq_invoices_provider_number_active: "Ya existe una factura con ese número para el proveedor.",
 
   // Pólizas
   uq_policies_current: "La póliza cambió mientras la modificabas. Actualiza la vista e intenta de nuevo.",

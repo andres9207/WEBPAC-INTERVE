@@ -13,7 +13,7 @@ Decidido por el usuario el 2026-10-14. Reemplaza lo que [DEC-054](DEC-054-vistas
 
 ## Decisión
 
-- **La simple tiene obra y etapa, las dos obligatorias, y no tiene contrato.** El `CHECK` `ck_invoices_type_links` (migración `0094`) exige etapa y no contrato en la simple, y contrato y no etapa en las de contrato, cuya etapa es la del contrato (no se copia).
+- **La simple tiene obra y etapa, las dos obligatorias, y no tiene contrato.** *Cambiado por [DEC-069](DEC-069-etapa-factura-simple-opcional.md) (2026-10-22): la etapa solo es obligatoria si la obra tiene etapas activas; el `CHECK` ya no la exige (migración `0102`).* El `CHECK` `ck_invoices_type_links` (migración `0094`) exige etapa y no contrato en la simple, y contrato y no etapa en las de contrato, cuya etapa es la del contrato (no se copia).
   - `tbl_invoices.wrk_id` vuelve a ser obligatorio, y vuelve `wks_id`.
   - FK `(wks_id, wrk_id)` → `tbl_work_stages`: la etapa es de la obra.
   - FK `(wrk_id, prv_id)` → `tbl_work_providers`: el proveedor está asignado a la obra. Las de contrato ya la cumplen, por la FK del contrato.

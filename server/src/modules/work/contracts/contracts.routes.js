@@ -5,6 +5,7 @@ import { validate } from "../../../common/middlewares/validate.middleware.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import {
   paginationContractsSchema,
+  selectContractFilterProvidersSchema,
   getContractSchema,
   selectContractWorksSchema,
   getContractFormOptionsSchema,
@@ -23,6 +24,7 @@ import {
 } from "./contracts.validation.js";
 import {
   paginationContractsController,
+  selectContractFilterProvidersController,
   getContractController,
   selectContractWorksController,
   getContractFormOptionsController,
@@ -48,6 +50,15 @@ const can = PERMISSIONS.work.contracts;
 const contractsRoutes = express.Router();
 
 contractsRoutes.post("/pagination_contracts", verifyToken, requirePermission(can.view), paginationContractsSchema, validate, paginationContractsController);
+// Filtro Proveedor del listado: proveedores con contratos en el alcance.
+contractsRoutes.get(
+  "/select_contract_filter_providers",
+  verifyToken,
+  requirePermission(can.view),
+  selectContractFilterProvidersSchema,
+  validate,
+  selectContractFilterProvidersController
+);
 contractsRoutes.get("/get_contract", verifyToken, requirePermission(can.view), getContractSchema, validate, getContractController);
 // Obras activas, y etapas y proveedores de una obra, para el formulario.
 contractsRoutes.get("/select_contract_works", verifyToken, requirePermission(can.view), selectContractWorksSchema, validate, selectContractWorksController);

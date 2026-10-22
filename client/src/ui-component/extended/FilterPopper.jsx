@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import Popover from '@mui/material/Popover';
 import Box from '@mui/material/Box';
@@ -15,6 +16,7 @@ import { IconClearAll, IconX } from '@tabler/icons-react';
 
 import SearchSelect from 'ui-component/extended/SearchSelect';
 import SelectSocket from 'ui-component/extended/SelectSocket';
+import { showError } from 'services/ToastService';
 
 /**
  * Filtros de un listado en un panel flotante (DEC-048): un campo por filtro y
@@ -27,6 +29,10 @@ import SelectSocket from 'ui-component/extended/SelectSocket';
  * - `dropdown`: lista cerrada (`props.options`), con buscador (SearchSelect).
  * - `socketDropdown`: maestro que se carga con `fetchApi` y se recarga con
  *   `socketEvent` (SelectSocket).
+ * - `remoteDropdown`: lista con tope que se busca en el servidor mientras se
+ *   escribe (DEC-018): `fetchOptions({ search, includeId })` devuelve las
+ *   opciones; `includeId` es el valor elegido, que debe volver aunque la
+ *   búsqueda lo deje fuera (el panel se desmonta al cerrarse).
  * - `multiSelect`: varias opciones de `props.options`.
  * - `calendar`: una fecha. `calendar-range`: desde y hasta, como `[desde, hasta]`.
  * - `selectButton`: botones exclusivos con `props.options`.
@@ -43,6 +49,48 @@ const normalizeOptions = (options = []) =>
     }
     return { value: option, label: String(option) };
   });
+
+/** Desplegable de un filtro que busca en el servidor al dejar de escribir. */
+const RemoteFilterSelect = ({ value, onChange, label, fetchOptions }) => {
+  const [search, setSearch] = useState('');
+  const [state, setState] = useState({ options: [], loading: false });
+
+  useEffect(() => {
+    let cancelled = false;
+    const term = search.trim();
+    const timer = setTimeout(
+      async () => {
+        setState((s) => ({ ...s, loading: true }));
+        try {
+          const options = await fetchOptions({ search: term, includeId: value || undefined });
+          if (!cancelled) setState({ options, loading: false });
+        } catch (err) {
+          if (cancelled) return;
+          showError(err.response?.data?.message || `Error al cargar ${label.toLowerCase()}`);
+          setState((s) => ({ ...s, loading: false }));
+        }
+      },
+      term ? 300 : 0
+    );
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // El valor elegido solo se pide al abrir el panel: no vuelve a buscar al elegir.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchOptions, search, label]);
+
+  return (
+    <SearchSelect value={value} onChange={onChange} onSearch={setSearch} options={state.options} loading={state.loading} label={label} />
+  );
+};
+
+RemoteFilterSelect.propTypes = {
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onChange: PropTypes.func.isRequired,
+  label: PropTypes.string.isRequired,
+  fetchOptions: PropTypes.func.isRequired
+};
 
 const FilterPopper = ({ anchorEl, open, onClose, filters, setFilters, initialFilters = {}, width = 560, title = 'Filtros' }) => {
   const updateFilter = (fieldKey, value) => setFilters((prev) => ({ ...prev, [fieldKey]: value }));
@@ -64,6 +112,15 @@ const FilterPopper = ({ anchorEl, open, onClose, filters, setFilters, initialFil
             label={filter.label}
             fetchApi={filter.fetchApi}
             socketEvent={filter.socketEvent}
+          />
+        );
+      case 'remoteDropdown':
+        return (
+          <RemoteFilterSelect
+            value={value}
+            onChange={(next) => updateFilter(filter.key, next)}
+            label={filter.label}
+            fetchOptions={filter.fetchOptions}
           />
         );
       case 'multiSelect':
@@ -228,7 +285,8 @@ FilterPopper.propTypes = {
       props: PropTypes.object,
       grid: PropTypes.object,
       fetchApi: PropTypes.func,
-      socketEvent: PropTypes.string
+      socketEvent: PropTypes.string,
+      fetchOptions: PropTypes.func
     })
   ).isRequired,
   setFilters: PropTypes.func.isRequired,

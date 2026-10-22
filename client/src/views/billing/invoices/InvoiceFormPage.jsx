@@ -20,7 +20,13 @@ import AdvanceAmountsSection from './components/AdvanceAmountsSection';
 import ContractBalanceCards from './components/ContractBalanceCards';
 import InvoiceDetailPanel from './components/InvoiceDetailPanel';
 import SimpleAmountsSection, { SIMPLE_AMOUNT_FIELDS } from './components/SimpleAmountsSection';
-import { getInvoiceContractsSelectAPI, getInvoiceFormOptionsAPI, getInvoiceWorksSelectAPI, invoicesApi } from 'api/requests/invoicesApi';
+import {
+  getInvoiceContractsSelectAPI,
+  getInvoiceFormOptionsAPI,
+  getInvoiceProvidersSelectAPI,
+  getInvoiceWorksSelectAPI,
+  invoicesApi
+} from 'api/requests/invoicesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkScope } from 'contexts/WorkScopeContext';
 import { showError, showSuccess } from 'services/ToastService';
@@ -34,10 +40,11 @@ import { ALL_WORKS } from 'utils/workScope';
  * `…/:invId/edit` (DEC-034). La vista llega por el contexto del Outlet.
  *
  * - La vista decide los tipos: la de simples registra solo la simple, que
- *   pide la obra, una etapa de ella y un proveedor asignado a ella, sin
- *   contrato (DEC-058). Las de contrato mayor y subcontratistas eligen el
- *   tipo y el contrato de su clase (solo los que hoy admiten ese tipo), y
- *   toman de él obra y proveedor.
+ *   pide la obra, una etapa de ella (si la obra tiene etapas, DEC-069) y un
+ *   proveedor asignado a ella, sin contrato (DEC-058). Las de contrato mayor y subcontratistas eligen, en
+ *   ese orden, el proveedor, uno de sus contratos de la clase de la vista
+ *   (los que hoy admiten algún tipo) y el tipo que admite el estado de ese
+ *   contrato; la obra sale del contrato.
  * - Tipo, obra y contrato no cambian después de registrar.
  * - Registrada se edita entera; aprobada, solo extracto y descripción;
  *   anulada, nada. Lo decide el servidor (`allowedActions`).
@@ -48,8 +55,8 @@ import { ALL_WORKS } from 'utils/workScope';
  *   desde la del proveedor, con `?prvId=…` (solo sus obras).
  * - Con una obra fija en el encabezado (no "Ver todo"), la simple se registra
  *   en esa obra: no se elige (mismo criterio que el formulario de contrato).
- * - Contratos y obras se buscan en el servidor (los selectores tienen tope,
- *   DEC-018).
+ * - Proveedores, contratos y obras se buscan en el servidor (los selectores
+ *   tienen tope, DEC-018).
  * - Anticipo, liquidación y devolución de retenido llevan sus importes
  *   (DEC-044, DEC-051, AdvanceAmountsSection). Los de una aprobada no se
  *   envían: no cambian.
@@ -85,6 +92,8 @@ const EMPTY_FORM = {
 };
 
 const DOCUMENT_FIELDS = ['type', 'ctrId', 'wrkId', 'prvId', 'wksId', 'number', 'date', 'voucherNumber', 'statement', 'description'];
+
+const DEFAULT_VAT_PCT = '19';
 
 const text = (value) => String(value ?? '').trim();
 const today = () => format(new Date(), 'yyyy-MM-dd');
@@ -238,7 +247,9 @@ export default function InvoiceFormPage() {
                 type: presetType,
                 ctrId: presetType && !isSimple(presetType) ? presetCtrId : '',
                 wrkId: isSimple(presetType) ? presetWrkId : '',
-                prvId: isSimple(presetType) ? presetPrvId : ''
+                prvId: isSimple(presetType) ? presetPrvId : '',
+                // IVA general por defecto, como en los conceptos del contrato; se puede cambiar.
+                vatPct: isSimple(presetType) ? DEFAULT_VAT_PCT : ''
               }
         );
       } catch (err) {
@@ -251,22 +262,36 @@ export default function InvoiceFormPage() {
     load();
   }, [isEdit, invId, reset, navigate, listPath, presetType, presetCtrId, presetWrkId, presetPrvId]);
 
-  const [type, ctrId, wrkId, value, amortization, retention] = useWatch({
+  const [type, ctrId, prvId, wrkId, value, amortization, retention] = useWatch({
     control,
-    name: ['type', 'ctrId', 'wrkId', 'value', 'amortization', 'retention']
+    name: ['type', 'ctrId', 'prvId', 'wrkId', 'value', 'amortization', 'retention']
   });
   const simple = isSimple(type);
+  // Vistas de contrato: proveedor, contrato y tipo, en ese orden; el tipo no filtra los anteriores.
+  const contractView = !fixedType;
+  // Proveedor del contrato que llega desde su expediente: vuelve en el selector aunque el tope lo deje fuera.
+  const presetContractPrvId = presetCtrId && contractView ? prvId : '';
 
-  // Contratos de la clase de la vista que hoy admiten el tipo elegido (solo al registrar).
+  // Proveedores con contratos de la clase de la vista que hoy admiten algún tipo (solo al registrar).
+  const fetchProviders = useCallback(
+    (search) =>
+      getInvoiceProvidersSelectAPI({
+        view,
+        ...(search ? { search } : {}),
+        ...(presetContractPrvId ? { includePrvId: presetContractPrvId } : {})
+      }).then((res) => res.data),
+    [view, presetContractPrvId]
+  );
+  // Contratos del proveedor elegido; el que llega desde su expediente, antes de saber su proveedor.
   const fetchContracts = useCallback(
     (search) =>
       getInvoiceContractsSelectAPI({
-        type,
         view,
+        ...(prvId ? { prvId } : {}),
         ...(search ? { search } : {}),
         ...(presetCtrId ? { includeCtrId: presetCtrId } : {})
       }).then((res) => res.data),
-    [type, view, presetCtrId]
+    [view, prvId, presetCtrId]
   );
   // Obras activas del alcance (simple); desde el proveedor, solo las suyas.
   const fetchWorks = useCallback(
@@ -278,11 +303,18 @@ export default function InvoiceFormPage() {
       }).then((res) => res.data),
     [presetPrvId, presetWrkId]
   );
+  const providerOptions = useRemoteOptions(!loading && !isEdit && contractView, fetchProviders, 'Error al cargar los proveedores');
   const contractOptions = useRemoteOptions(
-    !loading && !isEdit && Boolean(type) && !simple,
+    !loading && !isEdit && contractView && Boolean(prvId || presetCtrId),
     fetchContracts,
     'Error al cargar los contratos'
   );
+
+  // El contrato que llega desde su expediente fija su proveedor.
+  const presetContract = contractOptions.items.find((c) => Number(c.value) === Number(presetCtrId));
+  useEffect(() => {
+    if (!isEdit && contractView && presetContract && !prvId) setValue('prvId', presetContract.prvId);
+  }, [isEdit, contractView, presetContract, prvId, setValue]);
   const workOptions = useRemoteOptions(!loading && !isEdit && simple && !headerWork, fetchWorks, 'Error al cargar las obras');
 
   // Etapas y proveedores de la obra (simple); al editar, también los actuales aunque estén inactivos.
@@ -302,13 +334,10 @@ export default function InvoiceFormPage() {
     };
   }, [simple, wrkId, loaded]);
 
+  // Otro tipo: los importes son de él. Proveedor y contrato se conservan.
   const changeType = (value) => {
     setValue('type', value ?? '', { shouldDirty: true });
     for (const field of [
-      'ctrId',
-      'wrkId',
-      'prvId',
-      'wksId',
       'value',
       'amortization',
       'amortizationObservation',
@@ -320,8 +349,21 @@ export default function InvoiceFormPage() {
     }
     setValue('adjustAmortization', false, { shouldDirty: true });
     setValue('adjustRetention', false, { shouldDirty: true });
+  };
+
+  // Otro contrato: el tipo se conserva si su estado lo admite.
+  const changeContract = (value) => {
+    setValue('ctrId', value ?? '', { shouldDirty: true });
+    const option = contractOptions.items.find((c) => Number(c.value) === Number(value));
+    if (type && !(option?.types ?? []).includes(type)) changeType('');
+  };
+
+  // Otro proveedor: el contrato y el tipo son de él.
+  const changeProvider = (value) => {
+    setValue('prvId', value ?? '', { shouldDirty: true });
+    setValue('ctrId', '', { shouldDirty: true });
+    if (type) changeType('');
     contractOptions.setSearch('');
-    workOptions.setSearch('');
   };
 
   // Otra obra: la etapa es de ella, y el proveedor también, salvo el que llega desde su expediente.
@@ -359,7 +401,12 @@ export default function InvoiceFormPage() {
   const contract =
     contractOptions.items.find((c) => Number(c.value) === Number(ctrId)) ??
     (pickedContract && Number(pickedContract.value) === Number(ctrId) ? pickedContract : undefined);
+  // Tipos de la vista que admite hoy el estado del contrato elegido.
+  const contractTypeOptions = contract ? typeOptions.filter((o) => (contract.types ?? []).includes(o.value)) : [];
   const noOptions = wrkId && !loadingOptions;
+  // La etapa solo es obligatoria si la obra tiene etapas (DEC-069); el servidor lo vuelve a verificar.
+  const withoutStages = Boolean(noOptions) && options.stages.length === 0;
+  const stageRequired = !withoutStages;
   const inactiveWork = !isEdit && simple && headerWork != null && headerWork.active === false;
 
   return (
@@ -431,40 +478,48 @@ export default function InvoiceFormPage() {
           <Grid size={{ xs: 12, md: 8 }}>
             <Stack spacing={2}>
               <FormSection
-                title={simple ? 'Obra y proveedor' : 'Tipo y origen'}
+                title={contractView ? 'Origen y tipo' : 'Obra y proveedor'}
                 subtitle={
-                  simple
-                    ? 'La factura simple se imputa a una etapa de la obra, sin contrato. El proveedor debe estar asignado a la obra. La obra no cambia después de registrar.'
-                    : 'El tipo decide contra qué contrato se registra. No cambia después de registrar.'
+                  contractView
+                    ? 'Elige el proveedor, uno de sus contratos y el tipo de factura que admite el estado del contrato. No cambian después de registrar.'
+                    : 'La factura simple se imputa a la obra, sin contrato, y a una de sus etapas si la obra las tiene. El proveedor debe estar asignado a la obra. La obra no cambia después de registrar.'
                 }
               >
                 <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    {isEdit || fixedType ? (
-                      readOnlyField('Tipo', isEdit ? loaded.typeName : typeOptions[0].label)
-                    ) : (
-                      <Controller
-                        name="type"
-                        control={control}
-                        rules={{ required: 'Selecciona el tipo de factura.' }}
-                        render={({ field, fieldState }) => (
-                          <SearchSelect
-                            value={field.value}
-                            onChange={changeType}
-                            options={typeOptions}
-                            label="Tipo de factura"
-                            required
-                            error={fieldState.error?.message}
-                            helperText={typeOptions.find((o) => o.value === field.value)?.hint}
+                  {!contractView && <Grid size={{ xs: 12, md: 4 }}>{readOnlyField('Tipo', typeOptions[0].label)}</Grid>}
+
+                  {contractView && (
+                    <>
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        {isEdit ? (
+                          readOnlyField('Proveedor', loaded.providerName)
+                        ) : (
+                          <Controller
+                            name="prvId"
+                            control={control}
+                            rules={{ required: 'Selecciona el proveedor.' }}
+                            render={({ field, fieldState }) => (
+                              <SearchSelect
+                                value={field.value}
+                                onChange={changeProvider}
+                                onSearch={providerOptions.setSearch}
+                                options={providerOptions.items}
+                                loading={providerOptions.loading}
+                                label="Proveedor"
+                                required
+                                placeholder="Razón social o identificación"
+                                error={fieldState.error?.message}
+                                helperText={
+                                  providerOptions.loaded && !providerOptions.search && providerOptions.items.length === 0
+                                    ? 'Ningún proveedor tiene contratos en un estado que admita facturas'
+                                    : 'Solo proveedores con contratos que hoy admiten facturas'
+                                }
+                              />
+                            )}
                           />
                         )}
-                      />
-                    )}
-                  </Grid>
-
-                  {type && !simple && (
-                    <>
-                      <Grid size={{ xs: 12, md: 8 }}>
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 6 }}>
                         {isEdit ? (
                           readOnlyField('Contrato', `${loaded.contractNumber} — ${loaded.contractName}`)
                         ) : (
@@ -475,19 +530,22 @@ export default function InvoiceFormPage() {
                             render={({ field, fieldState }) => (
                               <SearchSelect
                                 value={field.value}
-                                onChange={field.onChange}
+                                onChange={changeContract}
                                 onOptionChange={setPickedContract}
                                 onSearch={contractOptions.setSearch}
-                                options={contractOptions.items}
+                                options={prvId ? contractOptions.items : []}
                                 loading={contractOptions.loading}
+                                disabled={!prvId}
                                 label="Contrato"
                                 required
-                                placeholder="Número, nombre, proveedor u obra"
+                                placeholder="Número, nombre u obra"
                                 error={fieldState.error?.message}
                                 helperText={
-                                  contractOptions.loaded && !contractOptions.search && contractOptions.items.length === 0
-                                    ? 'Ningún contrato está hoy en un estado que admita este tipo de factura'
-                                    : 'Solo los contratos cuyo estado admite este tipo'
+                                  !prvId
+                                    ? 'Elige primero el proveedor'
+                                    : contractOptions.loaded && !contractOptions.search && contractOptions.items.length === 0
+                                      ? 'El proveedor no tiene contratos en un estado que admita facturas'
+                                      : 'Contratos del proveedor que hoy admiten facturas'
                                 }
                               />
                             )}
@@ -495,7 +553,32 @@ export default function InvoiceFormPage() {
                         )}
                       </Grid>
                       <Grid size={{ xs: 12, md: 6 }}>
-                        {readOnlyField('Proveedor', isEdit ? loaded.providerName : contract?.providerName)}
+                        {isEdit ? (
+                          readOnlyField('Tipo', loaded.typeName)
+                        ) : (
+                          <Controller
+                            name="type"
+                            control={control}
+                            rules={{ required: 'Selecciona el tipo de factura.' }}
+                            render={({ field, fieldState }) => (
+                              <SearchSelect
+                                value={field.value}
+                                onChange={changeType}
+                                options={contractTypeOptions}
+                                disabled={!contract}
+                                label="Tipo de factura"
+                                required
+                                error={fieldState.error?.message}
+                                helperText={
+                                  !contract
+                                    ? 'Elige primero el contrato'
+                                    : (typeOptions.find((o) => o.value === field.value)?.hint ??
+                                      'Los que admite hoy el estado del contrato')
+                                }
+                              />
+                            )}
+                          />
+                        )}
                       </Grid>
                       <Grid size={{ xs: 12, md: 6 }}>
                         {readOnlyField('Obra', isEdit ? `${loaded.workCode} — ${loaded.workName}` : contract?.workName)}
@@ -542,22 +625,22 @@ export default function InvoiceFormPage() {
                         <Controller
                           name="wksId"
                           control={control}
-                          rules={{ required: 'Selecciona la etapa.' }}
+                          rules={{ validate: (value) => !stageRequired || Boolean(value) || 'Selecciona la etapa.' }}
                           render={({ field, fieldState }) => (
                             <SearchSelect
                               value={field.value}
                               onChange={field.onChange}
                               options={options.stages}
                               loading={loadingOptions}
-                              disabled={!wrkId || lockDocument || blocked}
+                              disabled={!wrkId || withoutStages || lockDocument || blocked}
                               label="Etapa"
-                              required
+                              required={stageRequired}
                               error={fieldState.error?.message}
                               helperText={
                                 !wrkId
                                   ? 'Elige primero la obra'
-                                  : noOptions && options.stages.length === 0
-                                    ? 'La obra no tiene etapas activas'
+                                  : withoutStages
+                                    ? 'La obra no tiene etapas activas: la factura se registra sin etapa'
                                     : ''
                               }
                             />

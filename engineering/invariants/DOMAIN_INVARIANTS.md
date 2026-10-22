@@ -35,7 +35,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | I8 | Número de otrosí único y secuencial por contrato, asignado por el backend | `UNIQUE (contrato, número)` + bloqueo | ADR-0016 |
 | I9 | Como máximo una suspensión abierta por contrato | `UNIQUE` sobre columna generada | ADR-0017 |
 | I10 | Una versión vigente por póliza | `UNIQUE` sobre columna generada | ADR-0018 |
-| I11 | Número de factura único por proveedor, también contra las anuladas ([DEC-042](../decisiones/DEC-042-facturas-area-ciclo-vida.md)) | `UNIQUE` | ADR-0020 |
+| I11 | Número de factura único por proveedor entre no eliminadas, también contra las anuladas ([DEC-042](../decisiones/DEC-042-facturas-area-ciclo-vida.md), [DEC-068](../decisiones/DEC-068-eliminar-facturas.md)) | `UNIQUE` sobre columna generada | ADR-0020 |
 | I12 | Número de contrato único por obra, entre no eliminados ([DEC-035](../decisiones/DEC-035-contratos-area-modelo.md)) | `UNIQUE` sobre columna generada | ADR-0015 |
 | I13 | Solo la factura `SIMPLE` puede no tener contrato | `CHECK` | ADR-0020 |
 | I14 | Estado `APROBADA` ⇔ tiene fecha de aprobación | `CHECK` | ADR-0020 |
@@ -56,8 +56,8 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 
 **Aplicadas (2026-10-05), con facturas ([DEC-042](../decisiones/DEC-042-facturas-area-ciclo-vida.md)), probadas contra la BD de desarrollo:**
 
-- **I11:** `UNIQUE uq_invoices_provider_number (prv_id, inv_number)`; el service responde 409 antes.
-- **I13:** `CHECK ck_invoices_type_links`. La simple va sin contrato y con etapa; las demás, con contrato y sin etapa (la suya es la del contrato). Toda factura tiene obra. La etapa es de la obra (FK `(wks_id, wrk_id)`) y el proveedor está asignado a ella (FK `(wrk_id, prv_id)`) ([DEC-058](../decisiones/DEC-058-factura-simple-obra-etapa.md), migración 0094).
+- **I11:** `UNIQUE uq_invoices_provider_number_active (prv_id, inv_number_active)`, con `inv_number_active` generada (`NULL` si la factura está eliminada, migración 0101); el service responde 409 antes.
+- **I13:** `CHECK ck_invoices_type_links`. La simple va sin contrato; las demás, con contrato y sin etapa (la suya es la del contrato). La etapa de la simple es obligatoria solo si la obra tiene etapas activas: lo verifica el service ([DEC-069](../decisiones/DEC-069-etapa-factura-simple-opcional.md), migración 0102). Toda factura tiene obra. La etapa es de la obra (FK `(wks_id, wrk_id)`) y el proveedor está asignado a ella (FK `(wrk_id, prv_id)`) ([DEC-058](../decisiones/DEC-058-factura-simple-obra-etapa.md), migración 0094).
 - **I16:** la factura de liquidación factura el otrosí de liquidación de su contrato. FK `(ccp_id, ctr_id)` → concepto del mismo contrato y FK `(inv_id, ctr_id)` → la factura; el tipo `LIQUIDATION` lo verifica el service bajo el bloqueo del contrato ([DEC-059](../decisiones/DEC-059-factura-liquidacion-otrosi.md), migración 0095).
 - **I14:** `CHECK ck_invoices_approval`. Una registrada no tiene fecha de aprobación y una aprobada sí; una anulada conserva la que tenía. `ck_invoices_dates` impide que la aprobación sea anterior a la factura.
 
@@ -70,7 +70,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | DOM-03 | Un contrato suspendido no admite otrosí, facturas ni edición contractual, salvo el otrosí que lo reanuda ([DEC-039](../decisiones/DEC-039-suspension-contratos.md)) | ADR-0017, regla 13 |
 | DOM-04 | Solo las facturas `APROBADA` afectan saldos, condiciones de liquidación e indicadores | ADR-0020, regla 9 |
 | DOM-05 | Una factura aprobada es inmutable en lo financiero; se corrige anulando y registrando de nuevo | ADR-0020, reglas 10–12 |
-| DOM-06 | `ANULADA` es terminal, y una factura nunca se elimina | ADR-0020, reglas 12 y 15 |
+| DOM-06 | `ANULADA` es terminal y no se elimina; registrada y aprobada solo se eliminan de forma lógica, con permiso ([DEC-068](../decisiones/DEC-068-eliminar-facturas.md)) | ADR-0020, reglas 12 y 15; DEC-068 |
 | DOM-07 | Tras la primera factura aprobada del contrato, los valores económicos de sus conceptos son inmutables | ADR-0016, regla 14 |
 | DOM-08 | Toda transición de estado queda en el historial, en la misma transacción | ADR-0017, regla 12 |
 
@@ -79,7 +79,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 **Aplicadas (2026-10-05), con facturas ([DEC-042](../decisiones/DEC-042-facturas-area-ciclo-vida.md)):**
 
 - **DOM-05:** `STATE_ALLOWS.APPROVED` solo admite extracto y descripción; lo demás responde 409.
-- **DOM-06:** `CANCELLED` no tiene transiciones de salida, y no hay endpoint de eliminar.
+- **DOM-06:** `CANCELLED` no tiene transiciones de salida ni admite `delete`. Desde el 2026-10-22 (DEC-068), `delete_invoice` elimina de forma lógica una registrada (permiso 110) o una aprobada (además el 111), y la eliminada queda fuera de saldos y del número único (`uq_invoices_provider_number_active`).
 - **DOM-03:** para las facturas. `STATE_ALLOWS` del contrato solo admite anticipo en ejecución, y liquidación y devolución en liquidación; se verifica al registrar y al aprobar.
 - **DOM-08:** para las facturas, con `tbl_invoice_status_history`.
 - **DOM-04:** se aplica desde el 2026-10-06 a los saldos de anticipo ([DEC-044](../decisiones/DEC-044-anticipo-amortizacion.md)): AF y AM suman solo facturas aprobadas. Faltan el retenido, las condiciones de liquidación y los indicadores.

@@ -127,6 +127,8 @@ Consumido por `microsoftGraph.config.js` y `microsoftGraph.service.js`, cuyas cu
 
 12. **Las facturas no se eliminan.** Se anulan.
 
+    **Cambiada por [DEC-068](../decisiones/DEC-068-eliminar-facturas.md) (2026-10-22):** la registrada y la aprobada se eliminan de forma lógica, con permiso propio (la aprobada, con uno reforzado) y bitácora; la anulada sigue sin eliminarse.
+
 ## Justificación
 
 - **Encabezado común más detalle**: los cuatro tipos comparten diez campos de encabezado y difieren en su composición económica. Una tabla única los tendría todos con la mayoría nulos, sin poder exigir obligatoriedad por tipo. Cuatro tablas independientes replicarían el encabezado y harían que "todas las facturas de un proveedor" fuera una unión de cuatro consultas. El modelo híbrido paga una unión por consulta de detalle y resuelve todo lo demás.
@@ -259,7 +261,7 @@ Factura ANULADA      →  excluida de todo cálculo, conservada en el histórico
 12. `ANULADA` es terminal.
 13. La fecha de aprobación no puede ser anterior a la fecha de factura.
 14. El estado del contrato determina qué tipos de factura se admiten ([ADR-0017](0017-estados-contrato.md)).
-15. Las facturas no se eliminan.
+15. Las facturas no se eliminan. *Cambiada por [DEC-068](../decisiones/DEC-068-eliminar-facturas.md): se eliminan de forma lógica, con permiso, salvo la anulada.*
 
 **Pendiente de validación:** si existen estados adicionales —rechazada, contabilizada, pagada—; si la aprobación requiere más de un aprobador; si el ámbito de unicidad del número es el proveedor; si una factura anulada libera su número para reutilización.
 

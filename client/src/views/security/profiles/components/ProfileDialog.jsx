@@ -145,6 +145,10 @@ const ProfileDialog = forwardRef(({ addItem, updateItem }, ref) => {
     }
   };
 
+  // Grupo del menú y página pueden llamarse igual (p. ej. Obras → Obras): se dice cuál es cuál.
+  const descriptionById = new Map([...associated, ...unassociated].map((p) => [p.pagId, p.description]));
+  const pageKind = (page) => (page.parent ? `En ${descriptionById.get(page.parent) ?? 'otro grupo'}` : 'Grupo del menú');
+
   const customList = (title, items) => (
     <Paper sx={{ width: '100%', height: 260, overflow: 'auto', border: '1px solid', borderColor: 'divider' }}>
       <Box sx={{ p: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -172,7 +176,7 @@ const ProfileDialog = forwardRef(({ addItem, updateItem }, ref) => {
                   size="small"
                 />
               </ListItemIcon>
-              <ListItemText id={labelId} primary={value.description} />
+              <ListItemText id={labelId} primary={value.description} secondary={pageKind(value)} />
             </ListItem>
           );
         })}

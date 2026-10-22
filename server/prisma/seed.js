@@ -154,6 +154,9 @@ const PERMISSIONS = [
   // database/migrations/0096_seed_balance_reconciliation_permission.sql
   { per_id: 108, per_name: "Recibir conciliación de saldos de facturación", pag_id: 18, per_order: 9 },
   { per_id: 109, per_name: "Ver evidencia de facturas", pag_id: 18, per_order: 10 },
+  // database/migrations/0101_invoice_deletion.sql (DEC-068)
+  { per_id: 110, per_name: "Eliminar factura", pag_id: 18, per_order: 11 },
+  { per_id: 111, per_name: "Eliminar factura aprobada", pag_id: 18, per_order: 12 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver

@@ -74,7 +74,7 @@ const prismaMock = {
   },
   tbl_providers: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(async () => []) },
   tbl_works: { findUnique: jest.fn(async () => state.work), findFirst: jest.fn(), findMany: jest.fn(async () => []) },
-  tbl_work_stages: { findUnique: jest.fn(async () => state.stage) },
+  tbl_work_stages: { findUnique: jest.fn(async () => state.stage), count: jest.fn(async () => state.activeStages) },
   tbl_work_providers: { findUnique: jest.fn(async () => state.assignment) },
   tbl_reasons: { findUnique: jest.fn(async () => state.reason) },
   tbl_contract_concepts: { findMany: jest.fn(async () => state.concepts), findFirst: jest.fn(async () => state.liquidationConcept) },
@@ -218,6 +218,7 @@ beforeEach(() => {
   state.refundedSum = null;
   state.work = { sta_id: 1, wrk_code: "OB-8" };
   state.stage = { wrk_id: 8, sta_id: 1, wks_name: "Cimentación" };
+  state.activeStages = 2;
   state.assignment = assignment();
   state.liquidationConcept = { ccp_id: 41 };
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
@@ -324,8 +325,19 @@ describe("registrar", () => {
     expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
   });
 
-  it("simple: la etapa es obligatoria, de la obra y activa (400)", async () => {
-    await expect(save(simpleInput({ wksId: "" }))).rejects.toMatchObject({ statusCode: 400, message: "Selecciona la etapa de la obra." });
+  it("simple: si la obra no tiene etapas activas, se registra sin etapa (DEC-069)", async () => {
+    state.activeStages = 0;
+    await expect(save(simpleInput({ wksId: "" }))).resolves.toMatchObject({ invId: 70 });
+    expect(prismaMock.tbl_invoices.create.mock.calls[0][0].data).toMatchObject({ inv_type: "SIMPLE", wks_id: null });
+    expect(prismaMock.tbl_work_stages.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("simple: con etapas en la obra, la etapa es obligatoria, de la obra y activa (400)", async () => {
+    await expect(save(simpleInput({ wksId: "" }))).rejects.toMatchObject({
+      statusCode: 400,
+      message: "La obra tiene etapas: selecciona la etapa de la factura.",
+    });
+    expect(prismaMock.tbl_work_stages.count.mock.calls.at(-1)[0].where).toEqual({ wrk_id: 8, sta_id: 1 });
     state.stage = { wrk_id: 9, sta_id: 1, wks_name: "Cimentación" };
     await expect(save(simpleInput())).rejects.toMatchObject({ statusCode: 400, message: "La etapa seleccionada no pertenece a la obra de la factura." });
     state.stage = { wrk_id: 8, sta_id: 2, wks_name: "Cimentación" };
@@ -362,7 +374,7 @@ describe("registrar", () => {
       statusCode: 409,
       message: "Ya existe una factura con el número F-100 para este proveedor (anulada: el número sigue ocupado).",
     });
-    expect(prismaMock.tbl_invoices.findFirst.mock.calls[0][0].where).toEqual({ prv_id: 77, inv_number: "F-100" });
+    expect(prismaMock.tbl_invoices.findFirst.mock.calls[0][0].where).toEqual({ prv_id: 77, inv_number: "F-100", sta_id: { not: 3 } });
   });
 
   it("fecha futura o anterior al inicio del contrato (400)", async () => {
@@ -570,7 +582,7 @@ describe("anular", () => {
     const approved = storedInvoice({ inv_state: "APPROVED", inv_approval_date: new Date("2026-03-05T00:00:00Z") });
     await expect(detail("LIQUIDATED", approved)).resolves.toMatchObject({ allowedActions: ["editNotes"] });
     await expect(detail("LIQUIDATED", storedInvoice())).resolves.toMatchObject({ allowedActions: ["edit", "editNotes", "approve"] });
-    await expect(detail("IN_LIQUIDATION", approved)).resolves.toMatchObject({ allowedActions: ["editNotes", "cancelApproved"] });
+    await expect(detail("IN_LIQUIDATION", approved)).resolves.toMatchObject({ allowedActions: ["editNotes", "cancelApproved", "deleteApproved"] });
   });
 
   it("una anulada es terminal (409)", async () => {
@@ -588,6 +600,75 @@ describe("anular", () => {
 
   it("una factura que no existe responde 404", async () => {
     await expect(cancel()).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe("eliminar (DEC-068)", () => {
+  const CAN_DELETE_APPROVED = 111;
+  const approvedAdvance = () => storedInvoice({ inv_state: "APPROVED", inv_approval_date: new Date("2026-03-05T00:00:00Z") });
+  const remove = (granted = [], input = { observation: "Registrada dos veces" }) =>
+    service.deleteInvoice({ invId: 70, input, useBy: 9, granted: new Set(granted), ctx });
+
+  it("una registrada: eliminación lógica con autor y fecha, observación en la bitácora; bloquea contrato → factura", async () => {
+    state.invoice = storedInvoice();
+    await expect(remove()).resolves.toEqual({ message: "Factura eliminada correctamente", invId: 70 });
+
+    expect(lockedTables()).toEqual([expect.stringMatching(/tbl_contracts/), expect.stringMatching(/tbl_invoices/)]);
+    expect(prismaMock.tbl_invoices.update.mock.calls[0][0].data).toMatchObject({ sta_id: 3, inv_delete_by: 9, inv_update_by: 9 });
+    expect(prismaMock.tbl_invoices.update.mock.calls[0][0].data.inv_delete_at).toBeInstanceOf(Date);
+    expect(prismaMock.tbl_invoice_status_history.create).not.toHaveBeenCalled();
+    expect(auditRows().find((r) => r.aud_field === "observation")).toMatchObject({ aud_operation: "ELIMINAR", aud_new_value: "Registrada dos veces" });
+  });
+
+  it("una aprobada exige el permiso reforzado (403 sin él) y revierte su efecto en los saldos", async () => {
+    state.invoice = approvedAdvance();
+    state.advanceSum = D("10000000");
+    await expect(remove()).rejects.toMatchObject({ statusCode: 403 });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+
+    await expect(remove([CAN_DELETE_APPROVED])).resolves.toMatchObject({ invId: 70 });
+    expect(auditRows().find((r) => r.aud_field === "advance_invoiced")).toMatchObject({ aud_old_value: "10000000.00", aud_new_value: "0.00" });
+  });
+
+  it("un anticipo aprobado ya amortizado no se elimina (409, I2)", async () => {
+    state.invoice = approvedAdvance();
+    state.advanceSum = D("10000000");
+    state.amortizedSum = D("4000000");
+    await expect(remove([CAN_DELETE_APPROVED])).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+  });
+
+  it("una anulada no se elimina (409), ni ninguna con el contrato liquidado (409)", async () => {
+    state.invoice = storedInvoice({ inv_state: "CANCELLED" });
+    await expect(remove([CAN_DELETE_APPROVED])).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/anulada/) });
+
+    state.contract = contract({ ctr_state: "LIQUIDATED" });
+    state.invoice = storedInvoice();
+    await expect(remove()).rejects.toMatchObject({
+      statusCode: 409,
+      message: "Las facturas de un contrato liquidado no se eliminan: el contrato solo se consulta. Estado actual: Liquidado.",
+    });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+  });
+
+  it("la observación es obligatoria (400); una eliminada o inexistente responde 404", async () => {
+    state.invoice = storedInvoice();
+    await expect(remove([], { observation: "  " })).rejects.toMatchObject({ statusCode: 400 });
+    state.invoice = storedInvoice({ sta_id: 3 });
+    await expect(remove()).rejects.toMatchObject({ statusCode: 404 });
+    state.invoice = null;
+    await expect(remove()).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+  });
+
+  it("el detalle ofrece eliminar a una registrada y, a una aprobada, la eliminación reforzada", async () => {
+    prismaMock.tbl_invoices.findFirst.mockResolvedValueOnce({
+      ...storedInvoice(),
+      inv_view: "MAJOR",
+      tbl_contracts: { ctr_number: "C-1", ctr_name: "Obra", ctr_state: "IN_PROGRESS", tbl_work_stages: null },
+      tbl_invoice_status_history: [],
+    });
+    await expect(service.getInvoice({ invId: 70 })).resolves.toMatchObject({ allowedActions: ["edit", "editNotes", "approve", "cancel", "delete"] });
   });
 });
 
@@ -717,10 +798,11 @@ describe("listado", () => {
     expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where).not.toHaveProperty("inv_type");
   });
 
-  test("filtra por número, comprobante, contrato y rangos de fecha, también en los conteos (DEC-048)", async () => {
+  test("filtra por número, comprobante, extracto, contrato y rangos de fecha, también en los conteos (DEC-048)", async () => {
     await service.paginationInvoices({
       number: "F-1",
       voucherNumber: " CE-9 ",
+      statement: " marzo ",
       contractNumber: "C-001",
       providerName: "acer",
       dateFrom: "2026-03-01",
@@ -731,6 +813,7 @@ describe("listado", () => {
     const expected = [
       { inv_number: { contains: "F-1" } },
       { inv_voucher_number: { contains: "CE-9" } },
+      { inv_statement: { contains: "marzo" } },
       { tbl_contracts: { ctr_number: { contains: "C-001" } } },
       { tbl_providers: { prv_name: { contains: "acer" } } },
       { inv_date: { gte: new Date("2026-03-01T00:00:00Z") } },
@@ -783,6 +866,60 @@ describe("selectores del formulario", () => {
     expect(await service.selectInvoiceContracts({ type: "LIQUIDATION", includeCtrId: 30 })).toEqual([]);
   });
 
+  test("contratos solo del proveedor elegido", async () => {
+    await service.selectInvoiceContracts({ type: "ADVANCE", view: "MAJOR", prvId: "77" });
+    expect(prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0].where).toMatchObject({ prv_id: 77, ctr_state: { in: ["IN_PROGRESS"] } });
+  });
+
+  test("proveedores con algún contrato que admite el tipo, de la vista y del alcance; el ya elegido vuelve", async () => {
+    prismaMock.tbl_providers.findMany.mockResolvedValueOnce([{ prv_id: 78, prv_name: "Otro SA", prv_identification: "900" }]);
+    prismaMock.tbl_providers.findFirst.mockResolvedValueOnce({ prv_id: 77, prv_name: "Aceros SA", prv_identification: "800" });
+    const result = await service.selectInvoiceProviders({ type: "ADVANCE", view: "MAJOR", search: " acer ", includePrvId: "77", scope: OWN });
+
+    const { where } = prismaMock.tbl_providers.findMany.mock.calls.at(-1)[0];
+    expect(where.tbl_contracts.some).toMatchObject({ ctr_invoice_view: "MAJOR", ctr_state: { in: ["IN_PROGRESS"] }, wrk_id: { in: [8] } });
+    expect(where.OR).toEqual([{ prv_name: { contains: "acer" } }, { prv_identification: { contains: "acer" } }]);
+    expect(prismaMock.tbl_providers.findFirst.mock.calls.at(-1)[0].where).toMatchObject({ prv_id: 77, tbl_contracts: where.tbl_contracts });
+    expect(result).toEqual([
+      { value: 77, label: "Aceros SA — 800" },
+      { value: 78, label: "Otro SA — 900" },
+    ]);
+  });
+
+  test("sin tipo, proveedores y contratos que admiten alguno; cada contrato trae los tipos que admite", async () => {
+    await service.selectInvoiceProviders({ view: "MAJOR" });
+    expect(prismaMock.tbl_providers.findMany.mock.calls.at(-1)[0].where.tbl_contracts.some.ctr_state).toEqual({
+      in: ["IN_PROGRESS", "IN_LIQUIDATION"],
+    });
+
+    prismaMock.tbl_contracts.findMany.mockResolvedValueOnce([contractRow(31), { ...contractRow(32), ctr_state: "IN_LIQUIDATION" }]);
+    const result = await service.selectInvoiceContracts({ view: "MAJOR", prvId: 77 });
+    expect(prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0].where.ctr_state).toEqual({ in: ["IN_PROGRESS", "IN_LIQUIDATION"] });
+    expect(result.map((o) => o.types)).toEqual([["ADVANCE"], ["LIQUIDATION", "RETENTION_REFUND"]]);
+  });
+
+  test("filtro Proveedor del listado: con facturas no eliminadas de la vista y del alcance; el ya elegido vuelve", async () => {
+    prismaMock.tbl_providers.findMany.mockResolvedValueOnce([]);
+    prismaMock.tbl_providers.findFirst.mockResolvedValueOnce({ prv_id: 77, prv_name: "Aceros SA", prv_identification: "800" });
+    const result = await service.selectInvoiceFilterProviders({ view: "SIMPLE", views: ["SIMPLE", "MAJOR"], search: " acer ", includePrvId: "77", scope: OWN });
+
+    const { where } = prismaMock.tbl_providers.findMany.mock.calls.at(-1)[0];
+    expect(where.tbl_invoices.some).toEqual({ sta_id: { not: 3 }, AND: [{ wrk_id: { in: [8] } }, { inv_view: { in: ["SIMPLE"] } }] });
+    expect(where.OR).toEqual([{ prv_name: { contains: "acer" } }, { prv_identification: { contains: "acer" } }]);
+    expect(result).toEqual([{ value: 77, label: "Aceros SA — 800" }]);
+  });
+
+  test("filtro Proveedor de una vista que el usuario no ve: ninguno", async () => {
+    await service.selectInvoiceFilterProviders({ view: "MAJOR", views: ["SIMPLE"] });
+    expect(prismaMock.tbl_providers.findMany.mock.calls.at(-1)[0].where.tbl_invoices.some.AND[1]).toEqual(expect.not.objectContaining({ inv_view: { in: ["MAJOR"] } }));
+  });
+
+  test("sin tipo de contrato no hay proveedores", async () => {
+    prismaMock.tbl_providers.findMany.mockClear();
+    expect(await service.selectInvoiceProviders({ type: "SIMPLE", view: "MAJOR" })).toEqual([]);
+    expect(prismaMock.tbl_providers.findMany).not.toHaveBeenCalled();
+  });
+
   test("contratos solo del menú de la vista, el que guardó cada contrato (DEC-066)", async () => {
     await service.selectInvoiceContracts({ type: "ADVANCE", view: "SUBCONTRACTOR" });
     const { where } = prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0];
@@ -829,7 +966,7 @@ describe("anticipo y amortización (DEC-044)", () => {
   it("los saldos suman solo facturas aprobadas del contrato y sus conceptos", async () => {
     await save(contractInput());
     expect(prismaMock.tbl_invoice_advance_details.aggregate.mock.calls[0][0].where).toEqual({
-      tbl_invoices: { ctr_id: 30, inv_type: "ADVANCE", inv_state: "APPROVED" },
+      tbl_invoices: { ctr_id: 30, inv_type: "ADVANCE", inv_state: "APPROVED", sta_id: { not: 3 } },
     });
     expect(prismaMock.tbl_contract_concepts.findMany.mock.calls[0][0].where).toEqual({ ctr_id: 30 });
   });
@@ -1030,11 +1167,11 @@ describe("retenido contractual (DEC-051)", () => {
   it("los saldos suman el retenido de liquidaciones y las devoluciones aprobadas del contrato", async () => {
     await save(liquidationInput());
     expect(prismaMock.tbl_invoice_liquidation_details.aggregate.mock.calls[0][0]).toEqual({
-      where: { tbl_invoices: { ctr_id: 30, inv_type: "LIQUIDATION", inv_state: "APPROVED" } },
+      where: { tbl_invoices: { ctr_id: 30, inv_type: "LIQUIDATION", inv_state: "APPROVED", sta_id: { not: 3 } } },
       _sum: { ild_amortization: true, ild_retention: true },
     });
     expect(prismaMock.tbl_invoice_retention_refund_details.aggregate.mock.calls[0][0].where).toEqual({
-      tbl_invoices: { ctr_id: 30, inv_type: "RETENTION_REFUND", inv_state: "APPROVED" },
+      tbl_invoices: { ctr_id: 30, inv_type: "RETENTION_REFUND", inv_state: "APPROVED", sta_id: { not: 3 } },
     });
   });
 
@@ -1285,7 +1422,7 @@ describe("vistas de facturas (DEC-054)", () => {
     state.invoice = storedInvoice();
     const views = ["SIMPLE"];
     await expect(service.getInvoice({ invId: 70, views })).rejects.toMatchObject({ statusCode: 404 });
-    expect(prismaMock.tbl_invoices.findFirst.mock.calls[0][0].where).toEqual({ inv_id: 70, AND: [{}, { inv_view: { in: ["SIMPLE"] } }] });
+    expect(prismaMock.tbl_invoices.findFirst.mock.calls[0][0].where).toEqual({ inv_id: 70, sta_id: { not: 3 }, AND: [{}, { inv_view: { in: ["SIMPLE"] } }] });
     await expect(service.approveInvoice({ invId: 70, input: { approvalDate: "2026-03-05" }, useBy: 9, views, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
       statusCode: 404,
     });

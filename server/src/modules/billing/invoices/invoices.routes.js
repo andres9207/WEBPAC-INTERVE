@@ -9,31 +9,37 @@ import {
   getInvoiceSchema,
   selectInvoiceWorksSchema,
   getInvoiceFormOptionsSchema,
+  selectInvoiceProvidersSchema,
+  selectInvoiceFilterProvidersSchema,
   selectInvoiceContractsSchema,
   getContractAdvanceSchema,
   previewSimpleInvoiceSchema,
   saveInvoiceSchema,
   approveInvoiceSchema,
   cancelInvoiceSchema,
+  deleteInvoiceSchema,
 } from "./invoices.validation.js";
 import {
   paginationInvoicesController,
   getInvoiceController,
   selectInvoiceWorksController,
   getInvoiceFormOptionsController,
+  selectInvoiceProvidersController,
+  selectInvoiceFilterProvidersController,
   selectInvoiceContractsController,
   getContractAdvanceController,
   previewSimpleInvoiceController,
   saveInvoiceController,
   approveInvoiceController,
   cancelInvoiceController,
+  deleteInvoiceController,
   getInvoiceEvidenceController,
 } from "./invoices.controller.js";
 
 // Facturas (DEC-042), montadas en /api/billing/invoices. Pipeline de
 // ENDPOINT_STANDARD: verifyToken → requirePermission → esquema → validate →
 // controller. Cada transición tiene su endpoint y su permiso
-// (WORKFLOW_STANDARD, regla 3). No hay ruta de eliminar: una factura se anula.
+// (WORKFLOW_STANDARD, regla 3). Eliminar es lógico y con permiso propio (DEC-068).
 //
 // Vistas (DEC-054): el listado de una vista exige su permiso de ver; los
 // endpoints comunes, cualquiera de los tres, y el service responde 404 a una
@@ -72,7 +78,25 @@ invoicesRoutes.get(
   validate,
   getInvoiceFormOptionsController
 );
-// Contratos cuyo tipo va al menú de la vista y cuyo estado admite el tipo de factura (ADR-0017).
+// Filtro Proveedor del listado de una vista: proveedores con facturas de ella.
+invoicesRoutes.get(
+  "/select_invoice_filter_providers",
+  verifyToken,
+  requirePermission((req) => viewPermission(req.query.view)),
+  selectInvoiceFilterProvidersSchema,
+  validate,
+  selectInvoiceFilterProvidersController
+);
+// Contratos cuyo tipo va al menú de la vista y cuyo estado admite el tipo de factura (ADR-0017),
+// y sus proveedores, que se eligen antes que el contrato.
+invoicesRoutes.get(
+  "/select_invoice_providers",
+  verifyToken,
+  requirePermission((req) => viewPermission(req.query.view)),
+  selectInvoiceProvidersSchema,
+  validate,
+  selectInvoiceProvidersController
+);
 invoicesRoutes.get(
   "/select_invoice_contracts",
   verifyToken,
@@ -111,5 +135,7 @@ invoicesRoutes.post(
 invoicesRoutes.post("/approve_invoice", verifyToken, requirePermission(can.approve), approveInvoiceSchema, validate, approveInvoiceController);
 // Anular: el permiso base aquí; el reforzado para una aprobada, en el service.
 invoicesRoutes.post("/cancel_invoice", verifyToken, requirePermission(can.cancel), cancelInvoiceSchema, validate, cancelInvoiceController);
+// Eliminar: el permiso base aquí; el reforzado para una aprobada, en el service.
+invoicesRoutes.post("/delete_invoice", verifyToken, requirePermission(can.delete), deleteInvoiceSchema, validate, deleteInvoiceController);
 
 export default invoicesRoutes;

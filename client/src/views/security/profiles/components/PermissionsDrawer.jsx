@@ -87,9 +87,11 @@ export default function PermissionsDrawer({ visible, setVisible, title, prfId, o
         return;
       }
 
-      // Filter pages that have a valid parentDescription and are not "Sin Grupo"
+      // Ventanas con grupo, y las de primer nivel que tienen permisos propios:
+      // p. ej. "Facturas" (desplegable del menú), de la que cuelgan las
+      // acciones comunes de las facturas (DEC-054). Sin esto no se podían asignar.
       const filtered = data.filter(
-        (v) => v.parentDescription && v.parentDescription !== 'Sin Grupo'
+        (v) => (v.parentDescription && v.parentDescription !== 'Sin Grupo') || (!v.parentDescription && v.count > 0)
       );
 
       setVentanas(filtered);
@@ -110,9 +112,9 @@ export default function PermissionsDrawer({ visible, setVisible, title, prfId, o
     }
   }, [visible, fetchVentanas]);
 
-  // Group windows by parentDescription
+  // Group windows by parentDescription; una de primer nivel, en su propio grupo.
   const grouped = ventanas.reduce((acc, v) => {
-    const key = v.parentDescription;
+    const key = v.parentDescription ?? v.description;
     if (!acc[key]) acc[key] = [];
     acc[key].push(v);
     return acc;

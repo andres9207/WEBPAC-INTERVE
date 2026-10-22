@@ -8,7 +8,7 @@ import { assertInScope, inScope, scopeWhere } from "../../../common/services/wor
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
-import { assertProviderInScope } from "../providers/providers.service.js";
+import { assertProviderInScope, providerSelectOptions } from "../providers/providers.service.js";
 import { PROVIDER_INVOICE_VIEWS, isContractView } from "../../billing/invoices/invoiceViews.js";
 import { resolveContractTypeFields } from "../../admin/providerTypes/providerTypeFields.service.js";
 import { FIELD_GROUPS, enforceFields, typeAppliesAiu, withContractAiu } from "../../admin/providerTypes/contractFields.js";
@@ -341,9 +341,20 @@ const countByState = async (where) => {
 };
 
 /**
+ * Filtro Proveedor del listado: proveedores con contratos no eliminados en el
+ * alcance por obra, con tope y búsqueda (DEC-018).
+ */
+export const selectContractFilterProviders = ({ search, includePrvId, scope } = {}) =>
+  providerSelectOptions({
+    admitted: { tbl_contracts: { some: { sta_id: { not: DELETED_STATUS }, ...scopeWhere(scope) } } },
+    search,
+    includePrvId,
+  });
+
+/**
  * Contratos no eliminados, paginados. `state` filtra por estado del ciclo de
- * vida (las pestañas), `wrkId`, por obra (la pestaña de la obra) y `cttId`,
- * por tipo de contrato. `number`, `name`, `providerName` (razón social) y el
+ * vida (las pestañas), `wrkId`, por obra (la pestaña de la obra), `cttId`,
+ * por tipo de contrato, y `prvId`, por proveedor. `number`, `name`, `providerName` (razón social) y el
  * rango de la fecha fin (`endDateFrom`, `endDateTo`) son filtros por campo
  * (DEC-048). Los conteos de las pestañas respetan todos los filtros menos el
  * estado.
@@ -364,6 +375,7 @@ export const paginationContracts = async ({
   state,
   wrkId,
   cttId,
+  prvId,
   number,
   name,
   providerName,
@@ -393,6 +405,7 @@ export const paginationContracts = async ({
     ...searchWhereOf(search),
     ...filtersWhere([
       idFilter(wrkId, (id) => ({ wrk_id: id })),
+      idFilter(prvId, (id) => ({ prv_id: id })),
       containsFilter(providerName, (c) => ({ tbl_providers: { prv_name: c } })),
       containsFilter(number, (c) => ({ ctr_number: c })),
       containsFilter(name, (c) => ({ ctr_name: c })),

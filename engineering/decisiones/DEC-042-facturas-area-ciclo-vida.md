@@ -41,7 +41,7 @@ Resuelve PD-05 ([`PROJECT_STATE`](../PROJECT_STATE.md)) **para facturación** y 
 - **Anular** exige un motivo del catálogo (ámbito nuevo `INVOICE_CANCEL` en `tbl_reasons`, migración 0068) y una observación.
   - Anular una aprobada exige, además del permiso de anular, el reforzado. El service lo verifica con el estado bajo bloqueo, igual que levantar una suspensión.
   - La fecha de aprobación se conserva.
-  - Una factura nunca se elimina: no hay endpoint. `sta_id` queda solo por la convención de las tablas.
+  - Una factura nunca se elimina: no hay endpoint. `sta_id` queda solo por la convención de las tablas. *Cambiado por [DEC-068](DEC-068-eliminar-facturas.md): registradas y aprobadas se eliminan de forma lógica, con permiso.*
 - **Bloqueo:**
   - simple: obra → proveedor → factura;
   - de contrato: contrato → factura;

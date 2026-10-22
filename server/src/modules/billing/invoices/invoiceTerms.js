@@ -95,10 +95,12 @@ export const cancelTransitionFor = (state) => (state === APPROVED ? "cancelAppro
  * "Inmutabilidad"). La consulta nunca se bloquea.
  *   edit       todos los campos salvo tipo, obra y contrato
  *   editNotes  solo extracto y descripción: no participan en ningún cálculo
+ *   delete, deleteApproved  eliminación lógica (DEC-068); la de una aprobada
+ *              exige el permiso reforzado. La anulada no se elimina.
  */
 export const STATE_ALLOWS = Object.freeze({
-  REGISTERED: Object.freeze(["edit", "editNotes", "approve", "cancel"]),
-  APPROVED: Object.freeze(["editNotes", "cancelApproved"]),
+  REGISTERED: Object.freeze(["edit", "editNotes", "approve", "cancel", "delete"]),
+  APPROVED: Object.freeze(["editNotes", "cancelApproved", "deleteApproved"]),
   CANCELLED: Object.freeze([]),
 });
 

@@ -18,6 +18,7 @@ import RouteDialog from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import ApproveInvoiceDialog from './components/ApproveInvoiceDialog';
 import CancelInvoiceDialog from './components/CancelInvoiceDialog';
+import DeleteInvoiceDialog from './components/DeleteInvoiceDialog';
 import { invoicesApi } from 'api/requests/invoicesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useSocket } from 'socket/SocketProvider';
@@ -262,6 +263,12 @@ export default function InvoiceDetailPage() {
   }, [load, refresh]);
 
   const close = () => navigate(invoicePath(view));
+  // Eliminada: ya no se puede leer; vuelve al listado.
+  const deleted = () => {
+    setDialog(null);
+    refresh?.();
+    close();
+  };
 
   if (!invoice) return <RouteDialog onClose={close} loading={loading} />;
 
@@ -271,6 +278,8 @@ export default function InvoiceDetailPage() {
   // Anular una aprobada exige además el permiso reforzado (ADR-0020).
   const canCancel = canDo(perms?.cancel) && (allows('cancel') || (allows('cancelApproved') && canDo(perms?.cancelApproved)));
   const canEdit = canDo(perms?.edit) && allows('editNotes');
+  // Eliminar una aprobada exige además el permiso reforzado (DEC-068).
+  const canDelete = canDo(perms?.delete) && (allows('delete') || (allows('deleteApproved') && canDo(perms?.deleteApproved)));
 
   return (
     <RouteDialog
@@ -326,6 +335,11 @@ export default function InvoiceDetailPage() {
           {canCancel && (
             <Button variant="outlined" color="error" onClick={() => setDialog('cancel')}>
               Anular
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="text" color="error" onClick={() => setDialog('delete')}>
+              Eliminar
             </Button>
           )}
           <Box sx={{ flexGrow: 1 }} />
@@ -467,6 +481,12 @@ export default function InvoiceDetailPage() {
         invoice={{ invId: invoice.invId, number: invoice.number, state: invoice.state }}
         onClose={closeDialog}
         onSaved={changed}
+      />
+      <DeleteInvoiceDialog
+        open={dialog === 'delete'}
+        invoice={{ invId: invoice.invId, number: invoice.number, state: invoice.state }}
+        onClose={closeDialog}
+        onDeleted={deleted}
       />
     </RouteDialog>
   );

@@ -15,6 +15,13 @@ export const contractsApi = createMasterApi('work/contracts', { entity: 'contrac
 export const getContractWorksSelectAPI = (search) => httpCliente.get('work/contracts/select_contract_works', search ? { search } : {});
 
 /**
+ * Proveedores con contratos en el alcance por obra: el filtro Proveedor del
+ * listado. Busca por razón social o identificación.
+ * @param {{ search?: string, includePrvId?: number }} params  el ya elegido vuelve aunque la búsqueda lo deje fuera
+ */
+export const getContractFilterProvidersAPI = (params) => httpCliente.get('work/contracts/select_contract_filter_providers', params);
+
+/**
  * Etapas y proveedores asignados de una obra, para el formulario.
  * @param {{ wrkId: number, includeWksId?: number, includePrvId?: number }} params  los actuales se incluyen aunque estén inactivos
  */

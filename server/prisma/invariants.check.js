@@ -106,10 +106,10 @@ const CHECKS = [
   },
   {
     id: "I11",
-    title: "un número de factura repetido del proveedor (contra una anulada, si hay)",
-    constraint: "uq_invoices_provider_number",
+    title: "un número de factura repetido del proveedor entre no eliminadas (contra una anulada, si hay)",
+    constraint: "uq_invoices_provider_number_active",
     prepare: async (tx) => {
-      const i = await one(tx, `SELECT inv_id FROM tbl_invoices ORDER BY inv_state = 'CANCELLED' DESC, inv_id LIMIT 1`);
+      const i = await one(tx, `SELECT inv_id FROM tbl_invoices WHERE sta_id <> 3 ORDER BY inv_state = 'CANCELLED' DESC, inv_id LIMIT 1`);
       return i && [await cloneSql(tx, "tbl_invoices", "inv_id", i.inv_id, NO_IDEMPOTENCY("inv"))];
     },
   },
@@ -145,11 +145,15 @@ const CHECKS = [
   },
   {
     id: "I13",
-    title: "una factura simple sin etapa",
+    title: "una factura simple con contrato",
     constraint: "ck_invoices_type_links",
     prepare: async (tx) => {
-      const i = await one(tx, `SELECT inv_id FROM tbl_invoices WHERE inv_type = 'SIMPLE' LIMIT 1`);
-      return i && [`UPDATE tbl_invoices SET wks_id = NULL WHERE inv_id = ${i.inv_id}`];
+      // La simple puede no tener etapa si su obra no tiene etapas (DEC-069): eso lo verifica el service.
+      const i = await one(
+        tx,
+        `SELECT i.inv_id, c.ctr_id FROM tbl_invoices i JOIN tbl_contracts c ON c.wrk_id = i.wrk_id AND c.prv_id = i.prv_id WHERE i.inv_type = 'SIMPLE' LIMIT 1`
+      );
+      return i && [`UPDATE tbl_invoices SET ctr_id = ${i.ctr_id} WHERE inv_id = ${i.inv_id}`];
     },
   },
   {

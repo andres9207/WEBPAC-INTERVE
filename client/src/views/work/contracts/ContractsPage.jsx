@@ -6,7 +6,7 @@ import Typography from '@mui/material/Typography';
 import MasterPage from 'ui-component/extended/MasterPage';
 import LinkedFilterNotice from 'ui-component/extended/LinkedFilterNotice';
 import useLinkedFilters from 'hooks/useLinkedFilters';
-import { contractsApi } from 'api/requests/contractsApi';
+import { contractsApi, getContractFilterProvidersAPI } from 'api/requests/contractsApi';
 import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField } from 'contexts/WorkScopeContext';
@@ -107,7 +107,17 @@ const FILTER_FIELDS = [
     socketEvent: 'refresh-contract-types',
     grid: { xs: 12, sm: 6 }
   },
-  { key: 'providerName', type: 'input', label: 'Proveedor (razón social)', props: { maxLength: 255 }, grid: { xs: 12, sm: 6 } },
+  // Proveedor: los que tienen contratos, buscados en el servidor (tienen tope, DEC-018).
+  {
+    key: 'prvId',
+    type: 'remoteDropdown',
+    label: 'Proveedor',
+    fetchOptions: ({ search, includeId }) =>
+      getContractFilterProvidersAPI({ ...(search ? { search } : {}), ...(includeId ? { includePrvId: includeId } : {}) }).then(
+        (res) => res.data
+      ),
+    grid: { xs: 12, sm: 6 }
+  },
   { key: 'endDate', type: 'calendar-range', label: 'Fecha fin' }
 ];
 

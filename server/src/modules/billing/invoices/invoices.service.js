@@ -11,6 +11,7 @@ import { PERMISSIONS } from "../../../common/constants/permissions.constants.js"
 import { moneyText, percentText, ratioText, toMoney } from "../../../common/utils/money.utils.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, getContractFormOptions } from "../../work/contracts/contracts.service.js";
+import { providerSelectOptions } from "../../work/providers/providers.service.js";
 import {
   CONCEPT_TYPES,
   INVOICE_ACTIONS,
@@ -79,7 +80,9 @@ import {
  * - El estado solo cambia por las transiciones de invoiceTerms.js, con
  *   historial y bitácora en la misma transacción. Estado y fecha de
  *   aprobación nunca vienen del formulario.
- * - Una factura no se elimina: se anula (ADR-0020, decisión 12).
+ * - Un error se corrige anulando. Eliminar es aparte y con permiso propio
+ *   (DEC-068): lógica, solo registradas y aprobadas; la eliminada sale de
+ *   listados, saldos y del número único, y da 404 en todo lo demás.
  * - Anticipo, liquidación y devolución de retenido llevan su detalle con
  *   importes: el valor del anticipo (DEC-044); el VALOR, la amortización y
  *   el retenido de la liquidación (DEC-044, DEC-051), y el valor devuelto
@@ -186,16 +189,16 @@ export const assertInvoiceVisible = async ({ scope, views }, invId) => {
   // service da el 404 de la inexistente al leerla.
   if ((!scope || scope.all) && !views) return;
   const row = await prisma.tbl_invoices.findFirst({
-    where: { inv_id: Number(invId), AND: [invoiceScopeWhere(scope), viewsWhere(views)] },
+    where: { inv_id: Number(invId), sta_id: { not: DELETED_STATUS }, AND: [invoiceScopeWhere(scope), viewsWhere(views)] },
     select: { inv_id: true },
   });
   if (!row) throw httpError(404, NOT_FOUND);
 };
 
-/** Factura bloqueada (la utilidad ya ejecutó el FOR UPDATE). 404 si no existe. */
+/** Factura bloqueada (la utilidad ya ejecutó el FOR UPDATE). 404 si no existe o está eliminada (DEC-068). */
 const findLockedInvoice = async (tx, invId) => {
-  const row = await tx.tbl_invoices.findUnique({ where: { inv_id: Number(invId) }, select: LOCKED_SELECT });
-  if (!row) throw httpError(404, "No se encontró la factura.");
+  const row = await tx.tbl_invoices.findUnique({ where: { inv_id: Number(invId) }, select: { ...LOCKED_SELECT, sta_id: true } });
+  if (!row || row.sta_id === DELETED_STATUS) throw httpError(404, "No se encontró la factura.");
   return row;
 };
 
@@ -206,9 +209,9 @@ const findLockedInvoice = async (tx, invId) => {
 const findImmutable = async (invId) => {
   const known = await prisma.tbl_invoices.findUnique({
     where: { inv_id: Number(invId) },
-    select: { inv_type: true, wrk_id: true, ctr_id: true, prv_id: true },
+    select: { inv_type: true, wrk_id: true, ctr_id: true, prv_id: true, sta_id: true },
   });
-  if (!known) throw httpError(404, "No se encontró la factura.");
+  if (!known || known.sta_id === DELETED_STATUS) throw httpError(404, "No se encontró la factura.");
   return known;
 };
 
@@ -227,13 +230,15 @@ const locksOf = (known, invId, prvId = known.prv_id) =>
  * Saldos de anticipo (DEC-044) y de retenido (DEC-051) del contrato con lo
  * que ve `db`. Dentro de una escritura, `db` es el tx con el contrato ya
  * bloqueado (primera sentencia): las sumas ven las aprobaciones confirmadas
- * por otras transacciones. Solo cuentan las facturas aprobadas; las
- * registradas no reservan saldo. Una liquidación aprobada sin retenido
+ * por otras transacciones. Solo cuentan las facturas aprobadas y no
+ * eliminadas (DEC-068); las registradas no reservan saldo. Una liquidación aprobada sin retenido
  * (registrada antes de DEC-051) suma cero.
  */
 export const contractBalances = async (db, ctrId) => {
   const id = Number(ctrId);
-  const approved = (type) => ({ tbl_invoices: { ctr_id: id, inv_type: type, inv_state: INVOICE_STATES.APPROVED } });
+  const approved = (type) => ({
+    tbl_invoices: { ctr_id: id, inv_type: type, inv_state: INVOICE_STATES.APPROVED, sta_id: { not: DELETED_STATUS } },
+  });
   const concepts = await db.tbl_contract_concepts.findMany({ where: { ctr_id: id }, select: CONCEPT_SELECT });
   const advance = await db.tbl_invoice_advance_details.aggregate({ where: approved(INVOICE_TYPES.ADVANCE), _sum: { iad_value: true } });
   const liquidation = await db.tbl_invoice_liquidation_details.aggregate({
@@ -749,7 +754,7 @@ const countByState = async (where) => {
 /**
  * Facturas paginadas. `state` filtra por estado (las pestañas); `type`,
  * `wrkId`, `prvId` y `ctrId`, por tipo, obra, proveedor o contrato (la
- * pestaña Facturas del contrato). `number`, `voucherNumber`,
+ * pestaña Facturas del contrato). `number`, `voucherNumber`, `statement`,
  * `contractNumber`, `providerName` (razón social) y los rangos de fecha y de aprobación son filtros por
  * campo (DEC-048). Los conteos respetan todos los filtros menos el estado.
  *
@@ -771,6 +776,7 @@ export const paginationInvoices = async ({
   ctrId,
   number,
   voucherNumber,
+  statement,
   contractNumber,
   providerName,
   dateFrom,
@@ -799,6 +805,7 @@ export const paginationInvoices = async ({
       idFilter(wrkId, (id) => ({ wrk_id: id })),
       containsFilter(number, (c) => ({ inv_number: c })),
       containsFilter(voucherNumber, (c) => ({ inv_voucher_number: c })),
+      containsFilter(statement, (c) => ({ inv_statement: c })),
       containsFilter(contractNumber, (c) => ({ tbl_contracts: { ctr_number: c } })),
       containsFilter(providerName, (c) => ({ tbl_providers: { prv_name: c } })),
       dateRangeFilter("inv_date", dateFrom, dateTo),
@@ -920,10 +927,10 @@ export const getInvoice = async ({ invId, scope, views }) => {
     state: row.inv_state,
     stateName: STATE_NAMES[row.inv_state] ?? row.inv_state,
     // Qué admite el estado actual: el cliente lo cruza con los permisos. Con
-    // el contrato liquidado no se anula (ADR-0027): el servidor lo vuelve a
-    // verificar bajo bloqueo.
+    // el contrato liquidado no se anula ni se elimina (ADR-0027, DEC-068): el
+    // servidor lo vuelve a verificar bajo bloqueo.
     allowedActions: (STATE_ALLOWS[row.inv_state] ?? []).filter(
-      (action) => !CANCEL_ACTIONS.has(action) || !contract || contractAllows(contract.ctr_state, "cancelInvoice")
+      (action) => !CONTRACT_GATED_ACTIONS[action] || !contract || contractAllows(contract.ctr_state, CONTRACT_GATED_ACTIONS[action])
     ),
     createdAt: row.inv_create_at,
     createdByName: userFullName(row.created_by_user),
@@ -990,32 +997,72 @@ export const getInvoiceFormOptions = async (args) => {
   };
 };
 
+// Tipos de factura de contrato que admite hoy un contrato en ese estado (ADR-0017).
+const admittedTypes = (state) => Object.keys(INVOICE_ACTIONS).filter((type) => CONTRACT_STATE_ALLOWS[state]?.includes(INVOICE_ACTIONS[type]));
+
 /**
  * Contratos del menú `view` (DEC-066) que hoy admiten el tipo de factura
  * pedido (ADR-0017, "Efectos de cada estado"): el anticipo, en ejecución;
- * liquidación y devolución, en liquidación. Con tope fijo, como un selector
- * (DEC-018); busca por número, nombre, proveedor y obra. `includeCtrId`: el
- * contrato ya elegido (el que abre el formulario desde su expediente) se
- * devuelve aunque la búsqueda o el tope lo dejen fuera, si su estado admite
- * el tipo.
+ * liquidación y devolución, en liquidación. Sin tipo (el formulario lo elige
+ * después del contrato), los que admiten alguno. Null si el tipo no es de
+ * contrato.
  */
-export const selectInvoiceContracts = async ({ type, view, search, includeCtrId, scope } = {}) => {
-  const action = INVOICE_ACTIONS[type];
-  if (!action) return [];
-  const states = Object.entries(CONTRACT_STATE_ALLOWS)
-    .filter(([, actions]) => actions.includes(action))
-    .map(([state]) => state);
-  const admitted = {
+const admittedContractsWhere = ({ type, view, scope }) => {
+  if (type && !INVOICE_ACTIONS[type]) return null;
+  const states = Object.keys(CONTRACT_STATE_ALLOWS).filter((state) =>
+    type ? admittedTypes(state).includes(type) : admittedTypes(state).length > 0
+  );
+  return {
     sta_id: { not: DELETED_STATUS },
     ...(view ? { ctr_invoice_view: view } : {}),
     ctr_state: { in: states },
     ...scopeWhere(scope),
   };
+};
+
+/**
+ * Proveedores con algún contrato admitido (`admittedContractsWhere`), para
+ * elegirlos antes que el contrato. Con tope fijo (DEC-018); busca por razón
+ * social o identificación. `includePrvId`: el ya elegido vuelve aunque la
+ * búsqueda o el tope lo dejen fuera, si tiene contratos admitidos.
+ */
+export const selectInvoiceProviders = async ({ type, view, search, includePrvId, scope } = {}) => {
+  const contracts = admittedContractsWhere({ type, view, scope });
+  if (!contracts) return [];
+  return providerSelectOptions({ admitted: { sta_id: { not: DELETED_STATUS }, tbl_contracts: { some: contracts } }, search, includePrvId });
+};
+
+/**
+ * Proveedores con facturas no eliminadas de la vista `view` (o de las que ve
+ * el usuario, `views`) en el alcance por obra: el filtro Proveedor del
+ * listado. Busca por razón social o identificación, con tope (DEC-018);
+ * `includePrvId`, el ya elegido, vuelve aunque la búsqueda lo deje fuera.
+ */
+export const selectInvoiceFilterProviders = async ({ view, views, search, includePrvId, scope } = {}) => {
+  const listed = view ? (views ?? [view]).filter((v) => v === view) : views;
+  const invoices = { sta_id: { not: DELETED_STATUS }, AND: [invoiceScopeWhere(scope), viewsWhere(listed)] };
+  return providerSelectOptions({ admitted: { tbl_invoices: { some: invoices } }, search, includePrvId });
+};
+
+/**
+ * Contratos admitidos (`admittedContractsWhere`), con tope fijo, como un
+ * selector (DEC-018); busca por número, nombre, proveedor y obra. `prvId`:
+ * solo los de ese proveedor (elegido antes en el formulario).
+ * `includeCtrId`: el contrato ya elegido (el que abre el formulario desde su
+ * expediente) se devuelve aunque la búsqueda o el tope lo dejen fuera, si su
+ * estado admite el tipo.
+ */
+export const selectInvoiceContracts = async ({ type, view, prvId, search, includeCtrId, scope } = {}) => {
+  const contracts = admittedContractsWhere({ type, view, scope });
+  if (!contracts) return [];
+  const provider = positiveId(prvId);
+  const admitted = { ...contracts, ...(provider ? { prv_id: provider } : {}) };
   const select = {
     ctr_id: true,
     ctr_number: true,
     ctr_name: true,
     ctr_state: true,
+    prv_id: true,
     tbl_providers: { select: { prv_name: true } },
     tbl_works: { select: { wrk_code: true, wrk_name: true } },
   };
@@ -1046,10 +1093,13 @@ export const selectInvoiceContracts = async ({ type, view, search, includeCtrId,
   }
   return rows.map((row) => ({
     value: row.ctr_id,
+    prvId: row.prv_id,
     label: `${row.tbl_works?.wrk_code ?? ""} · ${row.ctr_number} — ${row.ctr_name}`,
     providerName: row.tbl_providers?.prv_name ?? null,
     workName: row.tbl_works ? `${row.tbl_works.wrk_code} — ${row.tbl_works.wrk_name}` : null,
     stateName: CONTRACT_STATE_NAMES[row.ctr_state] ?? row.ctr_state,
+    // Tipos que el formulario ofrece después de elegir el contrato.
+    types: admittedTypes(row.ctr_state),
   }));
 };
 
@@ -1062,9 +1112,17 @@ const assertWork = async (tx, wrkId) => {
   if (work.sta_id !== ACTIVE_STATUS) throw httpError(400, `La obra ${work.wrk_code} está inactiva: no admite facturas nuevas.`);
 };
 
-/** La etapa es de la obra y está activa, salvo que sea la que ya tenía (DEC-058). */
+/**
+ * La etapa es de la obra y está activa, salvo que sea la que ya tenía
+ * (DEC-058). Sin etapa solo si la obra no tiene etapas activas (DEC-069): se
+ * cuentan con la obra ya bloqueada.
+ */
 const assertStage = async (tx, { wrkId, wksId, currentWksId }) => {
-  if (!wksId) throw httpError(400, "Selecciona la etapa de la obra.");
+  if (!wksId) {
+    const stages = await tx.tbl_work_stages.count({ where: { wrk_id: wrkId, sta_id: ACTIVE_STATUS } });
+    if (stages > 0) throw httpError(400, "La obra tiene etapas: selecciona la etapa de la factura.");
+    return;
+  }
   const stage = await tx.tbl_work_stages.findUnique({ where: { wks_id: wksId }, select: { wrk_id: true, sta_id: true, wks_name: true } });
   if (!stage || stage.wrk_id !== wrkId) throw httpError(400, "La etapa seleccionada no pertenece a la obra de la factura.");
   if (stage.sta_id !== ACTIVE_STATUS && wksId !== currentWksId) {
@@ -1099,12 +1157,13 @@ const assertProviderAssigned = async (tx, { wrkId, prvId, currentPrvId }) => {
   if (assignment.sta_id !== ACTIVE_STATUS) throw httpError(400, `La asignación de ${assignment.tbl_providers.prv_name} a la obra está inactiva.`);
 };
 
-// Número único por proveedor, anuladas incluidas (backlog DEC-17, DEC-042).
+// Número único por proveedor, anuladas incluidas (backlog DEC-17, DEC-042);
+// el de una eliminada queda libre (DEC-068).
 // El UNIQUE de la BD es la garantía ante dos peticiones simultáneas; esto da
 // el mensaje claro.
 const assertUniqueNumber = async (tx, { prvId, number, excludeId = null }) => {
   const duplicate = await tx.tbl_invoices.findFirst({
-    where: { prv_id: prvId, inv_number: number, ...(excludeId ? { inv_id: { not: excludeId } } : {}) },
+    where: { prv_id: prvId, inv_number: number, sta_id: { not: DELETED_STATUS }, ...(excludeId ? { inv_id: { not: excludeId } } : {}) },
     select: { inv_id: true, inv_state: true },
   });
   if (duplicate) {
@@ -1266,7 +1325,10 @@ const updateInvoice = async ({ invId, input, document, granted, useBy, ctx }) =>
 
       if (isSimple) {
         await assertProviderAssigned(tx, { wrkId: before.wrk_id, prvId: values.prv_id, currentPrvId: before.prv_id });
-        await assertStage(tx, { wrkId: before.wrk_id, wksId: values.wks_id, currentWksId: before.wks_id });
+        // Una aprobada solo cambia extracto y descripción: la etapa no se revisa (DEC-069).
+        if (stateAllows(before.inv_state, "edit")) {
+          await assertStage(tx, { wrkId: before.wrk_id, wksId: values.wks_id, currentWksId: before.wks_id });
+        }
       }
       const prvId = values.prv_id ?? before.prv_id;
       if (values.inv_number !== before.inv_number || prvId !== before.prv_id) {
@@ -1352,18 +1414,24 @@ const assertContractStillAdmits = async (tx, invoice) => {
   assertContractAllows(contract.ctr_state, INVOICE_ACTIONS[invoice.inv_type]);
 };
 
-/** Acciones de la factura que la anulan: el contrato liquidado no las admite. */
-const CANCEL_ACTIONS = new Set(["cancel", "cancelApproved"]);
+/** Acciones de la factura que la anulan o la eliminan → acción del contrato que las admite (no el liquidado). */
+const CONTRACT_GATED_ACTIONS = Object.freeze({
+  cancel: "cancelInvoice",
+  cancelApproved: "cancelInvoice",
+  delete: "deleteInvoice",
+  deleteApproved: "deleteInvoice",
+});
 
 /**
- * Anular una factura de contrato: 409 con el contrato liquidado (ADR-0027,
- * catálogo de operaciones críticas; ADR-0017: liquidado, solo consulta). Con
- * el contrato ya bloqueado. La simple no tiene contrato.
+ * Anular o eliminar (`action`, DEC-068) una factura de contrato: 409 con el
+ * contrato liquidado (ADR-0027, catálogo de operaciones críticas; ADR-0017:
+ * liquidado, solo consulta). Con el contrato ya bloqueado. La simple no
+ * tiene contrato.
  */
-const assertContractAdmitsCancel = async (tx, invoice) => {
+const assertContractAdmitsCancel = async (tx, invoice, action = "cancelInvoice") => {
   if (!invoice.ctr_id) return;
   const contract = await findLockedContract(tx, invoice.ctr_id);
-  assertContractAllows(contract.ctr_state, "cancelInvoice");
+  assertContractAllows(contract.ctr_state, action);
 };
 
 /**
@@ -1481,5 +1549,53 @@ export const cancelInvoice = async ({ invId, input, useBy, granted, scope, views
         return { message, invId: before.inv_id };
       });
     },
+  });
+};
+
+// ─── Eliminar ────────────────────────────────────────────────────────────────
+
+/**
+ * Eliminar (DEC-068): lógica, con observación y bitácora. Una registrada
+ * exige el permiso de eliminar (la ruta); una aprobada, además el reforzado,
+ * que el service verifica con el estado bajo bloqueo (`granted`). La anulada
+ * no se elimina (409): ya no cuenta y queda como historial. Una aprobada
+ * revierte sus efectos con las mismas reglas que anularla (I2, I3), y con el
+ * contrato liquidado ninguna se elimina (409). Bloquea contrato → factura, u
+ * obra → proveedor → factura. Sin clave de idempotencia: repetirla da 404.
+ */
+export const deleteInvoice = async ({ invId, input, useBy, granted, scope, views, ctx = { useId: useBy } }) => {
+  await assertInvoiceVisible({ scope, views }, invId);
+  const observation = text(input?.observation);
+  if (!observation) throw httpError(400, "La observación de la eliminación es requerida.");
+
+  const known = await findImmutable(invId);
+  return withLockedTransaction(locksOf(known, invId), async (tx) => {
+    const before = await findLockedInvoice(tx, invId);
+    const approved = stateAllows(before.inv_state, "deleteApproved");
+    if (!approved && !stateAllows(before.inv_state, "delete")) {
+      throw httpError(409, "La factura está anulada: no se elimina, queda como historial.");
+    }
+    if (approved && !granted?.has(can.deleteApproved)) {
+      throw httpError(403, "La factura está aprobada: eliminarla exige el permiso de eliminar facturas aprobadas.");
+    }
+    await assertContractAdmitsCancel(tx, before, "deleteInvoice");
+    const balanceChanges = await revalidateOnCancel(tx, before);
+
+    await tx.tbl_invoices.update({
+      where: { inv_id: before.inv_id },
+      data: { sta_id: DELETED_STATUS, inv_delete_by: Number(useBy), inv_delete_at: new Date(), inv_update_by: Number(useBy) },
+    });
+    await writeAudit(tx, {
+      entity: AUDIT_ENTITIES.INVOICE,
+      recordId: before.inv_id,
+      operation: AUDIT_OPERATIONS.DELETE,
+      ctx,
+      changes: [
+        { field: "sta_id", oldValue: before.sta_id, newValue: DELETED_STATUS },
+        { field: "observation", oldValue: null, newValue: observation },
+        ...balanceChanges,
+      ],
+    });
+    return { message: "Factura eliminada correctamente", invId: before.inv_id };
   });
 };

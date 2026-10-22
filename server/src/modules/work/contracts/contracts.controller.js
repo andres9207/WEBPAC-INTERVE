@@ -30,7 +30,7 @@ const CONTRACT_FIELDS = ["wrkId", "prvId", "pvtId", "wksId", "cttId", "number", 
 const ACT_FIELDS = ["startDate", "description", ...CONCEPT_FIELDS];
 
 export const paginationContractsController = handle(async (req) => {
-  const { search, state, wrkId, cttId, number, name, providerName, endDateFrom, endDateTo, rows, first, sortField, sortOrder } = req.body;
+  const { search, state, wrkId, cttId, prvId, number, name, providerName, endDateFrom, endDateTo, rows, first, sortField, sortOrder } = req.body;
   const { policyStatus, uncovered } = req.body;
   // Los filtros del tablero por pólizas exigen poder verlas (DEC-052).
   const canViewPolicies =
@@ -43,6 +43,7 @@ export const paginationContractsController = handle(async (req) => {
     state,
     wrkId,
     cttId,
+    prvId,
     number,
     name,
     providerName,
@@ -55,6 +56,10 @@ export const paginationContractsController = handle(async (req) => {
     scope: await workScopeOf(req),
   });
 });
+
+export const selectContractFilterProvidersController = handle(async (req) =>
+  contractsService.selectContractFilterProviders({ search: req.query.search, includePrvId: req.query.includePrvId, scope: await workScopeOf(req) })
+);
 
 export const getContractController = handle(async (req) => contractsService.getContract({ ctrId: req.query.ctrId, scope: await workScopeOf(req) }));
 

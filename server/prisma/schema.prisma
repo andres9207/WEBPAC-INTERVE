@@ -1006,6 +1006,9 @@ model tbl_contract_suspensions {
   @@index([csp_update_by], map: "tbl_contract_suspensions_update_by")
 }
 
+/// Facturas (database/migrations/0066_create_invoices.sql, DEC-042).
+/// inv_number_active es una columna GENERADA por MySQL (número único por proveedor entre no
+/// eliminadas, 0101, DEC-068): nunca se escribe desde el código.
 model tbl_invoices {
   inv_id                               Int                                   @id @default(autoincrement())
   inv_type                             String                                @db.VarChar(20)
@@ -1030,6 +1033,7 @@ model tbl_invoices {
   inv_delete_at                        DateTime?                             @db.Timestamp(0)
   inv_idempotency_key                  String?                               @unique(map: "uq_invoices_idempotency_key") @db.Char(36)
   inv_idempotency_hash                 String?                               @db.Char(64)
+  inv_number_active                    String?                               @db.VarChar(50)
   tbl_invoice_advance_details          tbl_invoice_advance_details?
   tbl_invoice_simple_details           tbl_invoice_simple_details?
   tbl_invoice_liquidation_details      tbl_invoice_liquidation_details?
@@ -1046,7 +1050,7 @@ model tbl_invoices {
   tbl_work_providers                   tbl_work_providers                    @relation(fields: [wrk_id, prv_id], references: [wrk_id, prv_id], onUpdate: NoAction, map: "tbl_invoices_work_provider")
   tbl_work_stages                      tbl_work_stages?                      @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: NoAction, map: "tbl_invoices_work_stage")
 
-  @@unique([prv_id, inv_number], map: "uq_invoices_provider_number")
+  @@unique([prv_id, inv_number_active], map: "uq_invoices_provider_number_active")
   @@unique([inv_id, ctr_id], map: "uq_invoices_id_contract")
   @@index([inv_date], map: "idx_invoices_date")
   @@index([inv_state], map: "idx_invoices_state")

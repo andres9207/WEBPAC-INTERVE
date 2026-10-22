@@ -60,7 +60,7 @@ const accessOf = async (user) => {
 
 export const paginationInvoicesController = handle(async (req) => {
   const { search, state, view, type, wrkId, prvId, ctrId, rows, first, sortField, sortOrder } = req.body;
-  const { number, voucherNumber, contractNumber, providerName, dateFrom, dateTo, approvalDateFrom, approvalDateTo } = req.body;
+  const { number, voucherNumber, statement, contractNumber, providerName, dateFrom, dateTo, approvalDateFrom, approvalDateTo } = req.body;
   const scope = await workScopeOf(req);
   const { views } = await accessOf(req.user);
   return invoicesService.paginationInvoices({
@@ -74,6 +74,7 @@ export const paginationInvoicesController = handle(async (req) => {
     ctrId,
     number,
     voucherNumber,
+    statement,
     contractNumber,
     providerName,
     dateFrom,
@@ -114,10 +115,31 @@ export const getInvoiceFormOptionsController = handle(async (req) =>
   })
 );
 
+export const selectInvoiceProvidersController = handle(async (req) =>
+  invoicesService.selectInvoiceProviders({
+    type: req.query.type,
+    view: req.query.view,
+    search: req.query.search,
+    includePrvId: req.query.includePrvId,
+    scope: await workScopeOf(req),
+  })
+);
+
+export const selectInvoiceFilterProvidersController = handle(async (req) =>
+  invoicesService.selectInvoiceFilterProviders({
+    view: req.query.view,
+    views: (await accessOf(req.user)).views,
+    search: req.query.search,
+    includePrvId: req.query.includePrvId,
+    scope: await workScopeOf(req),
+  })
+);
+
 export const selectInvoiceContractsController = handle(async (req) =>
   invoicesService.selectInvoiceContracts({
     type: req.query.type,
     view: req.query.view,
+    prvId: req.query.prvId,
     search: req.query.search,
     includeCtrId: req.query.includeCtrId,
     scope: await workScopeOf(req),
@@ -184,6 +206,24 @@ export const cancelInvoiceController = handle(async (req) => {
     scope: await workScopeOf(req),
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
+  });
+  notify();
+  return result;
+});
+
+export const deleteInvoiceController = handle(async (req) => {
+  const { useId, proId } = req.user;
+  // Eliminar una aprobada exige además el permiso reforzado: el service decide
+  // con el estado bajo bloqueo (DEC-068).
+  const { granted, views } = await accessOf({ useId, proId });
+  const result = await invoicesService.deleteInvoice({
+    invId: req.body.invId,
+    input: pick(req.body, ["observation"]),
+    useBy: useId,
+    granted,
+    views,
+    scope: await workScopeOf(req),
+    ctx: auditContext(req),
   });
   notify();
   return result;

@@ -92,23 +92,25 @@ export const STATE_ALLOWS = Object.freeze({
     "suspend",
     "invoiceAdvance",
     "cancelInvoice",
+    "deleteInvoice",
     "createPolicy",
     "renewPolicy",
     "cancelPolicy",
   ]),
   // Suspendido: solo el otrosí que lo reanuda (DEC-039). Ninguna factura nueva.
-  // Anular una factura del contrato se admite en todo estado salvo liquidado
-  // (ADR-0027, catálogo de operaciones críticas; ADR-0017: liquidado, solo
-  // consulta).
+  // Anular y eliminar (DEC-068) una factura del contrato se admite en todo
+  // estado salvo liquidado (ADR-0027, catálogo de operaciones críticas;
+  // ADR-0017: liquidado, solo consulta).
   // Pólizas (ADR-0017, efectos por estado; DEC-050): en ejecución y suspendido,
   // todo; en liquidación, renovar las vigentes y amparar el otrosí de
   // liquidación (nace en ese estado); liquidado, solo consulta.
-  SUSPENDED: Object.freeze(["createAmendment", "cancelInvoice", "createPolicy", "renewPolicy", "cancelPolicy"]),
+  SUSPENDED: Object.freeze(["createAmendment", "cancelInvoice", "deleteInvoice", "createPolicy", "renewPolicy", "cancelPolicy"]),
   IN_LIQUIDATION: Object.freeze([
     "editLiquidationConcept",
     "invoiceLiquidation",
     "invoiceRetentionRefund",
     "cancelInvoice",
+    "deleteInvoice",
     "createLiquidationPolicy",
     "renewPolicy",
   ]),
@@ -133,6 +135,7 @@ const DENIED = {
   invoiceLiquidation: "Las facturas de liquidación solo se registran o aprueban con el contrato en liquidación.",
   invoiceRetentionRefund: "Las facturas de devolución de retenido solo se registran o aprueban con el contrato en liquidación.",
   cancelInvoice: "Las facturas de un contrato liquidado no se anulan: el contrato solo se consulta.",
+  deleteInvoice: "Las facturas de un contrato liquidado no se eliminan: el contrato solo se consulta.",
   createPolicy: "Solo se registran pólizas con el contrato en ejecución o suspendido; en liquidación, solo la del otrosí de liquidación.",
   createLiquidationPolicy: "La póliza del otrosí de liquidación se registra con el contrato en liquidación.",
   renewPolicy: "Las pólizas de un contrato liquidado solo se consultan.",

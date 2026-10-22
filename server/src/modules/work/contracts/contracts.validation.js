@@ -54,12 +54,19 @@ const extensionRule = body("extension")
   .isInt({ min: 0, max: 100000 })
   .withMessage("La prórroga debe ser un entero no negativo.");
 
+// Filtro Proveedor del listado.
+export const selectContractFilterProvidersSchema = [
+  query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
+  query("includePrvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePrvId debe ser un entero positivo."),
+];
+
 export const paginationContractsSchema = [
   ...paginationRules(),
   optionalText("search", 100),
   body("state").optional({ values: "falsy" }).isIn(Object.values(CONTRACT_STATES)).withMessage("El estado no es válido."),
   optionalId("wrkId"),
   optionalId("cttId"),
+  optionalId("prvId"),
   // Filtros por campo (DEC-048).
   optionalText("number", 50),
   optionalText("name", 200),

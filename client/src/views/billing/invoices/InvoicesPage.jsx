@@ -6,7 +6,7 @@ import Typography from '@mui/material/Typography';
 import MasterPage from 'ui-component/extended/MasterPage';
 import LinkedFilterNotice from 'ui-component/extended/LinkedFilterNotice';
 import useLinkedFilters from 'hooks/useLinkedFilters';
-import { invoicesApi } from 'api/requests/invoicesApi';
+import { getInvoiceFilterProvidersAPI, invoicesApi } from 'api/requests/invoicesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField } from 'contexts/WorkScopeContext';
 import { fDateOnly } from 'utils/formatTime';
@@ -68,17 +68,27 @@ const SIMPLE_COLUMNS = INVOICE_COLUMNS.filter((column) => column.id !== 'type');
 const CONTRACT_TYPE_OPTIONS = INVOICE_TYPE_OPTIONS.filter((o) => INVOICE_VIEWS.MAJOR.types.includes(o.value));
 
 // Filtros del listado (DEC-048). El de obra solo con "Ver todo" (useWorkFilterField).
-const COMMON_FILTERS = [
+// Proveedor: los que tienen facturas de la vista, buscados en el servidor (tienen tope, DEC-018).
+const commonFilters = (view) => [
   { key: 'number', type: 'input', label: 'Número', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
   { key: 'voucherNumber', type: 'input', label: 'Comprobante', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
-  { key: 'providerName', type: 'input', label: 'Proveedor (razón social)', props: { maxLength: 255 } },
+  { key: 'statement', type: 'input', label: 'Extracto', props: { maxLength: 100 } },
+  {
+    key: 'prvId',
+    type: 'remoteDropdown',
+    label: 'Proveedor',
+    fetchOptions: ({ search, includeId }) =>
+      getInvoiceFilterProvidersAPI({ view, ...(search ? { search } : {}), ...(includeId ? { includePrvId: includeId } : {}) }).then(
+        (res) => res.data
+      )
+  },
   { key: 'date', type: 'calendar-range', label: 'Fecha', grid: { xs: 12, sm: 6 } },
   { key: 'approvalDate', type: 'calendar-range', label: 'Aprobada el', grid: { xs: 12, sm: 6 } }
 ];
-const CONTRACT_FILTERS = [
+const contractFilters = (view) => [
   { key: 'type', type: 'dropdown', label: 'Tipo de factura', props: { options: CONTRACT_TYPE_OPTIONS }, grid: { xs: 12, sm: 6 } },
   { key: 'contractNumber', type: 'input', label: 'Número de contrato', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
-  ...COMMON_FILTERS
+  ...commonFilters(view)
 ];
 
 const rowLabel = (row) => `${row.typeName} ${row.number} — ${row.providerName ?? ''}`;
@@ -96,9 +106,9 @@ export default function InvoicesPage({ view }) {
   const outletContext = useMemo(() => ({ view, refresh: () => setReloadKey((k) => k + 1) }), [view]);
   const workFilter = useWorkFilterField();
   const filterFields = useMemo(() => {
-    const fields = simple ? COMMON_FILTERS : CONTRACT_FILTERS;
+    const fields = simple ? commonFilters(view) : contractFilters(view);
     return workFilter ? [...fields, workFilter] : fields;
-  }, [simple, workFilter]);
+  }, [simple, view, workFilter]);
   const linked = useLinkedFilters(LINKED_KEYS, describeLinked);
   const filters = useMemo(() => ({ view, ...linked.filters }), [view, linked.filters]);
 

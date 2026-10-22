@@ -38,7 +38,7 @@ const prismaMock = {
   tbl_provider_type_fields: { findMany: jest.fn(async () => state.typeFields) },
   tbl_provider_types: { findUnique: jest.fn() },
   tbl_work_provider_types: { findUnique: jest.fn() },
-  tbl_providers: { findUnique: jest.fn(), findFirst: jest.fn() },
+  tbl_providers: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(async () => []) },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
@@ -489,6 +489,30 @@ describe("paginationContracts", () => {
     ];
     expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where.AND).toEqual(expected);
     expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where.AND).toEqual(expected);
+  });
+
+  it("filtra por proveedor (prvId), también en los conteos", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+
+    await service.paginationContracts({ prvId: "77" });
+
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where.AND).toEqual([{ prv_id: 77 }]);
+    expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where.AND).toEqual([{ prv_id: 77 }]);
+  });
+
+  it("filtro Proveedor: con contratos no eliminados del alcance, por razón social o documento; el ya elegido vuelve", async () => {
+    prismaMock.tbl_providers.findMany.mockResolvedValueOnce([{ prv_id: 78, prv_name: "Otro SA", prv_identification: "900" }]);
+    prismaMock.tbl_providers.findFirst.mockResolvedValueOnce({ prv_id: 77, prv_name: "Aceros SA", prv_identification: "800" });
+
+    const result = await service.selectContractFilterProviders({ search: " acer ", includePrvId: "77", scope: { all: false, wrkId: 8 } });
+
+    const { where, take } = prismaMock.tbl_providers.findMany.mock.calls.at(-1)[0];
+    expect(where.tbl_contracts).toEqual({ some: { sta_id: { not: 3 }, wrk_id: { in: [8] } } });
+    expect(where.OR).toEqual([{ prv_name: { contains: "acer" } }, { prv_identification: { contains: "acer" } }]);
+    expect(take).toBe(100);
+    expect(result.map((o) => o.value)).toEqual([77, 78]);
   });
 
   it("los filtros vacíos no filtran", async () => {

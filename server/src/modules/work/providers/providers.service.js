@@ -108,6 +108,29 @@ const NOT_FOUND = "No se encontró el proveedor.";
 /** Un proveedor está en el alcance si está asignado a alguna obra del alcance. */
 const providerScopeWhere = (scope) => scopeWhere(scope, (ids) => ({ tbl_work_providers: { some: { wrk_id: { in: ids } } } }));
 
+/**
+ * Opciones de proveedor para un selector con tope (DEC-018), buscadas por
+ * razón social o identificación: `admitted` decide cuáles (p. ej. los que
+ * tienen contratos o facturas). `includePrvId`, el ya elegido, vuelve aunque
+ * la búsqueda o el tope lo dejen fuera, si `admitted` lo admite.
+ */
+export const providerSelectOptions = async ({ admitted, search, includePrvId }) => {
+  const select = { prv_id: true, prv_name: true, prv_identification: true };
+  const value = String(search ?? "").trim();
+  const rows = await prisma.tbl_providers.findMany({
+    where: { ...admitted, ...(value ? { OR: [{ prv_name: { contains: value } }, { prv_identification: { contains: value } }] } : {}) },
+    select,
+    orderBy: { prv_name: "asc" },
+    take: MAX_ROWS,
+  });
+  const includeId = Number(includePrvId) > 0 ? Number(includePrvId) : null;
+  if (includeId && !rows.some((row) => row.prv_id === includeId)) {
+    const included = await prisma.tbl_providers.findFirst({ where: { ...admitted, prv_id: includeId }, select });
+    if (included) rows.unshift(included);
+  }
+  return rows.map((row) => ({ value: row.prv_id, label: `${row.prv_name} — ${row.prv_identification}` }));
+};
+
 /** 404 si el proveedor no está asignado a la obra del alcance: no revela que exista. */
 export const assertProviderInScope = async (scope, prvId) => {
   const where = providerScopeWhere(scope);

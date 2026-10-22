@@ -193,6 +193,10 @@ export const PERMISSIONS = {
       // Consultar la evidencia de una factura desde la bitácora: operaciones e
       // instantánea de la aprobación (PRO-BE-39).
       viewEvidence: 109,
+      // Eliminar una factura registrada, y una aprobada con el reforzado:
+      // revierte sus efectos sobre saldos (DEC-068). La anulada no se elimina.
+      delete: 110,
+      deleteApproved: 111,
     },
   },
 };
