@@ -8,11 +8,11 @@ import {
   CONTRACT_POLICY_STATUS,
   CONTRACT_POLICY_STATUS_NAMES,
   POLICY_VALIDITY_NAMES,
-  expiringDays,
   policyValidity,
   uncoveredContractsWhere,
 } from "../../work/contracts/policyTerms.js";
 import { contractPolicyStatuses } from "../../work/contracts/contractPolicies.service.js";
+import { policyExpiringDays } from "../../admin/businessRules/businessRules.service.js";
 import { INVOICE_STATES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
 import { grantedViews, viewsWhere } from "../../billing/invoices/invoiceViews.js";
 import { invoiceScopeWhere } from "../../billing/invoices/invoices.service.js";
@@ -26,7 +26,7 @@ import { invoiceScopeWhere } from "../../billing/invoices/invoices.service.js";
  *   facturas, solo las de las vistas que ve (DEC-054).
  * - Todo se restringe al alcance por obra de la petición (DEC-047).
  * - La fecha de referencia es la del servidor (decisión 3) y el umbral de "a
- *   vencer", el de las pólizas (`expiringDays`).
+ *   vencer", el de las pólizas (`policyExpiringDays`, DEC-072).
  * - El estado de pólizas cuenta contratos, no pólizas, por la póliza de mayor
  *   exposición (DEC-064), con la misma clasificación que filtra el listado de
  *   contratos (`contractPolicyStatuses`).
@@ -230,7 +230,7 @@ const worksActivityBlock = async (scope, { contracts, invoices }, views) => {
 export const getDashboardSummary = async ({ granted, scope }) => {
   const has = (perId) => granted.has(perId);
   const today = todayDateOnly();
-  const days = expiringDays();
+  const days = await policyExpiringDays();
   const invoiceViews = grantedViews(granted);
   const see = {
     works: has(can.work.works.view),

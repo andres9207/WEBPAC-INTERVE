@@ -32,17 +32,21 @@ import { ACTION_TONES } from 'ui-component/extended/ActionButton';
 import { gridSpacing } from 'store/constant';
 import { fMoneyText, fPercentText } from 'utils/formatNumber';
 import { fDateOnly } from 'utils/formatTime';
-import { CONTRACT_STATE_COLORS, INVOICE_STATE_COLORS, STATUS, fTerm, invoicePath } from 'utils/constants';
+import { CONTRACT_STATE_COLORS, INVOICE_STATE_COLORS, STATUS, fTerm } from 'utils/constants';
 
 import DashboardCards from '../components/DashboardCards';
-import { MANAGER_ROLE_NAMES, POLICY_STATUS_COLORS, barPercent, initialsOf, plural } from './workDashboard.utils';
+import { contractRows, invoiceRows, useDrillDown } from './DrillDownDialog';
+import { MANAGER_ROLE_NAMES, POLICY_STATUS_COLORS, barPercent, dashboardTo, initialsOf, plural } from './workDashboard.utils';
 
 // Resumen de la obra (DEC-063): encabezado con el avance del plazo, cifras,
 // contratos con sus saldos, lo que hay por atender, etapas, facturas y
-// proveedores. Solo presenta y enlaza: las cifras llegan del servidor.
+// proveedores. Solo presenta y enlaza: las cifras llegan del servidor. Las
+// cifras de contratos y facturas y las etapas abren su detalle (DrillDownDialog).
 
 const LEVEL_COLORS = { NORMAL: 'primary.800', WARNING: 'orange.dark', CRITICAL: 'error.dark' };
 const num = { fontVariantNumeric: 'tabular-nums' };
+const CONTRACT_NOUN = ['contrato', 'contratos'];
+const INVOICE_NOUN = ['factura', 'facturas'];
 
 function Empty({ children }) {
   return (
@@ -86,7 +90,7 @@ function WorkHero({ work, referenceDate }) {
             </Typography>
             <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
               <Typography variant="h2" component="h1">
-                <Link component={RouterLink} to={`/work/works/${work.wrkId}`} underline="hover" color="inherit">
+                <Link component={RouterLink} to={dashboardTo.work(work.wrkId)} underline="hover" color="inherit">
                   {work.code} · {work.name}
                 </Link>
               </Typography>
@@ -196,7 +200,7 @@ function ContractCard({ contract }) {
     <Card variant="outlined" sx={{ height: '100%', borderRadius: 1.5 }}>
       <CardActionArea
         component={RouterLink}
-        to={`/work/contracts/${contract.ctrId}`}
+        to={dashboardTo.contract(contract.ctrId)}
         sx={{ height: '100%', p: 2, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 1.5 }}
       >
         <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="flex-start">
@@ -272,7 +276,7 @@ const attentionOf = (data) => {
         hint: `${p.typeName ?? p.number} · venció el ${fDateOnly(p.endDate)}`,
         icon: IconShieldX,
         tone: ACTION_TONES.danger,
-        to: `/work/contracts/${p.ctrId}`
+        to: dashboardTo.contract(p.ctrId)
       });
     }
     for (const p of contracts.policies.filter((x) => x.validity === 'EXPIRING')) {
@@ -282,7 +286,7 @@ const attentionOf = (data) => {
         hint: `${p.typeName ?? p.number} · vence el ${fDateOnly(p.endDate)}`,
         icon: IconClockHour4,
         tone: ACTION_TONES.danger,
-        to: `/work/contracts/${p.ctrId}`
+        to: dashboardTo.contract(p.ctrId)
       });
     }
     const uncovered = contracts.items.filter((c) => c.policies?.uncovered.length > 0);
@@ -293,13 +297,21 @@ const attentionOf = (data) => {
         hint: uncovered.map((c) => `${c.number}: ${c.policies.uncovered.map((u) => u.label).join(', ')}`).join(' · '),
         icon: IconAlertTriangle,
         tone: ACTION_TONES.info,
-        to: uncovered.length === 1 ? `/work/contracts/${uncovered[0].ctrId}` : '/work/contracts?uncovered=true'
+        ...(uncovered.length === 1
+          ? { to: dashboardTo.contract(uncovered[0].ctrId) }
+          : {
+              drill: {
+                title: 'Contratos con conceptos sin póliza',
+                subtitle: 'Valor vigente',
+                noun: CONTRACT_NOUN,
+                rows: contractRows(uncovered)
+              }
+            })
       });
     }
   }
   if (invoices?.pendingCount > 0) {
     const last = invoices.pending[0];
-    const view = invoices.pendingByView.find((p) => p.count > 0)?.view;
     list.push({
       key: 'pending',
       text: `${plural(invoices.pendingCount, 'factura', 'facturas')} por aprobar`,
@@ -308,7 +320,16 @@ const attentionOf = (data) => {
         : 'Registradas, pendientes de aprobación',
       icon: IconReceipt,
       tone: ACTION_TONES.edit,
-      to: invoices.pendingCount === 1 && last ? invoicePath(last.view, last.invId) : `${invoicePath(view)}?status=REGISTERED`
+      ...(invoices.pendingCount === 1 && last
+        ? { to: dashboardTo.invoice(last.invId) }
+        : {
+            drill: {
+              title: 'Facturas por aprobar',
+              total: invoices.pendingValue,
+              noun: INVOICE_NOUN,
+              rows: invoiceRows(invoices.items.filter((inv) => inv.state === 'REGISTERED'))
+            }
+          })
     });
   }
   for (const c of contracts?.withRetentionBalance ?? []) {
@@ -318,7 +339,7 @@ const attentionOf = (data) => {
       hint: `${c.number} · ${c.stateName.toLowerCase()}`,
       icon: IconWallet,
       tone: ACTION_TONES.neutral,
-      to: `/work/contracts/${c.ctrId}`
+      to: dashboardTo.contract(c.ctrId)
     });
   }
   const suspended = contracts?.items.filter((c) => c.state === 'SUSPENDED') ?? [];
@@ -329,13 +350,22 @@ const attentionOf = (data) => {
       hint: `${suspended.map((c) => c.number).join(', ')} · esperan el otrosí que los reanuda`,
       icon: IconPlayerPause,
       tone: ACTION_TONES.neutral,
-      to: suspended.length === 1 ? `/work/contracts/${suspended[0].ctrId}` : '/work/contracts?status=SUSPENDED'
+      ...(suspended.length === 1
+        ? { to: dashboardTo.contract(suspended[0].ctrId) }
+        : {
+            drill: {
+              title: 'Contratos suspendidos',
+              subtitle: 'Valor vigente',
+              noun: CONTRACT_NOUN,
+              rows: contractRows(suspended)
+            }
+          })
     });
   }
   return list;
 };
 
-function AttentionCard({ items }) {
+function AttentionCard({ items, onDrill }) {
   return (
     <MainCard title="Por atender en la obra" sx={{ height: '100%' }} contentSX={{ px: 1.5 }} id="por-atender">
       {items.length === 0 ? (
@@ -346,8 +376,12 @@ function AttentionCard({ items }) {
         </Box>
       ) : (
         <List disablePadding aria-label="Por atender en la obra">
-          {items.map(({ key, text, hint, icon: Icon, tone, to }) => (
-            <ListItemButton key={key} component={RouterLink} to={to} sx={{ borderRadius: 1, gap: 1.5, minHeight: 44 }}>
+          {items.map(({ key, text, hint, icon: Icon, tone, to, drill }) => (
+            <ListItemButton
+              key={key}
+              {...(to ? { component: RouterLink, to } : { onClick: () => onDrill(drill) })}
+              sx={{ borderRadius: 1, gap: 1.5, minHeight: 44 }}
+            >
               <Avatar variant="rounded" sx={{ width: 36, height: 36, bgcolor: tone.bg, color: tone.fg, borderRadius: 1.5 }} aria-hidden>
                 <Icon size={20} stroke={1.8} />
               </Avatar>
@@ -364,9 +398,9 @@ function AttentionCard({ items }) {
   );
 }
 
-AttentionCard.propTypes = { items: PropTypes.arrayOf(PropTypes.object).isRequired };
+AttentionCard.propTypes = { items: PropTypes.arrayOf(PropTypes.object).isRequired, onDrill: PropTypes.func.isRequired };
 
-function StagesCard({ stages, contracts }) {
+function StagesCard({ stages, contracts, onDrill }) {
   return (
     <MainCard title="Etapas" sx={{ height: '100%' }}>
       {stages.length === 0 ? (
@@ -384,7 +418,29 @@ function StagesCard({ stages, contracts }) {
             return (
               <ListItem key={s.wksId} divider disableGutters sx={{ gap: 1 }}>
                 <ListItemText
-                  primary={s.name}
+                  primary={
+                    own?.length > 0 ? (
+                      <Link
+                        component="button"
+                        type="button"
+                        variant="body2"
+                        underline="hover"
+                        onClick={() =>
+                          onDrill({
+                            title: `Contratos de la etapa ${s.name}`,
+                            subtitle: 'Valor vigente',
+                            noun: CONTRACT_NOUN,
+                            rows: contractRows(own)
+                          })
+                        }
+                        sx={{ textAlign: 'left', fontWeight: s.active ? 500 : 400, color: s.active ? 'text.primary' : 'text.secondary' }}
+                      >
+                        {s.name}
+                      </Link>
+                    ) : (
+                      s.name
+                    )
+                  }
                   slotProps={{
                     primary: { variant: 'body2', sx: s.active ? { fontWeight: 500, color: 'text.primary' } : { color: 'text.secondary' } }
                   }}
@@ -401,15 +457,32 @@ function StagesCard({ stages, contracts }) {
   );
 }
 
-StagesCard.propTypes = { stages: PropTypes.arrayOf(PropTypes.object).isRequired, contracts: PropTypes.arrayOf(PropTypes.object) };
+StagesCard.propTypes = {
+  stages: PropTypes.arrayOf(PropTypes.object).isRequired,
+  contracts: PropTypes.arrayOf(PropTypes.object),
+  onDrill: PropTypes.func.isRequired
+};
 
-function InvoicesCard({ invoices }) {
-  const view = invoices.latest[0]?.view ?? invoices.pendingByView[0]?.view;
+function InvoicesCard({ invoices, onDrill }) {
   return (
     <MainCard
       title="Facturas de la obra"
       secondary={
-        <Link component={RouterLink} to={invoicePath(view)} underline="hover" variant="body2">
+        <Link
+          component="button"
+          type="button"
+          underline="hover"
+          variant="body2"
+          onClick={() =>
+            onDrill({
+              title: 'Facturas de la obra',
+              subtitle: 'Registradas y aprobadas',
+              total: invoices.total,
+              noun: INVOICE_NOUN,
+              rows: invoiceRows([...invoices.items].reverse())
+            })
+          }
+        >
           Ver todas
         </Link>
       }
@@ -423,7 +496,7 @@ function InvoicesCard({ invoices }) {
       ) : (
         <List disablePadding aria-label="Últimas facturas de la obra">
           {invoices.latest.map((inv) => (
-            <ListItemButton key={inv.invId} component={RouterLink} to={invoicePath(inv.view, inv.invId)} sx={{ borderRadius: 1, gap: 1 }}>
+            <ListItemButton key={inv.invId} component={RouterLink} to={dashboardTo.invoice(inv.invId)} sx={{ borderRadius: 1, gap: 1 }}>
               <ListItemText
                 primary={`${inv.typeName} ${inv.number}`}
                 secondary={[inv.providerName, fDateOnly(inv.date), inv.value && fMoneyText(inv.value)].filter(Boolean).join(' · ')}
@@ -438,7 +511,7 @@ function InvoicesCard({ invoices }) {
   );
 }
 
-InvoicesCard.propTypes = { invoices: PropTypes.object.isRequired };
+InvoicesCard.propTypes = { invoices: PropTypes.object.isRequired, onDrill: PropTypes.func.isRequired };
 
 function ProvidersCard({ providers }) {
   return (
@@ -451,7 +524,7 @@ function ProvidersCard({ providers }) {
             <ListItem key={p.prvId} divider disableGutters sx={{ gap: 1 }}>
               <ListItemText
                 primary={
-                  <Link component={RouterLink} to={`/work/providers/${p.prvId}`} underline="hover" sx={{ fontWeight: 500 }}>
+                  <Link component={RouterLink} to={dashboardTo.provider(p.prvId)} underline="hover" sx={{ fontWeight: 500 }}>
                     {p.name}
                   </Link>
                 }
@@ -471,6 +544,7 @@ ProvidersCard.propTypes = { providers: PropTypes.arrayOf(PropTypes.object).isReq
 
 export default function WorkSummaryTab({ data, workLabel }) {
   const { work, contracts, invoices, providers } = data;
+  const { openDrill, dialog } = useDrillDown();
 
   const kpis = [];
   if (work) {
@@ -480,7 +554,7 @@ export default function WorkSummaryTab({ data, workLabel }) {
       hint: work.extended ? `Ampliado · inicial ${fMoneyText(work.initialValue)}` : 'Valor inicial de la obra',
       icon: IconCurrencyDollar,
       tone: ACTION_TONES.info,
-      to: `/work/works/${work.wrkId}`
+      to: dashboardTo.work(work.wrkId)
     });
   }
   if (contracts) {
@@ -495,17 +569,33 @@ export default function WorkSummaryTab({ data, workLabel }) {
         .join(' · '),
       icon: IconFileText,
       tone: ACTION_TONES.success,
-      to: '/work/contracts'
+      onClick: () =>
+        openDrill({
+          title: 'Contratos de la obra',
+          subtitle: 'Valor vigente',
+          total: contracts.contracted,
+          noun: CONTRACT_NOUN,
+          rows: contractRows(contracts.items),
+          emptyText: 'La obra todavía no tiene contratos.'
+        })
     });
   }
   if (invoices) {
+    // Las aprobadas pueden ser de varias vistas (DEC-054): el detalle las junta.
     kpis.push({
       label: 'Facturado aprobado',
       value: fMoneyText(invoices.approvedValue),
       hint: `${plural(invoices.approvedCount, 'factura aprobada', 'facturas aprobadas')} · ${invoices.pendingCount} por aprobar`,
       icon: IconReceipt,
       tone: ACTION_TONES.edit,
-      to: invoicePath(invoices.pendingByView[0]?.view)
+      onClick: () =>
+        openDrill({
+          title: 'Facturas aprobadas',
+          total: invoices.approvedValue,
+          noun: INVOICE_NOUN,
+          rows: invoiceRows(invoices.items.filter((inv) => inv.state === 'APPROVED')),
+          emptyText: 'La obra todavía no tiene facturas aprobadas.'
+        })
     });
   }
   const attention = attentionOf(data);
@@ -535,15 +625,7 @@ export default function WorkSummaryTab({ data, workLabel }) {
         <Grid container spacing={gridSpacing}>
           {contracts && (
             <Grid size={{ xs: 12, lg: 8 }}>
-              <MainCard
-                title="Contratos de la obra"
-                secondary={
-                  <Link component={RouterLink} to="/work/contracts" underline="hover" variant="body2">
-                    Ver contratos
-                  </Link>
-                }
-                sx={{ height: '100%' }}
-              >
+              <MainCard title="Contratos de la obra" sx={{ height: '100%' }}>
                 {contracts.items.length === 0 ? (
                   <Empty>La obra todavía no tiene contratos.</Empty>
                 ) : (
@@ -557,7 +639,7 @@ export default function WorkSummaryTab({ data, workLabel }) {
             </Grid>
           )}
           <Grid size={{ xs: 12, lg: contracts ? 4 : 12 }}>
-            <AttentionCard items={attention} />
+            <AttentionCard items={attention} onDrill={openDrill} />
           </Grid>
         </Grid>
       )}
@@ -565,12 +647,12 @@ export default function WorkSummaryTab({ data, workLabel }) {
       <Grid container spacing={gridSpacing}>
         {work && (
           <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-            <StagesCard stages={work.stages} contracts={contracts?.items ?? null} />
+            <StagesCard stages={work.stages} contracts={contracts?.items ?? null} onDrill={openDrill} />
           </Grid>
         )}
         {invoices && (
           <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-            <InvoicesCard invoices={invoices} />
+            <InvoicesCard invoices={invoices} onDrill={openDrill} />
           </Grid>
         )}
         {providers && (
@@ -586,6 +668,7 @@ export default function WorkSummaryTab({ data, workLabel }) {
           costo ejecutado de la obra llega con ella.
         </Typography>
       )}
+      {dialog}
     </Stack>
   );
 }

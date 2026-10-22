@@ -13,9 +13,10 @@ import { gridSpacing } from 'store/constant';
  * Indicadores del tablero, con el estilo de los de obras (DEC-033): ícono en
  * un tono de ACTION_TONES, etiqueta, cifra y una línea que dice qué cuenta.
  * Con `to`, la tarjeta lleva al listado con el mismo filtro que produjo la
- * cifra (ADR-0002, decisión 2).
+ * cifra (ADR-0002, decisión 2); con `onClick`, abre el detalle de la cifra
+ * en el mismo tablero (DrillDownDialog del tablero de la obra).
  */
-function Indicator({ label, value, hint, icon: Icon, tone, to, dense = false }) {
+function Indicator({ label, value, hint, icon: Icon, tone, to, onClick, dense = false }) {
   const content = (
     <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%', textAlign: 'left' }}>
       <Avatar
@@ -43,14 +44,13 @@ function Indicator({ label, value, hint, icon: Icon, tone, to, dense = false }) 
     </Stack>
   );
   const box = { bgcolor: 'background.paper', borderRadius: 1, p: dense ? 2 : 2.5, border: 1, borderColor: 'divider', width: '100%' };
-  if (!to) return <Box sx={box}>{content}</Box>;
+  if (!to && !onClick) return <Box sx={box}>{content}</Box>;
   return (
     <ButtonBase
-      component={RouterLink}
-      to={to}
+      {...(to ? { component: RouterLink, to } : { onClick })}
       focusRipple
       sx={{ ...box, justifyContent: 'flex-start', '&:hover': { borderColor: 'primary.main' } }}
-      aria-label={`${label}: ${value}. Ver el listado`}
+      aria-label={`${label}: ${value}. ${to ? 'Ver el listado' : 'Ver el detalle'}`}
     >
       {content}
     </ButtonBase>
@@ -64,6 +64,7 @@ Indicator.propTypes = {
   icon: PropTypes.elementType.isRequired,
   tone: PropTypes.object.isRequired,
   to: PropTypes.string,
+  onClick: PropTypes.func,
   dense: PropTypes.bool
 };
 

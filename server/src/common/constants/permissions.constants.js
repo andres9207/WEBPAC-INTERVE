@@ -102,6 +102,12 @@ export const PERMISSIONS = {
       changeStatus: 97,
       configureBase: 98,
     },
+    // Reglas de negocio: días de aviso de vencimiento de contratos y pólizas
+    // (DEC-072). Consultar y cambiar, con el mismo permiso: valen para todo
+    // el sistema.
+    businessRules: {
+      configure: 114, // get_business_rules, save_business_rules
+    },
   },
   // Obras (DEC-026). Asignar y retirar responsables son permisos aparte de
   // editar: deciden quién responde por la obra (ADR-0011, "Autorización").

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import PropTypes from 'prop-types';
 
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
@@ -28,7 +29,9 @@ const TABS = [
   { value: 'charts', label: 'Contratos y facturas', icon: IconChartBar }
 ];
 
-export default function WorkDashboard() {
+// `reloadKey`: sube cuando un expediente abierto encima cambia algo; se
+// recarga sin quitar lo que ya se ve.
+export default function WorkDashboard({ reloadKey = 0 }) {
   const { activeWork, works } = useWorkScope();
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -46,7 +49,7 @@ export default function WorkDashboard() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   const workLabel = works.find((w) => w.value === activeWork)?.label ?? 'Obra';
   const nothingVisible = data && !data.work && !data.contracts && !data.invoices && !data.providers;
@@ -100,3 +103,5 @@ export default function WorkDashboard() {
     </Stack>
   );
 }
+
+WorkDashboard.propTypes = { reloadKey: PropTypes.number };

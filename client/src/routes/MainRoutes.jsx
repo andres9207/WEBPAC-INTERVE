@@ -49,7 +49,20 @@ const MainRoutes = {
         { path: '/', element: <Navigate to="/home/default" replace /> },
         {
           path: 'home',
-          children: [{ path: 'default', element: <DashboardDefault /> }]
+          children: [
+            {
+              path: 'default',
+              element: <DashboardDefault />,
+              // Expedientes abiertos desde el tablero (DEC-063): el mismo modal
+              // con dirección propia, sobre el tablero; cerrar vuelve a él.
+              children: [
+                { path: 'works/:wrkId', element: <WorkDetailPage /> },
+                { path: 'providers/:prvId', element: <ProviderDetailPage /> },
+                { path: 'contracts/:ctrId', element: <ContractDetailPage /> },
+                { path: 'invoices/:invId', element: <InvoiceDetailPage /> }
+              ]
+            }
+          ]
         },
         {
           path: 'security',

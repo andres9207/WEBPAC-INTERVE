@@ -3,6 +3,7 @@ import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { decimal } from "../../../common/utils/money.utils.js";
 import { insuredValue } from "../../admin/policyTypes/policyBases.js";
 import { conceptAmounts } from "./contractTerms.js";
+import { DEFAULT_EXPIRING_DAYS } from "../../admin/businessRules/businessRules.constants.js";
 
 /**
  * Reglas de las pólizas que no tocan la BD (ADR-0018, ADR-0002; DEC-050). Un
@@ -26,25 +27,18 @@ export const POLICY_VALIDITY_NAMES = Object.freeze({
   EXPIRED: "Vencida",
 });
 
-const DEFAULT_EXPIRING_DAYS = 30;
-
-/**
- * Umbral de "a vencer", en días (ADR-0002, decisión 7: configuración, no un
- * literal). POLICY_EXPIRING_DAYS en el entorno; el servidor lo devuelve con
- * las pólizas para que se pueda consultar.
- */
-export const expiringDays = () => {
-  const value = Number(process.env.POLICY_EXPIRING_DAYS);
-  return Number.isInteger(value) && value > 0 ? value : DEFAULT_EXPIRING_DAYS;
-};
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Vigencia según la fecha fin, contra la fecha del servidor (nunca la del
  * cliente). Sin fecha fin: "sin fecha de vigencia", nunca "vigente".
+ *
+ * `days`: umbral de "a vencer" (ADR-0002, decisión 7: configuración, no un
+ * literal). Es la regla de negocio de las pólizas (`policyExpiringDays`,
+ * DEC-072): quien llama la lee una vez y la devuelve con las pólizas para
+ * que se pueda consultar.
  */
-export const policyValidity = (endDate, { today = todayDateOnly(), days = expiringDays() } = {}) => {
+export const policyValidity = (endDate, { today = todayDateOnly(), days = DEFAULT_EXPIRING_DAYS } = {}) => {
   const end = endDate instanceof Date ? endDate : toDateOnly(endDate);
   if (!end) return POLICY_VALIDITY.NO_DATE;
   const remaining = Math.round((end.getTime() - today.getTime()) / DAY_MS);

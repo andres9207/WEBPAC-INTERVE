@@ -58,7 +58,8 @@ export default function ContractDetailPage() {
   const { ctrId } = useParams();
   const navigate = useNavigate();
   const socket = useSocket();
-  const { refresh } = useOutletContext() ?? {};
+  // `returnTo`: abierto sobre otra pantalla (el tablero), cerrar vuelve a ella.
+  const { refresh, returnTo = '/work/contracts' } = useOutletContext() ?? {};
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
   const perms = permissionsCatalog.work?.contracts;
@@ -76,11 +77,11 @@ export default function ContractDetailPage() {
       setContract(data);
     } catch (err) {
       showError(err.response?.data?.message || 'Error al cargar el contrato');
-      if (err.response?.status === 404) navigate('/work/contracts', { replace: true });
+      if (err.response?.status === 404) navigate(returnTo, { replace: true });
     } finally {
       setLoading(false);
     }
-  }, [ctrId, navigate]);
+  }, [ctrId, navigate, returnTo]);
 
   useEffect(() => {
     load();
@@ -93,7 +94,7 @@ export default function ContractDetailPage() {
     return () => socket.off('refresh-contracts', load);
   }, [socket, load]);
 
-  const close = () => navigate('/work/contracts');
+  const close = () => navigate(returnTo);
 
   if (!contract) return <RouteDialog onClose={close} loading={loading} />;
 

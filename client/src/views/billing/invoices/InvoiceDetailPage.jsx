@@ -216,7 +216,10 @@ export default function InvoiceDetailPage() {
   const { invId } = useParams();
   const navigate = useNavigate();
   const socket = useSocket();
-  const { refresh, view = 'SIMPLE' } = useOutletContext() ?? {};
+  // `returnTo`: abierto sobre otra pantalla (el tablero), sin vista propia;
+  // cerrar vuelve a ella. Sin él, la factura vive en el listado de su vista.
+  const { refresh, view = 'SIMPLE', returnTo } = useOutletContext() ?? {};
+  const listPath = returnTo ?? invoicePath(view);
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
   const perms = permissionsCatalog.billing?.invoices;
@@ -231,18 +234,18 @@ export default function InvoiceDetailPage() {
     try {
       const { data } = await invoicesApi.getById({ invId });
       // Cada factura vive en su vista (DEC-054): una dirección de otra vista se corrige.
-      if (data.view && data.view !== view) {
+      if (!returnTo && data.view && data.view !== view) {
         navigate(invoicePath(data.view, data.invId), { replace: true });
         return;
       }
       setInvoice(data);
     } catch (err) {
       showError(err.response?.data?.message || 'Error al cargar la factura');
-      if (err.response?.status === 404) navigate(invoicePath(view), { replace: true });
+      if (err.response?.status === 404) navigate(listPath, { replace: true });
     } finally {
       setLoading(false);
     }
-  }, [invId, navigate, view]);
+  }, [invId, navigate, view, returnTo, listPath]);
 
   useEffect(() => {
     load();
@@ -262,7 +265,7 @@ export default function InvoiceDetailPage() {
     refresh?.();
   }, [load, refresh]);
 
-  const close = () => navigate(invoicePath(view));
+  const close = () => navigate(listPath);
   // Eliminada: ya no se puede leer; vuelve al listado.
   const deleted = () => {
     setDialog(null);

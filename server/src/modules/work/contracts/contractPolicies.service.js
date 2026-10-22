@@ -11,7 +11,8 @@ import { policyTypesService } from "../../admin/policyTypes/policyTypes.service.
 import { POLICY_BASE_NAMES, insuredValue, policyBaseValue } from "../../admin/policyTypes/policyBases.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { CONCEPT_TYPES, CONCEPT_TYPE_NAMES, CONTRACT_STATES, assertStateAllows, conceptAmounts, sortConcepts } from "./contractTerms.js";
-import { POLICY_VALIDITY_NAMES, contractPolicyStatus, expiringDays, policyValidity, uncoveredConcepts } from "./policyTerms.js";
+import { POLICY_VALIDITY_NAMES, contractPolicyStatus, policyValidity, uncoveredConcepts } from "./policyTerms.js";
+import { policyExpiringDays } from "../../admin/businessRules/businessRules.service.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, httpError } from "./contracts.service.js";
 
 /**
@@ -372,7 +373,7 @@ export const getContractPolicies = async ({ ctrId, scope }) => {
 
   const concepts = sortConcepts(contract.tbl_contract_concepts.filter((c) => c.sta_id !== DELETED_STATUS));
   const byConcept = new Map(concepts.map((c) => [c.ccp_id, { concept: c, amounts: conceptAmounts(c) }]));
-  const days = expiringDays();
+  const days = await policyExpiringDays();
 
   const groups = new Map();
   for (const row of contract.tbl_policies) {

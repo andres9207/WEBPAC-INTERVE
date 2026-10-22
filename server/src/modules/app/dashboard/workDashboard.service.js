@@ -19,12 +19,12 @@ import {
   POLICY_VALIDITY_NAMES,
   contractPolicyStatus,
   decidingPolicy,
-  expiringDays,
   policyValidity,
   uncoveredConcepts,
 } from "../../work/contracts/policyTerms.js";
 import { INVOICE_STATES, INVOICE_TYPES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
 import { grantedViews, viewsWhere } from "../../billing/invoices/invoiceViews.js";
+import { policyExpiringDays } from "../../admin/businessRules/businessRules.service.js";
 import { contractBalances } from "../../billing/invoices/invoices.service.js";
 import { composeSimpleInvoice } from "../../billing/invoices/simpleInvoiceTerms.js";
 
@@ -401,8 +401,9 @@ const invoicesBlock = async (wrkId, views, today) => {
     byType,
     byContract,
     latest: latest.map(invoiceDto),
-    // Facturas de contrato, para marcarlas en la línea de tiempo.
-    marks: rows.filter((r) => r.ctr_id).map(invoiceDto),
+    // Las filas de las que salen las cifras: la línea de tiempo marca las de
+    // contrato y el detalle de cada cifra las filtra con el mismo criterio.
+    items: rows.map(invoiceDto),
   };
 };
 
@@ -439,7 +440,7 @@ const providersBlock = async (wrkId) => {
 /** Tablero de la obra del alcance para el usuario (`granted`: permisos efectivos). */
 export const getWorkDashboard = async ({ granted, scope }) => {
   const today = todayDateOnly();
-  const days = expiringDays();
+  const days = await policyExpiringDays();
   const base = { referenceDate: dateOnlyText(today), expiringDays: days };
   const wrkId = !scope?.all && scope?.wrkId ? Number(scope.wrkId) : null;
   if (!wrkId) return { ...base, wrkId: null, work: null, contracts: null, invoices: null, providers: null };

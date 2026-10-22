@@ -1,4 +1,5 @@
 import { prisma } from "../src/common/configs/prismaClient.js";
+import { BUSINESS_RULES, BUSINESS_RULE_NAMES, DEFAULT_EXPIRING_DAYS } from "../src/modules/admin/businessRules/businessRules.constants.js";
 
 // Ids explícitos y fijos a propósito: coinciden 1:1 con las rutas reales en
 // client/src/routes/MainRoutes.jsx y con el catálogo que expone la API
@@ -160,6 +161,9 @@ const PERMISSIONS = [
   // database/migrations/0103_seed_export_permissions.sql (DEC-070)
   { per_id: 112, per_name: "Exportar contratos", pag_id: 16, per_order: 16 },
   { per_id: 113, per_name: "Exportar facturas", pag_id: 18, per_order: 13 },
+  // database/migrations/0107_seed_business_rules_permission.sql (DEC-072).
+  // Cuelga de Administración: no tiene página propia en el sidebar.
+  { per_id: 114, per_name: "Configurar reglas de negocio", pag_id: 5, per_order: 1 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -344,6 +348,17 @@ async function main() {
     createdPolicyTypes += 1;
   }
   console.log(`tbl_policy_types: ${createdPolicyTypes} de ${POLICY_TYPES.length} tipos provisionales creados (los existentes no se modifican).`);
+
+  // Reglas de negocio (DEC-072): se crean las que falten; el valor que ya
+  // configuró el usuario no se toca.
+  for (const key of Object.values(BUSINESS_RULES)) {
+    await prisma.tbl_business_rules.upsert({
+      where: { bru_key: key },
+      update: {},
+      create: { bru_key: key, bru_name: BUSINESS_RULE_NAMES[key], bru_value: DEFAULT_EXPIRING_DAYS },
+    });
+  }
+  console.log(`tbl_business_rules: ${Object.keys(BUSINESS_RULES).length} reglas sembradas (los valores existentes no se modifican).`);
 
   for (const field of CONTRACT_FIELDS) {
     await prisma.tbl_contract_fields.upsert({ where: { cfd_id: field.cfd_id }, update: field, create: field });

@@ -31,6 +31,8 @@ export const AUDIT_ENTITIES = Object.freeze({
   INVOICE: "FACTURA",
   POLICY_TYPE: "TIPO_POLIZA",
   POLICY: "POLIZA",
+  // Días de aviso de vencimiento (DEC-072).
+  BUSINESS_RULE: "REGLA_NEGOCIO",
 });
 
 export const AUDIT_OPERATIONS = Object.freeze({

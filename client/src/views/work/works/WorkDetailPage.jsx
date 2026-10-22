@@ -99,7 +99,8 @@ function WorkView() {
   const isNew = wrkId === 0;
   const navigate = useNavigate();
   const location = useLocation();
-  const { refresh } = useOutletContext() ?? {};
+  // `returnTo`: abierta sobre otra pantalla (el tablero), cerrar vuelve a ella.
+  const { refresh, returnTo = '/work/works' } = useOutletContext() ?? {};
   const { focusWork } = useWorkScope();
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
@@ -145,11 +146,11 @@ function WorkView() {
         return data;
       } catch (err) {
         showError(err.response?.data?.message || 'Error al cargar la obra');
-        if (err.response?.status === 404) navigate('/work/works', { replace: true });
+        if (err.response?.status === 404) navigate(returnTo, { replace: true });
         return null;
       }
     },
-    [wrkId, reset, resetEndDate, navigate]
+    [wrkId, reset, resetEndDate, navigate, returnTo]
   );
 
   useEffect(() => {
@@ -181,7 +182,7 @@ function WorkView() {
     return userOptions.filter((o) => !taken.has(o.value));
   }, [userOptions, managers, managerDialog]);
 
-  const close = () => navigate('/work/works');
+  const close = () => navigate(returnTo);
   // Cerrar con la X, Escape o el fondo pide confirmar si hay cambios sin guardar.
   const requestClose = () => (isDirty ? setConfirmLeave(true) : close());
 

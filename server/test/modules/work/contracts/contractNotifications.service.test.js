@@ -54,6 +54,8 @@ describe("notifyWorkManagers", () => {
       type: "warning",
       module: "contracts",
       action: "suspend",
+      // La obra, también en la columna: la campana muestra la de la obra elegida (DEC-072).
+      wrkId: 4,
       data: { ctrId: 30, wrkId: 4, ccpId: 310 },
     });
   });

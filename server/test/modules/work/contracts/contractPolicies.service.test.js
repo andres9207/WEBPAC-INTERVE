@@ -8,6 +8,8 @@ import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
 const state = { contract: null, concept: null, type: null, insurer: null, reason: null, policy: null };
 
 const prismaMock = {
+  // Días de aviso de las pólizas (DEC-072): sin filas, el valor por defecto (30).
+  tbl_business_rules: { findMany: jest.fn(async () => []) },
   tbl_contracts: { findUnique: jest.fn(async () => state.contract), findFirst: jest.fn() },
   tbl_contract_concepts: { findUnique: jest.fn(async () => state.concept) },
   tbl_policy_types: { findUnique: jest.fn(async () => state.type) },

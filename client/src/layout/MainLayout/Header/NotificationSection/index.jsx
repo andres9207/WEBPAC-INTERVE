@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 // material-ui
 import { useTheme } from '@mui/material/styles';
@@ -21,26 +21,47 @@ import Box from '@mui/material/Box';
 import MainCard from 'ui-component/cards/MainCard';
 import Transitions from 'ui-component/extended/Transitions';
 import NotificationList from './NotificationList';
-import { useAuth } from 'contexts/authContext';
+import { useAuth } from 'contexts/AuthContext';
+import { useWorkScope } from 'contexts/WorkScopeContext';
 import { useSocket } from 'socket/SocketProvider';
-import {
-  getNotificationCountAPI,
-  paginationNotificationsAPI,
-  markAsReadAPI,
-  markAllAsReadAPI,
-} from 'api/requests/notificationsApi';
+import { ALL_WORKS } from 'utils/workScope';
+import { getNotificationCountAPI, paginationNotificationsAPI, markAsReadAPI, markAllAsReadAPI } from 'api/requests/notificationsApi';
+
+// assets
+import { IconBell } from '@tabler/icons-react';
+
+const PAGE_SIZE = 10;
+
+/** ¿La notificación es de la obra elegida? Las de ninguna obra, siempre (DEC-072). */
+const inActiveWork = (notification, activeWork) =>
+  activeWork === ALL_WORKS || notification?.wrk_id == null || Number(notification.wrk_id) === Number(activeWork);
+
+/** Adónde lleva una notificación: el expediente del contrato, si es de uno. */
+const targetOf = (notification) => {
+  const ctrId = notification?.not_data?.ctrId;
+  return notification?.not_module === 'contracts' && ctrId ? `/work/contracts/${ctrId}` : null;
+};
 
 // ==============================|| NOTIFICATION ||============================== //
 
+/**
+ * Campana del encabezado (DEC-072). Cuenta y lista las notificaciones de la
+ * obra elegida (más las de ninguna obra; con "Ver todo", todas) y se ilumina
+ * solo si hay alguna sin leer. Una leída deja de iluminarla y sigue en la
+ * lista al desplegarla.
+ */
 export default function NotificationSection() {
   const theme = useTheme();
   const downMD = useMediaQuery(theme.breakpoints.down('md'));
+  const navigate = useNavigate();
   const { user } = useAuth();
+  const { activeWork } = useWorkScope();
   const socket = useSocket();
 
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
+  const [page, setPage] = useState({ current: 0, totalPages: 0 });
   const anchorRef = useRef(null);
 
   const fetchUnreadCount = useCallback(async () => {
@@ -53,25 +74,36 @@ export default function NotificationSection() {
     }
   }, [user]);
 
-  const fetchNotifications = useCallback(async () => {
-    if (!user?.useId) return;
-    try {
-      const response = await paginationNotificationsAPI({ page: 1, limit: 10 });
-      setNotifications(response.data?.results ?? []);
-    } catch (err) {
-      console.error('Error fetching notifications:', err);
-    }
-  }, [user]);
+  const fetchNotifications = useCallback(
+    async (pageNumber = 1) => {
+      if (!user?.useId) return;
+      try {
+        const { data } = await paginationNotificationsAPI({ page: pageNumber, limit: PAGE_SIZE });
+        const results = data?.results ?? [];
+        setNotifications((prev) => (pageNumber === 1 ? results : [...prev, ...results]));
+        setPage({ current: pageNumber, totalPages: data?.totalPages ?? 0 });
+      } catch (err) {
+        console.error('Error fetching notifications:', err);
+      }
+    },
+    [user]
+  );
 
+  // Al cambiar de obra, la campana cuenta las de la obra nueva (el encabezado
+  // X-Work-Id ya cambió cuando llega activeWork).
   useEffect(() => {
     fetchUnreadCount();
-  }, [fetchUnreadCount]);
+    setOpen(false);
+    setNotifications([]);
+  }, [fetchUnreadCount, activeWork]);
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) return undefined;
 
-    const handleNewNotification = () => {
+    const handleNewNotification = (notification) => {
+      if (!inActiveWork(notification, activeWork)) return;
       setUnreadCount((prev) => prev + 1);
+      setNotifications((prev) => (prev.length ? [notification, ...prev] : prev));
     };
 
     socket.on('newNotification', handleNewNotification);
@@ -79,12 +111,12 @@ export default function NotificationSection() {
     return () => {
       socket.off('newNotification', handleNewNotification);
     };
-  }, [socket]);
+  }, [socket, activeWork]);
 
   const handleToggle = () => {
     setOpen((prevOpen) => {
       if (!prevOpen) {
-        fetchNotifications();
+        fetchNotifications(1);
       }
       return !prevOpen;
     });
@@ -107,11 +139,9 @@ export default function NotificationSection() {
 
   const handleMarkAsRead = async (notificationId) => {
     try {
-      await markAsReadAPI(notificationId).then((r) => r.data);
+      await markAsReadAPI(notificationId);
       setNotifications((prev) =>
-        prev.map((n) =>
-          n.not_id === notificationId ? { ...n, not_is_read: 1, not_read_at: new Date().toISOString() } : n,
-        ),
+        prev.map((n) => (n.not_id === notificationId ? { ...n, not_is_read: 1, not_read_at: new Date().toISOString() } : n))
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (err) {
@@ -122,15 +152,25 @@ export default function NotificationSection() {
   const handleMarkAllAsRead = async () => {
     if (!user?.useId) return;
     try {
-      await markAllAsReadAPI().then((r) => r.data);
-      setNotifications((prev) =>
-        prev.map((n) => (n.not_is_read ? n : { ...n, not_is_read: 1 })),
-      );
+      await markAllAsReadAPI();
+      setNotifications((prev) => prev.map((n) => (n.not_is_read ? n : { ...n, not_is_read: 1 })));
       setUnreadCount(0);
     } catch (err) {
       console.error('Error marking all as read:', err);
     }
   };
+
+  // Abrir una notificación la da por leída y lleva a lo que avisa.
+  const handleOpenNotification = (notification) => {
+    if (!notification.not_is_read) handleMarkAsRead(notification.not_id);
+    const target = targetOf(notification);
+    if (target) {
+      setOpen(false);
+      navigate(target);
+    }
+  };
+
+  const lit = unreadCount > 0;
 
   return (
     <>
@@ -142,8 +182,9 @@ export default function NotificationSection() {
               ...theme.typography.commonAvatar,
               ...theme.typography.mediumAvatar,
               transition: 'all .2s ease-in-out',
-              color: theme.vars.palette.warning.dark,
-              background: theme.vars.palette.warning.light,
+              // Iluminada solo con notificaciones sin leer.
+              color: lit ? theme.vars.palette.warning.dark : theme.vars.palette.grey[500],
+              background: lit ? theme.vars.palette.warning.light : theme.vars.palette.grey[100],
               '&:hover, &[aria-controls="menu-list-grow"]': {
                 color: theme.vars.palette.warning.light,
                 background: theme.vars.palette.warning.dark
@@ -152,9 +193,10 @@ export default function NotificationSection() {
             ref={anchorRef}
             aria-controls={open ? 'menu-list-grow' : undefined}
             aria-haspopup="true"
+            aria-label="Notificaciones"
             onClick={handleToggle}
           >
-            <span role="img" aria-label="notifications">🔔</span>
+            <IconBell stroke={1.5} size="20px" />
           </Avatar>
         </Badge>
       </Box>
@@ -177,7 +219,12 @@ export default function NotificationSection() {
                       <Stack direction="row" sx={{ gap: 2 }}>
                         <Typography variant="subtitle1">Notificaciones</Typography>
                         {unreadCount > 0 && (
-                          <Chip size="small" label={unreadCount} variant="filled" sx={{ color: 'background.default', bgcolor: 'warning.dark' }} />
+                          <Chip
+                            size="small"
+                            label={unreadCount}
+                            variant="filled"
+                            sx={{ color: 'background.default', bgcolor: 'warning.dark' }}
+                          />
                         )}
                       </Stack>
                       {unreadCount > 0 && (
@@ -193,14 +240,21 @@ export default function NotificationSection() {
                     </Stack>
                     <Divider sx={{ mt: 0 }} />
                     <Box sx={{ maxHeight: 'calc(100vh - 205px)', overflowX: 'hidden', '&::-webkit-scrollbar': { width: 5 } }}>
-                      <NotificationList notifications={notifications} onMarkAsRead={handleMarkAsRead} />
+                      <NotificationList
+                        notifications={notifications}
+                        onMarkAsRead={handleMarkAsRead}
+                        onOpen={handleOpenNotification}
+                        isClickable={(n) => Boolean(targetOf(n))}
+                      />
                     </Box>
                   </Stack>
-                  <CardActions sx={{ p: 1.25, justifyContent: 'center' }}>
-                    <Button size="small" disableElevation>
-                      Ver todas
-                    </Button>
-                  </CardActions>
+                  {page.current < page.totalPages && (
+                    <CardActions sx={{ p: 1.25, justifyContent: 'center' }}>
+                      <Button size="small" disableElevation onClick={() => fetchNotifications(page.current + 1)}>
+                        Ver más
+                      </Button>
+                    </CardActions>
+                  )}
                 </MainCard>
               </Paper>
             </Transitions>

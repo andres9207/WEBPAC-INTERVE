@@ -82,7 +82,8 @@ function ProviderView() {
   const isNew = prvId === 0;
   const navigate = useNavigate();
   const location = useLocation();
-  const { refresh } = useOutletContext() ?? {};
+  // `returnTo`: abierto sobre otra pantalla (el tablero), cerrar vuelve a ella.
+  const { refresh, returnTo = '/work/providers' } = useOutletContext() ?? {};
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
   const perms = permissionsCatalog.work?.providers;
@@ -128,12 +129,12 @@ function ProviderView() {
         if (resetForm) reset(toForm(data));
       } catch (err) {
         showError(err.response?.data?.message || 'Error al cargar el proveedor');
-        if (err.response?.status === 404) navigate('/work/providers', { replace: true });
+        if (err.response?.status === 404) navigate(returnTo, { replace: true });
       } finally {
         setLoading(false);
       }
     },
-    [prvId, reset, navigate]
+    [prvId, reset, navigate, returnTo]
   );
 
   useEffect(() => {
@@ -154,7 +155,7 @@ function ProviderView() {
 
   useEffect(() => setConflict(null), [iddId, identification]);
 
-  const close = () => navigate('/work/providers');
+  const close = () => navigate(returnTo);
   // Cerrar con la X, Escape o el fondo pide confirmar si hay cambios sin guardar.
   const requestClose = () => (isDirty ? setConfirmLeave(true) : close());
 

@@ -45,6 +45,7 @@ export const notifyWorkManagers = async ({ ctrId, actorId, title, buildMessage, 
         type,
         module: "contracts",
         action,
+        wrkId: contract.wrk_id,
         data: { ctrId: contract.ctr_id, wrkId: contract.wrk_id, ...data },
       });
       if (created) notified += 1;

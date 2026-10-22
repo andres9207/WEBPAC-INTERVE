@@ -62,4 +62,35 @@ export const monthLabel = (month) => {
   return `${MONTHS[Number(m) - 1]} ${year.slice(2)}`;
 };
 
+const MONTH_NAMES = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre'
+];
+
+/** "2026-10" → "octubre de 2026". */
+export const monthName = (month) => {
+  const [year, m] = String(month).split('-');
+  return `${MONTH_NAMES[Number(m) - 1]} de ${year}`;
+};
+
+// El tablero y sus expedientes, abiertos encima como rutas hijas (MainRoutes):
+// desde el tablero de la obra nada lleva a otro menú; cerrar vuelve aquí.
+export const DASHBOARD_PATH = '/home/default';
+export const dashboardTo = {
+  work: (wrkId) => `${DASHBOARD_PATH}/works/${wrkId}`,
+  provider: (prvId) => `${DASHBOARD_PATH}/providers/${prvId}`,
+  contract: (ctrId) => `${DASHBOARD_PATH}/contracts/${ctrId}`,
+  invoice: (invId) => `${DASHBOARD_PATH}/invoices/${invId}`
+};
+
 export const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;

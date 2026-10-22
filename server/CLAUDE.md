@@ -110,8 +110,9 @@ Supertest está como devDependency para si en el futuro se agregan tests de inte
 - `MAIL_*` — configuración del mailer (Nodemailer).
 - `CRON_END_DATE_RECONCILIATION` — horario de la conciliación de la fecha fin (expresión de `node-cron`, en UTC); por defecto `0 8 * * *` (03:00 en Colombia).
 - `CRON_BALANCE_RECONCILIATION` — horario de la conciliación de saldos de anticipo y retenido, I1 a I4 ([DEC-061](../engineering/decisiones/DEC-061-conciliacion-saldos.md)); por defecto `30 8 * * *` (03:30 en Colombia).
+- `CRON_EXPIRATION_NOTICE` — horario del aviso de vencimiento de contratos y pólizas ([DEC-072](../engineering/decisiones/DEC-072-aviso-vencimiento.md)); por defecto `0 11 * * *` (06:00 en Colombia). También corre al arrancar y al guardar las reglas de negocio.
 - `RECONCILIATION_REPORT_EMAILS` — correos que reciben el informe de la conciliación, separados por coma. Vacía: solo notificación en la aplicación (permiso 92) y log.
-- `POLICY_EXPIRING_DAYS` — días antes del fin de vigencia en que una póliza pasa a "a vencer" (ADR-0002, DEC-050); por defecto 30.
+- `POLICY_EXPIRING_DAYS` — **ya no se lee**: el umbral de "a vencer" de las pólizas es una regla de negocio en la BD (`tbl_business_rules`), que se cambia desde el menú del perfil, "Regla de negocio" ([DEC-072](../engineering/decisiones/DEC-072-aviso-vencimiento.md)).
 
 ## Arquitectura: estructura modular por capas
 

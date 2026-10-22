@@ -40,22 +40,28 @@ model tbl_documents {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model tbl_notifications {
-  not_id         Int       @id @default(autoincrement())
+  not_id         Int        @id @default(autoincrement())
   use_id         Int
-  not_priority   String?   @default("medium") @db.VarChar(50)
-  not_title      String    @db.VarChar(150)
-  not_message    String    @db.Text
-  not_type       String?   @default("info") @db.VarChar(50)
-  not_module     String?   @db.VarChar(100)
-  not_action     String?   @db.VarChar(100)
+  wrk_id         Int?
+  not_priority   String?    @default("medium") @db.VarChar(50)
+  not_title      String     @db.VarChar(150)
+  not_message    String     @db.Text
+  not_type       String?    @default("info") @db.VarChar(50)
+  not_module     String?    @db.VarChar(100)
+  not_action     String?    @db.VarChar(100)
+  not_key        String?    @db.VarChar(100)
   not_data       Json?
-  not_created_at DateTime? @default(now()) @db.Timestamp(0)
-  not_is_read    Boolean?  @default(false)
-  not_read_at    DateTime? @db.Timestamp(0)
-  not_updated_at DateTime? @default(now()) @db.Timestamp(0)
-  tbl_users      tbl_users @relation(fields: [use_id], references: [use_id], onUpdate: Restrict, map: "tbl_notifications_users")
+  not_created_at DateTime?  @default(now()) @db.Timestamp(0)
+  not_is_read    Boolean?   @default(false)
+  not_read_at    DateTime?  @db.Timestamp(0)
+  not_updated_at DateTime?  @default(now()) @db.Timestamp(0)
+  tbl_users      tbl_users  @relation(fields: [use_id], references: [use_id], onUpdate: Restrict, map: "tbl_notifications_users")
+  tbl_works      tbl_works? @relation(fields: [wrk_id], references: [wrk_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_notifications_works")
 
+  @@unique([use_id, not_key], map: "uq_notifications_user_key")
   @@index([use_id], map: "idx_noti_user")
+  @@index([use_id, wrk_id], map: "idx_notifications_user_work")
+  @@index([wrk_id], map: "tbl_notifications_works")
 }
 
 model tbl_page_permissions {
@@ -242,6 +248,8 @@ model tbl_users {
   address_types_deleted                    tbl_address_types[]                    @relation("AddressTypeDeletedBy")
   address_types_updated                    tbl_address_types[]                    @relation("AddressTypeUpdatedBy")
   tbl_audit_log                            tbl_audit_log[]
+  business_rules_created                   tbl_business_rules[]                   @relation("BusinessRuleCreatedBy")
+  business_rules_updated                   tbl_business_rules[]                   @relation("BusinessRuleUpdatedBy")
   construction_companies_created           tbl_construction_companies[]           @relation("ConstructionCompanyCreatedBy")
   construction_companies_deleted           tbl_construction_companies[]           @relation("ConstructionCompanyDeletedBy")
   construction_companies_updated           tbl_construction_companies[]           @relation("ConstructionCompanyUpdatedBy")
@@ -612,6 +620,7 @@ model tbl_works {
   wrk_idempotency_hash        String?                    @db.Char(64)
   tbl_contracts               tbl_contracts[]
   tbl_invoices                tbl_invoices[]
+  tbl_notifications           tbl_notifications[]
   tbl_work_contacts           tbl_work_contacts[]
   tbl_work_managers           tbl_work_managers[]
   tbl_work_providers          tbl_work_providers[]
@@ -1345,6 +1354,24 @@ model tbl_work_provider_types {
 
   @@unique([wrk_id, prv_id, pvt_id], map: "uq_work_provider_types_work_provider_type")
   @@index([pvt_id], map: "tbl_work_provider_types_provider_type")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model tbl_business_rules {
+  bru_id          Int        @id @default(autoincrement())
+  bru_key         String     @unique(map: "uq_business_rules_key") @db.VarChar(50)
+  bru_name        String     @db.VarChar(100)
+  bru_value       Int
+  bru_create_by   Int?
+  bru_create_at   DateTime?  @default(now()) @db.Timestamp(0)
+  bru_update_by   Int?
+  bru_update_at   DateTime?  @default(now()) @db.Timestamp(0)
+  created_by_user tbl_users? @relation("BusinessRuleCreatedBy", fields: [bru_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_business_rules_create_by")
+  updated_by_user tbl_users? @relation("BusinessRuleUpdatedBy", fields: [bru_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_business_rules_update_by")
+
+  @@index([bru_create_by], map: "tbl_business_rules_create_by")
+  @@index([bru_update_by], map: "tbl_business_rules_update_by")
 }
 
 enum tbl_documents_doc_type {

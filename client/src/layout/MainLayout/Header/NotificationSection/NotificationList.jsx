@@ -15,15 +15,17 @@ import { withAlpha } from 'utils/colorUtils';
 // assets
 import { IconBell, IconAlertTriangle, IconInfoCircle, IconCircleCheck } from '@tabler/icons-react';
 
-function ListItemWrapper({ children }) {
+function ListItemWrapper({ children, onClick }) {
   const theme = useTheme();
 
   return (
     <Box
+      onClick={onClick}
       sx={{
         p: 2,
         borderBottom: '1px solid',
         borderColor: 'divider',
+        cursor: onClick ? 'pointer' : 'default',
         '&:hover': {
           bgcolor: withAlpha(theme.palette.grey[200], 0.3)
         }
@@ -56,7 +58,7 @@ function getTimeAgo(dateString) {
   return date.toLocaleDateString('es-CO');
 }
 
-export default function NotificationList({ notifications = [], onMarkAsRead }) {
+export default function NotificationList({ notifications = [], onMarkAsRead, onOpen, isClickable }) {
   const theme = useTheme();
 
   if (!notifications.length) {
@@ -81,7 +83,7 @@ export default function NotificationList({ notifications = [], onMarkAsRead }) {
         const Icon = config.icon;
 
         return (
-          <ListItemWrapper key={notif.not_id}>
+          <ListItemWrapper key={notif.not_id} onClick={onOpen && isClickable?.(notif) ? () => onOpen(notif) : undefined}>
             <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
               <Avatar
                 sx={{
@@ -127,6 +129,8 @@ export default function NotificationList({ notifications = [], onMarkAsRead }) {
 NotificationList.propTypes = {
   notifications: PropTypes.array,
   onMarkAsRead: PropTypes.func,
+  onOpen: PropTypes.func,
+  isClickable: PropTypes.func,
 };
 
-ListItemWrapper.propTypes = { children: PropTypes.node };
+ListItemWrapper.propTypes = { children: PropTypes.node, onClick: PropTypes.func };

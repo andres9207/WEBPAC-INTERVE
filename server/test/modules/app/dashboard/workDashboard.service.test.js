@@ -28,6 +28,8 @@ const concept = (overrides = {}) => ({
 const CONCEPTS = [concept(), concept({ ccp_id: 2, ccp_type: "AMENDMENT", ccp_number: 1, ccp_direct_cost: "500.00" })];
 
 const prismaMock = {
+  // Días de aviso de las pólizas (DEC-072): sin filas, el valor por defecto (30).
+  tbl_business_rules: { findMany: jest.fn(async () => []) },
   tbl_works: { findFirst: jest.fn() },
   tbl_contracts: { findMany: jest.fn() },
   tbl_policies: { findMany: jest.fn() },
@@ -54,9 +56,12 @@ const INVOICES = [SIMPLE_INVOICES, MAJOR_INVOICES, SUBCONTRACTOR_INVOICES];
 const ALL = new Set([WORKS, PROVIDERS, CONTRACTS, POLICIES, ...INVOICES]);
 const OWN = Object.freeze({ all: false, wrkId: 8 });
 
+// Consultas de datos de la obra. El umbral de "a vencer" (regla de negocio,
+// DEC-072) se lee siempre: va en la respuesta aunque no haya obra.
 const allCalls = () =>
-  Object.values(prismaMock)
-    .flatMap((model) => Object.values(model))
+  Object.entries(prismaMock)
+    .filter(([model]) => model !== "tbl_business_rules")
+    .flatMap(([, model]) => Object.values(model))
     .flatMap((fn) => fn.mock.calls);
 
 const invoice = (overrides = {}) => ({
@@ -229,8 +234,13 @@ describe("getWorkDashboard", () => {
       { view: "MAJOR", count: 1 },
     ]);
     expect(invoices.byMonth).toHaveLength(12);
-    // La simple no tiene contrato: no se marca en la línea de tiempo.
-    expect(invoices.marks.map((m) => m.invId)).toEqual([1, 3]);
+    // Las filas de las cifras, con el valor con que entran en ellas: el detalle
+    // de cada cifra las filtra en el cliente (la simple, sin contrato ni importes).
+    expect(invoices.items).toEqual([
+      expect.objectContaining({ invId: 1, type: "ADVANCE", state: "APPROVED", ctrId: 20, value: "40.00" }),
+      expect.objectContaining({ invId: 2, type: "SIMPLE", state: "REGISTERED", ctrId: null, value: null }),
+      expect.objectContaining({ invId: 3, type: "LIQUIDATION", state: "REGISTERED", ctrId: 20, value: "60.00" }),
+    ]);
   });
 
   it("sin ver contratos, lo facturado no se compara con lo contratado", async () => {

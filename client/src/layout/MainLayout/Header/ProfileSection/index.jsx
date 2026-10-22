@@ -23,26 +23,29 @@ import Transitions from 'ui-component/extended/Transitions';
 import useConfig from 'hooks/useConfig';
 import { useAuth } from 'contexts/AuthContext';
 import { AccountSettings } from 'views/security/users/components/AccountSettings';
+import BusinessRulesDialog from 'views/admin/businessRules/BusinessRulesDialog';
 
 // assets
-import { IconLogout, IconSettings } from '@tabler/icons-react';
+import { IconAdjustmentsHorizontal, IconLogout, IconSettings } from '@tabler/icons-react';
 
 // ==============================|| PROFILE MENU ||============================== //
 
 export default function ProfileSection() {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission, permissionsCatalog } = useAuth();
 
   const {
     state: { borderRadius }
   } = useConfig();
 
-  const [sdm, setSdm] = useState(true);
-  const [value, setValue] = useState('');
-  const [notification, setNotification] = useState(false);
   const [open, setOpen] = useState(false);
   const [accountVisible, setAccountVisible] = useState(false);
+  const [rulesVisible, setRulesVisible] = useState(false);
+
+  // Reglas de negocio (DEC-072): solo con el permiso de configurarlas.
+  const rulesPermission = permissionsCatalog?.admin?.businessRules?.configure;
+  const canConfigureRules = rulesPermission != null && hasPermission(rulesPermission);
 
   const anchorRef = useRef(null);
 
@@ -151,6 +154,18 @@ export default function ProfileSection() {
                           <ListItemText primary={<Typography variant="body2">Configuración de cuenta</Typography>} />
                         </ListItemButton>
 
+                        {canConfigureRules && (
+                          <ListItemButton
+                            sx={{ borderRadius: `${borderRadius}px` }}
+                            onClick={() => { setOpen(false); setRulesVisible(true); }}
+                          >
+                            <ListItemIcon>
+                              <IconAdjustmentsHorizontal stroke={1.5} size="20px" />
+                            </ListItemIcon>
+                            <ListItemText primary={<Typography variant="body2">Regla de negocio</Typography>} />
+                          </ListItemButton>
+                        )}
+
                         {/* ✅ Logout funcional */}
                         <ListItemButton
                           sx={{ borderRadius: `${borderRadius}px` }}
@@ -171,6 +186,7 @@ export default function ProfileSection() {
         )}
       </Popper>
       <AccountSettings visible={accountVisible} setVisible={setAccountVisible} />
+      {canConfigureRules && <BusinessRulesDialog open={rulesVisible} onClose={() => setRulesVisible(false)} />}
     </>
   );
 }

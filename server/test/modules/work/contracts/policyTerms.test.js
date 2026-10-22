@@ -4,7 +4,6 @@ import {
   assertPolicyStatus,
   contractPolicyStatus,
   decidingPolicy,
-  expiringDays,
   policyExposure,
   policyValidity,
   uncoveredConcepts,
@@ -29,17 +28,10 @@ describe("policyValidity", () => {
   });
 });
 
-describe("expiringDays", () => {
-  afterEach(() => {
-    delete process.env.POLICY_EXPIRING_DAYS;
-  });
-
-  it("toma el umbral de POLICY_EXPIRING_DAYS, o 30 si no es un entero positivo", () => {
-    expect(expiringDays()).toBe(30);
-    process.env.POLICY_EXPIRING_DAYS = "45";
-    expect(expiringDays()).toBe(45);
-    process.env.POLICY_EXPIRING_DAYS = "-1";
-    expect(expiringDays()).toBe(30);
+describe("policyValidity sin umbral", () => {
+  it("usa 30 días, el valor por defecto de la regla de negocio (DEC-072)", () => {
+    expect(policyValidity("2026-11-06", { today })).toBe(POLICY_VALIDITY.EXPIRING);
+    expect(policyValidity("2026-11-07", { today })).toBe(POLICY_VALIDITY.ACTIVE);
   });
 });
 

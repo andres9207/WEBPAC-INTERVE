@@ -72,6 +72,8 @@ export const LOCK_ORDER = Object.freeze([
   "TIPO_CONTRATO",
   "MOTIVO",
   "TIPO_POLIZA",
+  // Configuración: no la referencia ningún registro y se cambia sola (DEC-072).
+  "REGLA_NEGOCIO",
 ]);
 
 /**
@@ -100,6 +102,7 @@ const LOCKABLE = Object.freeze({
   FACTURA: { table: "tbl_invoices", id: "inv_id" },
   CONCEPTO: { table: "tbl_contract_concepts", id: "ccp_id" },
   POLIZA: { table: "tbl_policies", id: "pol_id" },
+  REGLA_NEGOCIO: { table: "tbl_business_rules", id: "bru_id" },
 });
 
 const transactionMisuse = (message) => new Error(`[transaction] ${message}`);

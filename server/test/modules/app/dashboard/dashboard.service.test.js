@@ -6,6 +6,8 @@ import { jest } from "@jest/globals";
 // listados contra la BD real se comprobó en vivo; aquí, la forma y las reglas.
 
 const prismaMock = {
+  // Días de aviso de las pólizas (DEC-072): sin filas, el valor por defecto (30).
+  tbl_business_rules: { findMany: jest.fn(async () => []) },
   tbl_works: { count: jest.fn(async () => 4), findMany: jest.fn(async () => []) },
   tbl_providers: { count: jest.fn(async () => 6) },
   tbl_contracts: { groupBy: jest.fn(async () => []), count: jest.fn(async () => 0), findMany: jest.fn(async () => []) },

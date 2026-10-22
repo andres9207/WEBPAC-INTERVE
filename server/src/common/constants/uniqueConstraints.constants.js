@@ -86,6 +86,7 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   "uq_password_resets_use_id",
   // Catálogos sembrados y configuración guardada por diferencial
   "uq_status_key",
+  "uq_business_rules_key",
   "uq_contract_fields_key",
   "uq_provider_type_fields_type_field",
   "uq_provider_type_field_versions",
@@ -107,6 +108,9 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   "uq_contract_concepts_id_contract",
   // Apoyo de la FK compuesta detalle de liquidación → factura (0095)
   "uq_invoices_id_contract",
+  // Un aviso por usuario y clave: el aviso de vencimiento lo omite si ya
+  // existe (DEC-072)
+  "uq_notifications_user_key",
 ]);
 
 /** Duplicado de un índice interno o desconocido. No remite a sistemas: suele ser una carrera. */
