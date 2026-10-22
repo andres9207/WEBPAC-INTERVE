@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
+import { IconDownload } from '@tabler/icons-react';
 
 import MasterPage from 'ui-component/extended/MasterPage';
 import LinkedFilterNotice from 'ui-component/extended/LinkedFilterNotice';
+import ExportDialog from 'ui-component/extended/ExportDialog';
 import useLinkedFilters from 'hooks/useLinkedFilters';
-import { contractsApi, exportContractsAPI, getContractFilterProvidersAPI } from 'api/requests/contractsApi';
+import { contractsApi, exportContractAPI, exportContractsAPI, getContractFilterProvidersAPI } from 'api/requests/contractsApi';
 import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField } from 'contexts/WorkScopeContext';
@@ -89,6 +91,9 @@ export const CONTRACT_STATE_FILTER = { param: 'state', tabs: CONTRACT_STATE_TABS
 
 const rowLabel = (row) => `${row.number} — ${row.name}`;
 
+/** Nombre de archivo del reporte de un contrato: su número sin caracteres raros. */
+export const contractFileName = (number) => `contrato_${String(number ?? '').replace(/[^\w-]+/g, '_')}`;
+
 // Reportes del botón Exportar (DEC-070): el listado y los de control del
 // sistema que se migra, con los mismos filtros de la tabla.
 const CONTRACT_REPORTS = [
@@ -130,7 +135,8 @@ const FILTER_FIELDS = [
 ];
 
 export default function ContractsPage() {
-  const { permissionsCatalog } = useAuth();
+  const { permissionsCatalog, hasPermission } = useAuth();
+  const [exporting, setExporting] = useState(null);
   const navigate = useNavigate();
   const [reloadKey, setReloadKey] = useState(0);
   const outletContext = useMemo(() => ({ refresh: () => setReloadKey((k) => k + 1) }), []);
@@ -146,6 +152,17 @@ export default function ContractsPage() {
       reports: CONTRACT_REPORTS
     }),
     [permissionsCatalog]
+  );
+
+  // Reporte de un contrato desde su fila: el expediente completo (DEC-070).
+  const exportPermission = permissionsCatalog.work?.contracts?.export;
+  const canExport = exportPermission != null && hasPermission(exportPermission);
+  const extraActions = useMemo(
+    () =>
+      canExport
+        ? (row) => [{ label: 'Exportar contrato', icon: <IconDownload size={16} />, command: () => setExporting(row), tone: 'neutral' }]
+        : undefined,
+    [canExport]
   );
 
   const navigation = useMemo(
@@ -175,7 +192,18 @@ export default function ContractsPage() {
         header={<LinkedFilterNotice label={linked.label} onClear={linked.clear} />}
         reloadKey={reloadKey}
         exportOptions={exportOptions}
+        extraActions={extraActions}
       />
+      {exporting && (
+        <ExportDialog
+          open
+          onClose={() => setExporting(null)}
+          title={`Exportar contrato ${exporting.number}`}
+          description="Resumen, valor, conceptos, saldos, pólizas, facturas, suspensiones e historial: lo que puedas ver del contrato."
+          request={(format) => exportContractAPI(exporting.ctrId, format)}
+          fileName={contractFileName(exporting.number)}
+        />
+      )}
       <Outlet context={outletContext} />
     </>
   );

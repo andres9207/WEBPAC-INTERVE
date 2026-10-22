@@ -21,7 +21,7 @@ import { showError } from 'services/ToastService';
  * el del listado.
  */
 
-const FORMATS = [
+export const EXPORT_FORMATS = [
   { value: 'xlsx', label: 'Excel', icon: IconFileSpreadsheet },
   { value: 'pdf', label: 'PDF', icon: IconFileTypePdf }
 ];
@@ -49,6 +49,18 @@ const download = (blob, name) => {
   URL.revokeObjectURL(url);
 };
 
+/** Pide el reporte y lo descarga como `<fileName>_<fecha>.<format>`; si falla, muestra el mensaje del servidor. */
+export const downloadExport = async (request, fileName, format) => {
+  try {
+    const { data } = await request();
+    download(data, `${fileName}_${formatDate(new Date(), 'yyyy-MM-dd')}.${format}`);
+    return true;
+  } catch (err) {
+    showError((await errorMessage(err)) || 'No se pudo generar el reporte');
+    return false;
+  }
+};
+
 export default function ExportButton({ request, fileName, reports }) {
   const [anchor, setAnchor] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -56,14 +68,8 @@ export default function ExportButton({ request, fileName, reports }) {
   const run = async (format, report) => {
     setAnchor(null);
     setBusy(true);
-    try {
-      const { data } = await request(format, report?.value);
-      download(data, `${report?.fileName ?? fileName}_${formatDate(new Date(), 'yyyy-MM-dd')}.${format}`);
-    } catch (err) {
-      showError((await errorMessage(err)) || 'No se pudo generar el reporte');
-    } finally {
-      setBusy(false);
-    }
+    await downloadExport(() => request(format, report?.value), report?.fileName ?? fileName, format);
+    setBusy(false);
   };
 
   return (
@@ -91,7 +97,7 @@ export default function ExportButton({ request, fileName, reports }) {
               <ListSubheader key={report.value} sx={{ lineHeight: '32px' }}>
                 {report.label}
               </ListSubheader>,
-              ...FORMATS.map(({ value, label, icon: Icon }) => (
+              ...EXPORT_FORMATS.map(({ value, label, icon: Icon }) => (
                 <MenuItem key={`${report.value}-${value}`} onClick={() => run(value, report)} sx={{ pl: 3 }}>
                   <ListItemIcon>
                     <Icon size={18} />
@@ -100,7 +106,7 @@ export default function ExportButton({ request, fileName, reports }) {
                 </MenuItem>
               ))
             ])
-          : FORMATS.map(({ value, label, icon: Icon }) => (
+          : EXPORT_FORMATS.map(({ value, label, icon: Icon }) => (
               <MenuItem key={value} onClick={() => run(value)}>
                 <ListItemIcon>
                   <Icon size={18} />

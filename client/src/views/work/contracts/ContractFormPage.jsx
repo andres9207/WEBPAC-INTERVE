@@ -52,10 +52,12 @@ import { ALL_WORKS } from 'utils/workScope';
  *   ella y el formulario no la pide. Solo con "Ver todo" se elige aquí.
  *   Etapa y proveedor se filtran por esa obra (y el servidor lo exige). La
  *   obra no cambia después de crear el contrato.
- * - La fecha fin es solo lectura: la calcula el servidor (inicio + plazo +
- *   prórrogas + días suspendidos; FRONTEND_STANDARD, regla 9). Se le pide al
- *   salir del plazo, al cambiar la unidad o la fecha de inicio
- *   (useEndDatePreview); se guarda con el contrato.
+ * - Plazo y fecha fin se calculan en los dos sentidos, siempre en el
+ *   servidor (inicio + plazo + prórrogas + días suspendidos; FRONTEND_STANDARD,
+ *   regla 9): al salir del plazo, al cambiar la unidad o la fecha de inicio se
+ *   pide la fecha fin; al escribir la fecha fin, el plazo que la produce, en la
+ *   unidad elegida o en días si no cae exacta (useEndDatePreview). Se guarda
+ *   el plazo; la fecha fin la vuelve a derivar el servidor.
  * - Editar solo cambia la cabecera; el valor inicial y los otrosí se
  *   modifican en la pestaña "Valor" del detalle, con su permiso.
  * - Tipo de proveedor (DEC-066): el contrato se firma bajo uno de los tipos
@@ -102,8 +104,13 @@ const toForm = (contract) => ({
 
 const NO_DESCRIPTION = { skip: ['CONCEPT_DESCRIPTION'] };
 
-// Parámetros de la vista previa de la fecha fin (preview_contract_end_date).
-const contractEndParams = ({ ctrId, startDate, term, termUnit }) => ({ ...(ctrId ? { ctrId } : {}), startDate, term, termUnit });
+// Parámetros de la vista previa (preview_contract_end_date): con la fecha fin, sin plazo, pide el plazo.
+const contractEndParams = ({ ctrId, startDate, term, termUnit, endDate }) => ({
+  ...(ctrId ? { ctrId } : {}),
+  startDate,
+  termUnit,
+  ...(endDate ? { endDate } : { term })
+});
 
 const toPayload = (ctrId, form, descriptors) => {
   const configured = visiblePayload(descriptors, 'CONTRACT', form);
@@ -173,11 +180,23 @@ export default function ContractFormPage() {
   const endPreview = useEndDatePreview(previewContractEndDateAPI, contractEndParams);
   const resetEndDate = endPreview.reset;
 
-  // Fecha fin: al salir del plazo, al cambiar la unidad o la fecha de inicio.
-  // Al editar, el servidor suma además las prórrogas y los días suspendidos.
+  // Plazo desde la fecha fin escrita: el servidor lo calcula y se pone en el formulario.
+  const recalcTerm = async (values) => {
+    const data = await endPreview.fromEndDate(values);
+    if (!data) return;
+    setValue('term', String(data.term), { shouldDirty: true, shouldValidate: true });
+    setValue('termUnit', data.termUnit, { shouldDirty: true });
+  };
+
+  // Fecha fin: al salir del plazo, al cambiar la unidad o la fecha de inicio;
+  // sin plazo pero con fecha fin, el plazo. Al editar, el servidor suma además
+  // las prórrogas y los días suspendidos.
   const recalcEndDate = (changed = {}) => {
     const [startDate, term, termUnit] = getValues(['startDate', 'term', 'termUnit']);
-    endPreview.recalc({ ctrId, startDate, term, termUnit, ...changed });
+    const values = { ctrId, startDate, term, termUnit, ...changed };
+    if (!/^\d+$/.test(values.term) && endPreview.endDate)
+      recalcTerm({ ctrId, startDate: values.startDate, termUnit: values.termUnit, endDate: endPreview.endDate });
+    else endPreview.recalc(values);
   };
 
   useEffect(() => {
@@ -202,7 +221,10 @@ export default function ContractFormPage() {
     load();
   }, [isEdit, ctrId, headerWrkId, reset, resetEndDate, navigate]);
 
-  const [wrkId, prvId, pvtId, aiuRequested] = useWatch({ control, name: ['wrkId', 'prvId', 'pvtId', 'aiuRequested'] });
+  const [wrkId, prvId, pvtId, aiuRequested, startDate] = useWatch({
+    control,
+    name: ['wrkId', 'prvId', 'pvtId', 'aiuRequested', 'startDate']
+  });
   const { permissionsCatalog, hasPermission } = useAuth();
   const aiuPermission = permissionsCatalog.work?.contracts?.changeAiu;
   const canChangeAiu = aiuPermission != null && hasPermission(aiuPermission);
@@ -612,11 +634,14 @@ export default function ContractFormPage() {
               <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <DateField
                   value={endPreview.endDate}
+                  onChange={(value) => {
+                    const [startDate, termUnit] = getValues(['startDate', 'termUnit']);
+                    recalcTerm({ ctrId, startDate, termUnit, endDate: value });
+                  }}
                   label="Fecha fin"
-                  readOnly
-                  helperText={
-                    endPreview.loading ? 'Calculando…' : 'Calculada por el sistema: inicio + plazo + prórrogas + días suspendidos'
-                  }
+                  minDate={startDate}
+                  error={endPreview.error}
+                  helperText={endPreview.loading ? 'Calculando…' : undefined}
                 />
               </Grid>
               {otherContractFields.length > 0 && (

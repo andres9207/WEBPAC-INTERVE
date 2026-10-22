@@ -2,10 +2,10 @@ import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
 
 /**
- * Reportes de un listado en Excel y PDF (DEC-070). Cada módulo arma el
- * `where` con los mismos filtros que su listado, lee las filas con
- * `findExportRows` (sin paginar, con el tope EXPORT_MAX_ROWS) y las entrega
- * aquí con sus columnas. Este servicio solo presenta: no lee la BD ni calcula.
+ * Reportes en Excel y PDF (DEC-070). Cada módulo arma el `where` con los
+ * mismos filtros que su listado, lee las filas con `findExportRows` (sin
+ * paginar, con el tope EXPORT_MAX_ROWS) y las entrega aquí con sus columnas.
+ * Este servicio solo presenta: no lee la BD ni calcula.
  *
  * Columna: `{ header, value(row), kind?, width?, group? }`. `kind`: "money"
  * (texto de importe ya redondeado por money.utils, que en Excel va como número
@@ -17,6 +17,10 @@ import PDFDocument from "pdfkit";
  * las columnas con `group: true` se muestran una vez por grupo: combinadas en
  * Excel, solo en la primera fila del grupo en el PDF. `totals`: una fila más,
  * en negrita, que pasa por las mismas columnas; sus cifras las suma el módulo.
+ *
+ * Dos formas: `renderExport`, una tabla (el reporte de un listado), y
+ * `renderDocument`, un documento con secciones (el de un registro, como el
+ * resumen de un contrato).
  */
 
 /** Máximo de filas de un reporte (DEC-070). Más que eso responde 422: hay que afinar los filtros. */
@@ -50,17 +54,6 @@ const cellText = (column, row) => {
 const generatedAt = () =>
   new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Bogota" }).format(new Date());
 
-// ─── Excel ───────────────────────────────────────────────────────────────────
-
-// Importe ya redondeado (texto de money.utils) como número de celda: Excel
-// solo lo muestra y lo suma; el servidor no calcula con él.
-const excelValue = (column, row) => {
-  const text = cellText(column, row);
-  if (column.kind === "money" && text !== "") return Number(text);
-  if (column.kind === "percent" && text !== "") return Number(text) / 100;
-  return text;
-};
-
 // Tramos [desde, hasta) de filas seguidas con la misma clave de grupo.
 const groupRuns = (rows, groupKey) => {
   const runs = [];
@@ -73,35 +66,59 @@ const groupRuns = (rows, groupKey) => {
   return runs;
 };
 
-const buildExcel = async ({ title, filters, columns, rows, groupKey, totals }) => {
-  const workbook = new ExcelJS.Workbook();
-  workbook.created = new Date();
-  const sheet = workbook.addWorksheet(title.slice(0, 31));
+// ─── Excel ───────────────────────────────────────────────────────────────────
 
+// Importe ya redondeado (texto de money.utils) como número de celda: Excel
+// solo lo muestra y lo suma; el servidor no calcula con él.
+const excelValue = (column, row) => {
+  const text = cellText(column, row);
+  if (column.kind === "money" && text !== "") return Number(text);
+  if (column.kind === "percent" && text !== "") return Number(text) / 100;
+  return text;
+};
+
+const EXCEL_FORMATS = { money: "#,##0.00", percent: "0.00%" };
+const PURPLE = "FF5E35B1";
+
+// Nombre de hoja válido y único: hasta 31 caracteres, sin los que Excel prohíbe.
+const sheetName = (workbook, title) => {
+  const base = title.replace(/[\\/?*[\]:]/g, " ").slice(0, 31);
+  let name = base;
+  for (let i = 2; workbook.getWorksheet(name); i += 1) name = `${base.slice(0, 28)} ${i}`;
+  return name;
+};
+
+// Título, "Generado: …" (con `count` filas, si se da) y las líneas que siguen.
+const generatedLine = (count) => `Generado: ${generatedAt()}${count === undefined ? "" : ` · ${count} fila(s)`}`;
+
+const addSheetHeading = (sheet, title, lines, count) => {
   sheet.addRow([title]).font = { bold: true, size: 14 };
-  sheet.addRow([`Generado: ${generatedAt()} · ${rows.length} fila(s)`]).font = { italic: true, size: 9, color: { argb: "FF666666" } };
-  for (const line of filters) sheet.addRow([line]).font = { size: 9 };
+  sheet.addRow([generatedLine(count)]).font = { italic: true, size: 9, color: { argb: "FF666666" } };
+  for (const line of lines) sheet.addRow([line]).font = { size: 9 };
   sheet.addRow([]);
+};
+
+// Una tabla en su propia hoja: encabezado fijo, filtro y formato por columna.
+const addTableSheet = (workbook, { title, filters = [], columns, rows, groupKey, totals, empty }) => {
+  const sheet = workbook.addWorksheet(sheetName(workbook, title));
+  addSheetHeading(sheet, title, filters, rows.length);
 
   const header = sheet.addRow(columns.map((c) => c.header));
   header.eachCell((cell) => {
     cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF5E35B1" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: PURPLE } };
     cell.alignment = { vertical: "middle", wrapText: true };
   });
   const headerRow = header.number;
 
   for (const row of rows) sheet.addRow(columns.map((column) => excelValue(column, row)));
+  if (rows.length === 0 && empty) sheet.addRow([empty]).font = { italic: true };
 
   columns.forEach((column, i) => {
     const col = sheet.getColumn(i + 1);
     col.width = Math.min(60, Math.max(12, (column.width ?? 1) * 14));
-    if (column.kind === "money") {
-      col.numFmt = "#,##0.00";
-      col.alignment = { horizontal: "right" };
-    }
-    if (column.kind === "percent") {
-      col.numFmt = "0.00%";
+    if (EXCEL_FORMATS[column.kind]) {
+      col.numFmt = EXCEL_FORMATS[column.kind];
       col.alignment = { horizontal: "right" };
     }
   });
@@ -119,8 +136,51 @@ const buildExcel = async ({ title, filters, columns, rows, groupKey, totals }) =
   }
   if (totals) sheet.addRow(columns.map((column) => excelValue(column, totals))).font = { bold: true };
   sheet.views = [{ state: "frozen", ySplit: headerRow }];
-  sheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: columns.length } };
+  if (rows.length > 0) sheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: columns.length } };
+};
 
+// Campo `{ label, value, kind? }` → valor de celda (importes y porcentajes como número).
+const fieldColumn = (field) => ({ kind: field.kind, value: () => field.value });
+
+// Secciones de campos en una hoja de resumen: título de sección y pares etiqueta/valor.
+const addFieldsSheet = (workbook, title, lines, sections) => {
+  const sheet = workbook.addWorksheet(sheetName(workbook, "Resumen"));
+  addSheetHeading(sheet, title, lines);
+  for (const section of sections) {
+    const heading = sheet.addRow([section.title]);
+    heading.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    heading.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: PURPLE } };
+    heading.getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: PURPLE } };
+    for (const field of section.fields) {
+      const row = sheet.addRow([field.label, excelValue(fieldColumn(field), null)]);
+      row.getCell(1).font = { bold: true };
+      const cell = row.getCell(2);
+      cell.alignment = { horizontal: "left", wrapText: true, vertical: "top" };
+      if (EXCEL_FORMATS[field.kind]) cell.numFmt = EXCEL_FORMATS[field.kind];
+    }
+    sheet.addRow([]);
+  }
+  sheet.getColumn(1).width = 30;
+  sheet.getColumn(2).width = 70;
+};
+
+const buildExcel = async ({ title, filters, columns, rows, groupKey, totals }) => {
+  const workbook = new ExcelJS.Workbook();
+  workbook.created = new Date();
+  addTableSheet(workbook, { title, filters, columns, rows, groupKey, totals });
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+};
+
+const buildExcelDocument = async ({ title, lines, sections }) => {
+  const workbook = new ExcelJS.Workbook();
+  workbook.created = new Date();
+  addFieldsSheet(
+    workbook,
+    title,
+    lines,
+    sections.filter((s) => s.fields)
+  );
+  for (const section of sections.filter((s) => s.columns)) addTableSheet(workbook, section);
   return Buffer.from(await workbook.xlsx.writeBuffer());
 };
 
@@ -129,6 +189,7 @@ const buildExcel = async ({ title, filters, columns, rows, groupKey, totals }) =
 const MARGIN = 30;
 const FONT_SIZE = 7.5;
 const CELL_PADDING = 3;
+const PDF_PURPLE = "#5E35B1";
 
 // "1234567.5" → "1.234.567,50": solo formato de texto, sin pasar por número.
 const moneyDisplay = (text) => {
@@ -148,105 +209,178 @@ const pdfText = (column, row) => {
 
 const isRight = (column) => column.kind === "money" || column.kind === "percent";
 
-const buildPdf = ({ title, filters, columns, rows, groupKey, totals }) =>
+const newPdf = () => new PDFDocument({ size: "A4", layout: "landscape", margin: MARGIN, bufferPages: true });
+
+const pageWidth = (doc) => doc.page.width - MARGIN * 2;
+const pageBottom = (doc) => doc.page.height - MARGIN - 14;
+
+// Si lo que sigue (de alto `height`) no cabe, página nueva.
+const ensureRoom = (doc, height) => {
+  if (doc.y + height <= pageBottom(doc)) return false;
+  doc.addPage();
+  doc.y = MARGIN;
+  return true;
+};
+
+const pdfHeading = (doc, title, lines, count) => {
+  doc.font("Helvetica-Bold").fontSize(13).fillColor("black").text(title, MARGIN, MARGIN);
+  doc.font("Helvetica").fontSize(8).fillColor("#666666").text(generatedLine(count));
+  for (const line of lines) doc.text(line);
+  doc.fillColor("black").moveDown(0.6);
+};
+
+// Una tabla desde la posición actual, con encabezado repetido en cada página.
+const drawTable = (doc, { columns, rows, groupKey, totals, empty }) => {
+  const width = pageWidth(doc);
+  const totalWeight = columns.reduce((sum, c) => sum + (c.width ?? 1), 0);
+  const widths = columns.map((c) => (width * (c.width ?? 1)) / totalWeight);
+
+  const rowHeight = (texts, font) => {
+    doc.font(font).fontSize(FONT_SIZE);
+    return Math.max(...texts.map((t, i) => doc.heightOfString(t || " ", { width: widths[i] - CELL_PADDING * 2 }))) + CELL_PADDING * 2;
+  };
+
+  const drawRow = (texts, { font, fill }) => {
+    const height = rowHeight(texts, font);
+    const y = doc.y;
+    let x = MARGIN;
+    if (fill) doc.rect(MARGIN, y, width, height).fill(fill);
+    doc.fillColor(fill === PDF_PURPLE ? "white" : "black").font(font).fontSize(FONT_SIZE);
+    texts.forEach((t, i) => {
+      doc.text(t, x + CELL_PADDING, y + CELL_PADDING, { width: widths[i] - CELL_PADDING * 2, align: isRight(columns[i]) ? "right" : "left" });
+      x += widths[i];
+    });
+    doc.moveTo(MARGIN, y + height).lineTo(MARGIN + width, y + height).lineWidth(0.3).strokeColor("#DDDDDD").stroke();
+    doc.fillColor("black");
+    doc.x = MARGIN;
+    doc.y = y + height;
+  };
+
+  const headers = columns.map((c) => c.header);
+  const drawHeader = () => drawRow(headers, { font: "Helvetica-Bold", fill: PDF_PURPLE });
+  ensureRoom(doc, rowHeight(headers, "Helvetica-Bold") * 2);
+  drawHeader();
+
+  // Las columnas de grupo, solo en la primera fila del grupo o de la página.
+  groupRuns(rows, groupKey).forEach((run, runIndex) => {
+    for (let index = run.start; index < run.end; index += 1) {
+      const texts = columns.map((column) => pdfText(column, rows[index]));
+      if (ensureRoom(doc, rowHeight(texts, "Helvetica"))) drawHeader();
+      else if (index > run.start) {
+        texts.forEach((_, i) => {
+          if (columns[i].group) texts[i] = "";
+        });
+      }
+      drawRow(texts, { font: "Helvetica", fill: runIndex % 2 === 1 ? "#F5F3FA" : null });
+    }
+  });
+  if (totals) {
+    const texts = columns.map((column) => pdfText(column, totals));
+    if (ensureRoom(doc, rowHeight(texts, "Helvetica-Bold"))) drawHeader();
+    drawRow(texts, { font: "Helvetica-Bold", fill: null });
+  }
+  if (rows.length === 0) doc.font("Helvetica-Oblique").fontSize(9).text(empty ?? "Sin filas con los filtros aplicados.", MARGIN, doc.y + 6);
+};
+
+// Pares etiqueta/valor en dos columnas de pares por renglón.
+const drawFields = (doc, fields) => {
+  const width = pageWidth(doc);
+  const pairWidth = width / 2;
+  const labelWidth = 130;
+  doc.fontSize(8.5);
+  for (let i = 0; i < fields.length; i += 2) {
+    const pair = fields.slice(i, i + 2).map((field) => ({ label: field.label, text: pdfText(fieldColumn(field), null) || "—" }));
+    const height =
+      Math.max(...pair.map((p) => doc.font("Helvetica").heightOfString(p.text, { width: pairWidth - labelWidth - 8 }))) + 4;
+    ensureRoom(doc, height);
+    const y = doc.y;
+    pair.forEach((p, j) => {
+      const x = MARGIN + j * pairWidth;
+      doc.font("Helvetica-Bold").fillColor("#444444").text(p.label, x, y, { width: labelWidth - 4 });
+      doc.font("Helvetica").fillColor("black").text(p.text, x + labelWidth, y, { width: pairWidth - labelWidth - 8 });
+    });
+    doc.x = MARGIN;
+    doc.y = y + height;
+  }
+};
+
+const drawSectionTitle = (doc, title) => {
+  ensureRoom(doc, 40);
+  doc.moveDown(0.6);
+  const y = doc.y;
+  doc.font("Helvetica-Bold").fontSize(10.5).fillColor(PDF_PURPLE).text(title, MARGIN, y);
+  doc.moveTo(MARGIN, doc.y + 1).lineTo(MARGIN + pageWidth(doc), doc.y + 1).lineWidth(0.6).strokeColor(PDF_PURPLE).stroke();
+  doc.fillColor("black");
+  doc.y += 5;
+};
+
+// Numeración de páginas al final, cuando ya se sabe cuántas hay.
+const numberPages = (doc) => {
+  const range = doc.bufferedPageRange();
+  for (let i = 0; i < range.count; i += 1) {
+    doc.switchToPage(range.start + i);
+    // El pie va bajo el margen inferior: sin esto, pdfkit abriría una página nueva.
+    doc.page.margins.bottom = 0;
+    doc
+      .font("Helvetica")
+      .fontSize(7)
+      .fillColor("#666666")
+      .text(`Página ${i + 1} de ${range.count}`, MARGIN, doc.page.height - MARGIN - 6, { width: pageWidth(doc), align: "right", lineBreak: false });
+  }
+};
+
+const pdfBuffer = (draw) =>
   new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: MARGIN, bufferPages: true });
+    const doc = newPdf();
     const chunks = [];
     doc.on("data", (chunk) => chunks.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
-
-    const width = doc.page.width - MARGIN * 2;
-    const totalWeight = columns.reduce((sum, c) => sum + (c.width ?? 1), 0);
-    const widths = columns.map((c) => (width * (c.width ?? 1)) / totalWeight);
-    const bottom = doc.page.height - MARGIN - 14;
-
-    doc.font("Helvetica-Bold").fontSize(13).text(title, MARGIN, MARGIN);
-    doc.font("Helvetica").fontSize(8).fillColor("#666666").text(`Generado: ${generatedAt()} · ${rows.length} fila(s)`);
-    for (const line of filters) doc.text(line);
-    doc.fillColor("black").moveDown(0.6);
-
-    const rowHeight = (texts, font) => {
-      doc.font(font).fontSize(FONT_SIZE);
-      return Math.max(...texts.map((t, i) => doc.heightOfString(t || " ", { width: widths[i] - CELL_PADDING * 2 }))) + CELL_PADDING * 2;
-    };
-
-    const drawRow = (texts, { font, fill }) => {
-      const height = rowHeight(texts, font);
-      const y = doc.y;
-      let x = MARGIN;
-      if (fill) doc.rect(MARGIN, y, width, height).fill(fill);
-      doc.fillColor(fill === "#5E35B1" ? "white" : "black").font(font).fontSize(FONT_SIZE);
-      texts.forEach((t, i) => {
-        const align = isRight(columns[i]) ? "right" : "left";
-        doc.text(t, x + CELL_PADDING, y + CELL_PADDING, { width: widths[i] - CELL_PADDING * 2, align });
-        x += widths[i];
-      });
-      doc.moveTo(MARGIN, y + height).lineTo(MARGIN + width, y + height).lineWidth(0.3).strokeColor("#DDDDDD").stroke();
-      doc.x = MARGIN;
-      doc.y = y + height;
-      return height;
-    };
-
-    const headers = columns.map((c) => c.header);
-    const drawHeader = () => drawRow(headers, { font: "Helvetica-Bold", fill: "#5E35B1" });
-    drawHeader();
-
-    // Las columnas de grupo, solo en la primera fila del grupo o de la página.
-    const runs = groupRuns(rows, groupKey);
-    runs.forEach((run, runIndex) => {
-      for (let index = run.start; index < run.end; index += 1) {
-        const full = columns.map((column) => pdfText(column, rows[index]));
-        if (doc.y + rowHeight(full, "Helvetica") > bottom) {
-          doc.addPage();
-          doc.y = MARGIN;
-          drawHeader();
-        } else if (index > run.start) {
-          full.forEach((_, i) => {
-            if (columns[i].group) full[i] = "";
-          });
-        }
-        drawRow(full, { font: "Helvetica", fill: runIndex % 2 === 1 ? "#F5F3FA" : null });
-      }
-    });
-    if (totals) {
-      const texts = columns.map((column) => pdfText(column, totals));
-      if (doc.y + rowHeight(texts, "Helvetica-Bold") > bottom) {
-        doc.addPage();
-        doc.y = MARGIN;
-        drawHeader();
-      }
-      drawRow(texts, { font: "Helvetica-Bold", fill: null });
-    }
-    if (rows.length === 0) doc.font("Helvetica-Oblique").fontSize(9).text("Sin filas con los filtros aplicados.", MARGIN, doc.y + 6);
-
-    // Numeración de páginas al final, cuando ya se sabe cuántas hay.
-    const range = doc.bufferedPageRange();
-    for (let i = 0; i < range.count; i += 1) {
-      doc.switchToPage(range.start + i);
-      // El pie va bajo el margen inferior: sin esto, pdfkit abriría una página nueva.
-      doc.page.margins.bottom = 0;
-      doc
-        .font("Helvetica")
-        .fontSize(7)
-        .fillColor("#666666")
-        .text(`Página ${i + 1} de ${range.count}`, MARGIN, doc.page.height - MARGIN - 6, { width, align: "right", lineBreak: false });
-    }
+    draw(doc);
+    numberPages(doc);
     doc.end();
   });
 
-/**
- * Archivo del reporte: `{ buffer, contentType, extension }`. `filters`: las
- * líneas que describen los filtros aplicados, para el encabezado. `groupKey` y
- * `totals`: filas agrupadas y fila de totales (ver arriba).
- */
-export const renderExport = async ({ format, title, filters = [], columns, rows, groupKey = null, totals = null }) => {
+const buildPdf = ({ title, filters, columns, rows, groupKey, totals }) =>
+  pdfBuffer((doc) => {
+    pdfHeading(doc, title, filters, rows.length);
+    drawTable(doc, { columns, rows, groupKey, totals });
+  });
+
+const buildPdfDocument = ({ title, lines, sections }) =>
+  pdfBuffer((doc) => {
+    pdfHeading(doc, title, lines);
+    for (const section of sections) {
+      drawSectionTitle(doc, section.title);
+      if (section.fields) drawFields(doc, section.fields);
+      else drawTable(doc, section);
+    }
+  });
+
+const renderWith = async (format, builders, input) => {
   const spec = EXPORT_FORMATS[format];
   if (!spec) throw httpError(400, "El formato del reporte debe ser xlsx o pdf.");
-  const input = { title, filters, columns, rows, groupKey, totals };
-  const buffer = format === "xlsx" ? await buildExcel(input) : await buildPdf(input);
+  const buffer = format === "xlsx" ? await builders.xlsx(input) : await builders.pdf(input);
   return { buffer, ...spec };
 };
+
+/**
+ * Archivo del reporte de un listado: `{ buffer, contentType, extension }`.
+ * `filters`: las líneas que describen los filtros aplicados, para el
+ * encabezado. `groupKey` y `totals`: filas agrupadas y fila de totales (ver arriba).
+ */
+export const renderExport = ({ format, title, filters = [], columns, rows, groupKey = null, totals = null }) =>
+  renderWith(format, { xlsx: buildExcel, pdf: buildPdf }, { title, filters, columns, rows, groupKey, totals });
+
+/**
+ * Archivo del reporte de un registro, por secciones. Sección de campos:
+ * `{ title, fields: [{ label, value, kind? }] }`; de tabla: `{ title, columns,
+ * rows, totals?, empty? }` (`empty`: el texto si no hay filas). En Excel, los
+ * campos van en una hoja "Resumen" y cada tabla en su hoja; en PDF, todo
+ * seguido. `lines`: líneas bajo el título.
+ */
+export const renderDocument = ({ format, title, lines = [], sections }) =>
+  renderWith(format, { xlsx: buildExcelDocument, pdf: buildPdfDocument }, { title, lines, sections });
 
 /** Envía el archivo del reporte (controller). El nombre lo pone el cliente. */
 export const sendExport = (res, file) => {

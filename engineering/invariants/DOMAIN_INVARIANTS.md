@@ -12,7 +12,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | I2 | Amortizado ≤ anticipo facturado | Bloqueo + revalidación | ADR-0024 |
 | I3 | Retenido devuelto ≤ retenido acumulado | Bloqueo + revalidación | ADR-0025 |
 | I4 | Retenido acumulado ≤ retenido pactado (adoptada en [DEC-051](../decisiones/DEC-051-retenido-contractual.md), resuelve el backlog DEC-11) | Bloqueo + revalidación | ADR-0025 |
-| I5 | Σ facturas de liquidación ≤ base vigente — *pendiente: backlog DEC-08* | Bloqueo + revalidación | ADR-0021 |
+| I5 | Σ VALOR de facturas normales y de liquidación aprobadas ≤ base vigente antes de IVA — aplicada ([DEC-071](../decisiones/DEC-071-factura-normal.md)) | Bloqueo + revalidación | ADR-0021 |
 
 **Aplicadas (2026-10-06), con anticipo y amortización ([DEC-044](../decisiones/DEC-044-anticipo-amortizacion.md)):**
 

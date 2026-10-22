@@ -26,6 +26,7 @@ const state = {
   advanceSum: null,
   amortizedSum: null,
   retainedSum: null,
+  billedSum: null,
   refundedSum: null,
   work: null,
   stage: null,
@@ -83,7 +84,7 @@ const prismaMock = {
     upsert: jest.fn(),
   },
   tbl_invoice_liquidation_details: {
-    aggregate: jest.fn(async () => ({ _sum: { ild_amortization: state.amortizedSum, ild_retention: state.retainedSum } })),
+    aggregate: jest.fn(async () => ({ _sum: { ild_value: state.billedSum, ild_amortization: state.amortizedSum, ild_retention: state.retainedSum } })),
     upsert: jest.fn(),
   },
   tbl_invoice_retention_refund_details: {
@@ -215,6 +216,7 @@ beforeEach(() => {
   state.advanceSum = null;
   state.amortizedSum = null;
   state.retainedSum = null;
+  state.billedSum = null;
   state.refundedSum = null;
   state.work = { sta_id: 1, wrk_code: "OB-8" };
   state.stage = { wrk_id: 8, sta_id: 1, wks_name: "Cimentación" };
@@ -912,7 +914,7 @@ describe("selectores del formulario", () => {
     prismaMock.tbl_contracts.findMany.mockResolvedValueOnce([contractRow(31), { ...contractRow(32), ctr_state: "IN_LIQUIDATION" }]);
     const result = await service.selectInvoiceContracts({ view: "MAJOR", prvId: 77 });
     expect(prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0].where.ctr_state).toEqual({ in: ["IN_PROGRESS", "IN_LIQUIDATION"] });
-    expect(result.map((o) => o.types)).toEqual([["ADVANCE"], ["LIQUIDATION", "RETENTION_REFUND"]]);
+    expect(result.map((o) => o.types)).toEqual([["ADVANCE", "NORMAL"], ["LIQUIDATION", "RETENTION_REFUND"]]);
   });
 
   test("filtro Proveedor del listado: con facturas no eliminadas de la vista y del alcance; el ya elegido vuelve", async () => {
@@ -1164,6 +1166,7 @@ describe("anticipo y amortización (DEC-044)", () => {
         effectivePct: "5.000000",
         defaultRetention: "4500000.00",
       },
+      billing: { base: "120000000.00", billed: "0.00", toBill: "120000000.00" },
     });
 
     prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce(null);
@@ -1184,8 +1187,8 @@ describe("retenido contractual (DEC-051)", () => {
   it("los saldos suman el retenido de liquidaciones y las devoluciones aprobadas del contrato", async () => {
     await save(liquidationInput());
     expect(prismaMock.tbl_invoice_liquidation_details.aggregate.mock.calls[0][0]).toEqual({
-      where: { tbl_invoices: { ctr_id: 30, inv_type: "LIQUIDATION", inv_state: "APPROVED", sta_id: { not: 3 } } },
-      _sum: { ild_amortization: true, ild_retention: true },
+      where: { tbl_invoices: { ctr_id: 30, inv_type: { in: ["NORMAL", "LIQUIDATION"] }, inv_state: "APPROVED", sta_id: { not: 3 } } },
+      _sum: { ild_value: true, ild_amortization: true, ild_retention: true },
     });
     expect(prismaMock.tbl_invoice_retention_refund_details.aggregate.mock.calls[0][0].where).toEqual({
       tbl_invoices: { ctr_id: 30, inv_type: "RETENTION_REFUND", inv_state: "APPROVED", sta_id: { not: 3 } },
@@ -1366,6 +1369,70 @@ const NONE = Object.freeze({ all: false, wrkId: null });
 // La de contrato, por su obra; la simple, por las obras de su proveedor (DEC-054).
 // Todas las facturas tienen obra, también la simple (DEC-058).
 const OWN_INVOICES = { wrk_id: { in: [8] } };
+
+describe("factura normal (DEC-071)", () => {
+  const detailUpsert = () => prismaMock.tbl_invoice_liquidation_details.upsert.mock.calls[0][0];
+  const normalInput = (overrides = {}) => contractInput({ type: "NORMAL", value: "30000000", ...overrides });
+  const storedNormal = (overrides = {}) => storedLiquidation({ inv_type: "NORMAL", ...overrides });
+  const approved = { inv_state: "APPROVED", inv_approval_date: new Date("2026-03-05T00:00:00Z") };
+
+  beforeEach(() => {
+    state.contract = contract({ ctr_state: "IN_PROGRESS" });
+    state.advanceSum = D("32000000");
+  });
+
+  it("en ejecución: VALOR, amortización y retenido por defecto como la liquidación, sin otrosí", async () => {
+    await expect(save(normalInput())).resolves.toMatchObject({ invId: 70 });
+    const created = detailUpsert().create;
+    expect(created.ccp_id).toBeNull();
+    expect(created.ild_value.toFixed(2)).toBe("30000000.00");
+    // 30.000.000 × 32.000.000 / 120.000.000 y 30.000.000 × 5 %.
+    expect(created.ild_amortization.toFixed(2)).toBe("8000000.00");
+    expect(created.ild_retention.toFixed(2)).toBe("1500000.00");
+    expect(prismaMock.tbl_contract_concepts.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("solo con el contrato en ejecución (409 en liquidación y suspendido)", async () => {
+    for (const ctr_state of ["IN_LIQUIDATION", "SUSPENDED"]) {
+      state.contract = contract({ ctr_state });
+      await expect(save(normalInput())).rejects.toMatchObject({ statusCode: 409 });
+    }
+  });
+
+  it("I5 al registrar: el VALOR no supera lo que queda por facturar, tampoco el de la liquidación", async () => {
+    state.billedSum = D("100000000");
+    await expect(save(normalInput({ value: "20000000.01" }))).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringContaining("queda por facturar del contrato (20000000.00)"),
+    });
+    await expect(save(normalInput({ value: "20000000" }))).resolves.toMatchObject({ invId: 70 });
+
+    state.contract = contract({ ctr_state: "IN_LIQUIDATION" });
+    await expect(save(liquidationInput())).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("por facturar") });
+  });
+
+  it("I5 al aprobar: revalida contra lo facturado vigente y deja el cambio en la bitácora", async () => {
+    state.invoice = storedNormal();
+    state.amortizedSum = D("0");
+    state.billedSum = D("40000000");
+    await expect(approve()).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("por facturar") });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+
+    state.billedSum = D("20000000");
+    await expect(approve()).resolves.toMatchObject({ invId: 70 });
+    expect(auditRows().find((r) => r.aud_field === "billing_billed")).toMatchObject({ aud_old_value: "20000000.00", aud_new_value: "110000000.00" });
+  });
+
+  it("anular una normal aprobada reduce lo facturado, lo amortizado y lo retenido", async () => {
+    state.invoice = storedNormal(approved);
+    state.amortizedSum = D("24000000");
+    state.retainedSum = D("4500000");
+    state.billedSum = D("90000000");
+    await expect(cancel([CAN_CANCEL, CAN_CANCEL_APPROVED])).resolves.toMatchObject({ invId: 70 });
+    expect(auditRows().find((r) => r.aud_field === "billing_billed")).toMatchObject({ aud_old_value: "90000000.00", aud_new_value: "0.00" });
+    expect(auditRows().find((r) => r.aud_field === "advance_amortized")).toMatchObject({ aud_new_value: "0.00" });
+  });
+});
 
 describe("alcance por obra (DEC-047)", () => {
   it("el listado y el selector de contratos filtran por la obra del alcance", async () => {

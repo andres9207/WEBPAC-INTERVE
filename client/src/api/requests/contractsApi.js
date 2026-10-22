@@ -17,6 +17,10 @@ export const contractsApi = createMasterApi('work/contracts', { entity: 'contrac
  * @param {object} params  filtros, pestaña y orden del listado
  * @param {'xlsx'|'pdf'} format
  */
+/** Reporte de un contrato: su expediente completo (DEC-070). */
+export const exportContractAPI = (ctrId, format) =>
+  httpCliente.post('work/contracts/export_contract', { ctrId, format }, { responseType: 'blob' });
+
 /** `report`: 'list' (por defecto), 'control' o 'advances' (DEC-070). */
 export const exportContractsAPI = (params, format, report) =>
   httpCliente.post('work/contracts/export_contracts', { ...params, format, report }, { responseType: 'blob' });

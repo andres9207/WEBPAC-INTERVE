@@ -1,5 +1,5 @@
 import { decimal, percentOf, sumMoney } from "../../../common/utils/money.utils.js";
-import { addTerm, dateOnlyText } from "../../../common/utils/term.utils.js";
+import { addTerm, dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
 import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
@@ -91,6 +91,7 @@ export const STATE_ALLOWS = Object.freeze({
     "editConcept",
     "suspend",
     "invoiceAdvance",
+    "invoiceNormal",
     "cancelInvoice",
     "deleteInvoice",
     "createPolicy",
@@ -120,6 +121,7 @@ export const STATE_ALLOWS = Object.freeze({
 /** Acción de STATE_ALLOWS que habilita cada tipo de factura de contrato (DEC-042). */
 export const INVOICE_ACTIONS = Object.freeze({
   ADVANCE: "invoiceAdvance",
+  NORMAL: "invoiceNormal",
   LIQUIDATION: "invoiceLiquidation",
   RETENTION_REFUND: "invoiceRetentionRefund",
 });
@@ -132,6 +134,7 @@ const DENIED = {
   editLiquidationConcept: "El otrosí de liquidación solo se modifica mientras el contrato está en liquidación.",
   suspend: "Solo se suspende un contrato en ejecución.",
   invoiceAdvance: "Las facturas de anticipo solo se registran o aprueban con el contrato en ejecución.",
+  invoiceNormal: "Las facturas normales solo se registran o aprueban con el contrato en ejecución.",
   invoiceLiquidation: "Las facturas de liquidación solo se registran o aprueban con el contrato en liquidación.",
   invoiceRetentionRefund: "Las facturas de devolución de retenido solo se registran o aprueban con el contrato en liquidación.",
   cancelInvoice: "Las facturas de un contrato liquidado no se anulan: el contrato solo se consulta.",
@@ -227,6 +230,43 @@ export const contractEndDate = ({ startDate, term, unit, extensions = 0, suspend
   const end = addTerm(startDate, Number(term) + Number(extensions ?? 0), unit);
   if (!end || !suspendedDays) return end;
   return addTerm(end, Number(suspendedDays), "DIA");
+};
+
+const MONTHS_PER_UNIT = { MES: 1, ANIO: 12 };
+
+/**
+ * Inversa de contractEndDate: el plazo que, con las mismas prórrogas y días
+ * suspendidos, da `endDate`. Se busca en la unidad pedida; si la fecha no cae
+ * en un número entero de esa unidad, en días, salvo que haya prórrogas (están
+ * en la unidad del contrato y cambiarla les cambiaría el sentido).
+ * Devuelve `{ term, unit }`, o `{ error }` con el motivo.
+ */
+export const contractTermFor = ({ startDate, endDate, unit, extensions = 0, suspendedDays = 0 }) => {
+  const start = toDateOnly(dateOnlyText(startDate));
+  const end = toDateOnly(dateOnlyText(endDate));
+  if (!start || !end) return { error: "Las fechas de inicio y fin son requeridas." };
+  if (end.getTime() <= start.getTime()) return { error: "La fecha fin debe ser posterior a la de inicio." };
+  const target = dateOnlyText(end);
+  // Fecha a la que llega el plazo con sus prórrogas, antes de los días suspendidos.
+  const untilTerm = new Date(end.getTime() - Number(suspendedDays ?? 0) * DAY_MS);
+  const extra = Number(extensions ?? 0);
+
+  const inUnit = (candidate) => {
+    let total;
+    if (candidate === "DIA") total = Math.round((untilTerm.getTime() - start.getTime()) / DAY_MS);
+    else {
+      const months = (untilTerm.getUTCFullYear() - start.getUTCFullYear()) * 12 + untilTerm.getUTCMonth() - start.getUTCMonth();
+      if (months % MONTHS_PER_UNIT[candidate] !== 0) return null;
+      total = months / MONTHS_PER_UNIT[candidate];
+    }
+    const term = total - extra;
+    if (term < 1 || contractEndDate({ startDate: start, term, unit: candidate, extensions: extra, suspendedDays }) !== target) return null;
+    return { term, unit: candidate };
+  };
+
+  const found = inUnit(unit) ?? (extra === 0 ? inUnit("DIA") : null);
+  if (found) return found;
+  return { error: "La fecha fin no corresponde a un plazo entero con las prórrogas y los días suspendidos del contrato." };
 };
 
 /**

@@ -104,11 +104,16 @@ export const INVOICE_STATE_COLORS = { REGISTERED: 'warning', APPROVED: 'success'
 export const INVOICE_TYPE_OPTIONS = [
   { value: 'SIMPLE', label: 'Simple', hint: 'Imputada a una etapa de la obra, sin contrato' },
   { value: 'ADVANCE', label: 'Anticipo', hint: 'De un contrato en ejecución' },
+  { value: 'NORMAL', label: 'Normal', hint: 'Avance de un contrato en ejecución: amortiza y retiene' },
   { value: 'LIQUIDATION', label: 'Liquidación', hint: 'De un contrato en liquidación' },
   { value: 'RETENTION_REFUND', label: 'Devolución de retenido', hint: 'De un contrato en liquidación' }
 ];
 
-const CONTRACT_INVOICE_TYPES = ['ADVANCE', 'LIQUIDATION', 'RETENTION_REFUND'];
+const CONTRACT_INVOICE_TYPES = ['ADVANCE', 'NORMAL', 'LIQUIDATION', 'RETENTION_REFUND'];
+
+// Facturan el valor del contrato (DEC-071): VALOR antes de IVA, amortización
+// del anticipo y retenido. La normal, en ejecución; la liquidación, al final.
+export const isBillingInvoiceType = (type) => type === 'NORMAL' || type === 'LIQUIDATION';
 
 // Vistas de facturas (DEC-054): una por menú, cada una con su permiso de ver
 // (clave en permissionsCatalog.billing.invoices), su dirección y sus tipos.

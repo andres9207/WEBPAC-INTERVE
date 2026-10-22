@@ -1,11 +1,12 @@
 import Box from '@mui/material/Box';
 
-import logo from 'assets/images/interve.png';
+import logo from 'assets/images/interadminpro.png';
 
-// La imagen (2359 × 1005) trae un margen blanco amplio. Se recorta con CSS para
-// que `height` sea la altura del logo visible y no la del lienzo.
-const IMAGE = { width: 2359, height: 1005 };
-const CONTENT = { left: 160, top: 150, width: 2050, height: 745 };
+// La imagen (1047 × 302) trae un margen transparente. Se recorta con CSS para
+// que `height` sea la altura del logo visible y no la del lienzo; se dejan 3 px
+// de holgura por lado para que el redondeo al escalar no corte los bordes.
+const IMAGE = { width: 1047, height: 302 };
+const CONTENT = { left: 36, top: 34, width: 980, height: 222 };
 
 // ==============================|| LOGO ||============================== //
 
@@ -16,7 +17,7 @@ export default function Logo({ height = 48 }) {
     <Box sx={{ position: 'relative', overflow: 'hidden', width: CONTENT.width * scale, height }}>
       <img
         src={logo}
-        alt="Interve - Interventoría y Supervisión Técnica"
+        alt="interAdmin PRO"
         style={{
           position: 'absolute',
           width: IMAGE.width * scale,

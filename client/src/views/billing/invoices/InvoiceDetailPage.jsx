@@ -25,7 +25,7 @@ import { useSocket } from 'socket/SocketProvider';
 import { showError } from 'services/ToastService';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
 import { fMoneyText, fPercentText } from 'utils/formatNumber';
-import { INVOICE_STATE_COLORS, invoicePath } from 'utils/constants';
+import { INVOICE_STATE_COLORS, invoicePath, isBillingInvoiceType } from 'utils/constants';
 import InvoiceDetailPanel from './components/InvoiceDetailPanel';
 
 /**
@@ -41,7 +41,7 @@ import InvoiceDetailPanel from './components/InvoiceDetailPanel';
 
 const pct = fPercentText;
 
-const CONTRACT_TYPES = ['ADVANCE', 'LIQUIDATION', 'RETENTION_REFUND'];
+const CONTRACT_TYPES = ['ADVANCE', 'NORMAL', 'LIQUIDATION', 'RETENTION_REFUND'];
 
 function FigureRow({ figures }) {
   return (
@@ -102,7 +102,7 @@ const detailPanelOf = ({ type, amounts }) => {
       note: 'TOTAL es el neto a pagar: descuenta las retenciones y el pronto pago.'
     };
   }
-  const isLiquidation = type === 'LIQUIDATION';
+  const isLiquidation = isBillingInvoiceType(type);
   return {
     lines: [
       { key: 'value', label: isLiquidation ? 'VALOR' : type === 'ADVANCE' ? 'ANTICIPO' : 'DEVOLUCIÓN RETENIDO', value: amounts.value },
@@ -165,7 +165,7 @@ function InvoiceAmounts({ invoice }) {
     );
   }
   const approved = invoice.state === 'APPROVED';
-  const isLiquidation = type === 'LIQUIDATION';
+  const isLiquidation = isBillingInvoiceType(type);
   const figures = {
     ADVANCE: [{ label: 'Valor del anticipo', value: fMoneyText(amounts.value) }],
     RETENTION_REFUND: [{ label: 'Valor devuelto', value: fMoneyText(amounts.value), hint: 'Devolución del retenido contractual' }],
@@ -178,7 +178,7 @@ function InvoiceAmounts({ invoice }) {
         hint: `% efectivo del contrato: ${pct(amounts.defaultPct)}`
       }
     ]
-  }[type];
+  }[isLiquidation ? 'LIQUIDATION' : type];
   return (
     <Stack spacing={2}>
       <FigureRow figures={figures} />

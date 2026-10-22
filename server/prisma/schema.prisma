@@ -1133,7 +1133,8 @@ model tbl_invoice_advance_details {
 model tbl_invoice_liquidation_details {
   inv_id                     Int                   @id
   ctr_id                     Int
-  ccp_id                     Int
+  /// Otrosí de liquidación (DEC-059); nulo en la factura normal, que usa este mismo detalle (DEC-071).
+  ccp_id                     Int?
   ild_value                  Decimal               @db.Decimal(18, 2)
   ild_amortization           Decimal               @db.Decimal(18, 2)
   ild_default_amortization   Decimal               @db.Decimal(18, 2)
@@ -1152,7 +1153,7 @@ model tbl_invoice_liquidation_details {
   created_by_user            tbl_users?            @relation("InvoiceLiquidationDetailCreatedBy", fields: [ild_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_liquidation_details_create_by")
   tbl_invoices               tbl_invoices          @relation(fields: [inv_id], references: [inv_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_invoice")
   invoice_contract           tbl_invoices          @relation("InvoiceLiquidationDetailContract", fields: [inv_id, ctr_id], references: [inv_id, ctr_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_invoice_contract")
-  tbl_contract_concepts      tbl_contract_concepts @relation(fields: [ccp_id, ctr_id], references: [ccp_id, ctr_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_concept")
+  tbl_contract_concepts      tbl_contract_concepts? @relation(fields: [ccp_id, ctr_id], references: [ccp_id, ctr_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_concept")
   updated_by_user            tbl_users?            @relation("InvoiceLiquidationDetailUpdatedBy", fields: [ild_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_liquidation_details_update_by")
 
   @@index([ild_create_by], map: "tbl_invoice_liquidation_details_create_by")

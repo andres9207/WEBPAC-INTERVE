@@ -21,7 +21,12 @@ import { INVOICE_TYPE_OPTIONS, invoicePath } from 'utils/constants';
  */
 
 // Acción del contrato (STATE_ALLOWS) que habilita cada tipo de factura.
-const TYPE_BY_ACTION = { invoiceAdvance: 'ADVANCE', invoiceLiquidation: 'LIQUIDATION', invoiceRetentionRefund: 'RETENTION_REFUND' };
+const TYPE_BY_ACTION = {
+  invoiceAdvance: 'ADVANCE',
+  invoiceNormal: 'NORMAL',
+  invoiceLiquidation: 'LIQUIDATION',
+  invoiceRetentionRefund: 'RETENTION_REFUND'
+};
 
 export default function ContractInvoicesTab({ contract }) {
   const navigate = useNavigate();

@@ -108,7 +108,7 @@ describe("exportContractReport — control de contratos", () => {
   it("solo suma facturas aprobadas y no eliminadas de esos contratos", async () => {
     await exportContractReport({ report: "control", format: "pdf", views: ["MAJOR"], scope: { all: true } });
     const where = prismaMock.tbl_invoice_liquidation_details.findMany.mock.calls[0][0].where;
-    expect(where.tbl_invoices).toEqual({ ctr_id: { in: [1] }, inv_type: "LIQUIDATION", inv_state: "APPROVED", sta_id: { not: 3 } });
+    expect(where.tbl_invoices).toEqual({ ctr_id: { in: [1] }, inv_type: { in: ["NORMAL", "LIQUIDATION"] }, inv_state: "APPROVED", sta_id: { not: 3 } });
   });
 
   it("sin la vista de facturas del contrato, sus cifras de facturación van vacías y el encabezado lo dice", async () => {

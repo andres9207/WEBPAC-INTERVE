@@ -71,15 +71,15 @@ describe("qué admite cada estado", () => {
 
   it("el tipo decide si hay contrato", () => {
     expect(hasContract("SIMPLE")).toBe(false);
-    expect(["ADVANCE", "LIQUIDATION", "RETENTION_REFUND"].every(hasContract)).toBe(true);
+    expect(["ADVANCE", "NORMAL", "LIQUIDATION", "RETENTION_REFUND"].every(hasContract)).toBe(true);
   });
 });
 
 describe("estado del contrato y tipo de factura (ADR-0017)", () => {
   const admits = (state) => Object.keys(INVOICE_ACTIONS).filter((type) => CONTRACT_STATE_ALLOWS[state].includes(INVOICE_ACTIONS[type]));
 
-  it("anticipo en ejecución; liquidación y devolución en liquidación; nada suspendido ni liquidado", () => {
-    expect(admits("IN_PROGRESS")).toEqual(["ADVANCE"]);
+  it("anticipo y normal en ejecución; liquidación y devolución en liquidación; nada suspendido ni liquidado", () => {
+    expect(admits("IN_PROGRESS")).toEqual(["ADVANCE", "NORMAL"]);
     expect(admits("IN_LIQUIDATION")).toEqual(["LIQUIDATION", "RETENTION_REFUND"]);
     expect(admits("SUSPENDED")).toEqual([]);
     expect(admits("LIQUIDATED")).toEqual([]);

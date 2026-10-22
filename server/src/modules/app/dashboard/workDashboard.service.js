@@ -331,7 +331,7 @@ const monthKeys = (today) =>
     return d.toISOString().slice(0, 7);
   });
 
-const TYPE_ORDER = [INVOICE_TYPES.ADVANCE, INVOICE_TYPES.LIQUIDATION, INVOICE_TYPES.RETENTION_REFUND, INVOICE_TYPES.SIMPLE];
+const TYPE_ORDER = [INVOICE_TYPES.ADVANCE, INVOICE_TYPES.NORMAL, INVOICE_TYPES.LIQUIDATION, INVOICE_TYPES.RETENTION_REFUND, INVOICE_TYPES.SIMPLE];
 
 /**
  * Facturas de la obra en las vistas que ve el usuario: aprobadas y por

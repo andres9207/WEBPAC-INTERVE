@@ -9,7 +9,7 @@ import * as contractsService from "./contracts.service.js";
 import * as conceptsService from "./contractConcepts.service.js";
 import * as suspensionsService from "./contractSuspensions.service.js";
 import * as policiesService from "./contractPolicies.service.js";
-import { exportContractReport } from "./contractReports.service.js";
+import { exportContractReport, exportContractSummary } from "./contractReports.service.js";
 import { grantedViews } from "../../billing/invoices/invoiceViews.js";
 
 // Solo leen la petición y delegan. El autor sale de req.user (DEC-005); la
@@ -82,6 +82,18 @@ export const exportContractsController = handleExport(async (req) => {
   return exportContractReport({ ...filters, report, views });
 });
 
+// Reporte de un contrato (DEC-070): el expediente, con las partes que el usuario puede ver.
+export const exportContractController = handleExport(async (req) => {
+  const granted = new Set(await getEffectivePermissionIds(req.user));
+  return exportContractSummary({
+    ctrId: req.body.ctrId,
+    format: req.body.format,
+    scope: await workScopeOf(req),
+    views: grantedViews(granted),
+    canViewPolicies: granted.has(PERMISSIONS.work.policies.view),
+  });
+});
+
 export const selectContractFilterProvidersController = handle(async (req) =>
   contractsService.selectContractFilterProviders({ search: req.query.search, includePrvId: req.query.includePrvId, scope: await workScopeOf(req) })
 );
@@ -98,8 +110,8 @@ export const getContractFormOptionsController = handle(async (req) => {
 });
 
 export const previewContractEndDateController = handle(async (req) => {
-  const { ctrId, startDate, term, termUnit } = req.query;
-  return contractsService.previewContractEndDate({ ctrId, startDate, term, termUnit, scope: await workScopeOf(req) });
+  const { ctrId, startDate, term, termUnit, endDate } = req.query;
+  return contractsService.previewContractEndDate({ ctrId, startDate, term, termUnit, endDate, scope: await workScopeOf(req) });
 });
 
 export const getContractFieldsController = handle(async (req) =>

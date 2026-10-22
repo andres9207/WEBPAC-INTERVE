@@ -13,6 +13,7 @@ import Typography from '@mui/material/Typography';
 
 import SubCard from 'ui-component/cards/SubCard';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
+import ExportButton from 'ui-component/extended/ExportButton';
 import { DataList, Figure, Pending } from 'ui-component/extended/DetailBlocks';
 import RouteDialog from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
@@ -20,7 +21,8 @@ import ConceptsTab from './components/ConceptsTab';
 import PoliciesTab from './components/PoliciesTab';
 import SuspendDialog from './components/SuspendDialog';
 import ContractInvoicesTab from 'views/billing/invoices/components/ContractInvoicesTab';
-import { contractsApi } from 'api/requests/contractsApi';
+import { contractsApi, exportContractAPI } from 'api/requests/contractsApi';
+import { contractFileName } from './ContractsPage';
 import { useAuth } from 'contexts/AuthContext';
 import { useSocket } from 'socket/SocketProvider';
 import { showError, showSuccess } from 'services/ToastService';
@@ -195,6 +197,9 @@ export default function ContractDetailPage() {
             <Button variant="outlined" color="error" onClick={() => setConfirmDelete(true)}>
               Eliminar
             </Button>
+          )}
+          {canDo(perms?.export) && (
+            <ExportButton request={(format) => exportContractAPI(contract.ctrId, format)} fileName={contractFileName(contract.number)} />
           )}
           <Box sx={{ flexGrow: 1 }} />
           <Button variant="outlined" color="inherit" onClick={close}>

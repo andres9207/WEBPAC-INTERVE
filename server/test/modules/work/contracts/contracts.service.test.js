@@ -769,6 +769,8 @@ describe("previewContractEndDate (FRONTEND_STANDARD, regla 9)", () => {
   it("contrato nuevo: inicio + plazo, con el último día del mes si el destino es más corto", async () => {
     await expect(service.previewContractEndDate({ startDate: "2026-01-31", term: "1", termUnit: "MES" })).resolves.toEqual({
       endDate: "2026-02-28",
+      term: 1,
+      termUnit: "MES",
     });
     expect(prismaMock.tbl_contracts.findFirst).not.toHaveBeenCalled();
   });
@@ -786,8 +788,32 @@ describe("previewContractEndDate (FRONTEND_STANDARD, regla 9)", () => {
     // 2026-01-15 + (6 + 2) meses = 2026-09-15, + 10 días = 2026-09-25. El otrosí eliminado no cuenta.
     await expect(service.previewContractEndDate({ ctrId: "30", startDate: "2026-01-15", term: "6", termUnit: "MES" })).resolves.toEqual({
       endDate: "2026-09-25",
+      term: 6,
+      termUnit: "MES",
     });
     expect(prismaMock.tbl_contracts.findFirst.mock.calls[0][0].where).toEqual({ ctr_id: 30, sta_id: { not: 3 } });
+  });
+
+  it("con la fecha fin y sin plazo, devuelve el plazo que la produce, descontando prórrogas y días suspendidos", async () => {
+    await expect(service.previewContractEndDate({ startDate: "2026-10-22", endDate: "2026-11-22", termUnit: "MES" })).resolves.toEqual({
+      endDate: "2026-11-22",
+      term: 1,
+      termUnit: "MES",
+    });
+
+    prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce({
+      ctr_suspended_days: 10,
+      tbl_contract_concepts: [{ ccp_type: "AMENDMENT", ccp_extension: 2, sta_id: 1 }],
+    });
+    await expect(
+      service.previewContractEndDate({ ctrId: "30", startDate: "2026-01-15", endDate: "2026-09-25", termUnit: "MES" })
+    ).resolves.toEqual({ endDate: "2026-09-25", term: 6, termUnit: "MES" });
+  });
+
+  it("una fecha fin que no da un plazo válido responde 400", async () => {
+    await expect(
+      service.previewContractEndDate({ startDate: "2026-10-22", endDate: "2026-10-01", termUnit: "MES" })
+    ).rejects.toMatchObject({ statusCode: 400 });
   });
 
   it("un contrato inexistente o eliminado responde 404", async () => {

@@ -15,18 +15,25 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * - `recalc({ startDate, term, termUnit, ...extra })`: sin fecha de inicio o
  *   sin plazo, deja la fecha vacía sin llamar al servidor. `extra` llega a
  *   `buildParams` (p. ej. `ctrId`).
+ * - `fromEndDate({ startDate, endDate, termUnit, ...extra })`: el sentido
+ *   inverso, para el endpoint que lo admite: muestra la fecha escrita y le
+ *   pide al servidor el plazo que la produce. Devuelve `{ term, termUnit }`
+ *   (para ponerlos en el formulario), o null; si el servidor la rechaza, su
+ *   mensaje queda en `error`.
  * - Si llegan dos respuestas fuera de orden, gana la última pedida.
  * - `reset(endDate)`: el valor guardado al cargar el registro.
  */
 export default function useEndDatePreview(previewApi, buildParams) {
   const [endDate, setEndDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const lastRequest = useRef(0);
 
   const recalc = useCallback(
     async (values) => {
       const request = ++lastRequest.current;
       const { startDate, term, termUnit } = values;
+      setError('');
       if (!ISO_DATE.test(startDate ?? '') || !/^\d+$/.test(String(term ?? '')) || !termUnit) {
         setEndDate('');
         setLoading(false);
@@ -45,11 +52,36 @@ export default function useEndDatePreview(previewApi, buildParams) {
     [previewApi, buildParams]
   );
 
+  const fromEndDate = useCallback(
+    async (values) => {
+      const request = ++lastRequest.current;
+      const { startDate, endDate: typed, termUnit } = values;
+      setEndDate(typed ?? '');
+      setError('');
+      if (!ISO_DATE.test(startDate ?? '') || !ISO_DATE.test(typed ?? '') || !termUnit) {
+        setLoading(false);
+        return null;
+      }
+      setLoading(true);
+      try {
+        const { data } = await previewApi(buildParams(values));
+        return request === lastRequest.current ? data : null;
+      } catch (err) {
+        if (request === lastRequest.current) setError(err.response?.data?.message || 'No se pudo calcular el plazo.');
+        return null;
+      } finally {
+        if (request === lastRequest.current) setLoading(false);
+      }
+    },
+    [previewApi, buildParams]
+  );
+
   const reset = useCallback((value) => {
     lastRequest.current += 1;
     setEndDate(value ?? '');
+    setError('');
     setLoading(false);
   }, []);
 
-  return { endDate, loading, recalc, reset };
+  return { endDate, loading, error, recalc, fromEndDate, reset };
 }

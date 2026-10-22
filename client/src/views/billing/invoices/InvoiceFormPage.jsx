@@ -31,7 +31,7 @@ import { useAuth } from 'contexts/AuthContext';
 import { useWorkScope } from 'contexts/WorkScopeContext';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
-import { INVOICE_TYPE_OPTIONS, INVOICE_VIEWS, invoicePath } from 'utils/constants';
+import { INVOICE_TYPE_OPTIONS, INVOICE_VIEWS, invoicePath, isBillingInvoiceType } from 'utils/constants';
 import { ALL_WORKS } from 'utils/workScope';
 
 /**
@@ -102,7 +102,7 @@ const isSimple = (type) => type === 'SIMPLE';
 const CARDS_GAP = 12;
 // El contenido de RouteDialog tiene padding 3 (24 px): `sticky` se fija bajo él.
 const DIALOG_PADDING = 24;
-const hasAmounts = (type) => type === 'ADVANCE' || type === 'LIQUIDATION' || type === 'RETENTION_REFUND';
+const hasAmounts = (type) => type === 'ADVANCE' || type === 'RETENTION_REFUND' || isBillingInvoiceType(type);
 
 const toForm = (invoice) => ({
   ...EMPTY_FORM,
@@ -122,10 +122,10 @@ const toForm = (invoice) => ({
 // los de por defecto.
 const amountsPayload = (form) => ({
   value: form.value,
-  ...(form.type === 'LIQUIDATION' && form.adjustAmortization
+  ...(isBillingInvoiceType(form.type) && form.adjustAmortization
     ? { amortization: form.amortization, amortizationObservation: text(form.amortizationObservation) }
     : {}),
-  ...(form.type === 'LIQUIDATION' && form.adjustRetention
+  ...(isBillingInvoiceType(form.type) && form.adjustRetention
     ? { retention: form.retention, retentionObservation: text(form.retentionObservation) }
     : {})
 });
@@ -825,20 +825,20 @@ export default function InvoiceFormPage() {
                   lines={[
                     {
                       key: 'value',
-                      label: type === 'LIQUIDATION' ? 'VALOR' : type === 'ADVANCE' ? 'ANTICIPO' : 'DEVOLUCIÓN RETENIDO',
+                      label: isBillingInvoiceType(type) ? 'VALOR' : type === 'ADVANCE' ? 'ANTICIPO' : 'DEVOLUCIÓN RETENIDO',
                       value
                     },
-                    ...(type === 'LIQUIDATION'
+                    ...(isBillingInvoiceType(type)
                       ? [
                           { key: 'amortization', label: 'AMORTIZACIÓN', value: amortization },
                           { key: 'retention', label: 'RETENIDO', value: retention }
                         ]
                       : [])
                   ]}
-                  total={type === 'LIQUIDATION' ? undefined : value}
+                  total={isBillingInvoiceType(type) ? undefined : value}
                   note={
-                    type === 'LIQUIDATION'
-                      ? 'IVA, retenciones tributarias y el total a pagar llegan con la composición de la factura de liquidación (DEC-03).'
+                    isBillingInvoiceType(type)
+                      ? 'IVA, retenciones tributarias y el total a pagar llegan con la composición de las facturas de contrato (DEC-03).'
                       : 'Sin IVA ni retenciones tributarias: esperan la composición de las facturas de contrato (DEC-03).'
                   }
                 />

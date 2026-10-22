@@ -86,6 +86,8 @@ export const exportContractsSchema = [
   body("report").optional({ values: "falsy" }).isIn(["list", "control", "advances"]).withMessage("El reporte debe ser list, control o advances."),
 ];
 
+export const exportContractSchema = [requiredId("ctrId"), exportFormatRule()];
+
 export const getContractSchema = [query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo.")];
 
 export const selectContractWorksSchema = [
@@ -102,7 +104,12 @@ export const getContractFormOptionsSchema = [
 export const previewContractEndDateSchema = [
   query("ctrId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("ctrId debe ser un entero positivo."),
   query("startDate").matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("La fecha de inicio es requerida (AAAA-MM-DD)."),
-  query("term").isInt({ min: 1, max: 100000 }).withMessage("El plazo debe ser un entero positivo."),
+  // Plazo → fecha fin, o fecha fin (sin plazo) → plazo.
+  query("term")
+    .if((_value, { req }) => !req.query.endDate)
+    .isInt({ min: 1, max: 100000 })
+    .withMessage("El plazo debe ser un entero positivo."),
+  query("endDate").optional({ values: "falsy" }).matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("La fecha fin debe ser AAAA-MM-DD."),
   query("termUnit").isIn(TERM_UNITS).withMessage("La unidad del plazo debe ser días, meses o años."),
 ];
 

@@ -185,6 +185,8 @@ Hechos verificados del sistema que condicionan la decisión:
 
 #### Preguntas para decidir la facturación del avance con la alternativa c
 
+> **Respondidas el 2026-10-22 en [DEC-071](../decisiones/DEC-071-factura-normal.md)** (factura normal): valor libre por el contrato completo, sin acta ni periodicidad (1–4); amortiza y retiene como la liquidación, con los permisos 89 y 103 (5–6); I5, normales + liquidación ≤ base vigente antes de IVA, y la liquidación factura lo que falte (7–8); solo en ejecución, y al anular revalida como la liquidación (9–10); en los dos menús y sin permiso propio (11–12).
+
 Estas preguntas fijan el diseño y se responden antes de implementar PRO-BD-13, PRO-BE-25 y PRO-FE-11.
 
 **Cómo se mide el avance**

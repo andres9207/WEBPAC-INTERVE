@@ -7,6 +7,7 @@ import {
   chronologyError,
   conceptAmounts,
   contractEndDate,
+  contractTermFor,
   contractTotals,
   historyRow,
   isEndDateProvisional,
@@ -217,5 +218,36 @@ describe("suspensión (ADR-0017, DEC-039)", () => {
     for (const state of [CONTRACT_STATES.IN_PROGRESS, CONTRACT_STATES.IN_LIQUIDATION, CONTRACT_STATES.LIQUIDATED]) {
       expect(isEndDateProvisional(state)).toBe(false);
     }
+  });
+});
+
+describe("contractTermFor: fecha fin → plazo (inversa de contractEndDate)", () => {
+  it("en la unidad pedida cuando la fecha cae exacta, también con el último día del mes", () => {
+    expect(contractTermFor({ startDate: "2026-10-22", endDate: "2026-11-22", unit: "MES" })).toEqual({ term: 1, unit: "MES" });
+    expect(contractTermFor({ startDate: "2026-01-31", endDate: "2026-02-28", unit: "MES" })).toEqual({ term: 1, unit: "MES" });
+    expect(contractTermFor({ startDate: "2026-03-15", endDate: "2028-03-15", unit: "ANIO" })).toEqual({ term: 2, unit: "ANIO" });
+    expect(contractTermFor({ startDate: "2026-03-15", endDate: "2028-03-15", unit: "MES" })).toEqual({ term: 24, unit: "MES" });
+    expect(contractTermFor({ startDate: "2026-03-15", endDate: "2026-06-13", unit: "DIA" })).toEqual({ term: 90, unit: "DIA" });
+  });
+
+  it("si no cae exacta en la unidad, en días", () => {
+    expect(contractTermFor({ startDate: "2026-10-22", endDate: "2026-11-30", unit: "MES" })).toEqual({ term: 39, unit: "DIA" });
+    expect(contractTermFor({ startDate: "2026-01-15", endDate: "2027-03-15", unit: "ANIO" })).toEqual({ term: 424, unit: "DIA" });
+  });
+
+  it("descuenta prórrogas y días suspendidos, y es la inversa de contractEndDate", () => {
+    const data = { startDate: "2026-01-15", unit: "MES", extensions: 3, suspendedDays: 20 };
+    expect(contractTermFor({ ...data, endDate: "2026-11-04" })).toEqual({ term: 6, unit: "MES" });
+    expect(contractEndDate({ ...data, term: 6 })).toBe("2026-11-04");
+  });
+
+  it("con prórrogas no cambia de unidad: la fecha que no cae exacta es un error", () => {
+    expect(contractTermFor({ startDate: "2026-01-15", endDate: "2026-10-20", unit: "MES", extensions: 3 }).error).toBeTruthy();
+  });
+
+  it("fin no posterior al inicio, o plazo que quedaría en cero, es un error", () => {
+    expect(contractTermFor({ startDate: "2026-10-22", endDate: "2026-10-22", unit: "DIA" }).error).toBeTruthy();
+    expect(contractTermFor({ startDate: "2026-01-15", endDate: "2026-04-15", unit: "MES", extensions: 3 }).error).toBeTruthy();
+    expect(contractTermFor({ startDate: null, endDate: "2026-04-15", unit: "MES" }).error).toBeTruthy();
   });
 });

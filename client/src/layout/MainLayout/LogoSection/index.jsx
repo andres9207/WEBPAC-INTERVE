@@ -12,7 +12,8 @@ import Logo from 'ui-component/Logo';
 export default function LogoSection() {
   return (
     <Link component={RouterLink} to={DASHBOARD_PATH} aria-label="theme-logo">
-      <Logo />
+      {/* 40 px: así el logo (≈ 177 px de ancho) cabe junto al botón del menú en los 228 px del encabezado */}
+      <Logo height={40} />
     </Link>
   );
 }

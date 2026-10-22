@@ -6,6 +6,7 @@ import { PERMISSIONS } from "../../../common/constants/permissions.constants.js"
 import {
   paginationContractsSchema,
   exportContractsSchema,
+  exportContractSchema,
   selectContractFilterProvidersSchema,
   getContractSchema,
   selectContractWorksSchema,
@@ -26,6 +27,7 @@ import {
 import {
   paginationContractsController,
   exportContractsController,
+  exportContractController,
   selectContractFilterProvidersController,
   getContractController,
   selectContractWorksController,
@@ -54,6 +56,8 @@ const contractsRoutes = express.Router();
 contractsRoutes.post("/pagination_contracts", verifyToken, requirePermission(can.view), paginationContractsSchema, validate, paginationContractsController);
 // Reporte del listado en Excel o PDF, con sus filtros y sin paginar (DEC-070).
 contractsRoutes.post("/export_contracts", verifyToken, requirePermission(can.export), exportContractsSchema, validate, exportContractsController);
+// Reporte de un contrato: su expediente completo (DEC-070).
+contractsRoutes.post("/export_contract", verifyToken, requirePermission(can.export), exportContractSchema, validate, exportContractController);
 // Filtro Proveedor del listado: proveedores con contratos en el alcance.
 contractsRoutes.get(
   "/select_contract_filter_providers",

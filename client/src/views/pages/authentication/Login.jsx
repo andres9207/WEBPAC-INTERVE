@@ -27,7 +27,7 @@ export default function Login() {
                 </Box>
                 <Stack sx={{ alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                   <Typography variant={downMD ? 'h3' : 'h2'} sx={{ color: 'secondary.main', textAlign: 'center' }}>
-                    Bienvenido a Interve 360
+                    Bienvenido a interAdmin PRO
                   </Typography>
                   <Typography variant="caption" sx={{ fontSize: '16px', textAlign: 'center' }}>
                     Ingresa tus credenciales para continuar

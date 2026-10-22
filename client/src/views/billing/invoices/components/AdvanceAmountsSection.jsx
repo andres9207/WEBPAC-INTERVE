@@ -13,6 +13,7 @@ import FormSection from 'ui-component/extended/FormSection';
 import MoneyField from 'ui-component/extended/MoneyField';
 import { getContractAdvanceAPI } from 'api/requests/invoicesApi';
 import { fMoneyText, fPercentText } from 'utils/formatNumber';
+import { isBillingInvoiceType } from 'utils/constants';
 
 /**
  * Importes de las facturas de contrato, con los saldos que calcula el
@@ -143,8 +144,10 @@ Row.propTypes = { children: PropTypes.node };
 
 const SUBTITLES = {
   ADVANCE: 'El valor del anticipo no puede superar lo que queda por facturar del anticipo pactado.',
+  NORMAL:
+    'Avance del contrato. VALOR antes de IVA, con AIU, hasta lo que queda por facturar. La amortización del anticipo y el retenido se calculan con los porcentajes efectivos del contrato.',
   LIQUIDATION:
-    'VALOR antes de IVA, con AIU. La amortización del anticipo y el retenido se calculan con los porcentajes efectivos del contrato.',
+    'VALOR antes de IVA, con AIU, hasta lo que queda por facturar. La amortización del anticipo y el retenido se calculan con los porcentajes efectivos del contrato.',
   RETENTION_REFUND: 'El valor devuelto no puede superar el saldo de retenido del contrato. Se admiten varias devoluciones.'
 };
 
@@ -159,7 +162,7 @@ export default function AdvanceAmountsSection({
   onBalances,
   onError
 }) {
-  const isLiquidation = type === 'LIQUIDATION';
+  const isLiquidation = isBillingInvoiceType(type);
   const isRefund = type === 'RETENTION_REFUND';
   const [value, adjustAmortization, adjustRetention] = useWatch({ control, name: ['value', 'adjustAmortization', 'adjustRetention'] });
   const [balances, setBalances] = useState(null);
@@ -205,11 +208,15 @@ export default function AdvanceAmountsSection({
   const retention = balances?.retention;
   // Lo que acota el valor de cada tipo, bajo su campo; los saldos generales
   // van en las tarjetas de arriba (ContractBalanceCards).
+  const billingHint = balances
+    ? `Por facturar: ${fMoneyText(balances.billing?.toBill) || '—'} · anticipo efectivo ${fPercentText(balances.effectivePct) || '—'} · retenido efectivo ${fPercentText(retention?.effectivePct) || '—'}`
+    : undefined;
   const valueHint = !balances
     ? undefined
     : {
         ADVANCE: `Por facturar del anticipo: ${fMoneyText(balances.toInvoice) || '—'}`,
-        LIQUIDATION: `Anticipo efectivo ${fPercentText(balances.effectivePct) || '—'} · retenido efectivo ${fPercentText(retention?.effectivePct) || '—'}`,
+        NORMAL: billingHint,
+        LIQUIDATION: billingHint,
         RETENTION_REFUND: `Saldo de retenido: ${fMoneyText(retention?.balance) || '—'}`
       }[type];
 
@@ -239,7 +246,7 @@ export default function AdvanceAmountsSection({
                   value={field.value}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
-                  label={{ ADVANCE: 'Valor del anticipo', LIQUIDATION: 'VALOR', RETENTION_REFUND: 'Valor devuelto' }[type]}
+                  label={{ ADVANCE: 'Valor del anticipo', NORMAL: 'VALOR', LIQUIDATION: 'VALOR', RETENTION_REFUND: 'Valor devuelto' }[type]}
                   required
                   disabled={readOnly}
                   error={fieldState.error?.message}
@@ -306,7 +313,7 @@ export default function AdvanceAmountsSection({
 AdvanceAmountsSection.propTypes = {
   control: PropTypes.object.isRequired,
   setValue: PropTypes.func.isRequired,
-  type: PropTypes.oneOf(['ADVANCE', 'LIQUIDATION', 'RETENTION_REFUND']).isRequired,
+  type: PropTypes.oneOf(['ADVANCE', 'NORMAL', 'LIQUIDATION', 'RETENTION_REFUND']).isRequired,
   ctrId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   readOnly: PropTypes.bool,
   canAdjust: PropTypes.bool,

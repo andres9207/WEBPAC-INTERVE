@@ -16,6 +16,7 @@ const contractsServiceMock = {
   exportContracts: jest.fn(),
 };
 const exportContractReport = jest.fn();
+const exportContractSummary = jest.fn();
 const conceptsServiceMock = { createAmendment: jest.fn(), createLiquidation: jest.fn(), updateConcept: jest.fn() };
 const suspensionsServiceMock = { suspendContract: jest.fn() };
 const policiesServiceMock = { getContractPolicies: jest.fn(), createPolicy: jest.fn(), createPolicyVersion: jest.fn(), cancelPolicy: jest.fn() };
@@ -26,7 +27,7 @@ jest.unstable_mockModule("../../../../src/modules/work/contracts/contracts.servi
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractConcepts.service.js", () => conceptsServiceMock);
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractSuspensions.service.js", () => suspensionsServiceMock);
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractPolicies.service.js", () => policiesServiceMock);
-jest.unstable_mockModule("../../../../src/modules/work/contracts/contractReports.service.js", () => ({ exportContractReport }));
+jest.unstable_mockModule("../../../../src/modules/work/contracts/contractReports.service.js", () => ({ exportContractReport, exportContractSummary }));
 jest.unstable_mockModule("../../../../src/common/services/effectivePermissions.service.js", () => ({ getEffectivePermissionIds }));
 // Alcance por obra (DEC-047): el controller lo resuelve y lo pasa al service.
 const SCOPE = Object.freeze({ all: false, wrkId: 8 });
@@ -35,7 +36,7 @@ jest.unstable_mockModule("../../../../src/common/services/workScope.service.js",
 jest.unstable_mockModule("../../../../src/common/configs/socket.manager.js", () => ({ getIO: () => ({ emit }) }));
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: {} }));
 
-const { saveContractController, createAmendmentController, suspendContractController, exportContractsController } = await import(
+const { saveContractController, createAmendmentController, suspendContractController, exportContractsController, exportContractController } = await import(
   "../../../../src/modules/work/contracts/contracts.controller.js"
 );
 
@@ -72,6 +73,13 @@ describe("contracts.controller", () => {
       await exportContractsController(mockReq({ user: { useId: 7, proId: 2 }, body: { format: "xlsx", report: "control" } }), fileRes(), jest.fn());
       expect(exportContractReport).toHaveBeenCalledWith(expect.objectContaining({ report: "control", format: "xlsx", scope: SCOPE, views: ["MAJOR"] }));
       expect(contractsServiceMock.exportContracts).not.toHaveBeenCalled();
+    });
+
+    it("el de un contrato, con el alcance, sus vistas de facturas y si puede ver pólizas", async () => {
+      getEffectivePermissionIds.mockResolvedValueOnce([106, 99]);
+      exportContractSummary.mockResolvedValue(FILE);
+      await exportContractController(mockReq({ user: { useId: 7, proId: 2 }, body: { ctrId: 30, format: "pdf" } }), fileRes(), jest.fn());
+      expect(exportContractSummary).toHaveBeenCalledWith({ ctrId: 30, format: "pdf", scope: SCOPE, views: ["MAJOR"], canViewPolicies: true });
     });
   });
 

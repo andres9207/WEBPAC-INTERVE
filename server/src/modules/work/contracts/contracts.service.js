@@ -23,6 +23,7 @@ import {
   assertTransition,
   conceptAmounts,
   contractEndDate,
+  contractTermFor,
   contractTotals,
   historyRow,
   isEndDateProvisional,
@@ -238,8 +239,12 @@ export const derivedEndDate = async (tx, contract) => {
  * regla 9: la cuenta la hace el servidor). Con `ctrId`, suma las prórrogas de
  * sus otrosí y sus días suspendidos, como al guardar; sin él (contrato
  * nuevo), inicio + plazo. Solo lee; sin bloqueo: no decide nada.
+ *
+ * Funciona en los dos sentidos: con `term`, da la fecha fin; con `endDate` y
+ * sin `term`, da el plazo que la produce (contractTermFor), en `termUnit` o en
+ * días si no es exacto. Responde siempre `{ endDate, term, termUnit }`.
  */
-export const previewContractEndDate = async ({ ctrId, startDate, term, termUnit, scope }) => {
+export const previewContractEndDate = async ({ ctrId, startDate, term, termUnit, endDate, scope }) => {
   let extensions = 0;
   let suspendedDays = 0;
   if (Number(ctrId) > 0) {
@@ -252,7 +257,12 @@ export const previewContractEndDate = async ({ ctrId, startDate, term, termUnit,
     extensions = totalExtensions(contract.tbl_contract_concepts);
     suspendedDays = contract.ctr_suspended_days;
   }
-  return { endDate: contractEndDate({ startDate, term, unit: termUnit, extensions, suspendedDays }) };
+  if (term === undefined || term === null || term === "") {
+    const found = contractTermFor({ startDate, endDate, unit: termUnit, extensions, suspendedDays });
+    if (found.error) throw httpError(400, found.error);
+    return { endDate, term: found.term, termUnit: found.unit };
+  }
+  return { endDate: contractEndDate({ startDate, term, unit: termUnit, extensions, suspendedDays }), term: Number(term), termUnit };
 };
 
 /** Valor vigente del contrato con lo que hay en la transacción (para la bitácora de un acto). */

@@ -37,6 +37,7 @@ export const MANAGER_ROLE_NAMES = { MAIN: 'Responsable principal', SUPPORT: 'Apo
 // liquidado es terminal.
 export const INVOICE_TYPE_COLORS = {
   ADVANCE: 'primary.800',
+  NORMAL: 'success.dark',
   LIQUIDATION: 'orange.dark',
   RETENTION_REFUND: 'cyan.main',
   SIMPLE: 'grey.600'

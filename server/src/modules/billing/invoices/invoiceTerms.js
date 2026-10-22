@@ -13,6 +13,8 @@ export const INVOICE_TYPES = Object.freeze({
   ADVANCE: "ADVANCE",
   LIQUIDATION: "LIQUIDATION",
   RETENTION_REFUND: "RETENTION_REFUND",
+  // Facturación del avance contra el contrato (DEC-071).
+  NORMAL: "NORMAL",
 });
 
 export const TYPE_NAMES = Object.freeze({
@@ -20,6 +22,7 @@ export const TYPE_NAMES = Object.freeze({
   ADVANCE: "Anticipo",
   LIQUIDATION: "Liquidación",
   RETENTION_REFUND: "Devolución de retenido",
+  NORMAL: "Normal",
 });
 
 /** La factura simple no tiene contrato; las demás sí (ADR-0020, decisión 3). */

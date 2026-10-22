@@ -266,7 +266,8 @@ export default function MasterPage({
     if (navigation) {
       return [
         { label: 'Ver detalle', icon: <IconEye size={16} />, command: () => navigation.view(row), tone: 'info' },
-        ...(can.edit ? [{ label: 'Editar', icon: <IconEdit size={16} />, command: () => navigation.edit(row), tone: 'edit' }] : [])
+        ...(can.edit ? [{ label: 'Editar', icon: <IconEdit size={16} />, command: () => navigation.edit(row), tone: 'edit' }] : []),
+        ...(extraActions ? extraActions(row) : [])
       ];
     }
     const items = [];

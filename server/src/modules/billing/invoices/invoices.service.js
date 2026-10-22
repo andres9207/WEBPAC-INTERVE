@@ -53,6 +53,7 @@ import {
   retentionDto,
 } from "./retentionTerms.js";
 import { INVOICE_VIEWS, PROVIDER_INVOICE_VIEWS, assertViewGranted, seesView, viewsWhere } from "./invoiceViews.js";
+import { BILLING_TYPES, assertBillingFits, billingBalances, billingDto, isBillingType } from "./billingTerms.js";
 import {
   SIMPLE_FIELDS,
   SIMPLE_MONEY_COLUMNS,
@@ -235,16 +236,27 @@ const locksOf = (known, invId, prvId = known.prv_id) =>
  * eliminadas (DEC-068); las registradas no reservan saldo. Una liquidación aprobada sin retenido
  * (registrada antes de DEC-051) suma cero.
  */
+// `type`: uno o varios tipos (los de facturación, BILLING_TYPES).
 const approvedOf = (ctrId, type) => ({
-  tbl_invoices: { ctr_id: ctrId, inv_type: type, inv_state: INVOICE_STATES.APPROVED, sta_id: { not: DELETED_STATUS } },
+  tbl_invoices: {
+    ctr_id: ctrId,
+    inv_type: Array.isArray(type) ? { in: type } : type,
+    inv_state: INVOICE_STATES.APPROVED,
+    sta_id: { not: DELETED_STATUS },
+  },
 });
 
-/** Saldos a partir de los conceptos y de las sumas de las facturas aprobadas. */
-const balancesOf = (concepts, { advanceInvoiced, amortized, retained, refunded }) => {
+/**
+ * Saldos a partir de los conceptos y de las sumas de las facturas aprobadas.
+ * La normal y la liquidación (BILLING_TYPES) amortizan, retienen y suman a lo
+ * facturado (I5, DEC-071).
+ */
+const balancesOf = (concepts, { advanceInvoiced, amortized, retained, refunded, billed }) => {
   const totals = contractTotals(concepts);
   return {
     advance: advanceBalances({ base: totals.base, agreed: totals.advance, invoiced: advanceInvoiced, amortized }),
     retention: retentionBalances({ base: totals.base, agreed: totals.retention, retained, refunded }),
+    billing: billingBalances({ base: totals.base, billed }),
   };
 };
 
@@ -254,8 +266,8 @@ export const contractBalances = async (db, ctrId) => {
   const concepts = await db.tbl_contract_concepts.findMany({ where: { ctr_id: id }, select: CONCEPT_SELECT });
   const advance = await db.tbl_invoice_advance_details.aggregate({ where: approved(INVOICE_TYPES.ADVANCE), _sum: { iad_value: true } });
   const liquidation = await db.tbl_invoice_liquidation_details.aggregate({
-    where: approved(INVOICE_TYPES.LIQUIDATION),
-    _sum: { ild_amortization: true, ild_retention: true },
+    where: approved(BILLING_TYPES),
+    _sum: { ild_value: true, ild_amortization: true, ild_retention: true },
   });
   const refund = await db.tbl_invoice_retention_refund_details.aggregate({
     where: approved(INVOICE_TYPES.RETENTION_REFUND),
@@ -266,6 +278,7 @@ export const contractBalances = async (db, ctrId) => {
     amortized: liquidation._sum.ild_amortization,
     retained: liquidation._sum.ild_retention,
     refunded: refund._sum.irr_value,
+    billed: liquidation._sum.ild_value,
   });
 };
 
@@ -273,8 +286,8 @@ export const contractBalances = async (db, ctrId) => {
  * Saldos de varios contratos, para los reportes (DEC-070): los mismos de
  * `contractBalances`, con las mismas reglas y sin bloqueo (solo lectura), en
  * tres consultas en vez de tres por contrato. Además, `paid`: la suma de los
- * valores de sus facturas aprobadas (anticipo, liquidación y devolución de
- * retenido; no hay facturación del avance, DEC-01). `contracts`:
+ * valores de sus facturas aprobadas (anticipo, normal, liquidación y
+ * devolución de retenido; DEC-071). `contracts`:
  * `[{ ctr_id, tbl_contract_concepts }]` con CONCEPT_SELECT. Devuelve un Map
  * por ctr_id.
  */
@@ -285,7 +298,7 @@ export const contractsBalances = async (contracts) => {
     ? await Promise.all([
         prisma.tbl_invoice_advance_details.findMany({ where: approvedOf(ids, INVOICE_TYPES.ADVANCE), select: { iad_value: true, ...owner } }),
         prisma.tbl_invoice_liquidation_details.findMany({
-          where: approvedOf(ids, INVOICE_TYPES.LIQUIDATION),
+          where: approvedOf(ids, BILLING_TYPES),
           select: { ild_value: true, ild_amortization: true, ild_retention: true, ...owner },
         }),
         prisma.tbl_invoice_retention_refund_details.findMany({
@@ -310,6 +323,7 @@ export const contractsBalances = async (contracts) => {
         amortized: sumMoney(liquidation.map((r) => r.ild_amortization)),
         retained: sumMoney(liquidation.map((r) => r.ild_retention)),
         refunded: sumMoney(refund.map((r) => r.irr_value)),
+        billed: sumMoney(liquidation.map((r) => r.ild_value)),
       });
       const paid = sumMoney([...advance.map((r) => r.iad_value), ...liquidation.map((r) => r.ild_value), ...refund.map((r) => r.irr_value)]);
       return [ctrId, { ...balances, paid }];
@@ -362,12 +376,12 @@ export const getContractAdvance = async ({ ctrId, value, scope, views }) => {
       ...retentionDto(balances.retention),
       defaultRetention: amount ? moneyText(defaultRetention(amount, balances.retention)) : null,
     },
+    billing: billingDto(balances.billing),
   };
 };
 
 /** Tipos con detalle que mueve saldos del contrato: los de contrato. */
-const hasDetail = (type) =>
-  type === INVOICE_TYPES.ADVANCE || type === INVOICE_TYPES.LIQUIDATION || type === INVOICE_TYPES.RETENTION_REFUND;
+const hasDetail = (type) => type === INVOICE_TYPES.ADVANCE || type === INVOICE_TYPES.RETENTION_REFUND || isBillingType(type);
 
 const isSimpleType = (type) => type === INVOICE_TYPES.SIMPLE;
 
@@ -375,6 +389,8 @@ const isSimpleType = (type) => type === INVOICE_TYPES.SIMPLE;
 const VALUE_COLUMN = Object.freeze({
   [INVOICE_TYPES.ADVANCE]: "iad_value",
   [INVOICE_TYPES.LIQUIDATION]: "ild_value",
+  // La normal guarda sus importes en el mismo detalle que la liquidación (DEC-071).
+  [INVOICE_TYPES.NORMAL]: "ild_value",
   [INVOICE_TYPES.RETENTION_REFUND]: "irr_value",
 });
 
@@ -422,10 +438,12 @@ const liquidationConceptOf = async (tx, ctrId) => {
  * contrato bloqueado (al registrar y al editar una registrada).
  *
  * - Anticipo: valor ≤ anticipo por facturar (I1).
- * - Liquidación: amortización ≤ mín(pendiente por amortizar, VALOR) (I2) y
+ * - Normal y liquidación: VALOR ≤ por facturar del contrato (I5, DEC-071),
+ *   amortización ≤ mín(pendiente por amortizar, VALOR) (I2) y
  *   retenido ≤ mín(por retener, VALOR) (I4). Cada uno se aparta del valor
- *   por defecto solo con su permiso de ajuste y una observación. Se asocia
- *   al otrosí de liquidación del contrato (DEC-059).
+ *   por defecto solo con su permiso de ajuste y una observación. La
+ *   liquidación se asocia al otrosí de liquidación del contrato (DEC-059);
+ *   la normal, a ninguno.
  * - Devolución de retenido: valor ≤ saldo de retenido (I3).
  */
 const resolveDetail = async (tx, { type, ctrId, input, granted }) => {
@@ -464,12 +482,13 @@ const resolveDetail = async (tx, { type, ctrId, input, granted }) => {
     forbidden: `El retenido por defecto es ${moneyText(retentionDefault)}. Cambiarlo exige el permiso de ajustar el retenido.`,
     missingObservation: "Explica por qué el retenido se aparta del valor por defecto.",
   });
+  assertBillingFits(value, balances.billing);
   assertAmortizationFits(amortization.amount, value, balances.advance);
   assertRetentionFits(retention.amount, value, balances.retention);
   return {
     liquidation: {
       ctr_id: Number(ctrId),
-      ccp_id: await liquidationConceptOf(tx, ctrId),
+      ccp_id: type === INVOICE_TYPES.LIQUIDATION ? await liquidationConceptOf(tx, ctrId) : null,
       ild_value: value,
       ild_amortization: amortization.amount,
       ild_default_amortization: amortizationDefault,
@@ -548,7 +567,7 @@ const requestedDetailChanges = (before, input) => {
   }
   const value = toMoney(input.value);
   if (value) requested[VALUE_COLUMN[before.inv_type]] = value;
-  if (before.inv_type === INVOICE_TYPES.LIQUIDATION) {
+  if (isBillingType(before.inv_type)) {
     const amortization = toMoney(input.amortization);
     const retention = toMoney(input.retention);
     if (amortization) requested.ild_amortization = amortization;
@@ -621,11 +640,13 @@ const revalidateOnApprove = async (tx, invoice) => {
   if (retention === null) {
     throw httpError(409, "La factura no tiene su retenido registrado. Edítala para calcularlo antes de aprobarla.");
   }
+  assertBillingFits(value, balances.billing);
   assertAmortizationFits(amortization, value, balances.advance);
   assertRetentionFits(retention, value, balances.retention);
   return {
     balances,
     changes: [
+      balanceChange("billing_billed", balances.billing.billed, balances.billing.billed.plus(value)),
       balanceChange("advance_amortized", balances.advance.amortized, balances.advance.amortized.plus(amortization)),
       { field: "advance_effective_pct", oldValue: null, newValue: ratioText(balances.advance.effectivePct) },
       balanceChange("retention_retained", balances.retention.retained, balances.retention.retained.plus(retention)),
@@ -653,8 +674,8 @@ export const SNAPSHOT_BALANCES = Object.freeze({
 });
 const SNAPSHOT_AMOUNTS = Object.freeze({
   value: (invoice) => storedAmount(invoice, VALUE_COLUMN[invoice.inv_type]),
-  amortization: (invoice) => (invoice.inv_type === INVOICE_TYPES.LIQUIDATION ? storedAmount(invoice, "ild_amortization") : null),
-  retention: (invoice) => (invoice.inv_type === INVOICE_TYPES.LIQUIDATION ? storedAmount(invoice, "ild_retention") : null),
+  amortization: (invoice) => (isBillingType(invoice.inv_type) ? storedAmount(invoice, "ild_amortization") : null),
+  retention: (invoice) => (isBillingType(invoice.inv_type) ? storedAmount(invoice, "ild_retention") : null),
 });
 const snapshotText = (key, value) => (key === "effectivePct" ? ratioText(value) : moneyText(value));
 
@@ -720,7 +741,10 @@ const revalidateOnCancel = async (tx, invoice) => {
   }
   const amortization = storedAmount(invoice, "ild_amortization");
   const retention = storedAmount(invoice, "ild_retention");
-  const changes = [balanceChange("advance_amortized", balances.advance.amortized, balances.advance.amortized.minus(amortization))];
+  const changes = [
+    balanceChange("billing_billed", balances.billing.billed, balances.billing.billed.minus(value)),
+    balanceChange("advance_amortized", balances.advance.amortized, balances.advance.amortized.minus(amortization)),
+  ];
   if (retention === null) return changes;
   assertLiquidationCancellable(retention, balances.retention);
   return [...changes, balanceChange("retention_retained", balances.retention.retained, balances.retention.retained.minus(retention))];
@@ -878,6 +902,47 @@ const invoiceListQuery = ({
     ]),
   };
   return { baseWhere, where: { ...baseWhere, ...(state ? { inv_state: state } : {}) }, orderBy };
+};
+
+/**
+ * Facturas de un contrato para su reporte (DEC-070): las no eliminadas de las
+ * vistas que ve el usuario, con su valor y, la liquidación, su amortización y
+ * su retenido. El alcance del contrato lo verifica quien llama.
+ */
+export const contractInvoicesForReport = async ({ ctrId, views }) => {
+  const rows = await prisma.tbl_invoices.findMany({
+    where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS }, ...viewsWhere(views) },
+    select: {
+      inv_id: true,
+      inv_type: true,
+      inv_number: true,
+      inv_date: true,
+      inv_approval_date: true,
+      inv_statement: true,
+      inv_state: true,
+      tbl_invoice_advance_details: { select: { iad_value: true } },
+      tbl_invoice_liquidation_details: { select: { ild_value: true, ild_amortization: true, ild_retention: true } },
+      tbl_invoice_retention_refund_details: { select: { irr_value: true } },
+    },
+    orderBy: [{ inv_date: "asc" }, { inv_id: "asc" }],
+  });
+  return rows.map((row) => {
+    const detail =
+      row.tbl_invoice_advance_details ?? row.tbl_invoice_liquidation_details ?? row.tbl_invoice_retention_refund_details ?? null;
+    return {
+      invId: row.inv_id,
+      number: row.inv_number,
+      typeName: TYPE_NAMES[row.inv_type] ?? row.inv_type,
+      date: dateOnlyText(row.inv_date),
+      approvalDate: dateOnlyText(row.inv_approval_date),
+      statement: row.inv_statement,
+      value: detail ? moneyText(detail[VALUE_COLUMN[row.inv_type]]) : null,
+      amortization: moneyText(row.tbl_invoice_liquidation_details?.ild_amortization),
+      retention: moneyText(row.tbl_invoice_liquidation_details?.ild_retention),
+      state: row.inv_state,
+      stateName: STATE_NAMES[row.inv_state] ?? row.inv_state,
+    };
+  });
 };
 
 // Columnas del reporte: las de la tabla del listado (DEC-070); la vista de
