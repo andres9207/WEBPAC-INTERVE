@@ -27,6 +27,20 @@ const concept = (overrides = {}) => ({
 
 const CONCEPTS = [concept(), concept({ ccp_id: 2, ccp_type: "AMENDMENT", ccp_number: 1, ccp_direct_cost: "500.00" })];
 
+const CONTRACT = {
+  ctr_id: 20,
+  wks_id: 3,
+  ctr_number: "C-1",
+  ctr_name: "Concreto",
+  ctr_start_date: new Date("2026-02-01T00:00:00Z"),
+  ctr_end_date: new Date("2026-12-31T00:00:00Z"),
+  ctr_state: "IN_PROGRESS",
+  tbl_providers: { prv_name: "Concretos" },
+  tbl_work_stages: { wks_name: "Cimentación" },
+  tbl_contract_types: { ctt_name: "Obra civil" },
+  tbl_contract_concepts: CONCEPTS,
+};
+
 const prismaMock = {
   // Días de aviso de las pólizas (DEC-072): sin filas, el valor por defecto (30).
   tbl_business_rules: { findMany: jest.fn(async () => []) },
@@ -99,20 +113,7 @@ beforeEach(() => {
     tbl_work_managers: [{ wkm_role: "MAIN", tbl_users: { use_name: "Laura", use_last_name: "Gómez" } }],
     tbl_work_stages: [{ wks_id: 3, wks_name: "Cimentación", sta_id: 1 }],
   });
-  prismaMock.tbl_contracts.findMany.mockResolvedValue([
-    {
-      ctr_id: 20,
-      wks_id: 3,
-      ctr_number: "C-1",
-      ctr_name: "Concreto",
-      ctr_start_date: new Date("2026-02-01T00:00:00Z"),
-      ctr_end_date: new Date("2026-12-31T00:00:00Z"),
-      ctr_state: "IN_PROGRESS",
-      tbl_providers: { prv_name: "Concretos" },
-      tbl_work_stages: { wks_name: "Cimentación" },
-      tbl_contract_concepts: CONCEPTS,
-    },
-  ]);
+  prismaMock.tbl_contracts.findMany.mockResolvedValue([CONTRACT]);
   prismaMock.tbl_policies.findMany.mockResolvedValue([
     {
       pol_id: 5,
@@ -189,10 +190,37 @@ describe("getWorkDashboard", () => {
     expect(contracts.policies).toEqual([expect.objectContaining({ polId: 5, validityName: "Vencida" })]);
   });
 
+  it("pestaña Pólizas: concepto amparado, tipo de contrato y conteos por vigencia y contratos sin póliza", async () => {
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([
+      CONTRACT,
+      {
+        ctr_id: 21,
+        wks_id: 3,
+        ctr_number: "C-2",
+        ctr_name: "Acero",
+        ctr_start_date: new Date("2026-02-01T00:00:00Z"),
+        ctr_end_date: new Date("2026-12-31T00:00:00Z"),
+        ctr_state: "LIQUIDATED",
+        tbl_providers: { prv_name: "Aceros" },
+        tbl_work_stages: null,
+        tbl_contract_types: { ctt_name: "Suministro" },
+        tbl_contract_concepts: [],
+      },
+    ]);
+
+    const { contracts } = await getWorkDashboard({ granted: ALL, scope: OWN });
+
+    expect(contracts.items.map((c) => c.contractTypeName)).toEqual(["Obra civil", "Suministro"]);
+    expect(contracts.policies[0]).toMatchObject({ polId: 5, conceptLabel: "Valor inicial" });
+    // El liquidado sin pólizas también cuenta como contrato sin póliza.
+    expect(contracts.policyCounts).toEqual({ NO_DATE: 0, ACTIVE: 0, EXPIRING: 0, EXPIRED: 1, withoutPolicy: 1 });
+  });
+
   it("el estado de pólizas exige ver contratos y pólizas", async () => {
     const { contracts } = await getWorkDashboard({ granted: new Set([CONTRACTS]), scope: OWN });
     expect(contracts.items[0].policies).toBeNull();
     expect(contracts.policies).toBeNull();
+    expect(contracts.policyCounts).toBeNull();
     expect(prismaMock.tbl_policies.findMany).not.toHaveBeenCalled();
   });
 

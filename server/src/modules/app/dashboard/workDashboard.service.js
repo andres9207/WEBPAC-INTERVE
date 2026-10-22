@@ -14,6 +14,7 @@ import {
   sortConcepts,
 } from "../../work/contracts/contractTerms.js";
 import {
+  CONTRACT_POLICY_STATUS,
   CONTRACT_POLICY_STATUS_NAMES,
   POLICY_VALIDITY,
   POLICY_VALIDITY_NAMES,
@@ -124,13 +125,15 @@ const workBlock = async (wrkId, today) => {
 const conceptLabel = (concept) =>
   concept.ccp_number ? `${CONCEPT_TYPE_NAMES[concept.ccp_type]} N.º ${concept.ccp_number}` : CONCEPT_TYPE_NAMES[concept.ccp_type];
 
-const policyDto = (policy, options) => {
+// `conceptLabels`: ccp_id → nombre del concepto que ampara (valor inicial u otrosí).
+const policyDto = (policy, options, conceptLabels) => {
   const validity = policyValidity(policy.pol_end_date, options);
   return {
     polId: policy.pol_id,
     ctrId: policy.ctr_id,
     number: policy.pol_number,
     typeName: policy.tbl_policy_types?.plt_name ?? null,
+    conceptLabel: conceptLabels.get(policy.ccp_id) ?? null,
     startDate: dateOnlyText(policy.pol_start_date),
     endDate: dateOnlyText(policy.pol_end_date),
     validity,
@@ -147,19 +150,30 @@ const byUrgency = (a, b) => VALIDITY_RANK[a.validity] - VALIDITY_RANK[b.validity
  * (contractPolicyStatus: la póliza de mayor exposición, DEC-064), la póliza
  * que la decide y los conceptos sin póliza vigente (uncoveredConcepts).
  */
-const contractPolicies = (concepts, policies, options) => {
+const contractPolicies = (concepts, policies, options, conceptLabels) => {
   const status = contractPolicyStatus(policies, concepts, options);
   const deciding = decidingPolicy(policies, concepts, options);
   return {
     status,
     statusName: CONTRACT_POLICY_STATUS_NAMES[status],
-    deciding: deciding ? policyDto(deciding.policy, options) : null,
+    deciding: deciding ? policyDto(deciding.policy, options, conceptLabels) : null,
     current: policies.length,
     uncovered: uncoveredConcepts(concepts.filter((c) => c.sta_id !== DELETED_STATUS), policies).map((c) => ({
       ccpId: c.ccp_id,
       label: conceptLabel(c),
     })),
   };
+};
+
+/**
+ * Pólizas vigentes por vigencia (`policyValidity`) y contratos sin ninguna
+ * póliza vigente (`contractPolicyStatus` NONE, la categoría del tablero
+ * general, DEC-064). Todos los contratos de la obra, también los liquidados.
+ */
+const policyCounts = (policies, items, options) => {
+  const counts = Object.fromEntries(Object.values(POLICY_VALIDITY).map((v) => [v, 0]));
+  for (const policy of policies) counts[policyValidity(policy.pol_end_date, options)] += 1;
+  return { ...counts, withoutPolicy: items.filter((c) => c.policies.status === CONTRACT_POLICY_STATUS.NONE).length };
 };
 
 const balancesOf = ({ advance, retention }) => ({
@@ -197,10 +211,12 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
       ctr_state: true,
       tbl_providers: { select: { prv_name: true } },
       tbl_work_stages: { select: { wks_name: true } },
+      tbl_contract_types: { select: { ctt_name: true } },
       tbl_contract_concepts: { select: CONCEPT_SELECT },
     },
     orderBy: [{ ctr_number: "asc" }, { ctr_id: "asc" }],
   });
+  const conceptLabels = new Map(rows.flatMap((row) => row.tbl_contract_concepts.map((c) => [c.ccp_id, conceptLabel(c)])));
 
   const policies = withPolicies
     ? await prisma.tbl_policies.findMany({
@@ -234,6 +250,7 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
       name: row.ctr_name,
       providerName: row.tbl_providers?.prv_name ?? null,
       stageName: row.tbl_work_stages?.wks_name ?? null,
+      contractTypeName: row.tbl_contract_types?.ctt_name ?? null,
       state: row.ctr_state,
       stateName: CONTRACT_STATE_NAMES[row.ctr_state] ?? row.ctr_state,
       startDate: dateOnlyText(row.ctr_start_date),
@@ -241,7 +258,7 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
       endDateProvisional: isEndDateProvisional(row.ctr_state),
       currentValue: moneyText(totals.value),
       ...balancesOf(balances[i]),
-      policies: withPolicies ? contractPolicies(sortConcepts(row.tbl_contract_concepts), own, policyOptions) : null,
+      policies: withPolicies ? contractPolicies(sortConcepts(row.tbl_contract_concepts), own, policyOptions, conceptLabels) : null,
       _value: totals.value,
       _balances: balances[i],
     };
@@ -275,8 +292,10 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
     withRetentionBalance: items.filter((c) => c._balances.retention.balance.gt(0)).map((c) => ({ ctrId: c.ctrId, number: c.number, balance: c.retention.balance, stateName: c.stateName })),
     byState,
     items: items.map(({ _value, _balances, ...dto }) => dto),
-    // Pólizas vigentes de la obra, de la más urgente a la que menos (línea de tiempo y alertas).
-    policies: withPolicies ? policies.map((p) => policyDto(p, policyOptions)).sort(byUrgency) : null,
+    // Pólizas vigentes de la obra, de la más urgente a la que menos (línea de tiempo, alertas y pestaña Pólizas).
+    policies: withPolicies ? policies.map((p) => policyDto(p, policyOptions, conceptLabels)).sort(byUrgency) : null,
+    // Cifras de la pestaña Pólizas: pólizas vigentes por vigencia y contratos sin ninguna (NONE).
+    policyCounts: withPolicies ? policyCounts(policies, items, policyOptions) : null,
   };
 };
 

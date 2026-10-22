@@ -22,7 +22,10 @@ import { CONTRACT_STATES } from "./contractTerms.js";
  * - Contratos: solo en ejecución. El suspendido tiene la fecha fin
  *   provisional; en liquidación y liquidado ya terminó la ejecución.
  * - Pólizas: la versión vigente, de contratos no eliminados ni liquidados.
- * - Lo ya vencido no se avisa: el plazo va de hoy a hoy + N días.
+ *   Las mismas dos que el tablero cuenta "por atender": la que entra en su
+ *   plazo (por vencer) y la que ya venció, cada una con su aviso. Una póliza
+ *   avisada como por vencer recibe otro aviso cuando vence.
+ * - Contratos: solo por vencer (de hoy a hoy + N días).
  *
  * Lo corre el cron (`expiration-notice`), al guardar las reglas de negocio,
  * o a mano con `yarn cron:run expiration-notice`. Solo crea notificaciones:
@@ -49,12 +52,12 @@ export const findExpiringContracts = ({ today, days }) =>
     orderBy: { ctr_id: "asc" },
   });
 
-/** Pólizas vigentes cuyo fin de vigencia está entre hoy y hoy + días. */
+/** Pólizas vigentes ya vencidas o cuyo fin de vigencia llega a hoy + días. */
 export const findExpiringPolicies = ({ today, days }) =>
   prisma.tbl_policies.findMany({
     where: {
       pol_is_current: true,
-      pol_end_date: { gte: today, lte: addDays(today, days) },
+      pol_end_date: { lte: addDays(today, days) },
       tbl_contracts: {
         sta_id: { not: DELETED_STATUS },
         ctr_state: { not: CONTRACT_STATES.LIQUIDATED },
@@ -91,12 +94,18 @@ export const buildNotices = ({ contracts, policies, today }) => [
     const rootId = p.pol_root_id ?? p.pol_id;
     const contract = p.tbl_contracts;
     const type = p.tbl_policy_types?.plt_name ? ` de ${p.tbl_policy_types.plt_name}` : "";
+    const label = `La póliza ${p.pol_number}${type} del contrato ${contract.ctr_number}${workLabel(contract.tbl_works)}`;
+    const remaining = daysUntil(p.pol_end_date, today);
+    const expired = remaining < 0;
     return {
       wrkId: contract.wrk_id,
-      key: `POLICY_EXPIRING:${rootId}:${endDate}`,
-      action: "policy_expiring",
-      title: "Póliza próxima a vencer",
-      message: `La póliza ${p.pol_number}${type} del contrato ${contract.ctr_number}${workLabel(contract.tbl_works)} vence el ${endDate}: ${remainingText(daysUntil(p.pol_end_date, today))}.`,
+      key: `${expired ? "POLICY_EXPIRED" : "POLICY_EXPIRING"}:${rootId}:${endDate}`,
+      action: expired ? "policy_expired" : "policy_expiring",
+      title: expired ? "Póliza vencida" : "Póliza próxima a vencer",
+      type: expired ? "alert" : "warning",
+      message: expired
+        ? `${label} venció el ${endDate}, hace ${-remaining} día(s).`
+        : `${label} vence el ${endDate}: ${remainingText(remaining)}.`,
       data: { ctrId: p.ctr_id, wrkId: contract.wrk_id, polRootId: rootId, endDate },
     };
   }),
@@ -146,7 +155,7 @@ export const runExpirationNotice = async ({ today = todayDateOnly() } = {}) => {
         userId,
         title: notice.title,
         message: notice.message,
-        type: "warning",
+        type: notice.type ?? "warning",
         module: "contracts",
         action: notice.action,
         wrkId: notice.wrkId,

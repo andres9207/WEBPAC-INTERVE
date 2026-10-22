@@ -59,11 +59,12 @@ describe("runExpirationNotice", () => {
     expect(contractWhere).toMatchObject({ ctr_state: "IN_PROGRESS", ctr_end_date: { gte: today, lte: day("2026-11-11") } });
     expect(contractWhere.sta_id).toEqual({ not: 3 });
 
+    // Pólizas: también las ya vencidas, como "por atender" del tablero.
     const policyWhere = prismaMock.tbl_policies.findMany.mock.calls[0][0].where;
-    expect(policyWhere).toMatchObject({
+    expect(policyWhere).toEqual({
       pol_is_current: true,
-      pol_end_date: { gte: today, lte: day("2026-11-01") },
-      tbl_contracts: { ctr_state: { not: "LIQUIDATED" } },
+      pol_end_date: { lte: day("2026-11-01") },
+      tbl_contracts: { sta_id: { not: 3 }, ctr_state: { not: "LIQUIDATED" }, tbl_works: { sta_id: { not: 3 } } },
     });
   });
 
@@ -88,6 +89,20 @@ describe("runExpirationNotice", () => {
       data: { ctrId: 30, wrkId: 4, endDate: "2026-11-01" },
     });
     expect(calls[2].message).toBe("La póliza P-9 de Cumplimiento del contrato C-31 (obra OB-5) vence el 2026-10-22: vence hoy.");
+  });
+
+  it("una póliza vencida tiene su propio aviso, en rojo, distinto del de por vencer", async () => {
+    state.policies[0].pol_end_date = day("2026-10-12");
+    await runExpirationNotice({ today });
+
+    const policyNotice = insertNotification.mock.calls.map(([n]) => n).find((n) => n.wrkId === 5);
+    expect(policyNotice).toMatchObject({
+      key: "POLICY_EXPIRED:70:2026-10-12",
+      action: "policy_expired",
+      title: "Póliza vencida",
+      type: "alert",
+      message: "La póliza P-9 de Cumplimiento del contrato C-31 (obra OB-5) venció el 2026-10-12, hace 10 día(s).",
+    });
   });
 
   it("no repite el aviso a quien ya lo recibió", async () => {

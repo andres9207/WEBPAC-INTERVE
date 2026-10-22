@@ -6,7 +6,7 @@ import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import { IconChartBar, IconLayoutDashboard } from '@tabler/icons-react';
+import { IconChartBar, IconLayoutDashboard, IconShield } from '@tabler/icons-react';
 
 import { getWorkDashboardAPI } from 'api/requests/dashboardApi';
 import { useWorkScope } from 'contexts/WorkScopeContext';
@@ -15,18 +15,20 @@ import { gridSpacing } from 'store/constant';
 
 import WorkSummaryTab from './WorkSummaryTab';
 import WorkChartsTab from './WorkChartsTab';
+import WorkPoliciesTab from './WorkPoliciesTab';
 
 /**
  * Tablero de la obra elegida en el encabezado (DEC-063, propuesta B del
- * tablero). Dos pestañas: el resumen de la obra y sus contratos y facturas
- * en gráficos. Todo lo calcula el servidor, en el alcance de la obra
+ * tablero). Pestañas: el resumen de la obra, sus contratos y facturas en
+ * gráficos y, si el usuario ve pólizas, sus pólizas por vigencia. Todo lo calcula el servidor, en el alcance de la obra
  * (DEC-047); cada bloque llega en null si el usuario no puede ver su módulo.
  * Estilo Berry, solo tema claro (DEC-052).
  */
 
 const TABS = [
   { value: 'summary', label: 'Resumen de la obra', icon: IconLayoutDashboard },
-  { value: 'charts', label: 'Contratos y facturas', icon: IconChartBar }
+  { value: 'charts', label: 'Contratos y facturas', icon: IconChartBar },
+  { value: 'policies', label: 'Pólizas', icon: IconShield }
 ];
 
 // `reloadKey`: sube cuando un expediente abierto encima cambia algo; se
@@ -52,6 +54,8 @@ export default function WorkDashboard({ reloadKey = 0 }) {
   }, [reloadKey]);
 
   const workLabel = works.find((w) => w.value === activeWork)?.label ?? 'Obra';
+  // Pólizas, solo si el servidor las mandó (ver contratos y pólizas).
+  const tabs = data?.contracts?.policies ? TABS : TABS.filter((t) => t.value !== 'policies');
   const nothingVisible = data && !data.work && !data.contracts && !data.invoices && !data.providers;
 
   return (
@@ -64,7 +68,7 @@ export default function WorkDashboard({ reloadKey = 0 }) {
           variant="scrollable"
           allowScrollButtonsMobile
         >
-          {TABS.map(({ value, label, icon: Icon }) => (
+          {tabs.map(({ value, label, icon: Icon }) => (
             <Tab
               key={value}
               value={value}
@@ -100,6 +104,7 @@ export default function WorkDashboard({ reloadKey = 0 }) {
 
       {data?.wrkId && !nothingVisible && tab === 'summary' && <WorkSummaryTab data={data} workLabel={workLabel} />}
       {data?.wrkId && !nothingVisible && tab === 'charts' && <WorkChartsTab data={data} />}
+      {data?.wrkId && !nothingVisible && tab === 'policies' && data.contracts?.policies && <WorkPoliciesTab data={data} />}
     </Stack>
   );
 }

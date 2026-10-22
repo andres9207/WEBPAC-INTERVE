@@ -39,6 +39,16 @@ El usuario pidió el drill-down de los elementos y gráficos del tablero de la o
 - **Teclado:** las listas, las cifras y los totales son botones o enlaces. Las barras de ApexCharts y los segmentos solo responden al clic; por teclado se llega al mismo detalle desde la lista de al lado, salvo "Facturado por mes", que no tiene lista.
 - **Componentes:** `work/DrillDownDialog.jsx` (`useDrillDown`, `invoiceRows`, `contractRows`), sobre `BaseDialog`. `DashboardCards` acepta `onClick` además de `to`. `returnTo` en `ContractDetailPage`, `InvoiceDetailPage`, `WorkDetailPage` y `ProviderDetailPage`; las rutas, en `MainRoutes.jsx`, y el `Outlet`, en `views/dashboard/Default/index.jsx`.
 
+## Pestaña Pólizas (2026-10-22)
+
+El usuario pidió una tercera pestaña con las pólizas de la obra, como la del sistema que se migra: cinco cifras y una tabla.
+
+- **Solo con pólizas visibles:** la pestaña aparece si el bloque de contratos trae pólizas (ver contratos y pólizas, como el resto del bloque).
+- **Cifras, del servidor** (`contracts.policyCounts`): las pólizas vigentes (versión vigente, `pol_is_current`) por vigencia con `policyValidity` y el umbral de DEC-072 (vencidas, a vencer, vigentes, sin fecha de vigencia), y los **contratos sin ninguna póliza vigente**: la categoría "Sin póliza" de `contractPolicyStatus` (DEC-064), no los contratos con algún concepto sin póliza. Cuentan **todos los contratos de la obra**, también los liquidados, como el resto del tablero (decidido por el usuario).
+- **Tabla:** una fila por póliza vigente y una por contrato sin póliza, con tipo de contrato, nombre y número, tipo de valor (el concepto amparado: valor inicial u otrosí, `conceptLabel`), tipo de póliza, vencimiento y estado. El cliente solo filtra y pagina esas filas. Cada cifra filtra la tabla por su estado; el ojo abre el expediente del contrato encima del tablero.
+- **Filtros con el botón "Filtros"** (DEC-048), no en una fila bajo los encabezados como en el sistema que se migra: un solo patrón de listados.
+- **Datos agregados a la respuesta**, sin consultas nuevas: `contractTypeName` en cada contrato, `conceptLabel` en cada póliza y `policyCounts`.
+
 ## Descartado
 
 - **Navegar al listado desde el tablero de la obra:** con facturas de varias vistas no hay un solo listado, y uno sin vista sería una ruta nueva.
@@ -57,6 +67,6 @@ El usuario pidió el drill-down de los elementos y gráficos del tablero de la o
 ## Dónde
 
 - Servidor: `server/src/modules/app/dashboard/workDashboard.service.js`, `getWorkDashboardController` en `dashboard.controller.js` y la ruta en `dashboard.routes.js`.
-- Cliente: `client/src/views/dashboard/Default/index.jsx`, `GeneralDashboard.jsx` y `work/` (`WorkDashboard.jsx`, `WorkSummaryTab.jsx`, `WorkChartsTab.jsx`, `workDashboard.utils.js`); `getWorkDashboardAPI` en `api/requests/dashboardApi.js`.
+- Cliente: `client/src/views/dashboard/Default/index.jsx`, `GeneralDashboard.jsx` y `work/` (`WorkDashboard.jsx`, `WorkSummaryTab.jsx`, `WorkChartsTab.jsx`, `WorkPoliciesTab.jsx`, `workDashboard.utils.js`); `getWorkDashboardAPI` en `api/requests/dashboardApi.js`.
 - Tests: `server/test/modules/app/dashboard/workDashboard.service.test.js`; el controller entra en `server/test/common/workScope.guard.test.js`.
 - Diseño de referencia: `docs/design/dashboard-b/`.
