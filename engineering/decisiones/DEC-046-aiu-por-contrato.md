@@ -50,7 +50,7 @@ Faltaba que un contrato concreto pudiera apagar el AIU.
   - `contractConcepts.service.js`: `configuredConcept`.
   - `PERMISSIONS.work.contracts.changeAiu`.
 - Cliente:
-  - La casilla "Solicita AIU" en `ContractFormPage.jsx`.
+  - La casilla "Solicita AIU" en `ContractDataForm.jsx`.
   - `withContractAiu` en `configurableFields.jsx`.
   - `ConceptDialog.jsx` pide los campos con `ctrId`.
   - La fila "AIU" en el detalle del contrato.

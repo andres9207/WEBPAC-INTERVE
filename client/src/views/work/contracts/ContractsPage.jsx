@@ -19,9 +19,9 @@ import { CONTRACT_POLICY_STATUS_LABELS, CONTRACT_STATE_COLORS, CONTRACT_STATE_TA
 // Contratos (ADR-0015, DEC-035). Reutiliza el listado de MasterPage con
 // pestañas por el estado del ciclo de vida (en ejecución, suspendido, en
 // liquidación, liquidado), no por activo/inactivo. Detalle, alta y edición
-// son rutas hijas que se abren en un modal sobre el listado (DEC-034). El
-// valor vigente y la fecha fin los calcula el servidor (FRONTEND_STANDARD,
-// regla 9). El tipo de contrato va en su propia columna y es uno de los
+// son rutas hijas que se abren en un modal sobre el listado (DEC-034), en una
+// sola vista con pestañas (DEC-057). El valor vigente y la fecha fin los
+// calcula el servidor (FRONTEND_STANDARD, regla 9). El tipo de contrato va en su propia columna y es uno de los
 // filtros del listado (DEC-048): las pestañas cuentan dentro de los filtros.
 // Desde el tablero llega con el estado de pólizas o "con conceptos sin
 // póliza" (DEC-052): el servidor filtra con el mismo predicado de la cifra.
@@ -168,8 +168,8 @@ export default function ContractsPage() {
   const navigation = useMemo(
     () => ({
       create: () => navigate('/work/contracts/new'),
-      view: (row) => navigate(`/work/contracts/${row.ctrId}`),
-      edit: (row) => navigate(`/work/contracts/${row.ctrId}/edit`)
+      // Sin "Editar": el detalle es también el formulario (DEC-057).
+      view: (row) => navigate(`/work/contracts/${row.ctrId}`)
     }),
     [navigate]
   );

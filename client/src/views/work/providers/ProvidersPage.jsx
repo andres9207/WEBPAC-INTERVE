@@ -82,8 +82,8 @@ export default function ProvidersPage() {
   const navigation = useMemo(
     () => ({
       create: () => navigate('/work/providers/new'),
-      view: (row) => navigate(`/work/providers/${row.prvId}`),
-      edit: (row) => navigate(`/work/providers/${row.prvId}/edit`)
+      // Sin "Editar": el detalle es también el formulario (DEC-057).
+      view: (row) => navigate(`/work/providers/${row.prvId}`)
     }),
     [navigate]
   );

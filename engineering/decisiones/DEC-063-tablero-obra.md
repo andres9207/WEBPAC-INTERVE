@@ -48,6 +48,7 @@ El usuario pidió una tercera pestaña con las pólizas de la obra, como la del 
 - **Tabla:** una fila por póliza vigente y una por contrato sin póliza, con tipo de contrato, nombre y número, tipo de valor (el concepto amparado: valor inicial u otrosí, `conceptLabel`), tipo de póliza, vencimiento y estado. El cliente solo filtra y pagina esas filas. Cada cifra filtra la tabla por su estado; el ojo abre el expediente del contrato encima del tablero.
 - **Filtros con el botón "Filtros"** (DEC-048), no en una fila bajo los encabezados como en el sistema que se migra: un solo patrón de listados.
 - **Datos agregados a la respuesta**, sin consultas nuevas: `contractTypeName` en cada contrato, `conceptLabel` en cada póliza y `policyCounts`.
+- **"Por atender" del resumen (2026-10-22):** la cifra suma **registros**, no avisos (un aviso como "2 contratos con conceptos sin póliza" vale 2), el texto nombra los avisos que hay y el clic lleva a la tarjeta "Por atender en la obra", donde cada aviso abre su contrato o su detalle. Antes contaba avisos, decía siempre lo mismo y no respondía al clic. La pestaña Pólizas y "Por atender" no cuentan lo mismo: "Contratos sin póliza" son los que no tienen ninguna; el aviso de conceptos sin póliza incluye también un contrato con el valor inicial amparado y un otrosí sin amparar.
 
 ## Descartado
 

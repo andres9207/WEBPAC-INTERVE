@@ -263,7 +263,11 @@ function ContractCard({ contract }) {
 
 ContractCard.propTypes = { contract: PropTypes.object.isRequired };
 
-/** Lo que hay por atender en la obra, armado con las cifras del servidor. */
+/**
+ * Lo que hay por atender en la obra, armado con las cifras del servidor. Cada
+ * aviso dice cuántos registros abarca (`count`): uno agrupa varios contratos
+ * o facturas, y la cifra del tablero suma registros, no avisos.
+ */
 const attentionOf = (data) => {
   const list = [];
   const { contracts, invoices } = data;
@@ -272,6 +276,7 @@ const attentionOf = (data) => {
     for (const p of contracts.policies.filter((x) => x.validity === 'EXPIRED')) {
       list.push({
         key: `expired-${p.polId}`,
+        count: 1,
         text: `Póliza vencida en ${byCtr.get(p.ctrId)?.number ?? 'un contrato'}`,
         hint: `${p.typeName ?? p.number} · venció el ${fDateOnly(p.endDate)}`,
         icon: IconShieldX,
@@ -282,6 +287,7 @@ const attentionOf = (data) => {
     for (const p of contracts.policies.filter((x) => x.validity === 'EXPIRING')) {
       list.push({
         key: `expiring-${p.polId}`,
+        count: 1,
         text: `Póliza por vencer en ${byCtr.get(p.ctrId)?.number ?? 'un contrato'}`,
         hint: `${p.typeName ?? p.number} · vence el ${fDateOnly(p.endDate)}`,
         icon: IconClockHour4,
@@ -293,6 +299,7 @@ const attentionOf = (data) => {
     if (uncovered.length > 0) {
       list.push({
         key: 'uncovered',
+        count: uncovered.length,
         text: `${plural(uncovered.length, 'contrato', 'contratos')} con conceptos sin póliza`,
         hint: uncovered.map((c) => `${c.number}: ${c.policies.uncovered.map((u) => u.label).join(', ')}`).join(' · '),
         icon: IconAlertTriangle,
@@ -314,6 +321,7 @@ const attentionOf = (data) => {
     const last = invoices.pending[0];
     list.push({
       key: 'pending',
+      count: invoices.pendingCount,
       text: `${plural(invoices.pendingCount, 'factura', 'facturas')} por aprobar`,
       hint: last
         ? `${last.typeName} ${last.number}${last.value ? ` · ${fMoneyText(last.value)}` : ''}`
@@ -335,6 +343,7 @@ const attentionOf = (data) => {
   for (const c of contracts?.withRetentionBalance ?? []) {
     list.push({
       key: `retention-${c.ctrId}`,
+      count: 1,
       text: `Retenido por devolver: ${fMoneyText(c.balance)}`,
       hint: `${c.number} · ${c.stateName.toLowerCase()}`,
       icon: IconWallet,
@@ -346,6 +355,7 @@ const attentionOf = (data) => {
   if (suspended.length > 0) {
     list.push({
       key: 'suspended',
+      count: suspended.length,
       text: `${plural(suspended.length, 'contrato suspendido', 'contratos suspendidos')}`,
       hint: `${suspended.map((c) => c.number).join(', ')} · esperan el otrosí que los reanuda`,
       icon: IconPlayerPause,
@@ -365,9 +375,13 @@ const attentionOf = (data) => {
   return list;
 };
 
+const ATTENTION_ID = 'por-atender';
+// Avisos que nombra la cifra "Por atender"; el resto, en la tarjeta.
+const ATTENTION_HINT_ITEMS = 2;
+
 function AttentionCard({ items, onDrill }) {
   return (
-    <MainCard title="Por atender en la obra" sx={{ height: '100%' }} contentSX={{ px: 1.5 }} id="por-atender">
+    <MainCard title="Por atender en la obra" sx={{ height: '100%' }} contentSX={{ px: 1.5 }} id={ATTENTION_ID}>
       {items.length === 0 ? (
         <Box sx={{ px: 1.5 }}>
           <Empty>
@@ -600,12 +614,23 @@ export default function WorkSummaryTab({ data, workLabel }) {
   }
   const attention = attentionOf(data);
   if (contracts || invoices) {
+    // La cifra suma registros; el texto dice cuáles, y el clic lleva al detalle (tarjeta "Por atender en la obra").
+    const shown = attention.slice(0, ATTENTION_HINT_ITEMS).map((a) => a.text);
+    const rest = attention.length - shown.length;
     kpis.push({
       label: 'Por atender',
-      value: String(attention.length),
-      hint: 'Pólizas, conceptos sin póliza, facturas y retenido',
+      value: String(attention.reduce((sum, a) => sum + a.count, 0)),
+      hint:
+        attention.length === 0
+          ? 'Nada por atender'
+          : [...shown, ...(rest > 0 ? [`y ${plural(rest, 'aviso', 'avisos')} más`] : [])].join(' · '),
       icon: IconAlertTriangle,
-      tone: ACTION_TONES.danger
+      tone: ACTION_TONES.danger,
+      onClick: () => {
+        const card = document.getElementById(ATTENTION_ID);
+        card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        card?.querySelector('a, button')?.focus({ preventScroll: true });
+      }
     });
   }
 

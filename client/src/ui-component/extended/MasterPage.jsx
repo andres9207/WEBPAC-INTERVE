@@ -87,7 +87,8 @@ const saveView = (key, value) => {
  * - `navigation`: un agregado con detalle y formulario propios, en un modal
  *   con dirección propia (p. ej. la obra, DEC-034). Crear, ver y editar
  *   navegan en vez de abrir un diálogo, y el listado solo ofrece ver y editar:
- *   activar, desactivar y eliminar viven en el detalle.
+ *   activar, desactivar y eliminar viven en el detalle. Sin `edit`, solo ver:
+ *   el detalle es también el formulario (el contrato, DEC-057).
  * - `reloadKey`: al cambiar, recarga la página actual (lo sube el modal
  *   después de guardar, cambiar el estado o eliminar).
  * - `header`: contenido que va arriba del listado (p. ej. indicadores, DEC-033).
@@ -266,7 +267,7 @@ export default function MasterPage({
     if (navigation) {
       return [
         { label: 'Ver detalle', icon: <IconEye size={16} />, command: () => navigation.view(row), tone: 'info' },
-        ...(can.edit ? [{ label: 'Editar', icon: <IconEdit size={16} />, command: () => navigation.edit(row), tone: 'edit' }] : []),
+        ...(can.edit && navigation.edit ? [{ label: 'Editar', icon: <IconEdit size={16} />, command: () => navigation.edit(row), tone: 'edit' }] : []),
         ...(extraActions ? extraActions(row) : [])
       ];
     }
@@ -545,7 +546,7 @@ MasterPage.propTypes = {
   /** Diálogo propio en lugar de MasterDialog (forwardRef con `open(row?)`). */
   dialog: PropTypes.elementType,
   /** Detalle y formulario propios en vez de diálogo: `{ create(), view(row), edit(row) }`. */
-  navigation: PropTypes.shape({ create: PropTypes.func.isRequired, view: PropTypes.func.isRequired, edit: PropTypes.func.isRequired }),
+  navigation: PropTypes.shape({ create: PropTypes.func.isRequired, view: PropTypes.func.isRequired, edit: PropTypes.func }),
   /** Contenido arriba del listado: indicadores, avisos. */
   header: PropTypes.node,
   initialStatus: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),

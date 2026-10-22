@@ -31,7 +31,6 @@ const ProvidersPage = Loadable(lazy(() => import('views/work/providers/Providers
 const ProviderDetailPage = Loadable(lazy(() => import('views/work/providers/ProviderDetailPage')));
 const ContractsPage = Loadable(lazy(() => import('views/work/contracts/ContractsPage')));
 const ContractDetailPage = Loadable(lazy(() => import('views/work/contracts/ContractDetailPage')));
-const ContractFormPage = Loadable(lazy(() => import('views/work/contracts/ContractFormPage')));
 const InvoicesPage = Loadable(lazy(() => import('views/billing/invoices/InvoicesPage')));
 const InvoiceDetailPage = Loadable(lazy(() => import('views/billing/invoices/InvoiceDetailPage')));
 const InvoiceFormPage = Loadable(lazy(() => import('views/billing/invoices/InvoiceFormPage')));
@@ -111,13 +110,13 @@ const MainRoutes = {
               ]
             },
             {
-              // Contratos (DEC-035), con el mismo patrón.
+              // Contratos (DEC-035), con el mismo patrón: una sola vista (DEC-057).
               path: 'contracts',
               element: <ContractsPage />,
               children: [
-                { path: 'new', element: <ContractFormPage /> },
+                { path: 'new', element: <ContractDetailPage /> },
                 { path: ':ctrId', element: <ContractDetailPage /> },
-                { path: ':ctrId/edit', element: <ContractFormPage /> }
+                { path: ':ctrId/edit', element: <ContractDetailPage /> }
               ]
             }
           ]

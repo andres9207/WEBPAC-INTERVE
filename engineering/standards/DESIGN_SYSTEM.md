@@ -131,9 +131,9 @@ La corrección va en `themes/overrides/Chip.jsx` y en la paleta, no en cada pant
 
 ### Detalle y formulario en modal (aprobado, DEC-030, DEC-034 y DEC-057)
 
-Referencia: `ui-component/extended/RouteDialog.jsx`, `views/work/works/WorkDetailPage.jsx` y `views/work/providers/ProviderDetailPage.jsx` (una sola vista, DEC-057); `views/work/contracts/` (detalle y formulario separados).
+Referencia: `ui-component/extended/RouteDialog.jsx`, `views/work/works/WorkDetailPage.jsx` y `views/work/providers/ProviderDetailPage.jsx` y `views/work/contracts/ContractDetailPage.jsx` (una sola vista, DEC-057).
 
-- **Obra y proveedor (DEC-057)**: detalle y formulario son la misma vista. Pestaña de datos editable y colecciones editables en su propia pestaña; un solo Guardar en el pie (contenido, deshabilitado sin cambios) y "Descartar cambios". Al crear, solo las pestañas del formulario; las demás se habilitan al guardar. Una pestaña con errores se marca con `*`. Guardar es un botón, no un submit del modal.
+- **Obra, proveedor y contrato (DEC-057)**: detalle y formulario son la misma vista. Pestaña de datos editable y colecciones editables en su propia pestaña; un solo Guardar en el pie (contenido, deshabilitado sin cambios) y "Descartar cambios". Al crear, solo las pestañas del formulario; las demás se habilitan al guardar. Una pestaña con errores se marca con `*`. Guardar es un botón, no un submit del modal. En el contrato, Guardar y "Descartar cambios" solo están en la pestaña de datos: las demás pestañas tienen actos que se guardan solos con su diálogo (otrosí, pólizas, suspender, facturas), y la de datos se marca con `•` si tiene cambios sin guardar.
 
 - **Listado → detalle → edición**, sin salir del listado: cada uno es un modal grande (`maxWidth="lg"`, pantalla completa en móvil) con su propia ruta. El listado (`MasterPage` con `navigation`) ofrece *Ver detalle* y *Editar*; activar, desactivar y eliminar están en el detalle.
 - **Detalle**: encabezado con código, nombre, estado y autoría, y una X para cerrar; pestañas por parte del agregado, con conteo; en Resumen, primero las cifras clave calculadas por el servidor. Pie: Eliminar y Desactivar a la izquierda; Cerrar y Editar (el único botón contenido) a la derecha. Una parte que todavía no existe tiene su pestaña con un estado vacío que explica cuándo llega.
