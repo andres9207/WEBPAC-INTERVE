@@ -1,2 +1,4 @@
 client/.env.development
 client/.env.production
+database/bd_old/
+docs/ANALISIS WEBPACK 2026.docx
