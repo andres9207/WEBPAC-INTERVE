@@ -154,6 +154,8 @@ export const PERMISSIONS = {
       // No protege un endpoint: decide quién recibe el informe de la
       // conciliación de la fecha fin (PRO-BE-13, FND-BE-36).
       receiveReconciliation: 92,
+      // Reporte del listado en Excel o PDF, con sus filtros y sin paginar (DEC-070).
+      export: 112,
     },
     // Pólizas del contrato (ADR-0018, DEC-050). Modificar emite una versión
     // nueva; anular reemplaza a eliminar.
@@ -197,6 +199,8 @@ export const PERMISSIONS = {
       // revierte sus efectos sobre saldos (DEC-068). La anulada no se elimina.
       delete: 110,
       deleteApproved: 111,
+      // Reporte del listado en Excel o PDF; exige además ver la vista (DEC-070).
+      export: 113,
     },
   },
 };

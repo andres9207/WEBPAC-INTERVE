@@ -6,7 +6,7 @@ import Typography from '@mui/material/Typography';
 import MasterPage from 'ui-component/extended/MasterPage';
 import LinkedFilterNotice from 'ui-component/extended/LinkedFilterNotice';
 import useLinkedFilters from 'hooks/useLinkedFilters';
-import { contractsApi, getContractFilterProvidersAPI } from 'api/requests/contractsApi';
+import { contractsApi, exportContractsAPI, getContractFilterProvidersAPI } from 'api/requests/contractsApi';
 import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField } from 'contexts/WorkScopeContext';
@@ -129,6 +129,11 @@ export default function ContractsPage() {
   const workFilter = useWorkFilterField();
   const filterFields = useMemo(() => (workFilter ? [...FILTER_FIELDS, workFilter] : FILTER_FIELDS), [workFilter]);
   const linked = useLinkedFilters(LINKED_KEYS, describeLinked);
+  // Reporte de lo que muestra la tabla, sin paginar (DEC-070).
+  const exportOptions = useMemo(
+    () => ({ permission: permissionsCatalog.work?.contracts?.export, request: exportContractsAPI, fileName: 'contratos' }),
+    [permissionsCatalog]
+  );
 
   const navigation = useMemo(
     () => ({
@@ -156,6 +161,7 @@ export default function ContractsPage() {
         initialStatus={linked.initialStatus}
         header={<LinkedFilterNotice label={linked.label} onClear={linked.clear} />}
         reloadKey={reloadKey}
+        exportOptions={exportOptions}
       />
       <Outlet context={outletContext} />
     </>

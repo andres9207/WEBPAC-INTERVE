@@ -157,6 +157,9 @@ const PERMISSIONS = [
   // database/migrations/0101_invoice_deletion.sql (DEC-068)
   { per_id: 110, per_name: "Eliminar factura", pag_id: 18, per_order: 11 },
   { per_id: 111, per_name: "Eliminar factura aprobada", pag_id: 18, per_order: 12 },
+  // database/migrations/0103_seed_export_permissions.sql (DEC-070)
+  { per_id: 112, per_name: "Exportar contratos", pag_id: 16, per_order: 16 },
+  { per_id: 113, per_name: "Exportar facturas", pag_id: 18, per_order: 13 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver

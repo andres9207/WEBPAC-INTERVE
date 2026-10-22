@@ -30,8 +30,8 @@ const controllers = ["work", "billing", "app/dashboard"].flatMap((area) => {
 const handlers = controllers.flatMap((path) => {
   const source = readFileSync(path, "utf8");
   const file = relative(MODULES, path).replaceAll("\\", "/");
-  // Cada handler exportado, hasta el siguiente export.
-  return [...source.matchAll(/export const (\w+Controller) = handle\(([\s\S]*?)(?=\nexport const |\n*$)/g)].map((m) => ({ file, name: m[1], body: m[2] }));
+  // Cada handler exportado (también los de reportes, handleExport), hasta el siguiente export.
+  return [...source.matchAll(/export const (\w+Controller) = handle(?:Export)?\(([\s\S]*?)(?=\nexport const |\n*$)/g)].map((m) => ({ file, name: m[1], body: m[2] }));
 });
 
 describe("alcance por obra en los controllers (DEC-047)", () => {

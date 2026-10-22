@@ -14,6 +14,7 @@ const MONEY_UTILS = "common/utils/money.utils.js";
 const ALLOWED = {
   "common/utils/term.utils.js": "avance del plazo en días, un indicador entero (0–100) que no entra en ningún cálculo financiero",
   "modules/work/works/works.service.js": "promedio del avance del plazo de las obras, mismo indicador",
+  "common/services/export.service.js": "presenta en Excel un importe ya redondeado (texto de money.utils) como número de celda; no calcula con él (DEC-070)",
 };
 
 const files = (dir) =>

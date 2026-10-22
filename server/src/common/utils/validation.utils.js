@@ -18,6 +18,9 @@ export const paginationRules = (maxRows = 100) => [
   body("sortOrder").optional(nullable).isIn([1, -1, "1", "-1"]).withMessage("sortOrder debe ser 1 o -1."),
 ];
 
+/** Formato del reporte de un listado (DEC-070). */
+export const exportFormatRule = () => body("format").isIn(["xlsx", "pdf"]).withMessage("El formato del reporte debe ser xlsx o pdf.");
+
 /** Filtro de texto opcional en el body. */
 export const optionalText = (field, max = 255) =>
   body(field).optional(nullable).isString().withMessage(`${field} debe ser texto.`).isLength({ max }).withMessage(`${field} admite hasta ${max} caracteres.`);

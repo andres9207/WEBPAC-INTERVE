@@ -5,6 +5,7 @@ import { dateOnlyText, toDateOnly, todayDateOnly } from "../../../common/utils/t
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { assertInScope, scopeWhere } from "../../../common/services/workScope.service.js";
+import { findExportRows, renderExport } from "../../../common/services/export.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
@@ -680,6 +681,7 @@ const revalidateOnCancel = async (tx, invoice) => {
 // Lista blanca de orden (ENDPOINT_STANDARD, "Listados").
 const SORT_FIELDS = {
   number: (order) => ({ inv_number: order }),
+  statement: (order) => ({ inv_statement: order }),
   type: (order) => ({ inv_type: order }),
   provider: (order) => ({ tbl_providers: { prv_name: order } }),
   work: (order) => ({ tbl_works: { wrk_code: order } }),
@@ -698,6 +700,7 @@ const LIST_SELECT = {
   inv_number: true,
   inv_date: true,
   inv_approval_date: true,
+  inv_statement: true,
   inv_state: true,
   inv_update_at: true,
   updated_by_user: USER_NAME_SELECT,
@@ -716,6 +719,7 @@ const toListDto = (row) => ({
   number: row.inv_number,
   date: dateOnlyText(row.inv_date),
   approvalDate: dateOnlyText(row.inv_approval_date),
+  statement: row.inv_statement,
   providerName: row.tbl_providers?.prv_name ?? null,
   wrkId: row.wrk_id,
   workCode: row.tbl_works?.wrk_code ?? null,
@@ -765,7 +769,20 @@ const countByState = async (where) => {
  * expedientes), todas las que el usuario ve (`views`). Nunca muestra una
  * vista que no esté en `views`.
  */
-export const paginationInvoices = async ({
+export const paginationInvoices = async ({ rows, first, ...filters }) => {
+  const { baseWhere, where, orderBy } = invoiceListQuery(filters);
+  const [page, statusCounts] = await Promise.all([
+    paginate(prisma.tbl_invoices, { where, select: LIST_SELECT, orderBy }, { first, rows }),
+    countByState(baseWhere),
+  ]);
+  return { ...page, results: page.results.map(toListDto), statusCounts };
+};
+
+/**
+ * `where` (con y sin la pestaña de estado) y orden del listado. Los usan el
+ * listado paginado y el reporte (DEC-070).
+ */
+const invoiceListQuery = ({
   search,
   state,
   view,
@@ -783,8 +800,6 @@ export const paginationInvoices = async ({
   dateTo,
   approvalDateFrom,
   approvalDateTo,
-  rows,
-  first,
   sortField,
   sortOrder,
   scope,
@@ -812,14 +827,64 @@ export const paginationInvoices = async ({
       dateRangeFilter("inv_approval_date", approvalDateFrom, approvalDateTo),
     ]),
   };
-  const where = { ...baseWhere, ...(state ? { inv_state: state } : {}) };
-
-  const [page, statusCounts] = await Promise.all([
-    paginate(prisma.tbl_invoices, { where, select: LIST_SELECT, orderBy }, { first, rows }),
-    countByState(baseWhere),
-  ]);
-  return { ...page, results: page.results.map(toListDto), statusCounts };
+  return { baseWhere, where: { ...baseWhere, ...(state ? { inv_state: state } : {}) }, orderBy };
 };
+
+// Columnas del reporte: las de la tabla del listado (DEC-070); la vista de
+// simples no tiene tipo que elegir.
+const EXPORT_COLUMNS = [
+  { header: "Número", value: (r) => r.number },
+  { header: "Extracto", value: (r) => r.statement },
+  { header: "Tipo", value: (r) => r.typeName, contract: true },
+  { header: "Proveedor", value: (r) => r.providerName, width: 2 },
+  { header: "Contrato", value: (r) => r.contractNumber, contract: true },
+  { header: "Obra", value: (r) => [r.workCode, r.workName].filter(Boolean).join(" — "), width: 2 },
+  { header: "Etapa", value: (r) => r.stageName },
+  { header: "Fecha", value: (r) => r.date, kind: "date" },
+  { header: "Aprobada el", value: (r) => r.approvalDate, kind: "date" },
+  { header: "Estado", value: (r) => r.stateName },
+];
+
+const exportFilterLines = async ({ state, search, type, wrkId, prvId, number, voucherNumber, statement, contractNumber, providerName, dateFrom, dateTo, approvalDateFrom, approvalDateTo }) => {
+  const [work, provider] = await Promise.all([
+    positiveId(wrkId) ? prisma.tbl_works.findUnique({ where: { wrk_id: positiveId(wrkId) }, select: { wrk_code: true, wrk_name: true } }) : null,
+    positiveId(prvId) ? prisma.tbl_providers.findUnique({ where: { prv_id: positiveId(prvId) }, select: { prv_name: true } }) : null,
+  ]);
+  const range = (from, to) => (from || to ? `${from || "…"} a ${to || "…"}` : "");
+  const lines = [
+    ["Estado", state ? (STATE_NAMES[state] ?? state) : "Todos"],
+    ["Búsqueda", text(search)],
+    ["Tipo", type ? (TYPE_NAMES[type] ?? type) : ""],
+    ["Obra", work && `${work.wrk_code} — ${work.wrk_name}`],
+    ["Proveedor", provider?.prv_name ?? text(providerName)],
+    ["Número contiene", text(number)],
+    ["Comprobante contiene", text(voucherNumber)],
+    ["Extracto contiene", text(statement)],
+    ["Contrato contiene", text(contractNumber)],
+    ["Fecha", range(dateFrom, dateTo)],
+    ["Aprobada el", range(approvalDateFrom, approvalDateTo)],
+  ].filter(([, value]) => value);
+  return [`Filtros: ${lines.map(([label, value]) => `${label}: ${value}`).join(" · ")}`];
+};
+
+/**
+ * Reporte del listado de una vista en Excel o PDF (DEC-070): los mismos
+ * filtros, pestaña, búsqueda, orden, alcance y vistas que la tabla, sin
+ * paginar, hasta EXPORT_MAX_ROWS. Una vista que el usuario no ve, 403.
+ */
+export const exportInvoices = async ({ format, ...filters }) => {
+  if (!filters.views?.includes(filters.view)) throw httpError(403, "No tienes permiso para ver esta vista de facturas.");
+  const { where, orderBy } = invoiceListQuery(filters);
+  const rows = (await findExportRows(prisma.tbl_invoices, { where, select: LIST_SELECT, orderBy })).map(toListDto);
+  const columns = filters.view === INVOICE_VIEWS.SIMPLE ? EXPORT_COLUMNS.filter((c) => !c.contract) : EXPORT_COLUMNS;
+  return renderExport({ format, title: VIEW_TITLES[filters.view] ?? "Facturas", filters: await exportFilterLines(filters), columns, rows });
+};
+
+const VIEW_TITLES = Object.freeze({
+  [INVOICE_VIEWS.SIMPLE]: "Facturas simples",
+  [INVOICE_VIEWS.MAJOR]: "Facturas de contrato mayor",
+  [INVOICE_VIEWS.SUBCONTRACTOR]: "Facturas de subcontratistas",
+});
 
 // ─── Detalle ─────────────────────────────────────────────────────────────────
 

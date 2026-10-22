@@ -5,6 +5,7 @@ import { validate } from "../../../common/middlewares/validate.middleware.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import {
   paginationContractsSchema,
+  exportContractsSchema,
   selectContractFilterProvidersSchema,
   getContractSchema,
   selectContractWorksSchema,
@@ -24,6 +25,7 @@ import {
 } from "./contracts.validation.js";
 import {
   paginationContractsController,
+  exportContractsController,
   selectContractFilterProvidersController,
   getContractController,
   selectContractWorksController,
@@ -50,6 +52,8 @@ const can = PERMISSIONS.work.contracts;
 const contractsRoutes = express.Router();
 
 contractsRoutes.post("/pagination_contracts", verifyToken, requirePermission(can.view), paginationContractsSchema, validate, paginationContractsController);
+// Reporte del listado en Excel o PDF, con sus filtros y sin paginar (DEC-070).
+contractsRoutes.post("/export_contracts", verifyToken, requirePermission(can.export), exportContractsSchema, validate, exportContractsController);
 // Filtro Proveedor del listado: proveedores con contratos en el alcance.
 contractsRoutes.get(
   "/select_contract_filter_providers",

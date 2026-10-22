@@ -3,6 +3,7 @@ import { auditContext } from "../../../common/services/audit.service.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
 import { workScopeOf } from "../../../common/services/workScope.service.js";
+import { sendExport } from "../../../common/services/export.service.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import * as contractsService from "./contracts.service.js";
 import * as conceptsService from "./contractConcepts.service.js";
@@ -23,19 +24,29 @@ const handle = (fn) => async (req, res, next) => {
   }
 };
 
+// Como `handle`, pero responde el archivo del reporte (DEC-070) en vez de JSON.
+const handleExport = (fn) => async (req, res, next) => {
+  try {
+    sendExport(res, await fn(req));
+  } catch (err) {
+    next(err);
+  }
+};
+
 const pick = (source, fields) => Object.fromEntries(fields.map((field) => [field, source?.[field]]));
 
 const CONCEPT_FIELDS = ["directCost", "adminPct", "contingencyPct", "profitPct", "vatPct", "advancePct", "retentionPct"];
 const CONTRACT_FIELDS = ["wrkId", "prvId", "pvtId", "wksId", "cttId", "number", "name", "startDate", "term", "termUnit", "observation", "aiuRequested"];
 const ACT_FIELDS = ["startDate", "description", ...CONCEPT_FIELDS];
 
-export const paginationContractsController = handle(async (req) => {
-  const { search, state, wrkId, cttId, prvId, number, name, providerName, endDateFrom, endDateTo, rows, first, sortField, sortOrder } = req.body;
+// Filtros del listado, también los del reporte (DEC-070). Los del tablero
+// por pólizas exigen poder verlas (DEC-052).
+const listFiltersOf = async (req) => {
+  const { search, state, wrkId, cttId, prvId, number, name, providerName, endDateFrom, endDateTo, sortField, sortOrder } = req.body;
   const { policyStatus, uncovered } = req.body;
-  // Los filtros del tablero por pólizas exigen poder verlas (DEC-052).
   const canViewPolicies =
     Boolean(policyStatus || uncovered) && (await getEffectivePermissionIds(req.user)).includes(PERMISSIONS.work.policies.view);
-  return contractsService.paginationContracts({
+  return {
     search,
     policyStatus,
     uncovered: uncovered === true || uncovered === "true",
@@ -49,13 +60,19 @@ export const paginationContractsController = handle(async (req) => {
     providerName,
     endDateFrom,
     endDateTo,
-    rows,
-    first,
     sortField,
     sortOrder,
-    scope: await workScopeOf(req),
-  });
-});
+  };
+};
+
+export const paginationContractsController = handle(async (req) =>
+  contractsService.paginationContracts({ ...(await listFiltersOf(req)), scope: await workScopeOf(req), rows: req.body.rows, first: req.body.first })
+);
+
+// Reporte del listado (DEC-070): responde el archivo, no JSON.
+export const exportContractsController = handleExport(async (req) =>
+  contractsService.exportContracts({ ...(await listFiltersOf(req)), scope: await workScopeOf(req), format: req.body.format })
+);
 
 export const selectContractFilterProvidersController = handle(async (req) =>
   contractsService.selectContractFilterProviders({ search: req.query.search, includePrvId: req.query.includePrvId, scope: await workScopeOf(req) })

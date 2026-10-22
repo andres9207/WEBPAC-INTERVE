@@ -6,6 +6,7 @@ import { dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { assertInScope, inScope, scopeWhere } from "../../../common/services/workScope.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
+import { findExportRows, renderExport } from "../../../common/services/export.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
 import { assertProviderInScope, providerSelectOptions } from "../providers/providers.service.js";
@@ -29,7 +30,7 @@ import {
   totalExtensions,
 } from "./contractTerms.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
-import { assertPolicyStatus, uncoveredContractsWhere } from "./policyTerms.js";
+import { CONTRACT_POLICY_STATUS_NAMES, assertPolicyStatus, uncoveredContractsWhere } from "./policyTerms.js";
 // Importación circular a propósito: contractPolicies usa los helpers de este
 // archivo y este, insertPolicy. Ninguno de los dos los usa al cargarse.
 import { contractPolicyStatuses, insertPolicy, policyValuesOf } from "./contractPolicies.service.js";
@@ -367,7 +368,12 @@ export const selectContractFilterProviders = ({ search, includePrvId, scope } = 
  * criterio que produjo la cifra (ADR-0002, decisión 2; DEC-052, DEC-064). Revelan
  * datos de pólizas, así que exigen poder verlas (`canViewPolicies`).
  */
-export const paginationContracts = async ({
+/**
+ * `where` (con y sin la pestaña de estado) y orden del listado. Los usan el
+ * listado paginado y el reporte (DEC-070): el reporte trae lo mismo que la
+ * tabla, sin paginar.
+ */
+const contractListQuery = async ({
   search,
   policyStatus,
   uncovered,
@@ -381,8 +387,6 @@ export const paginationContracts = async ({
   providerName,
   endDateFrom,
   endDateTo,
-  rows,
-  first,
   sortField,
   sortOrder,
   scope,
@@ -413,13 +417,62 @@ export const paginationContracts = async ({
       ...policyFilters,
     ]),
   };
-  const where = { ...baseWhere, ...(state ? { ctr_state: state } : {}) };
+  return { baseWhere, where: { ...baseWhere, ...(state ? { ctr_state: state } : {}) }, orderBy };
+};
 
+export const paginationContracts = async ({ rows, first, ...filters }) => {
+  const { baseWhere, where, orderBy } = await contractListQuery(filters);
   const [page, statusCounts] = await Promise.all([
     paginate(prisma.tbl_contracts, { where, select: LIST_SELECT, orderBy }, { first, rows }),
     countByState(baseWhere),
   ]);
   return { ...page, results: page.results.map(toListDto), statusCounts };
+};
+
+// Columnas del reporte: las de la tabla del listado (DEC-070).
+const EXPORT_COLUMNS = [
+  { header: "Número", value: (r) => r.number },
+  { header: "Tipo", value: (r) => r.contractType },
+  { header: "Contrato", value: (r) => r.name, width: 2 },
+  { header: "Proveedor", value: (r) => r.providerName, width: 2 },
+  { header: "Obra", value: (r) => [r.workCode, r.workName].filter(Boolean).join(" — "), width: 2 },
+  { header: "Etapa", value: (r) => r.stageName },
+  { header: "Valor vigente", value: (r) => r.currentValue, kind: "money", width: 1.3 },
+  { header: "Fecha inicio", value: (r) => r.startDate, kind: "date" },
+  { header: "Fecha fin", value: (r) => (r.endDate && r.endDateProvisional ? `${r.endDate} (provisional)` : r.endDate), kind: "date" },
+  { header: "Estado", value: (r) => r.stateName },
+];
+
+// Líneas de los filtros aplicados, para el encabezado del reporte.
+const exportFilterLines = async ({ state, search, wrkId, cttId, prvId, number, name, providerName, endDateFrom, endDateTo, policyStatus, uncovered }) => {
+  const [work, type, provider] = await Promise.all([
+    Number(wrkId) > 0 ? prisma.tbl_works.findUnique({ where: { wrk_id: Number(wrkId) }, select: { wrk_code: true, wrk_name: true } }) : null,
+    Number(cttId) > 0 ? prisma.tbl_contract_types.findUnique({ where: { ctt_id: Number(cttId) }, select: { ctt_name: true } }) : null,
+    Number(prvId) > 0 ? prisma.tbl_providers.findUnique({ where: { prv_id: Number(prvId) }, select: { prv_name: true } }) : null,
+  ]);
+  const lines = [
+    ["Estado", state ? (STATE_NAMES[state] ?? state) : "Todos"],
+    ["Búsqueda", text(search)],
+    ["Obra", work && `${work.wrk_code} — ${work.wrk_name}`],
+    ["Tipo de contrato", type?.ctt_name],
+    ["Proveedor", provider?.prv_name ?? text(providerName)],
+    ["Número contiene", text(number)],
+    ["Nombre contiene", text(name)],
+    ["Fecha fin", endDateFrom || endDateTo ? `${endDateFrom || "…"} a ${endDateTo || "…"}` : ""],
+    ["Pólizas", policyStatus ? (CONTRACT_POLICY_STATUS_NAMES[policyStatus] ?? policyStatus) : ""],
+    ["Conceptos sin póliza", uncovered ? "Sí" : ""],
+  ].filter(([, value]) => value);
+  return [`Filtros: ${lines.map(([label, value]) => `${label}: ${value}`).join(" · ")}`];
+};
+
+/**
+ * Reporte del listado en Excel o PDF (DEC-070): los mismos filtros, pestaña,
+ * búsqueda, orden y alcance que la tabla, sin paginar, hasta EXPORT_MAX_ROWS.
+ */
+export const exportContracts = async ({ format, ...filters }) => {
+  const { where, orderBy } = await contractListQuery(filters);
+  const rows = (await findExportRows(prisma.tbl_contracts, { where, select: LIST_SELECT, orderBy })).map(toListDto);
+  return renderExport({ format, title: "Contratos", filters: await exportFilterLines(filters), columns: EXPORT_COLUMNS, rows });
 };
 
 // ─── Detalle ─────────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import { auditContext } from "../../../common/services/audit.service.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
 import { workScopeOf } from "../../../common/services/workScope.service.js";
+import { sendExport } from "../../../common/services/export.service.js";
 import * as invoicesService from "./invoices.service.js";
 import { getInvoiceEvidence } from "./invoiceEvidence.service.js";
 import { grantedViews } from "./invoiceViews.js";
@@ -23,6 +24,15 @@ const notify = () => getIO().emit("refresh-invoices", {});
 const handle = (fn) => async (req, res, next) => {
   try {
     return res.status(200).json(await fn(req));
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Como `handle`, pero responde el archivo del reporte (DEC-070) en vez de JSON.
+const handleExport = (fn) => async (req, res, next) => {
+  try {
+    sendExport(res, await fn(req));
   } catch (err) {
     next(err);
   }
@@ -58,12 +68,12 @@ const accessOf = async (user) => {
   return { granted, views: grantedViews(granted) };
 };
 
-export const paginationInvoicesController = handle(async (req) => {
-  const { search, state, view, type, wrkId, prvId, ctrId, rows, first, sortField, sortOrder } = req.body;
+// Filtros del listado, también los del reporte (DEC-070).
+const listFiltersOf = async (req) => {
+  const { search, state, view, type, wrkId, prvId, ctrId, sortField, sortOrder } = req.body;
   const { number, voucherNumber, statement, contractNumber, providerName, dateFrom, dateTo, approvalDateFrom, approvalDateTo } = req.body;
-  const scope = await workScopeOf(req);
   const { views } = await accessOf(req.user);
-  return invoicesService.paginationInvoices({
+  return {
     search,
     state,
     view,
@@ -81,13 +91,19 @@ export const paginationInvoicesController = handle(async (req) => {
     dateTo,
     approvalDateFrom,
     approvalDateTo,
-    rows,
-    first,
     sortField,
     sortOrder,
-    scope,
-  });
-});
+  };
+};
+
+export const paginationInvoicesController = handle(async (req) =>
+  invoicesService.paginationInvoices({ ...(await listFiltersOf(req)), scope: await workScopeOf(req), rows: req.body.rows, first: req.body.first })
+);
+
+// Reporte del listado de una vista (DEC-070): responde el archivo, no JSON.
+export const exportInvoicesController = handleExport(async (req) =>
+  invoicesService.exportInvoices({ ...(await listFiltersOf(req)), scope: await workScopeOf(req), format: req.body.format })
+);
 
 export const getInvoiceController = handle(async (req) =>
   invoicesService.getInvoice({ invId: req.query.invId, scope: await workScopeOf(req), views: (await accessOf(req.user)).views })

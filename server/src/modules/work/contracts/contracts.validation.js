@@ -8,6 +8,7 @@ import {
   idempotencyKeyRule,
   moneyRule,
   percentRule,
+  exportFormatRule,
 } from "../../../common/utils/validation.utils.js";
 import { TERM_UNITS } from "../../../common/utils/term.utils.js";
 import { CONTRACT_POLICY_STATUS } from "./policyTerms.js";
@@ -77,6 +78,9 @@ export const paginationContractsSchema = [
   body("policyStatus").optional({ values: "falsy" }).isIn(Object.values(CONTRACT_POLICY_STATUS)).withMessage("El estado de pólizas no es válido."),
   body("uncovered").optional({ values: "falsy" }).isBoolean().withMessage("uncovered debe ser verdadero o falso."),
 ];
+
+// Reporte del listado (DEC-070): los mismos filtros, y el formato.
+export const exportContractsSchema = [...paginationContractsSchema, exportFormatRule()];
 
 export const getContractSchema = [query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo.")];
 

@@ -793,6 +793,23 @@ describe("listado", () => {
     expect(result.statusCounts).toEqual({ APPROVED: 3 });
   });
 
+  test("reporte (DEC-070): mismo where y orden que el listado de la vista, sin paginar", async () => {
+    const filters = { view: "MAJOR", views: ["MAJOR"], state: "APPROVED", prvId: 77, statement: "marzo", sortField: "date", sortOrder: -1, scope: OWN };
+    await service.paginationInvoices({ ...filters, rows: 10, first: 0 });
+    const listed = prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0];
+    await expect(service.exportInvoices({ ...filters, format: "pdf" })).resolves.toMatchObject({ extension: "pdf" });
+    const exported = prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0];
+    expect(exported.where).toEqual(listed.where);
+    expect(exported.orderBy).toEqual(listed.orderBy);
+    expect(exported).not.toHaveProperty("take");
+  });
+
+  test("reporte de una vista que el usuario no ve: 403 sin leer", async () => {
+    prismaMock.tbl_invoices.findMany.mockClear();
+    await expect(service.exportInvoices({ view: "MAJOR", views: ["SIMPLE"], format: "xlsx" })).rejects.toMatchObject({ statusCode: 403 });
+    expect(prismaMock.tbl_invoices.findMany).not.toHaveBeenCalled();
+  });
+
   test("sin tipo no filtra por tipo", async () => {
     await service.paginationInvoices({ type: "", rows: 10, first: 0 });
     expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where).not.toHaveProperty("inv_type");

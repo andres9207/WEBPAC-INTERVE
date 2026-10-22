@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 
 import Box from '@mui/material/Box';
@@ -26,6 +26,7 @@ import {
 
 import MainCard from 'ui-component/cards/MainCard';
 import FilterButton from 'ui-component/extended/FilterButton';
+import ExportButton from 'ui-component/extended/ExportButton';
 import DataTable from 'ui-component/extended/DataTable';
 import StatusChip from 'ui-component/extended/StatusChip';
 import StatusTabs from 'ui-component/extended/StatusTabs';
@@ -108,6 +109,10 @@ const saveView = (key, value) => {
  *   Con ellas, "Nuevo" despliega un menú; cada una con `label`, `icon` y
  *   `command`, y las filtra por permiso quien las da. Sin ellas, "Nuevo"
  *   abre el alta con el permiso de crear.
+ * - `exportOptions`: botón "Exportar" (Excel o PDF) con `{ permission,
+ *   request(params, format), fileName }` (DEC-070). `params` son los mismos
+ *   del listado (filtros, pestaña, búsqueda y orden) sin la paginación: el
+ *   servidor devuelve todas las filas filtradas.
  */
 export default function MasterPage({
   title,
@@ -130,7 +135,8 @@ export default function MasterPage({
   filters,
   initialStatus,
   extraActions,
-  createOptions
+  createOptions,
+  exportOptions
 }) {
   const { hasPermission } = useAuth();
   // perId != null: con el catálogo cargando, hasPermission(undefined) es true (FRONTEND_STANDARD, regla 5).
@@ -172,18 +178,22 @@ export default function MasterPage({
   const dialogRef = useRef(null);
   const lowerTitle = title.charAt(0).toLowerCase() + title.slice(1);
 
+  // Filtros, pestaña y orden: los del listado y los del reporte (DEC-070).
+  const queryParams = useMemo(
+    () => ({
+      ...fieldFilters.params,
+      ...filters,
+      ...(stateTabs ? { [stateTabs.param]: status === 'all' ? '' : status } : { staId: status === 'all' ? '' : status }),
+      sortField,
+      sortOrder
+    }),
+    [fieldFilters.params, filters, stateTabs, status, sortField, sortOrder]
+  );
+
   const fetchRows = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.pagination({
-        ...fieldFilters.params,
-        ...filters,
-        ...(stateTabs ? { [stateTabs.param]: status === 'all' ? '' : status } : { staId: status === 'all' ? '' : status }),
-        rows: rowsPerPage,
-        first: page * rowsPerPage,
-        sortField,
-        sortOrder
-      });
+      const { data } = await api.pagination({ ...queryParams, rows: rowsPerPage, first: page * rowsPerPage });
       setRows(data.results ?? []);
       setTotal(data.total ?? 0);
       setStatusCounts(data.statusCounts ?? {});
@@ -192,7 +202,7 @@ export default function MasterPage({
     } finally {
       setLoading(false);
     }
-  }, [api, fieldFilters.params, status, page, rowsPerPage, sortField, sortOrder, lowerTitle, stateTabs, filters]);
+  }, [api, queryParams, page, rowsPerPage, lowerTitle]);
 
   useEffect(() => {
     fetchRows();
@@ -369,6 +379,9 @@ export default function MasterPage({
           )}
           <Stack direction="row" alignItems="center" sx={{ flexWrap: 'wrap', gap: 1.5, ml: 'auto' }}>
             <StatusTabs statusTabs={statusTabs} selectedStatus={status} onChange={handleStatus} />
+            {exportOptions && canDo(exportOptions.permission) && (
+              <ExportButton request={(format) => exportOptions.request(queryParams, format)} fileName={exportOptions.fileName} />
+            )}
             {renderCard && (
               <ToggleButtonGroup value={view} exclusive onChange={handleView} size="small" aria-label="Forma de ver el listado">
                 <ToggleButton value="cards" sx={{ gap: 0.75, px: 1.5 }}>
@@ -538,6 +551,12 @@ MasterPage.propTypes = {
   stateTabs: PropTypes.shape({ param: PropTypes.string.isRequired, tabs: PropTypes.array.isRequired, colors: PropTypes.object }),
   /** Filtros fijos de la petición, p. ej. `{ wrkId }`. Debe ser estable (useMemo). */
   filters: PropTypes.object,
+  /** Reporte del listado (DEC-070): `{ permission, request(params, format), fileName }`. */
+  exportOptions: PropTypes.shape({
+    permission: PropTypes.number,
+    request: PropTypes.func.isRequired,
+    fileName: PropTypes.string.isRequired
+  }),
   /** Acciones propias de una fila, después de Editar: `(row) => [{ label, icon, command, tone }]`. */
   extraActions: PropTypes.func,
   /** Formas de crear, en un menú bajo "Nuevo": `[{ label, icon?, command }]`. */

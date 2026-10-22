@@ -6,6 +6,7 @@ import { PERMISSIONS } from "../../../common/constants/permissions.constants.js"
 import { ANY_CONTRACT_VIEW_PERMISSION, ANY_VIEW_PERMISSION, INVOICE_VIEWS, VIEW_PERMISSIONS } from "./invoiceViews.js";
 import {
   paginationInvoicesSchema,
+  exportInvoicesSchema,
   getInvoiceSchema,
   selectInvoiceWorksSchema,
   getInvoiceFormOptionsSchema,
@@ -21,6 +22,7 @@ import {
 } from "./invoices.validation.js";
 import {
   paginationInvoicesController,
+  exportInvoicesController,
   getInvoiceController,
   selectInvoiceWorksController,
   getInvoiceFormOptionsController,
@@ -58,6 +60,9 @@ invoicesRoutes.post(
   validate,
   paginationInvoicesController
 );
+// Reporte del listado de una vista en Excel o PDF (DEC-070): el permiso de
+// exportar aquí; ver la vista, en el service.
+invoicesRoutes.post("/export_invoices", verifyToken, requirePermission(can.export), exportInvoicesSchema, validate, exportInvoicesController);
 invoicesRoutes.get("/get_invoice", verifyToken, requirePermission(ANY_VIEW_PERMISSION), getInvoiceSchema, validate, getInvoiceController);
 // Evidencia desde la bitácora (PRO-BE-39): permiso propio; además, ver la vista de la factura (service).
 invoicesRoutes.get("/get_invoice_evidence", verifyToken, requirePermission(can.viewEvidence), getInvoiceSchema, validate, getInvoiceEvidenceController);

@@ -502,6 +502,31 @@ describe("paginationContracts", () => {
     expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where.AND).toEqual([{ prv_id: 77 }]);
   });
 
+  it("reporte (DEC-070): mismo where y orden que el listado, sin paginar, con los filtros en el encabezado", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(1);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+    const filters = { state: "IN_PROGRESS", prvId: "77", number: "C-0", sortField: "number", sortOrder: 1, scope: { all: false, wrkId: 8 } };
+
+    await service.paginationContracts({ ...filters, rows: 10, first: 0 });
+    const listed = prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0];
+    const file = await service.exportContracts({ ...filters, format: "xlsx" });
+    const exported = prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0];
+
+    expect(exported.where).toEqual(listed.where);
+    expect(exported.orderBy).toEqual(listed.orderBy);
+    expect(exported).not.toHaveProperty("take");
+    expect(exported).not.toHaveProperty("skip");
+    expect(file.extension).toBe("xlsx");
+  });
+
+  it("reporte con más filas que el tope: 422 sin leerlas", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(5001);
+    prismaMock.tbl_contracts.findMany.mockClear();
+    await expect(service.exportContracts({ format: "pdf" })).rejects.toMatchObject({ statusCode: 422 });
+    expect(prismaMock.tbl_contracts.findMany).not.toHaveBeenCalled();
+  });
+
   it("filtro Proveedor: con contratos no eliminados del alcance, por razón social o documento; el ya elegido vuelve", async () => {
     prismaMock.tbl_providers.findMany.mockResolvedValueOnce([{ prv_id: 78, prv_name: "Otro SA", prv_identification: "900" }]);
     prismaMock.tbl_providers.findFirst.mockResolvedValueOnce({ prv_id: 77, prv_name: "Aceros SA", prv_identification: "800" });

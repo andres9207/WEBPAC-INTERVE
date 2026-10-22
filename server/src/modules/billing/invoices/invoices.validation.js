@@ -8,6 +8,7 @@ import {
   idempotencyKeyRule,
   moneyRule,
   percentRule,
+  exportFormatRule,
 } from "../../../common/utils/validation.utils.js";
 import { INVOICE_STATES, INVOICE_TYPES, hasContract } from "./invoiceTerms.js";
 import { CONTRACT_VIEWS, INVOICE_VIEWS } from "./invoiceViews.js";
@@ -47,6 +48,13 @@ export const paginationInvoicesSchema = [
   optionalDate("dateTo"),
   optionalDate("approvalDateFrom"),
   optionalDate("approvalDateTo"),
+];
+
+// Reporte del listado de una vista (DEC-070): los mismos filtros, la vista y el formato.
+export const exportInvoicesSchema = [
+  ...paginationInvoicesSchema,
+  body("view").isIn(Object.values(INVOICE_VIEWS)).withMessage("La vista de facturas no es válida."),
+  exportFormatRule(),
 ];
 
 export const getInvoiceSchema = [query("invId").isInt({ min: 1 }).withMessage("invId es obligatorio y debe ser un entero positivo.")];

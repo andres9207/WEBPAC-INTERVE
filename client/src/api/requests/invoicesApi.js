@@ -12,6 +12,15 @@ import { idempotencyConfig } from 'utils/idempotency';
 export const invoicesApi = createMasterApi('billing/invoices', { entity: 'invoice', plural: 'invoices' });
 
 /**
+ * Reporte del listado de una vista en Excel o PDF (DEC-070): los mismos
+ * filtros que la tabla, sin paginar. Responde el archivo como blob.
+ * @param {object} params  filtros, pestaña, orden y `view` del listado
+ * @param {'xlsx'|'pdf'} format
+ */
+export const exportInvoicesAPI = (params, format) =>
+  httpCliente.post('billing/invoices/export_invoices', { ...params, format }, { responseType: 'blob' });
+
+/**
  * Obras activas del alcance para la factura simple (DEC-058), con tope: se
  * busca en el servidor por código o nombre. Con `prvId`, solo las obras a las
  * que está asignado ese proveedor.

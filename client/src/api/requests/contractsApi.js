@@ -11,6 +11,15 @@ import { idempotencyConfig } from 'utils/idempotency';
  */
 export const contractsApi = createMasterApi('work/contracts', { entity: 'contract', plural: 'contracts' });
 
+/**
+ * Reporte del listado en Excel o PDF (DEC-070): los mismos filtros que la
+ * tabla, sin paginar. Responde el archivo como blob.
+ * @param {object} params  filtros, pestaña y orden del listado
+ * @param {'xlsx'|'pdf'} format
+ */
+export const exportContractsAPI = (params, format) =>
+  httpCliente.post('work/contracts/export_contracts', { ...params, format }, { responseType: 'blob' });
+
 /** Obras activas para el formulario de contrato. @param {string} [search] */
 export const getContractWorksSelectAPI = (search) => httpCliente.get('work/contracts/select_contract_works', search ? { search } : {});
 

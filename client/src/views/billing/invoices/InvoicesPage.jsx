@@ -6,7 +6,7 @@ import Typography from '@mui/material/Typography';
 import MasterPage from 'ui-component/extended/MasterPage';
 import LinkedFilterNotice from 'ui-component/extended/LinkedFilterNotice';
 import useLinkedFilters from 'hooks/useLinkedFilters';
-import { getInvoiceFilterProvidersAPI, invoicesApi } from 'api/requests/invoicesApi';
+import { exportInvoicesAPI, getInvoiceFilterProvidersAPI, invoicesApi } from 'api/requests/invoicesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField } from 'contexts/WorkScopeContext';
 import { fDateOnly } from 'utils/formatTime';
@@ -23,6 +23,7 @@ import { INVOICE_STATE_COLORS, INVOICE_STATE_TABS, INVOICE_TYPE_OPTIONS, INVOICE
 
 export const INVOICE_COLUMNS = [
   { id: 'number', label: 'Número', sortable: true },
+  { id: 'statement', label: 'Extracto', sortable: true, render: (row) => row.statement ?? '—' },
   { id: 'type', label: 'Tipo', sortable: true, render: (row) => row.typeName },
   {
     id: 'provider',
@@ -111,6 +112,15 @@ export default function InvoicesPage({ view }) {
   }, [simple, view, workFilter]);
   const linked = useLinkedFilters(LINKED_KEYS, describeLinked);
   const filters = useMemo(() => ({ view, ...linked.filters }), [view, linked.filters]);
+  // Reporte de lo que muestra la tabla de la vista, sin paginar (DEC-070).
+  const exportOptions = useMemo(
+    () => ({
+      permission: permissionsCatalog.billing?.invoices?.export,
+      request: exportInvoicesAPI,
+      fileName: `facturas_${view.toLowerCase()}`
+    }),
+    [permissionsCatalog, view]
+  );
 
   const navigation = useMemo(
     () => ({
@@ -141,6 +151,7 @@ export default function InvoicesPage({ view }) {
         initialStatus={linked.initialStatus}
         header={simple ? null : <LinkedFilterNotice label={linked.label} onClear={linked.clear} />}
         reloadKey={reloadKey}
+        exportOptions={exportOptions}
       />
       <Outlet context={outletContext} />
     </>

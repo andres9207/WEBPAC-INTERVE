@@ -581,7 +581,11 @@ export default function InvoiceFormPage() {
                         )}
                       </Grid>
                       <Grid size={{ xs: 12, md: 6 }}>
-                        {readOnlyField('Obra', isEdit ? `${loaded.workCode} — ${loaded.workName}` : contract?.workName)}
+                        {/* Con una obra fija en el encabezado, los contratos son de ella: se muestra desde el inicio. */}
+                        {readOnlyField(
+                          'Obra',
+                          isEdit ? `${loaded.workCode} — ${loaded.workName}` : (contract?.workName ?? headerWork?.label)
+                        )}
                       </Grid>
                     </>
                   )}
