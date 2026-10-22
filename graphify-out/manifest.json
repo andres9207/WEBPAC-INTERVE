@@ -3438,9 +3438,9 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/WorkDashboard.jsx": {
-    "mtime": 1792695216.1504302,
-    "seen": 1792696886.1228056,
-    "ast_hash": "e371751eab70e67e845a74436e094c3c",
+    "mtime": 1792698440.6569374,
+    "seen": 1792698857.5404735,
+    "ast_hash": "a90d99978b7e255f7782dcd557bb05d0",
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx": {
@@ -3456,15 +3456,15 @@
     "semantic_hash": ""
   },
   "server/src/modules/app/dashboard/workDashboard.service.js": {
-    "mtime": 1792695389.1242127,
-    "seen": 1792696886.12307,
-    "ast_hash": "04ffb25077a98547401a1a03862048d7",
+    "mtime": 1792698440.6852002,
+    "seen": 1792698857.5407655,
+    "ast_hash": "6d19e71604de7b9fbc974781b5dad811",
     "semantic_hash": ""
   },
   "server/test/modules/app/dashboard/workDashboard.service.test.js": {
-    "mtime": 1792695545.5392313,
-    "seen": 1792696886.1231792,
-    "ast_hash": "b507c6f6db0c68ab94c3bf0e7aceec9d",
+    "mtime": 1792698440.712691,
+    "seen": 1792698857.5408797,
+    "ast_hash": "28b60c46a8cf2eda9eb8104b6422240c",
     "semantic_hash": ""
   },
   "server/prisma/dashboard.measure.js": {
@@ -3684,9 +3684,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/expirationNotice.service.js": {
-    "mtime": 1792695333.079664,
-    "seen": 1792696886.123124,
-    "ast_hash": "22c43fc5488a8bfee89d251c45d48bee",
+    "mtime": 1792697975.08942,
+    "seen": 1792698857.5408216,
+    "ast_hash": "c282a24db99f6bb5fcfcdc1a4365dbc9",
     "semantic_hash": ""
   },
   "server/test/modules/admin/businessRules/businessRules.service.test.js": {
@@ -3702,9 +3702,15 @@
     "semantic_hash": ""
   },
   "server/test/modules/work/contracts/expirationNotice.service.test.js": {
-    "mtime": 1792695635.5520713,
-    "seen": 1792696886.1232123,
-    "ast_hash": "8a0ad7340c2d753274d886db5539f581",
+    "mtime": 1792697985.6483057,
+    "seen": 1792698857.540914,
+    "ast_hash": "a90193c237c091331413a9b81cdf799b",
+    "semantic_hash": ""
+  },
+  "client/src/views/dashboard/Default/work/WorkPoliciesTab.jsx": {
+    "mtime": 1792698441.055425,
+    "seen": 1792698857.5404756,
+    "ast_hash": "675c2850384937cbedb3dc2b2f52e725",
     "semantic_hash": ""
   }
 }
