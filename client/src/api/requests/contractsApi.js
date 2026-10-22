@@ -17,8 +17,9 @@ export const contractsApi = createMasterApi('work/contracts', { entity: 'contrac
  * @param {object} params  filtros, pestaña y orden del listado
  * @param {'xlsx'|'pdf'} format
  */
-export const exportContractsAPI = (params, format) =>
-  httpCliente.post('work/contracts/export_contracts', { ...params, format }, { responseType: 'blob' });
+/** `report`: 'list' (por defecto), 'control' o 'advances' (DEC-070). */
+export const exportContractsAPI = (params, format, report) =>
+  httpCliente.post('work/contracts/export_contracts', { ...params, format, report }, { responseType: 'blob' });
 
 /** Obras activas para el formulario de contrato. @param {string} [search] */
 export const getContractWorksSelectAPI = (search) => httpCliente.get('work/contracts/select_contract_works', search ? { search } : {});

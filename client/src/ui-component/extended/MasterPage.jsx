@@ -110,9 +110,10 @@ const saveView = (key, value) => {
  *   `command`, y las filtra por permiso quien las da. Sin ellas, "Nuevo"
  *   abre el alta con el permiso de crear.
  * - `exportOptions`: botón "Exportar" (Excel o PDF) con `{ permission,
- *   request(params, format), fileName }` (DEC-070). `params` son los mismos
- *   del listado (filtros, pestaña, búsqueda y orden) sin la paginación: el
- *   servidor devuelve todas las filas filtradas.
+ *   request(params, format, report), fileName, reports? }` (DEC-070).
+ *   `params` son los mismos del listado (filtros, pestaña, búsqueda y orden)
+ *   sin la paginación: el servidor devuelve todas las filas filtradas.
+ *   `reports`: varios reportes del mismo listado (ver ExportButton).
  */
 export default function MasterPage({
   title,
@@ -380,7 +381,11 @@ export default function MasterPage({
           <Stack direction="row" alignItems="center" sx={{ flexWrap: 'wrap', gap: 1.5, ml: 'auto' }}>
             <StatusTabs statusTabs={statusTabs} selectedStatus={status} onChange={handleStatus} />
             {exportOptions && canDo(exportOptions.permission) && (
-              <ExportButton request={(format) => exportOptions.request(queryParams, format)} fileName={exportOptions.fileName} />
+              <ExportButton
+                request={(format, report) => exportOptions.request(queryParams, format, report)}
+                fileName={exportOptions.fileName}
+                reports={exportOptions.reports}
+              />
             )}
             {renderCard && (
               <ToggleButtonGroup value={view} exclusive onChange={handleView} size="small" aria-label="Forma de ver el listado">
@@ -555,7 +560,8 @@ MasterPage.propTypes = {
   exportOptions: PropTypes.shape({
     permission: PropTypes.number,
     request: PropTypes.func.isRequired,
-    fileName: PropTypes.string.isRequired
+    fileName: PropTypes.string.isRequired,
+    reports: PropTypes.array
   }),
   /** Acciones propias de una fila, después de Editar: `(row) => [{ label, icon, command, tone }]`. */
   extraActions: PropTypes.func,

@@ -13,7 +13,9 @@ const contractsServiceMock = {
   getContractFormOptions: jest.fn(),
   saveContract: jest.fn(),
   deleteContract: jest.fn(),
+  exportContracts: jest.fn(),
 };
+const exportContractReport = jest.fn();
 const conceptsServiceMock = { createAmendment: jest.fn(), createLiquidation: jest.fn(), updateConcept: jest.fn() };
 const suspensionsServiceMock = { suspendContract: jest.fn() };
 const policiesServiceMock = { getContractPolicies: jest.fn(), createPolicy: jest.fn(), createPolicyVersion: jest.fn(), cancelPolicy: jest.fn() };
@@ -24,6 +26,7 @@ jest.unstable_mockModule("../../../../src/modules/work/contracts/contracts.servi
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractConcepts.service.js", () => conceptsServiceMock);
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractSuspensions.service.js", () => suspensionsServiceMock);
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractPolicies.service.js", () => policiesServiceMock);
+jest.unstable_mockModule("../../../../src/modules/work/contracts/contractReports.service.js", () => ({ exportContractReport }));
 jest.unstable_mockModule("../../../../src/common/services/effectivePermissions.service.js", () => ({ getEffectivePermissionIds }));
 // Alcance por obra (DEC-047): el controller lo resuelve y lo pasa al service.
 const SCOPE = Object.freeze({ all: false, wrkId: 8 });
@@ -32,7 +35,9 @@ jest.unstable_mockModule("../../../../src/common/services/workScope.service.js",
 jest.unstable_mockModule("../../../../src/common/configs/socket.manager.js", () => ({ getIO: () => ({ emit }) }));
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: {} }));
 
-const { saveContractController, createAmendmentController, suspendContractController } = await import("../../../../src/modules/work/contracts/contracts.controller.js");
+const { saveContractController, createAmendmentController, suspendContractController, exportContractsController } = await import(
+  "../../../../src/modules/work/contracts/contracts.controller.js"
+);
 
 const buildRes = () => {
   const res = {};
@@ -46,6 +51,30 @@ const KEY = "3f2b8c1e-5d4a-4e6b-9a7c-1b2d3e4f5a6b";
 beforeEach(() => jest.clearAllMocks());
 
 describe("contracts.controller", () => {
+  // Reportes (DEC-070): sin `report`, el listado; con "control" o "advances",
+  // los de control, con las vistas de facturas de los permisos del usuario.
+  describe("exportContracts", () => {
+    const FILE = { buffer: Buffer.from("x"), contentType: "application/pdf", extension: "pdf" };
+    const fileRes = () => ({ setHeader: jest.fn(), send: jest.fn() });
+
+    it("sin report, el reporte del listado con el alcance", async () => {
+      contractsServiceMock.exportContracts.mockResolvedValue(FILE);
+      const res = fileRes();
+      await exportContractsController(mockReq({ user: { useId: 7, proId: 2 }, body: { format: "pdf", state: "IN_PROGRESS" } }), res, jest.fn());
+      expect(contractsServiceMock.exportContracts).toHaveBeenCalledWith(expect.objectContaining({ format: "pdf", state: "IN_PROGRESS", scope: SCOPE }));
+      expect(exportContractReport).not.toHaveBeenCalled();
+      expect(res.send).toHaveBeenCalledWith(FILE.buffer);
+    });
+
+    it("con report, el reporte de control con las vistas que ve el usuario", async () => {
+      getEffectivePermissionIds.mockResolvedValueOnce([106]);
+      exportContractReport.mockResolvedValue(FILE);
+      await exportContractsController(mockReq({ user: { useId: 7, proId: 2 }, body: { format: "xlsx", report: "control" } }), fileRes(), jest.fn());
+      expect(exportContractReport).toHaveBeenCalledWith(expect.objectContaining({ report: "control", format: "xlsx", scope: SCOPE, views: ["MAJOR"] }));
+      expect(contractsServiceMock.exportContracts).not.toHaveBeenCalled();
+    });
+  });
+
   it("saveContract toma el autor de la sesión y descarta fecha fin, estado y valores derivados", async () => {
     contractsServiceMock.saveContract.mockResolvedValue({ ctrId: 30 });
     const req = mockReq(

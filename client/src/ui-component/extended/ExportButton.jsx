@@ -5,6 +5,7 @@ import { format as formatDate } from 'date-fns';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import ListItemIcon from '@mui/material/ListItemIcon';
+import ListSubheader from '@mui/material/ListSubheader';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import { IconChevronDown, IconDownload, IconFileSpreadsheet, IconFileTypePdf } from '@tabler/icons-react';
@@ -14,8 +15,10 @@ import { showError } from 'services/ToastService';
 /**
  * Botón "Exportar" de un listado (DEC-070): Excel o PDF de lo que muestra la
  * tabla con sus filtros, todas las páginas. El servidor arma el archivo;
- * `request(format)` lo pide como blob y aquí se descarga con `fileName` y la
- * fecha. Si el servidor responde un error, llega como blob con su mensaje.
+ * `request(format, report)` lo pide como blob y aquí se descarga con el nombre
+ * y la fecha. Si el servidor responde un error, llega como blob con su mensaje.
+ * Con `reports`, el menú ofrece cada reporte en los dos formatos; sin él, solo
+ * el del listado.
  */
 
 const FORMATS = [
@@ -46,16 +49,16 @@ const download = (blob, name) => {
   URL.revokeObjectURL(url);
 };
 
-export default function ExportButton({ request, fileName }) {
+export default function ExportButton({ request, fileName, reports }) {
   const [anchor, setAnchor] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const run = async (format) => {
+  const run = async (format, report) => {
     setAnchor(null);
     setBusy(true);
     try {
-      const { data } = await request(format);
-      download(data, `${fileName}_${formatDate(new Date(), 'yyyy-MM-dd')}.${format}`);
+      const { data } = await request(format, report?.value);
+      download(data, `${report?.fileName ?? fileName}_${formatDate(new Date(), 'yyyy-MM-dd')}.${format}`);
     } catch (err) {
       showError((await errorMessage(err)) || 'No se pudo generar el reporte');
     } finally {
@@ -83,22 +86,38 @@ export default function ExportButton({ request, fileName }) {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        {FORMATS.map(({ value, label, icon: Icon }) => (
-          <MenuItem key={value} onClick={() => run(value)}>
-            <ListItemIcon>
-              <Icon size={18} />
-            </ListItemIcon>
-            {label}
-          </MenuItem>
-        ))}
+        {reports
+          ? reports.flatMap((report) => [
+              <ListSubheader key={report.value} sx={{ lineHeight: '32px' }}>
+                {report.label}
+              </ListSubheader>,
+              ...FORMATS.map(({ value, label, icon: Icon }) => (
+                <MenuItem key={`${report.value}-${value}`} onClick={() => run(value, report)} sx={{ pl: 3 }}>
+                  <ListItemIcon>
+                    <Icon size={18} />
+                  </ListItemIcon>
+                  {label}
+                </MenuItem>
+              ))
+            ])
+          : FORMATS.map(({ value, label, icon: Icon }) => (
+              <MenuItem key={value} onClick={() => run(value)}>
+                <ListItemIcon>
+                  <Icon size={18} />
+                </ListItemIcon>
+                {label}
+              </MenuItem>
+            ))}
       </Menu>
     </>
   );
 }
 
 ExportButton.propTypes = {
-  /** `(format: 'xlsx' | 'pdf') => Promise<{ data: Blob }>` */
+  /** `(format: 'xlsx' | 'pdf', report?: string) => Promise<{ data: Blob }>` */
   request: PropTypes.func.isRequired,
   /** Nombre base del archivo, sin fecha ni extensión. */
-  fileName: PropTypes.string.isRequired
+  fileName: PropTypes.string.isRequired,
+  /** Reportes que ofrece el menú: `{ value, label, fileName }`. */
+  reports: PropTypes.arrayOf(PropTypes.shape({ value: PropTypes.string, label: PropTypes.string, fileName: PropTypes.string }))
 };

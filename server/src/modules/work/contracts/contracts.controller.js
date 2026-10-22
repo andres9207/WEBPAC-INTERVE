@@ -9,6 +9,8 @@ import * as contractsService from "./contracts.service.js";
 import * as conceptsService from "./contractConcepts.service.js";
 import * as suspensionsService from "./contractSuspensions.service.js";
 import * as policiesService from "./contractPolicies.service.js";
+import { exportContractReport } from "./contractReports.service.js";
+import { grantedViews } from "../../billing/invoices/invoiceViews.js";
 
 // Solo leen la petición y delegan. El autor sale de req.user (DEC-005); la
 // clave de idempotencia, del encabezado (DEC-016). Nada más del body llega al
@@ -70,9 +72,15 @@ export const paginationContractsController = handle(async (req) =>
 );
 
 // Reporte del listado (DEC-070): responde el archivo, no JSON.
-export const exportContractsController = handleExport(async (req) =>
-  contractsService.exportContracts({ ...(await listFiltersOf(req)), scope: await workScopeOf(req), format: req.body.format })
-);
+// `report`: sin él, el listado; "control" o "advances", los reportes de
+// control, con las cifras de facturas de las vistas que ve el usuario.
+export const exportContractsController = handleExport(async (req) => {
+  const { format, report } = req.body;
+  const filters = { ...(await listFiltersOf(req)), scope: await workScopeOf(req), format };
+  if (!report || report === "list") return contractsService.exportContracts(filters);
+  const views = grantedViews(new Set(await getEffectivePermissionIds(req.user)));
+  return exportContractReport({ ...filters, report, views });
+});
 
 export const selectContractFilterProvidersController = handle(async (req) =>
   contractsService.selectContractFilterProviders({ search: req.query.search, includePrvId: req.query.includePrvId, scope: await workScopeOf(req) })

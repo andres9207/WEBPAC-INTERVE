@@ -373,7 +373,7 @@ export const selectContractFilterProviders = ({ search, includePrvId, scope } = 
  * listado paginado y el reporte (DEC-070): el reporte trae lo mismo que la
  * tabla, sin paginar.
  */
-const contractListQuery = async ({
+export const contractListQuery = async ({
   search,
   policyStatus,
   uncovered,
@@ -444,7 +444,7 @@ const EXPORT_COLUMNS = [
 ];
 
 // Líneas de los filtros aplicados, para el encabezado del reporte.
-const exportFilterLines = async ({ state, search, wrkId, cttId, prvId, number, name, providerName, endDateFrom, endDateTo, policyStatus, uncovered }) => {
+export const exportFilterLines = async ({ state, search, wrkId, cttId, prvId, number, name, providerName, endDateFrom, endDateTo, policyStatus, uncovered }) => {
   const [work, type, provider] = await Promise.all([
     Number(wrkId) > 0 ? prisma.tbl_works.findUnique({ where: { wrk_id: Number(wrkId) }, select: { wrk_code: true, wrk_name: true } }) : null,
     Number(cttId) > 0 ? prisma.tbl_contract_types.findUnique({ where: { ctt_id: Number(cttId) }, select: { ctt_name: true } }) : null,

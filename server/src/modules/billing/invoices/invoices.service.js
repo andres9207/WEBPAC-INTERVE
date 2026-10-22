@@ -9,7 +9,7 @@ import { findExportRows, renderExport } from "../../../common/services/export.se
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
-import { moneyText, percentText, ratioText, toMoney } from "../../../common/utils/money.utils.js";
+import { moneyText, percentText, ratioText, sumMoney, toMoney } from "../../../common/utils/money.utils.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, getContractFormOptions } from "../../work/contracts/contracts.service.js";
 import { providerSelectOptions } from "../../work/providers/providers.service.js";
@@ -235,11 +235,22 @@ const locksOf = (known, invId, prvId = known.prv_id) =>
  * eliminadas (DEC-068); las registradas no reservan saldo. Una liquidación aprobada sin retenido
  * (registrada antes de DEC-051) suma cero.
  */
+const approvedOf = (ctrId, type) => ({
+  tbl_invoices: { ctr_id: ctrId, inv_type: type, inv_state: INVOICE_STATES.APPROVED, sta_id: { not: DELETED_STATUS } },
+});
+
+/** Saldos a partir de los conceptos y de las sumas de las facturas aprobadas. */
+const balancesOf = (concepts, { advanceInvoiced, amortized, retained, refunded }) => {
+  const totals = contractTotals(concepts);
+  return {
+    advance: advanceBalances({ base: totals.base, agreed: totals.advance, invoiced: advanceInvoiced, amortized }),
+    retention: retentionBalances({ base: totals.base, agreed: totals.retention, retained, refunded }),
+  };
+};
+
 export const contractBalances = async (db, ctrId) => {
   const id = Number(ctrId);
-  const approved = (type) => ({
-    tbl_invoices: { ctr_id: id, inv_type: type, inv_state: INVOICE_STATES.APPROVED, sta_id: { not: DELETED_STATUS } },
-  });
+  const approved = (type) => approvedOf(id, type);
   const concepts = await db.tbl_contract_concepts.findMany({ where: { ctr_id: id }, select: CONCEPT_SELECT });
   const advance = await db.tbl_invoice_advance_details.aggregate({ where: approved(INVOICE_TYPES.ADVANCE), _sum: { iad_value: true } });
   const liquidation = await db.tbl_invoice_liquidation_details.aggregate({
@@ -250,21 +261,60 @@ export const contractBalances = async (db, ctrId) => {
     where: approved(INVOICE_TYPES.RETENTION_REFUND),
     _sum: { irr_value: true },
   });
-  const totals = contractTotals(concepts);
-  return {
-    advance: advanceBalances({
-      base: totals.base,
-      agreed: totals.advance,
-      invoiced: advance._sum.iad_value,
-      amortized: liquidation._sum.ild_amortization,
-    }),
-    retention: retentionBalances({
-      base: totals.base,
-      agreed: totals.retention,
-      retained: liquidation._sum.ild_retention,
-      refunded: refund._sum.irr_value,
-    }),
+  return balancesOf(concepts, {
+    advanceInvoiced: advance._sum.iad_value,
+    amortized: liquidation._sum.ild_amortization,
+    retained: liquidation._sum.ild_retention,
+    refunded: refund._sum.irr_value,
+  });
+};
+
+/**
+ * Saldos de varios contratos, para los reportes (DEC-070): los mismos de
+ * `contractBalances`, con las mismas reglas y sin bloqueo (solo lectura), en
+ * tres consultas en vez de tres por contrato. Además, `paid`: la suma de los
+ * valores de sus facturas aprobadas (anticipo, liquidación y devolución de
+ * retenido; no hay facturación del avance, DEC-01). `contracts`:
+ * `[{ ctr_id, tbl_contract_concepts }]` con CONCEPT_SELECT. Devuelve un Map
+ * por ctr_id.
+ */
+export const contractsBalances = async (contracts) => {
+  const ids = { in: contracts.map((c) => c.ctr_id) };
+  const owner = { tbl_invoices: { select: { ctr_id: true } } };
+  const [advances, liquidations, refunds] = contracts.length
+    ? await Promise.all([
+        prisma.tbl_invoice_advance_details.findMany({ where: approvedOf(ids, INVOICE_TYPES.ADVANCE), select: { iad_value: true, ...owner } }),
+        prisma.tbl_invoice_liquidation_details.findMany({
+          where: approvedOf(ids, INVOICE_TYPES.LIQUIDATION),
+          select: { ild_value: true, ild_amortization: true, ild_retention: true, ...owner },
+        }),
+        prisma.tbl_invoice_retention_refund_details.findMany({
+          where: approvedOf(ids, INVOICE_TYPES.RETENTION_REFUND),
+          select: { irr_value: true, ...owner },
+        }),
+      ])
+    : [[], [], []];
+  const byContract = (rows) => {
+    const map = new Map();
+    for (const row of rows) map.set(row.tbl_invoices.ctr_id, [...(map.get(row.tbl_invoices.ctr_id) ?? []), row]);
+    return (ctrId) => map.get(ctrId) ?? [];
   };
+  const [advanceOf, liquidationOf, refundOf] = [advances, liquidations, refunds].map(byContract);
+  return new Map(
+    contracts.map(({ ctr_id: ctrId, tbl_contract_concepts: concepts }) => {
+      const advance = advanceOf(ctrId);
+      const liquidation = liquidationOf(ctrId);
+      const refund = refundOf(ctrId);
+      const balances = balancesOf(concepts, {
+        advanceInvoiced: sumMoney(advance.map((r) => r.iad_value)),
+        amortized: sumMoney(liquidation.map((r) => r.ild_amortization)),
+        retained: sumMoney(liquidation.map((r) => r.ild_retention)),
+        refunded: sumMoney(refund.map((r) => r.irr_value)),
+      });
+      const paid = sumMoney([...advance.map((r) => r.iad_value), ...liquidation.map((r) => r.ild_value), ...refund.map((r) => r.irr_value)]);
+      return [ctrId, { ...balances, paid }];
+    })
+  );
 };
 
 /**

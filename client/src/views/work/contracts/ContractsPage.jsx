@@ -89,6 +89,14 @@ export const CONTRACT_STATE_FILTER = { param: 'state', tabs: CONTRACT_STATE_TABS
 
 const rowLabel = (row) => `${row.number} — ${row.name}`;
 
+// Reportes del botón Exportar (DEC-070): el listado y los de control del
+// sistema que se migra, con los mismos filtros de la tabla.
+const CONTRACT_REPORTS = [
+  { value: 'list', label: 'Listado', fileName: 'contratos' },
+  { value: 'control', label: 'Control de contratos', fileName: 'control_contratos' },
+  { value: 'advances', label: 'Anticipos y retenidos', fileName: 'control_anticipos_retenidos' }
+];
+
 const LINKED_KEYS = ['policyStatus', 'uncovered'];
 const describeLinked = (filters) =>
   filters.policyStatus
@@ -131,7 +139,12 @@ export default function ContractsPage() {
   const linked = useLinkedFilters(LINKED_KEYS, describeLinked);
   // Reporte de lo que muestra la tabla, sin paginar (DEC-070).
   const exportOptions = useMemo(
-    () => ({ permission: permissionsCatalog.work?.contracts?.export, request: exportContractsAPI, fileName: 'contratos' }),
+    () => ({
+      permission: permissionsCatalog.work?.contracts?.export,
+      request: exportContractsAPI,
+      fileName: 'contratos',
+      reports: CONTRACT_REPORTS
+    }),
     [permissionsCatalog]
   );
 

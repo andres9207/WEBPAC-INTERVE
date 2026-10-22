@@ -80,7 +80,11 @@ export const paginationContractsSchema = [
 ];
 
 // Reporte del listado (DEC-070): los mismos filtros, y el formato.
-export const exportContractsSchema = [...paginationContractsSchema, exportFormatRule()];
+export const exportContractsSchema = [
+  ...paginationContractsSchema,
+  exportFormatRule(),
+  body("report").optional({ values: "falsy" }).isIn(["list", "control", "advances"]).withMessage("El reporte debe ser list, control o advances."),
+];
 
 export const getContractSchema = [query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo.")];
 

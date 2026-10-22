@@ -7,9 +7,16 @@ import PDFDocument from "pdfkit";
  * `findExportRows` (sin paginar, con el tope EXPORT_MAX_ROWS) y las entrega
  * aquí con sus columnas. Este servicio solo presenta: no lee la BD ni calcula.
  *
- * Columna: `{ header, value(row), kind?, width? }`. `kind`: "money" (texto de
- * importe ya redondeado por money.utils, que en Excel va como número con dos
- * decimales), "date" (texto AAAA-MM-DD) o texto. `width`: peso relativo.
+ * Columna: `{ header, value(row), kind?, width?, group? }`. `kind`: "money"
+ * (texto de importe ya redondeado por money.utils, que en Excel va como número
+ * con dos decimales), "percent" (texto de porcentaje de money.utils, 0 a 100),
+ * "date" (texto AAAA-MM-DD) o texto. `width`: peso relativo.
+ *
+ * Filas agrupadas (opcional): con `groupKey(row)`, las filas seguidas con la
+ * misma clave son de un mismo registro (p. ej. los conceptos de un contrato) y
+ * las columnas con `group: true` se muestran una vez por grupo: combinadas en
+ * Excel, solo en la primera fila del grupo en el PDF. `totals`: una fila más,
+ * en negrita, que pasa por las mismas columnas; sus cifras las suma el módulo.
  */
 
 /** Máximo de filas de un reporte (DEC-070). Más que eso responde 422: hay que afinar los filtros. */
@@ -50,10 +57,23 @@ const generatedAt = () =>
 const excelValue = (column, row) => {
   const text = cellText(column, row);
   if (column.kind === "money" && text !== "") return Number(text);
+  if (column.kind === "percent" && text !== "") return Number(text) / 100;
   return text;
 };
 
-const buildExcel = async ({ title, filters, columns, rows }) => {
+// Tramos [desde, hasta) de filas seguidas con la misma clave de grupo.
+const groupRuns = (rows, groupKey) => {
+  const runs = [];
+  rows.forEach((row, index) => {
+    const key = groupKey ? groupKey(row) : index;
+    const last = runs[runs.length - 1];
+    if (last && last.key === key) last.end = index + 1;
+    else runs.push({ key, start: index, end: index + 1 });
+  });
+  return runs;
+};
+
+const buildExcel = async ({ title, filters, columns, rows, groupKey, totals }) => {
   const workbook = new ExcelJS.Workbook();
   workbook.created = new Date();
   const sheet = workbook.addWorksheet(title.slice(0, 31));
@@ -80,7 +100,24 @@ const buildExcel = async ({ title, filters, columns, rows }) => {
       col.numFmt = "#,##0.00";
       col.alignment = { horizontal: "right" };
     }
+    if (column.kind === "percent") {
+      col.numFmt = "0.00%";
+      col.alignment = { horizontal: "right" };
+    }
   });
+
+  if (groupKey) {
+    for (const run of groupRuns(rows, groupKey)) {
+      if (run.end - run.start < 2) continue;
+      columns.forEach((column, i) => {
+        if (!column.group) return;
+        sheet.mergeCells(headerRow + 1 + run.start, i + 1, headerRow + run.end, i + 1);
+        const cell = sheet.getCell(headerRow + 1 + run.start, i + 1);
+        cell.alignment = { ...cell.alignment, vertical: "middle", wrapText: true };
+      });
+    }
+  }
+  if (totals) sheet.addRow(columns.map((column) => excelValue(column, totals))).font = { bold: true };
   sheet.views = [{ state: "frozen", ySplit: headerRow }];
   sheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: columns.length } };
 
@@ -104,10 +141,14 @@ const moneyDisplay = (text) => {
 
 const pdfText = (column, row) => {
   const text = cellText(column, row);
-  return column.kind === "money" ? moneyDisplay(text) : text;
+  if (column.kind === "money") return moneyDisplay(text);
+  if (column.kind === "percent" && text !== "") return `${text.replace(".", ",")} %`;
+  return text;
 };
 
-const buildPdf = ({ title, filters, columns, rows }) =>
+const isRight = (column) => column.kind === "money" || column.kind === "percent";
+
+const buildPdf = ({ title, filters, columns, rows, groupKey, totals }) =>
   new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: MARGIN, bufferPages: true });
     const chunks = [];
@@ -137,7 +178,7 @@ const buildPdf = ({ title, filters, columns, rows }) =>
       if (fill) doc.rect(MARGIN, y, width, height).fill(fill);
       doc.fillColor(fill === "#5E35B1" ? "white" : "black").font(font).fontSize(FONT_SIZE);
       texts.forEach((t, i) => {
-        const align = columns[i].kind === "money" ? "right" : "left";
+        const align = isRight(columns[i]) ? "right" : "left";
         doc.text(t, x + CELL_PADDING, y + CELL_PADDING, { width: widths[i] - CELL_PADDING * 2, align });
         x += widths[i];
       });
@@ -151,15 +192,32 @@ const buildPdf = ({ title, filters, columns, rows }) =>
     const drawHeader = () => drawRow(headers, { font: "Helvetica-Bold", fill: "#5E35B1" });
     drawHeader();
 
-    rows.forEach((row, index) => {
-      const texts = columns.map((column) => pdfText(column, row));
-      if (doc.y + rowHeight(texts, "Helvetica") > bottom) {
+    // Las columnas de grupo, solo en la primera fila del grupo o de la página.
+    const runs = groupRuns(rows, groupKey);
+    runs.forEach((run, runIndex) => {
+      for (let index = run.start; index < run.end; index += 1) {
+        const full = columns.map((column) => pdfText(column, rows[index]));
+        if (doc.y + rowHeight(full, "Helvetica") > bottom) {
+          doc.addPage();
+          doc.y = MARGIN;
+          drawHeader();
+        } else if (index > run.start) {
+          full.forEach((_, i) => {
+            if (columns[i].group) full[i] = "";
+          });
+        }
+        drawRow(full, { font: "Helvetica", fill: runIndex % 2 === 1 ? "#F5F3FA" : null });
+      }
+    });
+    if (totals) {
+      const texts = columns.map((column) => pdfText(column, totals));
+      if (doc.y + rowHeight(texts, "Helvetica-Bold") > bottom) {
         doc.addPage();
         doc.y = MARGIN;
         drawHeader();
       }
-      drawRow(texts, { font: "Helvetica", fill: index % 2 === 1 ? "#F5F3FA" : null });
-    });
+      drawRow(texts, { font: "Helvetica-Bold", fill: null });
+    }
     if (rows.length === 0) doc.font("Helvetica-Oblique").fontSize(9).text("Sin filas con los filtros aplicados.", MARGIN, doc.y + 6);
 
     // Numeración de páginas al final, cuando ya se sabe cuántas hay.
@@ -179,12 +237,14 @@ const buildPdf = ({ title, filters, columns, rows }) =>
 
 /**
  * Archivo del reporte: `{ buffer, contentType, extension }`. `filters`: las
- * líneas que describen los filtros aplicados, para el encabezado.
+ * líneas que describen los filtros aplicados, para el encabezado. `groupKey` y
+ * `totals`: filas agrupadas y fila de totales (ver arriba).
  */
-export const renderExport = async ({ format, title, filters = [], columns, rows }) => {
+export const renderExport = async ({ format, title, filters = [], columns, rows, groupKey = null, totals = null }) => {
   const spec = EXPORT_FORMATS[format];
   if (!spec) throw httpError(400, "El formato del reporte debe ser xlsx o pdf.");
-  const buffer = format === "xlsx" ? await buildExcel({ title, filters, columns, rows }) : await buildPdf({ title, filters, columns, rows });
+  const input = { title, filters, columns, rows, groupKey, totals };
+  const buffer = format === "xlsx" ? await buildExcel(input) : await buildPdf(input);
   return { buffer, ...spec };
 };
 
