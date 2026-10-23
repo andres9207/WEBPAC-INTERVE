@@ -8,6 +8,7 @@ import * as invoicesService from "./invoices.service.js";
 import { getInvoiceEvidence } from "./invoiceEvidence.service.js";
 import { getInvoiceMenu, listInvoiceMenus } from "./invoiceMenus.js";
 import { SIMPLE_FIELDS, SIMPLE_PAIRS } from "./simpleInvoiceTerms.js";
+import { CONTRACT_PAIRS, CONTRACT_TAX_FIELDS } from "./contractInvoiceTerms.js";
 
 // Importes capturados de la simple, salvo el valor (que comparte con las de contrato).
 const SIMPLE_AMOUNT_FIELDS = Object.keys(SIMPLE_FIELDS).filter((field) => field !== "value");
@@ -59,6 +60,9 @@ const INVOICE_FIELDS = [
   "retentionObservation",
   // Importes de la simple (DEC-065); `value` es compartido.
   ...SIMPLE_AMOUNT_FIELDS,
+  // IVA, retenciones y descuento de materiales de la normal y la liquidación
+  // (DEC-075); el % IVA y las retenciones comparten nombre con los de la simple.
+  ...Object.keys(CONTRACT_TAX_FIELDS).filter((field) => !SIMPLE_AMOUNT_FIELDS.includes(field)),
 ];
 
 const grantedOf = async ({ useId, proId }) => new Set(await getEffectivePermissionIds({ useId, proId }));
@@ -169,6 +173,13 @@ export const getContractAdvanceController = handle(async (req) =>
 // Composición de la factura simple para el panel Detalle (DEC-065): solo calcula, no lee datos.
 export const previewSimpleInvoiceController = handle(async (req) =>
   invoicesService.previewSimpleInvoice(pick(req.body, ["value", ...SIMPLE_AMOUNT_FIELDS, ...SIMPLE_PAIRS.map((pair) => pair.alt)]))
+);
+
+// Composición de la normal y la liquidación para el panel Detalle (DEC-075): solo calcula, no lee datos.
+export const previewContractInvoiceController = handle(async (req) =>
+  invoicesService.previewContractInvoice(
+    pick(req.body, ["value", "amortization", "retention", ...Object.keys(CONTRACT_TAX_FIELDS), ...CONTRACT_PAIRS.map((pair) => pair.alt)])
+  )
 );
 
 export const saveInvoiceController = handle(async (req) => {

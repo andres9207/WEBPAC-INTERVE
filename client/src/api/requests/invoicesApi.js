@@ -86,6 +86,14 @@ export const getContractAdvanceAPI = (params) => httpCliente.get('billing/invoic
  */
 export const previewSimpleInvoiceAPI = (params) => httpCliente.post('billing/invoices/preview_simple_invoice', params);
 
+/**
+ * Composición de la normal y la liquidación (DEC-075) para el panel Detalle,
+ * con el mismo criterio que la de la simple: IVA, retenciones, amortización,
+ * retenido, descuento de materiales y el neto a pagar. No guarda nada.
+ * @param {{ value?, amortization?, retention?, utilityPct?, vatPct?, withholdingPct?, vatWithholdingPct?, icaWithholding?, materialsDiscount? }} params
+ */
+export const previewContractInvoiceAPI = (params) => httpCliente.post('billing/invoices/preview_contract_invoice', params);
+
 /** Transiciones: cada una con su endpoint y su permiso (WORKFLOW_STANDARD, regla 3). */
 export const invoiceTransitionsApi = {
   /** @param {{ invId, approvalDate, observation }} params */

@@ -65,6 +65,19 @@ import {
   simpleDetailOf,
   simplePairsDto,
 } from "./simpleInvoiceTerms.js";
+import {
+  CONTRACT_TAX_FIELDS,
+  CONTRACT_TAX_MONEY_COLUMNS,
+  CONTRACT_TAX_PERCENT_COLUMNS,
+  assertContractTotal,
+  composeContractInvoice,
+  contractDraftOf,
+  contractPairsDto,
+  contractTaxDetailOf,
+  contractTaxesDto,
+  convertContractAmounts,
+  hasContractTaxes,
+} from "./contractInvoiceTerms.js";
 
 /**
  * Facturas, fase A (ADR-0020, DEC-042): encabezado común, ciclo de vida y
@@ -170,6 +183,9 @@ const LOCKED_SELECT = {
       ild_retention_default_pct: true,
       ild_retention_applied_pct: true,
       ild_retention_observation: true,
+      // IVA, retenciones y descuento de materiales (DEC-075).
+      ...Object.fromEntries(Object.values(CONTRACT_TAX_FIELDS).map((column) => [column, true])),
+      ild_formula_version: true,
     },
   },
   tbl_invoice_retention_refund_details: { select: { irr_value: true } },
@@ -365,6 +381,27 @@ export const previewSimpleInvoice = (raw) => {
 };
 
 /**
+ * Previsualización de las facturas normal y de liquidación (DEC-075), con el
+ * mismo criterio que la de la simple: el panel Detalle lo compone el
+ * servidor con la función de guardar, sin base de datos. La amortización y
+ * el retenido llegan del formulario, que ya los pidió con los saldos del
+ * contrato (`getContractAdvance`); al guardar se recalculan bajo bloqueo.
+ */
+export const previewContractInvoice = (raw) => {
+  const input = convertContractAmounts(raw);
+  const draft = contractDraftOf(input);
+  let message = null;
+  try {
+    contractTaxDetailOf(input);
+    assertContractTotal(draft);
+  } catch (err) {
+    if (!err.statusCode) throw err;
+    message = err.message;
+  }
+  return { ...contractTaxesDto(draft), pairs: contractPairsDto(draft), valid: message === null, message };
+};
+
+/**
  * Valor y % sobre el VALOR de la amortización o del retenido que se ajusta
  * (DEC-044, DEC-051; DEC-065, "Valor y porcentaje"): si llega el %, el
  * importe que da; si no, el % del importe. Se guarda el importe, como
@@ -503,8 +540,12 @@ const resolveDetail = async (tx, { type, ctrId, input, granted }) => {
   assertBillingFits(value, balances.billing);
   assertAmortizationFits(amortization.amount, value, balances.advance);
   assertRetentionFits(retention.amount, value, balances.retention);
+  // IVA, retenciones y descuento de materiales (DEC-075): el neto, con la amortización y el retenido ya resueltos.
+  const taxes = contractTaxDetailOf(input);
+  assertContractTotal({ ...taxes, ild_value: value, ild_amortization: amortization.amount, ild_retention: retention.amount });
   return {
     liquidation: {
+      ...taxes,
       ctr_id: Number(ctrId),
       ccp_id: type === INVOICE_TYPES.LIQUIDATION ? await liquidationConceptOf(tx, ctrId) : null,
       ild_value: value,
@@ -533,6 +574,7 @@ const DETAIL_AUDITED = [
   "ild_retention",
   "ild_default_retention",
   "ild_retention_observation",
+  ...Object.values(CONTRACT_TAX_FIELDS),
   "irr_value",
   ...Object.values(SIMPLE_FIELDS),
 ];
@@ -544,9 +586,10 @@ const MONEY_COLUMNS = new Set([
   "ild_retention",
   "ild_default_retention",
   "irr_value",
+  ...CONTRACT_TAX_MONEY_COLUMNS,
   ...SIMPLE_MONEY_COLUMNS,
 ]);
-const PERCENT_COLUMNS = new Set(SIMPLE_PERCENT_COLUMNS);
+const PERCENT_COLUMNS = new Set([...CONTRACT_TAX_PERCENT_COLUMNS, ...SIMPLE_PERCENT_COLUMNS]);
 
 const detailText = (row) =>
   Object.fromEntries(
@@ -590,6 +633,11 @@ const requestedDetailChanges = (before, input) => {
     const retention = toMoney(input.retention);
     if (amortization) requested.ild_amortization = amortization;
     if (retention) requested.ild_retention = retention;
+    // IVA y retenciones (DEC-075): solo si llegan; el formulario de una aprobada no los envía.
+    if (Object.keys(CONTRACT_TAX_FIELDS).some((field) => optionalText(input[field]) !== null)) {
+      const { ild_formula_version: _version, ...taxes } = contractTaxDetailOf(input);
+      Object.assign(requested, taxes);
+    }
   }
   return diffFields(detailText(storedDetail(before)), detailText(requested), DETAIL_AUDITED);
 };
@@ -681,9 +729,9 @@ const revalidateOnApprove = async (tx, invoice) => {
  * las facturas aprobadas. La consulta `getInvoiceEvidence` la reconstruye.
  *
  * Filas `snapshot.invoice.<importe>` (solo nuevo valor) y
- * `snapshot.<advance|retention>.<saldo>` (antes → después). Todavía no hay
- * IVA, retenciones tributarias ni versión de fórmula (fase B, PRO-BE-36):
- * cuando existan, se agregan aquí.
+ * `snapshot.<advance|retention>.<saldo>` (antes → después). La normal y la
+ * liquidación agregan su IVA, sus retenciones, el neto y la versión de
+ * fórmula (DEC-075).
  */
 export const SNAPSHOT_PREFIX = "snapshot.";
 export const SNAPSHOT_BALANCES = Object.freeze({
@@ -720,6 +768,20 @@ const simpleSnapshot = (detail) => {
   ];
 };
 
+// Normal y liquidación (DEC-075): IVA, retenciones, descuento de materiales y
+// neto, con la versión de fórmula. Valor, amortización y retenido ya van en
+// SNAPSHOT_AMOUNTS. Las registradas antes de DEC-075 no tienen composición.
+const CONTRACT_SNAPSHOT_KEYS = Object.freeze(["vat", "valueWithVat", "withholding", "vatWithholding", "icaWithholding", "materialsDiscount", "total"]);
+const contractSnapshot = (detail) => {
+  if (!hasContractTaxes(detail)) return [];
+  const composed = composeContractInvoice(detail);
+  return [
+    ...CONTRACT_SNAPSHOT_KEYS.map((key) => ({ field: `${SNAPSHOT_PREFIX}invoice.${key}`, oldValue: null, newValue: moneyText(composed[key]) })),
+    { field: `${SNAPSHOT_PREFIX}invoice.utilityPct`, oldValue: null, newValue: percentText(detail.ild_utility_pct) },
+    { field: `${SNAPSHOT_PREFIX}invoice.formulaVersion`, oldValue: null, newValue: String(detail.ild_formula_version) },
+  ];
+};
+
 const approvalSnapshot = ({ invoice, before, after }) => {
   if (isSimpleType(invoice.inv_type)) return invoice.tbl_invoice_simple_details ? simpleSnapshot(invoice.tbl_invoice_simple_details) : [];
   if (!before) return [];
@@ -727,6 +789,7 @@ const approvalSnapshot = ({ invoice, before, after }) => {
     .map(([key, read]) => [key, read(invoice)])
     .filter(([, value]) => value !== null)
     .map(([key, value]) => ({ field: `${SNAPSHOT_PREFIX}invoice.${key}`, oldValue: null, newValue: moneyText(value) }));
+  if (isBillingType(invoice.inv_type)) amounts.push(...contractSnapshot(invoice.tbl_invoice_liquidation_details));
   const balances = Object.entries(SNAPSHOT_BALANCES).flatMap(([group, keys]) =>
     keys.map((key) => ({
       field: `${SNAPSHOT_PREFIX}${group}.${key}`,
@@ -1041,6 +1104,10 @@ const amountsDto = (row) => {
       retentionDefaultPct: ratioText(liquidation.ild_retention_default_pct),
       retentionAppliedPct: ratioText(liquidation.ild_retention_applied_pct),
       retentionObservation: liquidation.ild_retention_observation,
+      // IVA, retenciones y descuento de materiales (DEC-075): lo capturado
+      // (`captured`), las líneas del panel Detalle y el neto. Sin ellos si
+      // se registró antes.
+      ...(hasContractTaxes(liquidation) ? contractTaxesDto(liquidation) : {}),
     };
   }
   return null;

@@ -94,6 +94,15 @@ LiquidationRetention.propTypes = { amounts: PropTypes.object.isRequired, approve
  */
 const detailPanelOf = ({ type, amounts }) => {
   if (!amounts) return null;
+  const isLiquidation = isBillingInvoiceType(type);
+  // Normal y liquidación con IVA y retenciones (DEC-075).
+  if (isLiquidation && amounts.lines) {
+    return {
+      lines: amounts.lines,
+      total: amounts.total,
+      note: 'TOTAL es el neto a pagar: descuenta las retenciones, la amortización, el retenido y el descuento de materiales.'
+    };
+  }
   if (amounts.lines) {
     return {
       lines: amounts.lines,
@@ -102,7 +111,6 @@ const detailPanelOf = ({ type, amounts }) => {
       note: 'TOTAL es el neto a pagar: descuenta las retenciones y el pronto pago.'
     };
   }
-  const isLiquidation = isBillingInvoiceType(type);
   return {
     lines: [
       { key: 'value', label: isLiquidation ? 'VALOR' : type === 'ADVANCE' ? 'ANTICIPO' : 'DEVOLUCIÓN RETENIDO', value: amounts.value },
@@ -115,8 +123,8 @@ const detailPanelOf = ({ type, amounts }) => {
     ],
     total: isLiquidation ? undefined : amounts.value,
     note: isLiquidation
-      ? 'IVA, retenciones tributarias y el total a pagar llegan con la composición de la factura de liquidación (DEC-03).'
-      : 'Sin IVA ni retenciones tributarias: esperan la composición de las facturas de contrato (DEC-03).'
+      ? 'Registrada antes de que estas facturas tuvieran IVA y retenciones (DEC-075): no tiene total a pagar.'
+      : 'El anticipo y la devolución de retenido no llevan IVA ni retenciones tributarias.'
   };
 };
 
@@ -130,6 +138,16 @@ const SIMPLE_CAPTURED = [
   ['icaWithholding', 'Retención de ICA', 'money'],
   ['freight', 'Flete', 'money'],
   ['earlyPaymentDiscount', 'Descuento por pronto pago', 'money']
+];
+
+// IVA, retenciones y descuento de materiales de la normal y la liquidación (DEC-075).
+const CONTRACT_CAPTURED = [
+  ['utilityPct', 'Utilidad', 'pct'],
+  ['vatPct', 'IVA', 'pct'],
+  ['withholdingPct', 'Retención en la fuente', 'pct'],
+  ['vatWithholdingPct', 'Retención de IVA', 'pct'],
+  ['icaWithholding', 'Retención de ICA', 'money'],
+  ['materialsDiscount', 'Descuento de materiales', 'money']
 ];
 
 /** Importes de una factura, como los guardó el servidor. */
@@ -148,7 +166,7 @@ function InvoiceAmounts({ invoice }) {
       />
     );
   }
-  if (amounts.captured) {
+  if (amounts.captured && !isBillingInvoiceType(type)) {
     return (
       <Stack spacing={2}>
         <DataList
@@ -192,13 +210,31 @@ function InvoiceAmounts({ invoice }) {
           {amounts.retentionObservation && (
             <Alert severity="warning">Retenido ajustado respecto del valor por defecto: {amounts.retentionObservation}</Alert>
           )}
+          <Typography variant="subtitle2">IVA y retenciones</Typography>
+          {amounts.captured ? (
+            <>
+              <DataList
+                items={CONTRACT_CAPTURED.map(([key, label, unit]) => [
+                  label,
+                  unit === 'pct' ? pct(amounts.captured[key]) : fMoneyText(amounts.captured[key])
+                ])}
+              />
+              <Typography variant="caption" color="text.secondary">
+                Tasas congeladas al registrar. IVA, retenciones y total se calculan con la fórmula v{amounts.formulaVersion} (DEC-075) y no
+                se guardan. El % de utilidad se guarda, pero no entra en el cálculo.
+              </Typography>
+            </>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Se registró antes de que estas facturas tuvieran IVA y retenciones. Mientras esté registrada, se capturan al editarla.
+            </Typography>
+          )}
         </>
       )}
       <Typography variant="caption" color="text.secondary">
         {approved
           ? 'Aprobada: estos importes cuentan en los saldos del contrato.'
           : 'Solo las facturas aprobadas cuentan en los saldos del contrato. Al aprobar se revalidan contra los saldos vigentes.'}
-        {' IVA y retenciones tributarias llegan con las decisiones contables pendientes.'}
       </Typography>
     </Stack>
   );

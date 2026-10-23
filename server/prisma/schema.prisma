@@ -1163,6 +1163,14 @@ model tbl_invoice_liquidation_details {
   ild_retention_default_pct  Decimal?              @db.Decimal(9, 6)
   ild_retention_applied_pct  Decimal?              @db.Decimal(9, 6)
   ild_retention_observation  String?               @db.VarChar(1000)
+  /// Importes tributarios y descuento de materiales (DEC-075, migración 0110): todos o ninguno.
+  ild_utility_pct            Decimal?              @db.Decimal(5, 2)
+  ild_vat_pct                Decimal?              @db.Decimal(5, 2)
+  ild_withholding_pct        Decimal?              @db.Decimal(5, 2)
+  ild_vat_withholding_pct    Decimal?              @db.Decimal(5, 2)
+  ild_ica_withholding        Decimal?              @db.Decimal(18, 2)
+  ild_materials_discount     Decimal?              @db.Decimal(18, 2)
+  ild_formula_version        Int?                  @db.SmallInt
   ild_create_by              Int?
   ild_create_at              DateTime?             @default(now()) @db.Timestamp(0)
   ild_update_by              Int?

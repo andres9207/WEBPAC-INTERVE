@@ -16,6 +16,7 @@ import {
   selectInvoiceContractsSchema,
   getContractAdvanceSchema,
   previewSimpleInvoiceSchema,
+  previewContractInvoiceSchema,
   saveInvoiceSchema,
   approveInvoiceSchema,
   cancelInvoiceSchema,
@@ -34,6 +35,7 @@ import {
   selectInvoiceContractsController,
   getContractAdvanceController,
   previewSimpleInvoiceController,
+  previewContractInvoiceController,
   saveInvoiceController,
   approveInvoiceController,
   cancelInvoiceController,
@@ -91,6 +93,8 @@ invoicesRoutes.get("/select_invoice_contracts", verifyToken, canView, selectInvo
 invoicesRoutes.get("/get_contract_advance", verifyToken, canView, getContractAdvanceSchema, validate, getContractAdvanceController);
 // Panel Detalle de la factura simple (DEC-065): la composición del servidor mientras se escribe.
 invoicesRoutes.post("/preview_simple_invoice", verifyToken, canView, previewSimpleInvoiceSchema, validate, previewSimpleInvoiceController);
+// Panel Detalle de la normal y la liquidación (DEC-075), con el mismo criterio.
+invoicesRoutes.post("/preview_contract_invoice", verifyToken, canView, previewContractInvoiceSchema, validate, previewContractInvoiceController);
 // save_invoice sirve registrar (invId 0) y editar.
 invoicesRoutes.post(
   "/save_invoice",

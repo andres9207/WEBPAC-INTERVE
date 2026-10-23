@@ -280,7 +280,7 @@ async function main() {
           idempotencyKey: volumeKey(`liquidation:${number}`),
         });
         const liquidationName = `${number}:liquidation`;
-        const liquidationId = await invoice(liquidationName, { type: INVOICE_TYPES.LIQUIDATION, ctrId, number: `LIQ-${number}`, date: "2026-08-10", value: "150000000.00" });
+        const liquidationId = await invoice(liquidationName, { type: INVOICE_TYPES.LIQUIDATION, ctrId, number: `LIQ-${number}`, date: "2026-08-10", value: "150000000.00", vatPct: "19" });
         if (plan.liquidation === "approved") await approve(liquidationName, liquidationId, "2026-08-20");
         if (plan.refund) {
           const refundName = `${number}:refund`;

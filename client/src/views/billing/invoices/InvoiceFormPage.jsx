@@ -20,6 +20,7 @@ import AdvanceAmountsSection from './components/AdvanceAmountsSection';
 import ContractBalanceCards from './components/ContractBalanceCards';
 import InvoiceDetailPanel from './components/InvoiceDetailPanel';
 import SimpleAmountsSection, { SIMPLE_AMOUNT_FIELDS } from './components/SimpleAmountsSection';
+import ContractTaxesSection, { CONTRACT_TAX_FIELDS } from './components/ContractTaxesSection';
 import {
   getContractAdvanceAPI,
   getInvoiceContractsSelectAPI,
@@ -92,7 +93,10 @@ const EMPTY_FORM = {
   vatWithholdingPct: '',
   icaWithholding: '',
   freight: '',
-  earlyPaymentDiscount: ''
+  earlyPaymentDiscount: '',
+  // De la normal y la liquidación (DEC-075); % IVA y retenciones son los de arriba.
+  utilityPct: '',
+  materialsDiscount: ''
 };
 
 const DOCUMENT_FIELDS = ['type', 'ctrId', 'wrkId', 'prvId', 'wksId', 'number', 'date', 'voucherNumber', 'statement', 'description'];
@@ -111,7 +115,7 @@ const hasAmounts = (type) => type === 'ADVANCE' || type === 'RETENTION_REFUND' |
 const toForm = (invoice) => ({
   ...EMPTY_FORM,
   ...Object.fromEntries(DOCUMENT_FIELDS.map((field) => [field, invoice[field] ?? EMPTY_FORM[field]])),
-  // La simple trae lo capturado en `amounts.captured` (DEC-065).
+  // La simple (DEC-065), la normal y la liquidación (DEC-075) traen lo capturado en `amounts.captured`.
   ...(invoice.amounts?.captured ?? {}),
   value: invoice.amounts?.captured?.value ?? invoice.amounts?.value ?? '',
   amortization: invoice.amounts?.amortization ?? '',
@@ -131,7 +135,9 @@ const amountsPayload = (form) => ({
     : {}),
   ...(isBillingInvoiceType(form.type) && form.adjustRetention
     ? { retention: form.retention, retentionObservation: text(form.retentionObservation) }
-    : {})
+    : {}),
+  // IVA, retenciones y descuento de materiales (DEC-075).
+  ...(isBillingInvoiceType(form.type) ? Object.fromEntries(CONTRACT_TAX_FIELDS.map((field) => [field, form[field]])) : {})
 });
 
 const toPayload = (invId, form, sendAmounts, pvtId) => ({
@@ -307,7 +313,7 @@ export default function InvoiceFormPage() {
                 wrkId: isSimple(presetType) ? presetWrkId : '',
                 prvId: isSimple(presetType) ? presetPrvId : '',
                 // IVA general por defecto, como en los conceptos del contrato; se puede cambiar.
-                vatPct: isSimple(presetType) ? DEFAULT_VAT_PCT : ''
+                vatPct: isSimple(presetType) || isBillingInvoiceType(presetType) ? DEFAULT_VAT_PCT : ''
               }
         );
       } catch (err) {
@@ -320,9 +326,9 @@ export default function InvoiceFormPage() {
     load();
   }, [isEdit, invId, reset, navigate, listPath, presetType, presetCtrId, presetWrkId, presetPrvId]);
 
-  const [type, ctrId, prvId, wrkId, value, amortization, retention] = useWatch({
+  const [type, ctrId, prvId, wrkId, value] = useWatch({
     control,
-    name: ['type', 'ctrId', 'prvId', 'wrkId', 'value', 'amortization', 'retention']
+    name: ['type', 'ctrId', 'prvId', 'wrkId', 'value']
   });
   const simple = isSimple(type);
   // Menús de contrato: proveedor, contrato y tipo, en ese orden; el tipo no filtra los anteriores.
@@ -430,12 +436,16 @@ export default function InvoiceFormPage() {
       'amortizationObservation',
       'retention',
       'retentionObservation',
-      ...SIMPLE_AMOUNT_FIELDS
+      ...SIMPLE_AMOUNT_FIELDS,
+      ...CONTRACT_TAX_FIELDS
     ]) {
       setValue(field, '', { shouldDirty: true });
     }
     setValue('adjustAmortization', false, { shouldDirty: true });
     setValue('adjustRetention', false, { shouldDirty: true });
+    // IVA general por defecto en la normal y la liquidación (DEC-075), como en la simple; se puede cambiar.
+    if (isBillingInvoiceType(value)) setValue('vatPct', DEFAULT_VAT_PCT, { shouldDirty: true });
+    setPreview(null);
   };
 
   // Otro contrato: el tipo se conserva si su estado lo admite.
@@ -892,6 +902,16 @@ export default function InvoiceFormPage() {
                   onError={showError}
                 />
               )}
+              {isBillingInvoiceType(type) && (
+                <ContractTaxesSection
+                  control={control}
+                  setValue={setValue}
+                  readOnly={lockDocument || blocked}
+                  required={fullEdit}
+                  onPreview={setPreview}
+                  onError={showError}
+                />
+              )}
             </Stack>
           </Grid>
           {type && (
@@ -908,25 +928,19 @@ export default function InvoiceFormPage() {
               ) : (
                 <InvoiceDetailPanel
                   stickyTop={hasAmounts(type) && balances ? cardsHeight + 2 * CARDS_GAP - DIALOG_PADDING : 0}
-                  lines={[
-                    {
-                      key: 'value',
-                      label: isBillingInvoiceType(type) ? 'VALOR' : type === 'ADVANCE' ? 'ANTICIPO' : 'DEVOLUCIÓN RETENIDO',
-                      value
-                    },
-                    ...(isBillingInvoiceType(type)
-                      ? [
-                          { key: 'amortization', label: 'AMORTIZACIÓN', value: amortization },
-                          { key: 'retention', label: 'RETENIDO', value: retention }
-                        ]
-                      : [])
-                  ]}
-                  total={isBillingInvoiceType(type) ? undefined : value}
-                  note={
-                    isBillingInvoiceType(type)
-                      ? 'IVA, retenciones tributarias y el total a pagar llegan con la composición de las facturas de contrato (DEC-03).'
-                      : 'Sin IVA ni retenciones tributarias: esperan la composición de las facturas de contrato (DEC-03).'
-                  }
+                  {...(isBillingInvoiceType(type)
+                    ? {
+                        // Normal y liquidación (DEC-075): la composición del servidor.
+                        lines: preview?.lines ?? [],
+                        total: preview?.total ?? '',
+                        warning: preview && !preview.valid && value ? preview.message : undefined,
+                        note: 'TOTAL es el neto a pagar: descuenta las retenciones, la amortización, el retenido y el descuento de materiales.'
+                      }
+                    : {
+                        lines: [{ key: 'value', label: type === 'ADVANCE' ? 'ANTICIPO' : 'DEVOLUCIÓN RETENIDO', value }],
+                        total: value,
+                        note: 'El anticipo y la devolución de retenido no llevan IVA ni retenciones tributarias.'
+                      })}
                 />
               )}
             </Grid>

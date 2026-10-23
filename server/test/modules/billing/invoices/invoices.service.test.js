@@ -199,7 +199,8 @@ const simpleInput = (overrides = {}) => ({
 });
 
 const contractInput = (overrides = {}) => ({ type: "ADVANCE", ctrId: 30, number: "F-100", date: "2026-03-01", value: "10000000", ...overrides });
-const liquidationInput = (overrides = {}) => contractInput({ type: "LIQUIDATION", value: "90000000", ...overrides });
+// El % IVA es obligatorio en la normal y la liquidación (DEC-075).
+const liquidationInput = (overrides = {}) => contractInput({ type: "LIQUIDATION", value: "90000000", vatPct: "19", ...overrides });
 const refundInput = (overrides = {}) => contractInput({ type: "RETENTION_REFUND", value: "3500000", ...overrides });
 
 const save = (input, invId = 0, granted = []) =>
@@ -1296,7 +1297,8 @@ describe("retenido contractual (DEC-051)", () => {
       statusCode: 409,
       message: expect.stringContaining("extracto y la descripción"),
     });
-    await expect(save(liquidationInput({ retention: "4500000.00", description: "Nota" }), 70)).resolves.toMatchObject({ invId: 70 });
+    // Como el formulario de una aprobada: sin IVA ni retenciones (DEC-075).
+    await expect(save(liquidationInput({ retention: "4500000.00", description: "Nota", vatPct: undefined }), 70)).resolves.toMatchObject({ invId: 70 });
   });
 
   it("devolución: guarda el valor en su detalle, con bitácora", async () => {
@@ -1381,13 +1383,104 @@ const OWN = Object.freeze({ all: false, wrkId: 8 });
 const OTHER = Object.freeze({ all: false, wrkId: 9 });
 const NONE = Object.freeze({ all: false, wrkId: null });
 
+describe("IVA y retenciones de la normal y la liquidación (DEC-075)", () => {
+  const detailUpsert = () => prismaMock.tbl_invoice_liquidation_details.upsert.mock.calls[0][0];
+  const normalInput = (overrides = {}) => contractInput({ type: "NORMAL", value: "30000000", vatPct: "19", ...overrides });
+  const TAXES = { utilityPct: "10", vatPct: "19", withholdingPct: "2", vatWithholdingPct: "15", icaWithholding: "50000", materialsDiscount: "100000" };
+
+  beforeEach(() => {
+    state.contract = contract({ ctr_state: "IN_PROGRESS" });
+    state.advanceSum = D("32000000");
+  });
+
+  it("guarda lo capturado y las tasas con la versión de fórmula, y lo deja en la bitácora", async () => {
+    await expect(save(normalInput(TAXES))).resolves.toMatchObject({ invId: 70 });
+    const created = detailUpsert().create;
+    expect(created.ild_vat_pct.toFixed(2)).toBe("19.00");
+    expect(created.ild_utility_pct.toFixed(2)).toBe("10.00");
+    expect(created.ild_withholding_pct.toFixed(2)).toBe("2.00");
+    expect(created.ild_vat_withholding_pct.toFixed(2)).toBe("15.00");
+    expect(created.ild_ica_withholding.toFixed(2)).toBe("50000.00");
+    expect(created.ild_materials_discount.toFixed(2)).toBe("100000.00");
+    expect(created.ild_formula_version).toBe(1);
+    expect(auditRows().find((r) => r.aud_field === "ild_vat_pct")).toMatchObject({ aud_new_value: "19.00" });
+    expect(auditRows().find((r) => r.aud_field === "ild_materials_discount")).toMatchObject({ aud_new_value: "100000.00" });
+  });
+
+  it("el % IVA es obligatorio en la normal y en la liquidación (400)", async () => {
+    await expect(save(normalInput({ vatPct: undefined }))).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("% de IVA") });
+    state.contract = contract({ ctr_state: "IN_LIQUIDATION" });
+    await expect(save(liquidationInput({ vatPct: "" }))).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("% de IVA") });
+    expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
+  });
+
+  it("el neto a pagar no puede quedar negativo, contando la amortización y el retenido (400)", async () => {
+    // 30.000.000 + IVA 0 − amortización 8.000.000 − retenido 1.500.000 = 20.500.000.
+    await expect(save(normalInput({ vatPct: "0", materialsDiscount: "20500000.01" }))).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining("negativo"),
+    });
+    await expect(save(normalInput({ vatPct: "0", materialsDiscount: "20500000" }))).resolves.toMatchObject({ invId: 70 });
+  });
+
+  it("al aprobar, la instantánea guarda la composición y la versión de fórmula", async () => {
+    state.invoice = storedLiquidation({
+      inv_type: "NORMAL",
+      tbl_invoice_liquidation_details: {
+        ...storedLiquidation().tbl_invoice_liquidation_details,
+        ild_value: D("30000000"),
+        ild_amortization: D("8000000"),
+        ild_retention: D("1500000"),
+        ild_utility_pct: D("10"),
+        ild_vat_pct: D("19"),
+        ild_withholding_pct: D("2"),
+        ild_vat_withholding_pct: D("15"),
+        ild_ica_withholding: D("50000"),
+        ild_materials_discount: D("100000"),
+        ild_formula_version: 1,
+      },
+    });
+    state.amortizedSum = D("0");
+    await expect(approve()).resolves.toMatchObject({ invId: 70 });
+    const snapshot = Object.fromEntries(auditRows().filter((r) => r.aud_field.startsWith("snapshot.invoice.")).map((r) => [r.aud_field, r.aud_new_value]));
+    // IVA 5.700.000; rte fuente 600.000; rte IVA 855.000;
+    // neto 35.700.000 − 600.000 − 855.000 − 50.000 − 8.000.000 − 1.500.000 − 100.000.
+    expect(snapshot).toMatchObject({
+      "snapshot.invoice.vat": "5700000.00",
+      "snapshot.invoice.valueWithVat": "35700000.00",
+      "snapshot.invoice.withholding": "600000.00",
+      "snapshot.invoice.vatWithholding": "855000.00",
+      "snapshot.invoice.icaWithholding": "50000.00",
+      "snapshot.invoice.materialsDiscount": "100000.00",
+      "snapshot.invoice.total": "24595000.00",
+      "snapshot.invoice.utilityPct": "10.00",
+      "snapshot.invoice.formulaVersion": "1",
+    });
+  });
+
+  it("una registrada antes de DEC-075 (sin IVA) se aprueba igual, sin composición en la instantánea", async () => {
+    state.invoice = storedLiquidation({ inv_type: "NORMAL" });
+    state.amortizedSum = D("0");
+    await expect(approve()).resolves.toMatchObject({ invId: 70 });
+    expect(auditRows().some((r) => r.aud_field === "snapshot.invoice.total")).toBe(false);
+  });
+
+  it("previsualización: compone sin base de datos y dice por qué no se guardaría", () => {
+    const preview = service.previewContractInvoice({ value: "2000000", amortization: "10", retention: "10", vatAmount: "380000", withholdingPct: "10" });
+    expect(preview).toMatchObject({ valid: true, message: null, total: "2179980.00" });
+    expect(preview.captured.vatPct).toBe("19.00");
+    expect(preview.pairs.vatPct).toEqual({ amount: "380000.00", pct: "19.00" });
+    expect(service.previewContractInvoice({ value: "100" })).toMatchObject({ valid: false, message: expect.stringContaining("% de IVA") });
+  });
+});
+
 // La de contrato, por su obra; la simple, por las obras de su proveedor (DEC-054).
 // Todas las facturas tienen obra, también la simple (DEC-058).
 const OWN_INVOICES = { wrk_id: { in: [8] } };
 
 describe("factura normal (DEC-071)", () => {
   const detailUpsert = () => prismaMock.tbl_invoice_liquidation_details.upsert.mock.calls[0][0];
-  const normalInput = (overrides = {}) => contractInput({ type: "NORMAL", value: "30000000", ...overrides });
+  const normalInput = (overrides = {}) => contractInput({ type: "NORMAL", value: "30000000", vatPct: "19", ...overrides });
   const storedNormal = (overrides = {}) => storedLiquidation({ inv_type: "NORMAL", ...overrides });
   const approved = { inv_state: "APPROVED", inv_approval_date: new Date("2026-03-05T00:00:00Z") };
 

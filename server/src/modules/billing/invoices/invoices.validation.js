@@ -12,6 +12,7 @@ import {
 } from "../../../common/utils/validation.utils.js";
 import { INVOICE_STATES, INVOICE_TYPES, hasContract } from "./invoiceTerms.js";
 import { SIMPLE_PAIRS } from "./simpleInvoiceTerms.js";
+import { CONTRACT_PAIRS } from "./contractInvoiceTerms.js";
 import { decimal } from "../../../common/utils/money.utils.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). Las reglas de
@@ -166,6 +167,7 @@ export const saveInvoiceSchema = [
   moneyRule("retention", "valor del retenido", { optional: true }),
   optionalLongText("retentionObservation", "La observación del ajuste del retenido", 1000),
   ...simpleAmountRules(),
+  ...contractTaxOnlyRules(),
 ];
 
 /** Importes de la factura simple (DEC-065). Su obligatoriedad y sus rangos los decide el service. */
@@ -188,6 +190,30 @@ export const previewSimpleInvoiceSchema = [
   moneyRule("value", "valor de la factura", { optional: true }),
   ...simpleAmountRules(),
   ...SIMPLE_PAIRS.map((pair) =>
+    pair.stored === "percent" ? moneyRule(pair.alt, "valor", { optional: true }) : percentRule(pair.alt, "porcentaje", { optional: true })
+  ),
+];
+
+/**
+ * Importes de la normal y la liquidación que no comparten nombre con los de
+ * la simple (DEC-075): el % IVA y las retenciones usan las reglas de arriba.
+ */
+function contractTaxOnlyRules() {
+  return [percentRule("utilityPct", "% de utilidad", { optional: true }), moneyRule("materialsDiscount", "descuento de materiales", { optional: true })];
+}
+
+// Previsualización de la normal y la liquidación (DEC-075): como la de la
+// simple, cada importe también por su otro lado.
+export const previewContractInvoiceSchema = [
+  moneyRule("value", "valor de la factura", { optional: true }),
+  moneyRule("amortization", "valor de la amortización", { optional: true }),
+  moneyRule("retention", "valor del retenido", { optional: true }),
+  percentRule("vatPct", "% de IVA", { optional: true }),
+  percentRule("withholdingPct", "% de retención en la fuente", { optional: true }),
+  percentRule("vatWithholdingPct", "% de retención de IVA", { optional: true }),
+  moneyRule("icaWithholding", "valor de la retención de ICA", { optional: true }),
+  ...contractTaxOnlyRules(),
+  ...CONTRACT_PAIRS.map((pair) =>
     pair.stored === "percent" ? moneyRule(pair.alt, "valor", { optional: true }) : percentRule(pair.alt, "porcentaje", { optional: true })
   ),
 ];
