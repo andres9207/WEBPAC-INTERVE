@@ -1770,9 +1770,9 @@
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/MasterPage.jsx": {
-    "mtime": 1792700299.005586,
-    "seen": 1792700675.06911,
-    "ast_hash": "2f5882b0ad0bada7b13d0b7ead65f542",
+    "mtime": 1792772035.4990394,
+    "seen": 1792772194.300382,
+    "ast_hash": "82ecf11551efb683a632062ba62ead96",
     "semantic_hash": ""
   },
   "client/src/api/requests/providerTypesApi.js": {
@@ -2244,9 +2244,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/providers/ProvidersPage.jsx": {
-    "mtime": 1792700551.1502662,
-    "seen": 1792700675.0692105,
-    "ast_hash": "cfe3041c112a0e1b9fd9b794530e9637",
+    "mtime": 1792772046.2600338,
+    "seen": 1792772194.300502,
+    "ast_hash": "088a1f689371df0d45dd0845eff1bc46",
     "semantic_hash": ""
   },
   "client/src/views/work/providers/components/NewProviderDialog.jsx": {

@@ -16789,7 +16789,7 @@
       "file_type": "code",
       "norm_label": "masterpage()",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L119"
+      "source_location": "L120"
     },
     {
       "id": "client_src_ui_component_extended_masterpage_readview",
@@ -41255,8 +41255,8 @@
       "community_name": "useAuth",
       "file_type": "concept",
       "norm_label": "adr-0012",
-      "source_file": "client/src/views/work/providers/ProviderDetailPage.jsx",
-      "source_location": "L41"
+      "source_file": "client/src/views/work/providers/ProvidersPage.jsx",
+      "source_location": "L15"
     },
     {
       "id": "ref_react_router",
@@ -41429,6 +41429,18 @@
       "external": true,
       "file_type": "concept",
       "norm_label": "server_src_common_utils_money_utils_percentfor",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "client_src_menu_items_billing_setbillingmenus",
+      "label": "client_src_menu_items_billing_setbillingmenus",
+      "_origin": "semantic",
+      "community": 206,
+      "community_name": "react-router-dom",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "client_src_menu_items_billing_setbillingmenus",
       "source_file": "",
       "type": "external"
     },
@@ -41673,6 +41685,18 @@
       "type": "external"
     },
     {
+      "id": "server_src_modules_billing_invoices_invoicemenus_listinvoicemenus",
+      "label": "server_src_modules_billing_invoices_invoicemenus_listinvoicemenus",
+      "_origin": "semantic",
+      "community": 212,
+      "community_name": "workScope.service.js",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "server_src_modules_billing_invoices_invoicemenus_listinvoicemenus",
+      "source_file": "",
+      "type": "external"
+    },
+    {
       "id": "ref_node_fs",
       "label": "ref_node_fs",
       "_origin": "semantic",
@@ -41837,28 +41861,6 @@
       "external": true,
       "file_type": "concept",
       "norm_label": "ref_http",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "client_src_menu_items_billing_setbillingmenus",
-      "label": "client_src_menu_items_billing_setbillingmenus",
-      "community": 206,
-      "community_name": "react-router-dom",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "client_src_menu_items_billing_setbillingmenus",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "server_src_modules_billing_invoices_invoicemenus_listinvoicemenus",
-      "label": "server_src_modules_billing_invoices_invoicemenus_listinvoicemenus",
-      "community": 212,
-      "community_name": "workScope.service.js",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "server_src_modules_billing_invoices_invoicemenus_listinvoicemenus",
       "source_file": "",
       "type": "external"
     }
@@ -44549,7 +44551,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L143",
+      "source_location": "L144",
       "weight": 1.0
     },
     {
@@ -44561,7 +44563,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L167",
+      "source_location": "L168",
       "weight": 1.0
     },
     {
@@ -44573,7 +44575,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L170",
+      "source_location": "L171",
       "weight": 1.0
     },
     {
@@ -44585,7 +44587,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L177",
+      "source_location": "L178",
       "weight": 1.0
     },
     {
@@ -44597,7 +44599,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L203",
+      "source_location": "L204",
       "weight": 1.0
     },
     {
@@ -44609,7 +44611,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L235",
+      "source_location": "L236",
       "weight": 1.0
     },
     {
@@ -44621,7 +44623,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L257",
+      "source_location": "L258",
       "weight": 1.0
     },
     {
@@ -44633,7 +44635,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L262",
+      "source_location": "L263",
       "weight": 1.0
     },
     {
@@ -44645,7 +44647,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L308",
+      "source_location": "L309",
       "weight": 1.0
     },
     {
@@ -44657,7 +44659,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L371",
+      "source_location": "L376",
       "weight": 1.0
     },
     {
@@ -44669,7 +44671,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L376",
+      "source_location": "L381",
       "weight": 1.0
     },
     {
@@ -44681,7 +44683,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L384",
+      "source_location": "L389",
       "weight": 1.0
     },
     {
@@ -44693,7 +44695,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L386",
+      "source_location": "L391",
       "weight": 1.0
     },
     {
@@ -44705,7 +44707,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L458",
+      "source_location": "L463",
       "weight": 1.0
     },
     {
@@ -44717,7 +44719,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L469",
+      "source_location": "L474",
       "weight": 1.0
     },
     {
@@ -44729,7 +44731,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L493",
+      "source_location": "L498",
       "weight": 1.0
     },
     {
@@ -52901,7 +52903,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/work/providers/ProvidersPage.jsx",
-      "source_location": "L102",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -52913,7 +52915,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/work/providers/ProvidersPage.jsx",
-      "source_location": "L119",
+      "source_location": "L118",
       "weight": 1.0
     },
     {
@@ -133062,7 +133064,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/ui-component/extended/MasterPage.jsx",
-      "source_location": "L119",
+      "source_location": "L120",
       "weight": 1.0
     },
     {
@@ -159728,5 +159730,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "ecde86e16c89fd1f664b21e8b52759d33c4c3ec7"
+  "built_at_commit": "dc317eb26dcd8dea280fe7799aee537a418221e2"
 }

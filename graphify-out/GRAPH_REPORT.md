@@ -1,7 +1,7 @@
 # Graph Report - WEBPAC-INTERVE  (2026-10-23)
 
 ## Corpus Check
-- 631 files · ~332,565 words
+- 631 files · ~332,642 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 11 file(s) not represented in the graph (top: (none) 6, .template 1, .css 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `ecde86e1`
+- Built from commit: `dc317eb2`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -155,22 +155,22 @@
 4. `useAuth()` - 77 edges
 5. `workScopeOf()` - 63 edges
 6. `writeAudit()` - 60 edges
-7. `dateOnlyText()` - 59 edges
-8. `withLockedTransaction()` - 59 edges
+7. `withLockedTransaction()` - 59 edges
+8. `dateOnlyText()` - 59 edges
 9. `@tabler/icons-react` - 56 edges
 10. `showSuccess()` - 55 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `selectWorkManagers()` --calls--> `userFullName()`  [EXTRACTED]
-  server/src/modules/work/works/works.service.js → server/src/common/utils/user.utils.js
 - `deleteModuleDoc()` --calls--> `withLockedTransaction()`  [EXTRACTED]
   server/src/modules/app/documents/document.service.js → server/src/common/services/transaction.service.js
-- `WorkView()` --calls--> `EditableList()`  [EXTRACTED]
-  client/src/views/work/works/WorkDetailPage.jsx → client/src/ui-component/extended/EditableList.jsx
 - `UserDialog` --indirect_call--> `ChipMultiSelect()`  [INFERRED]
   client/src/views/security/users/components/UserDialog.jsx → client/src/ui-component/extended/ChipMultiSelect.jsx
+- `WorkView()` --calls--> `EditableList()`  [EXTRACTED]
+  client/src/views/work/works/WorkDetailPage.jsx → client/src/ui-component/extended/EditableList.jsx
 - `previewWorkEndDate()` --calls--> `addTerm()`  [EXTRACTED]
   server/src/modules/work/works/works.service.js → server/src/common/utils/term.utils.js
+- `selectWorkManagers()` --calls--> `userFullName()`  [EXTRACTED]
+  server/src/modules/work/works/works.service.js → server/src/common/utils/user.utils.js
 
 ## Import Cycles
 - None detected.
@@ -646,7 +646,7 @@ Cohesion: 0.07
 Nodes (32): getEffectivePermissionIds(), hasEffectivePermission(), ALL, assertAnyInScope(), canViewAllWorks(), httpError(), inScope(), managedWhere() (+24 more)
 
 ## Knowledge Gaps
-- **1017 isolated node(s):** `work`, `PAGES`, `PERMISSIONS`, `PERMISSIONS_NO_PAGE`, `VIEW_PERMISSIONS` (+1012 more)
+- **1017 isolated node(s):** `STATUS_NAMES`, `ROWS_PER_PAGE_OPTIONS`, `NO_FIELDS`, `COLUMNS`, `FILTER_FIELDS` (+1012 more)
   These have ≤1 connection - possible missing edges. (Counts symbols only; 1414 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **94 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -654,12 +654,12 @@ Nodes (32): getEffectivePermissionIds(), hasEffectivePermission(), ALL, assertAn
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `ADR-0002` connect `MainCard` to `workDashboard.service.js`, `contracts.service.js`?**
-  _High betweenness centrality (0.201) - this node is a cross-community bridge._
+  _High betweenness centrality (0.187) - this node is a cross-community bridge._
 - **Why does `@mui/material` connect `@mui/material` to `ProfilePage.jsx`, `server/package.json`, `PoliciesTab.jsx`, `InvoiceFormPage.jsx`, `constants.js`, `ConceptDialog.jsx`, `client/package.json`, `DocumentManagement.jsx`, `httpCliente.js`, `AuthForgotPassword.jsx`, `withAlpha`, `AppBar.jsx`, `WorkChartsTab.jsx`, `ImageList.jsx`, `ContactsEditor.jsx`, `MainCard`, `AuthenticationRoutes.jsx`, `ExportButton.jsx`, `@mui/icons-material`, `App.jsx`, `EasyCrop.jsx`, `WorkDetailPage.jsx`, `ProviderTypePage.jsx`, `react-router-dom`, `useAuth`, `WorkSummaryTab.jsx`, `react`, `NotificationSection/index.jsx`?**
-  _High betweenness centrality (0.140) - this node is a cross-community bridge._
+  _High betweenness centrality (0.133) - this node is a cross-community bridge._
 - **Why does `axios` connect `httpCliente.js` to `server/package.json`, `client/package.json`?**
-  _High betweenness centrality (0.064) - this node is a cross-community bridge._
-- **What connects `work`, `PAGES`, `PERMISSIONS` to the rest of the system?**
+  _High betweenness centrality (0.061) - this node is a cross-community bridge._
+- **What connects `STATUS_NAMES`, `ROWS_PER_PAGE_OPTIONS`, `NO_FIELDS` to the rest of the system?**
   _1017 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `overrides/index.js` be split into smaller, more focused modules?**
   _Cohesion score 0.08985200845665962 - nodes in this community are weakly interconnected._
