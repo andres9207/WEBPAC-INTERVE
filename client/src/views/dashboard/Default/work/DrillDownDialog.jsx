@@ -33,6 +33,42 @@ export const invoiceRows = (items) =>
     value: inv.value === null ? 'Sin importes' : fMoneyText(inv.value)
   }));
 
+/** Días que lleva abierto un seguimiento (los calcula el servidor). */
+export const daysOpenText = (days) => (days === 0 ? 'Desde hoy' : `${plural(days, 'día', 'días')}`);
+
+/**
+ * Seguimientos abiertos (`invoices.followUps.items`, DEC-076) como filas: la
+ * factura, lo que se le sigue y cuántos días lleva abierto. `withWork`: con
+ * el código de la obra (el tablero general junta varias).
+ */
+export const followUpRows = (items, { withWork = false } = {}) =>
+  items.map((f) => ({
+    key: `ifu-${f.ifuId}`,
+    to: dashboardTo.invoice(f.invId),
+    primary: `${f.typeName} ${f.number} · ${f.description}`,
+    secondary: [
+      withWork && f.workCode,
+      f.contractNumber,
+      f.providerName,
+      `abierto el ${fDateOnly(f.openDate)} por ${f.createdByName ?? '—'}`
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    value: daysOpenText(f.daysOpen)
+  }));
+
+/** El detalle de la cifra "Seguimientos abiertos": las filas que mandó el servidor (las más antiguas, con tope). */
+export const followUpsDrill = (followUps, options) => ({
+  title: 'Facturas con seguimiento abierto',
+  subtitle:
+    followUps.count > followUps.items.length
+      ? `Los ${followUps.items.length} más antiguos de ${followUps.count}`
+      : 'Del más antiguo al más reciente',
+  noun: ['seguimiento', 'seguimientos'],
+  rows: followUpRows(followUps.items, options),
+  emptyText: 'No hay facturas con seguimiento abierto.'
+});
+
 /** Contratos del tablero (`contracts.items`) como filas, con el importe que muestra la cifra. */
 export const contractRows = (items, valueOf = (c) => c.currentValue) =>
   items.map((c) => ({

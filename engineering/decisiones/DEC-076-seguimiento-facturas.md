@@ -23,6 +23,10 @@ El usuario pidió poder anotar qué se está trabajando sobre una factura concre
 - **Pantalla:**
   - Pestaña **Seguimiento** en el detalle de la factura, con la lista y los actos.
   - El listado de facturas marca con un icono las que tienen un seguimiento abierto (`hasOpenFollowUp`).
+- **Tableros** (2026-10-23, pedido del usuario). `openFollowUpsSummary` da los seguimientos abiertos del alcance: el total y hasta 100 filas, del más antiguo al más reciente, cada uno con su factura y los días que lleva abierto. Los días los calcula el servidor (FRONTEND_STANDARD, regla 9). Se ven con el permiso de ver facturas.
+  - General ([DEC-052](DEC-052-tablero.md)): tarjeta "Seguimientos abiertos".
+  - De la obra ([DEC-063](DEC-063-tablero-obra.md)): un aviso en "Por atender en la obra", que suma a su cifra.
+  - El clic abre el detalle con cada factura (`DrillDownDialog`). Cada fila abre la factura encima del tablero, y al cambiar un seguimiento el tablero se recarga.
 
 ## Descartado
 
@@ -44,5 +48,8 @@ El usuario pidió poder anotar qué se está trabajando sobre una factura concre
   - `server/src/modules/billing/invoices/invoiceFollowUps.service.js`.
   - `invoices.{controller,routes,validation}.js`: `list_invoice_follow_ups`, `open_`, `update_`, `close_` y `delete_invoice_follow_up`.
   - `invoices.service.js`: `hasOpenFollowUp` del listado.
-- Cliente: `client/src/views/billing/invoices/components/InvoiceFollowUpsTab.jsx`, `InvoiceDetailPage.jsx` e `InvoicesPage.jsx`.
-- Tests: `invoiceFollowUps.service.test.js` e `invoices.controller.test.js` ("seguimiento (DEC-076)").
+- Tableros: `server/src/modules/app/dashboard/dashboard.service.js` y `workDashboard.service.js` (`invoices.followUps`).
+- Cliente:
+  - `client/src/views/billing/invoices/components/InvoiceFollowUpsTab.jsx`, `InvoiceDetailPage.jsx` e `InvoicesPage.jsx`.
+  - En `client/src/views/dashboard/Default/`: `GeneralDashboard.jsx`, `work/WorkSummaryTab.jsx` y `work/DrillDownDialog.jsx` (`followUpsDrill`).
+- Tests: `invoiceFollowUps.service.test.js`, `invoices.controller.test.js` ("seguimiento (DEC-076)"), `dashboard.service.test.js` y `workDashboard.service.test.js` ("seguimientos abiertos").

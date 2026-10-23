@@ -168,7 +168,7 @@ FollowUpDialog.propTypes = {
   onSaved: PropTypes.func.isRequired
 };
 
-export default function InvoiceFollowUpsTab({ invId, cancelled, canManage, onCount }) {
+export default function InvoiceFollowUpsTab({ invId, cancelled, canManage, onCount, onChanged }) {
   const socket = useSocket();
   const [rows, setRows] = useState(null);
   const [dialog, setDialog] = useState(null);
@@ -196,9 +196,11 @@ export default function InvoiceFollowUpsTab({ invId, cancelled, canManage, onCou
     return () => socket.off('refresh-invoices', load);
   }, [socket, load]);
 
+  // `onChanged`: la pantalla de debajo (listado o tablero) recarga su cifra de seguimientos.
   const saved = () => {
     setDialog(null);
     load();
+    onChanged?.();
   };
 
   const remove = async () => {
@@ -206,6 +208,7 @@ export default function InvoiceFollowUpsTab({ invId, cancelled, canManage, onCou
       const { data } = await invoiceFollowUpsApi.remove(removing.ifuId);
       showSuccess(data.message);
       load();
+      onChanged?.();
     } catch (err) {
       showError(err.response?.data?.message || 'No se pudo eliminar el seguimiento');
     }
@@ -338,5 +341,6 @@ InvoiceFollowUpsTab.propTypes = {
   invId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
   cancelled: PropTypes.bool,
   canManage: PropTypes.bool,
-  onCount: PropTypes.func
+  onCount: PropTypes.func,
+  onChanged: PropTypes.func
 };

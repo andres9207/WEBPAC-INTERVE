@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import PropTypes from 'prop-types';
 
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
@@ -9,6 +10,7 @@ import {
   IconClockHour4,
   IconFilePlus,
   IconFileText,
+  IconFlag,
   IconPlayerPause,
   IconReceipt,
   IconShieldCheck,
@@ -32,6 +34,7 @@ import DashboardCards from './components/DashboardCards';
 import PolicyStatusCard from './components/PolicyStatusCard';
 import InvoicesByWorkCard from './components/InvoicesByWorkCard';
 import { AlertsCard, LatestInvoicesCard, QuickAccessCard, UpcomingPoliciesCard, WorksActivityCard } from './components/DashboardLists';
+import { daysOpenText, followUpsDrill, useDrillDown } from './work/DrillDownDialog';
 
 /**
  * Tablero general (ADR-0002, DEC-052), con "Ver todo" en el encabezado; con
@@ -47,11 +50,14 @@ import { AlertsCard, LatestInvoicesCard, QuickAccessCard, UpcomingPoliciesCard, 
 
 const countOf = (list, key, value) => list?.find((item) => item[key] === value)?.count ?? 0;
 
-export default function GeneralDashboard() {
+// `reloadKey`: sube cuando un expediente abierto encima cambia algo (p. ej. un seguimiento); se recarga.
+export default function GeneralDashboard({ reloadKey = 0 }) {
   const { user, permissionsCatalog, hasPermission } = useAuth();
   const { activeWork, works } = useWorkScope();
   const [summary, setSummary] = useState(null);
   const [failed, setFailed] = useState(false);
+  // Detalle de "Seguimientos abiertos" (DEC-076): las facturas, sin salir del tablero.
+  const { openDrill, dialog } = useDrillDown();
 
   useEffect(() => {
     let active = true;
@@ -65,7 +71,7 @@ export default function GeneralDashboard() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   const scopeLabel =
     activeWork === ALL_WORKS ? 'Todas las obras' : (works.find((w) => w.value === activeWork)?.label ?? 'Sin obra seleccionada');
@@ -107,6 +113,20 @@ export default function GeneralDashboard() {
         to: '/work/contracts?status=IN_PROGRESS'
       });
     }
+    if (s.invoices?.followUps) {
+      const { count, items: followUps } = s.invoices.followUps;
+      const oldest = followUps[0];
+      items.push({
+        label: 'Seguimientos abiertos',
+        value: String(count),
+        hint: oldest
+          ? `El más antiguo: ${oldest.typeName} ${oldest.number}, ${daysOpenText(oldest.daysOpen).toLowerCase()}`
+          : 'Ninguna factura en seguimiento',
+        icon: IconFlag,
+        tone: ACTION_TONES.edit,
+        onClick: () => openDrill(followUpsDrill(s.invoices.followUps, { withWork: true }))
+      });
+    }
     if (s.policies) {
       items.push({
         label: 'Pólizas vigentes',
@@ -117,7 +137,7 @@ export default function GeneralDashboard() {
       });
     }
     return items;
-  }, [summary, s.works, s.providers, s.contracts, s.policies]);
+  }, [summary, s.works, s.providers, s.contracts, s.policies, s.invoices, openDrill]);
 
   const alerts = useMemo(() => {
     if (!summary) return [];
@@ -308,6 +328,9 @@ export default function GeneralDashboard() {
           </Grid>
         </>
       )}
+      {dialog}
     </Stack>
   );
 }
+
+GeneralDashboard.propTypes = { reloadKey: PropTypes.number };

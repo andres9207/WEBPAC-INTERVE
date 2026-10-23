@@ -26,6 +26,7 @@ import {
 import { INVOICE_STATES, INVOICE_TYPES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
 import { policyExpiringDays } from "../../admin/businessRules/businessRules.service.js";
 import { contractBalances } from "../../billing/invoices/invoices.service.js";
+import { openFollowUpsSummary } from "../../billing/invoices/invoiceFollowUps.service.js";
 import { composeSimpleInvoice } from "../../billing/invoices/simpleInvoiceTerms.js";
 
 /**
@@ -356,17 +357,19 @@ const TYPE_ORDER = [INVOICE_TYPES.ADVANCE, INVOICE_TYPES.NORMAL, INVOICE_TYPES.L
 /**
  * Facturas de la obra, de todos los menús: aprobadas y por aprobar, últimas
  * registradas y, sin las anuladas, por mes, por tipo y por contrato. Los
- * valores son los que se capturan por tipo (DEC-044, DEC-051).
+ * valores son los que se capturan por tipo (DEC-044, DEC-051). Y los
+ * seguimientos abiertos (DEC-076), para el aviso y su detalle.
  */
 const invoicesBlock = async (wrkId, today) => {
   const where = { wrk_id: wrkId, ...notDeleted };
-  const [rows, latest] = await Promise.all([
+  const [rows, latest, followUps] = await Promise.all([
     prisma.tbl_invoices.findMany({
       where: { ...where, inv_state: { in: [INVOICE_STATES.REGISTERED, INVOICE_STATES.APPROVED] } },
       select: INVOICE_SELECT,
       orderBy: [{ inv_date: "asc" }, { inv_id: "asc" }],
     }),
     prisma.tbl_invoices.findMany({ where, select: INVOICE_SELECT, orderBy: [{ inv_create_at: "desc" }, { inv_id: "desc" }], take: LATEST_ROWS }),
+    openFollowUpsSummary({ invoiceWhere: { wrk_id: wrkId }, today }),
   ]);
 
   const approved = rows.filter((r) => r.inv_state === INVOICE_STATES.APPROVED);
@@ -421,6 +424,7 @@ const invoicesBlock = async (wrkId, today) => {
     pendingCount: pending.length,
     pendingValue: moneyText(sum(pending)),
     pendingByMenu,
+    followUps,
     pending: pending.slice(-LATEST_ROWS).reverse().map(invoiceDto),
     total: moneyText(total),
     count: rows.length,

@@ -5,7 +5,7 @@ import { dateOnlyText, toDateOnly, todayDateOnly } from "../../../common/utils/t
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, writeAudit } from "../../../common/services/audit.service.js";
-import { INVOICE_STATES } from "./invoiceTerms.js";
+import { INVOICE_STATES, TYPE_NAMES } from "./invoiceTerms.js";
 import { assertInvoiceVisible } from "./invoices.service.js";
 
 /**
@@ -234,4 +234,69 @@ export const deleteFollowUp = async ({ ifuId, useBy, scope, ctx = { useId: useBy
     });
     return { message: "Seguimiento eliminado correctamente", ifuId: before.ifu_id };
   });
+};
+
+// ─── Tableros (DEC-076) ──────────────────────────────────────────────────────
+
+// Tope de las filas del detalle: la cifra es el total; las filas, las más antiguas.
+const BOARD_ROWS = 100;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Seguimientos abiertos de las facturas no eliminadas que cumplen
+ * `invoiceWhere` (el alcance del tablero), para la cifra y su detalle: el
+ * total y, del más antiguo al más reciente, cada uno con su factura y los
+ * días que lleva abierto a la fecha de referencia (`today`). Lo cuenta y lo
+ * calcula el servidor (FRONTEND_STANDARD, regla 9).
+ */
+export const openFollowUpsSummary = async ({ invoiceWhere, today = todayDateOnly() }) => {
+  const where = {
+    ifu_close_date: null,
+    sta_id: { not: DELETED_STATUS },
+    tbl_invoices: { ...invoiceWhere, sta_id: { not: DELETED_STATUS } },
+  };
+  const [count, rows] = await Promise.all([
+    prisma.tbl_invoice_follow_ups.count({ where }),
+    prisma.tbl_invoice_follow_ups.findMany({
+      where,
+      select: {
+        ifu_id: true,
+        ifu_open_date: true,
+        ifu_description: true,
+        created_by_user: USER_NAME_SELECT,
+        tbl_invoices: {
+          select: {
+            inv_id: true,
+            pvt_id: true,
+            inv_type: true,
+            inv_number: true,
+            inv_state: true,
+            tbl_providers: { select: { prv_name: true } },
+            tbl_works: { select: { wrk_code: true } },
+            tbl_contracts: { select: { ctr_number: true } },
+          },
+        },
+      },
+      orderBy: [{ ifu_open_date: "asc" }, { ifu_id: "asc" }],
+      take: BOARD_ROWS,
+    }),
+  ]);
+  return {
+    count,
+    items: rows.map((row) => ({
+      ifuId: row.ifu_id,
+      invId: row.tbl_invoices.inv_id,
+      pvtId: row.tbl_invoices.pvt_id,
+      number: row.tbl_invoices.inv_number,
+      typeName: TYPE_NAMES[row.tbl_invoices.inv_type] ?? row.tbl_invoices.inv_type,
+      state: row.tbl_invoices.inv_state,
+      providerName: row.tbl_invoices.tbl_providers?.prv_name ?? null,
+      workCode: row.tbl_invoices.tbl_works?.wrk_code ?? null,
+      contractNumber: row.tbl_invoices.tbl_contracts?.ctr_number ?? null,
+      openDate: dateOnlyText(row.ifu_open_date),
+      daysOpen: Math.max(0, Math.round((today.getTime() - row.ifu_open_date.getTime()) / DAY_MS)),
+      description: row.ifu_description,
+      createdByName: userFullName(row.created_by_user),
+    })),
+  };
 };

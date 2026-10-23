@@ -20,6 +20,7 @@ import {
   IconClockHour4,
   IconCurrencyDollar,
   IconFileText,
+  IconFlag,
   IconPlayerPause,
   IconReceipt,
   IconShieldX,
@@ -35,7 +36,7 @@ import { fDateOnly } from 'utils/formatTime';
 import { CONTRACT_STATE_COLORS, INVOICE_STATE_COLORS, STATUS, fTerm } from 'utils/constants';
 
 import DashboardCards from '../components/DashboardCards';
-import { contractRows, invoiceRows, useDrillDown } from './DrillDownDialog';
+import { contractRows, daysOpenText, followUpsDrill, invoiceRows, useDrillDown } from './DrillDownDialog';
 import { MANAGER_ROLE_NAMES, POLICY_STATUS_COLORS, barPercent, dashboardTo, initialsOf, plural } from './workDashboard.utils';
 
 // Resumen de la obra (DEC-063): encabezado con el avance del plazo, cifras,
@@ -340,6 +341,20 @@ const attentionOf = (data) => {
           })
     });
   }
+  // Seguimientos abiertos (DEC-076): lo que se está trabajando sobre las facturas de la obra.
+  if (invoices?.followUps?.count > 0) {
+    const { count, items } = invoices.followUps;
+    const oldest = items[0];
+    list.push({
+      key: 'follow-ups',
+      count,
+      text: `${plural(count, 'factura', 'facturas')} con seguimiento abierto`,
+      hint: oldest ? `${oldest.typeName} ${oldest.number} · ${oldest.description} · ${daysOpenText(oldest.daysOpen).toLowerCase()}` : '',
+      icon: IconFlag,
+      tone: ACTION_TONES.edit,
+      ...(count === 1 && oldest ? { to: dashboardTo.invoice(oldest.invId) } : { drill: followUpsDrill(invoices.followUps) })
+    });
+  }
   for (const c of contracts?.withRetentionBalance ?? []) {
     list.push({
       key: `retention-${c.ctrId}`,
@@ -385,7 +400,8 @@ function AttentionCard({ items, onDrill }) {
       {items.length === 0 ? (
         <Box sx={{ px: 1.5 }}>
           <Empty>
-            Nada por atender: sin pólizas vencidas ni por vencer, conceptos sin póliza, facturas por aprobar ni retenido por devolver.
+            Nada por atender: sin pólizas vencidas ni por vencer, conceptos sin póliza, facturas por aprobar o con seguimiento abierto, ni
+            retenido por devolver.
           </Empty>
         </Box>
       ) : (

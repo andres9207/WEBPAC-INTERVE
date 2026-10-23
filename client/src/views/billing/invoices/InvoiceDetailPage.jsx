@@ -521,6 +521,7 @@ export default function InvoiceDetailPage() {
           cancelled={invoice.state === 'CANCELLED'}
           canManage={canDo(perms?.manageFollowUps)}
           onCount={setFollowUpCount}
+          onChanged={refresh}
         />
       )}
 

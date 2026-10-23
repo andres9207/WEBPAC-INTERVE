@@ -25,7 +25,7 @@ export default function Dashboard() {
   const byWork = activeWork !== null && activeWork !== ALL_WORKS;
   return (
     <>
-      {byWork ? <WorkDashboard reloadKey={reloadKey} /> : <GeneralDashboard />}
+      {byWork ? <WorkDashboard reloadKey={reloadKey} /> : <GeneralDashboard reloadKey={reloadKey} />}
       <Outlet context={outletContext} />
     </>
   );

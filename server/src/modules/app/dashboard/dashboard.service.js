@@ -15,6 +15,7 @@ import { contractPolicyStatuses } from "../../work/contracts/contractPolicies.se
 import { policyExpiringDays } from "../../admin/businessRules/businessRules.service.js";
 import { INVOICE_STATES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
 import { invoiceScopeWhere } from "../../billing/invoices/invoices.service.js";
+import { openFollowUpsSummary } from "../../billing/invoices/invoiceFollowUps.service.js";
 
 /**
  * Tablero (ADR-0002, DEC-052): solo lectura, cifras calculadas en la base de
@@ -133,12 +134,13 @@ export const pendingByMenuOf = async (where) => {
  * Facturas: pendientes de aprobar (en total y por menú, para el enlace),
  * por obra (registradas y aprobadas; las anuladas no cuentan, DEC-052) y las
  * últimas registradas. El ranking por obra es por cantidad, de todos los
- * menús: la simple también tiene obra (DEC-058).
+ * menús: la simple también tiene obra (DEC-058). Y los seguimientos abiertos
+ * (DEC-076), para su cifra y su detalle.
  */
-const invoicesBlock = async (scope) => {
+const invoicesBlock = async (scope, today) => {
   const where = invoicesWhere(scope);
   const counted = [INVOICE_STATES.REGISTERED, INVOICE_STATES.APPROVED];
-  const [pendingByMenu, grouped, latest] = await Promise.all([
+  const [pendingByMenu, grouped, latest, followUps] = await Promise.all([
     pendingByMenuOf(where),
     prisma.tbl_invoices.groupBy({
       by: ["wrk_id", "inv_state"],
@@ -160,6 +162,7 @@ const invoicesBlock = async (scope) => {
       orderBy: [{ inv_create_at: "desc" }, { inv_id: "desc" }],
       take: LATEST_ROWS,
     }),
+    openFollowUpsSummary({ invoiceWhere: invoiceScopeWhere(scope), today }),
   ]);
 
   const perWork = new Map();
@@ -180,6 +183,7 @@ const invoicesBlock = async (scope) => {
   return {
     pendingApproval: pendingByMenu.reduce((sum, p) => sum + p.count, 0),
     pendingByMenu,
+    followUps,
     byWork: ranked.map((r) => ({ ...r, workCode: names.get(r.wrkId)?.wrk_code ?? null, workName: names.get(r.wrkId)?.wrk_name ?? null })),
     latest: latest.map((row) => ({
       invId: row.inv_id,
@@ -257,7 +261,7 @@ export const getDashboardSummary = async ({ granted, scope }) => {
     see.providers ? providersBlock(scope) : null,
     see.contracts ? contractsBlock(scope) : null,
     see.policies ? policiesBlock(scope, { today, days }) : null,
-    see.invoices ? invoicesBlock(scope) : null,
+    see.invoices ? invoicesBlock(scope, today) : null,
     see.works && (see.contracts || see.invoices) ? worksActivityBlock(scope, see) : null,
   ]);
 

@@ -48,6 +48,8 @@ const prismaMock = {
   tbl_contracts: { findMany: jest.fn() },
   tbl_policies: { findMany: jest.fn() },
   tbl_invoices: { findMany: jest.fn() },
+  // Seguimientos abiertos (DEC-076).
+  tbl_invoice_follow_ups: { count: jest.fn(async () => 0), findMany: jest.fn(async () => []) },
   tbl_work_providers: { findMany: jest.fn() },
   tbl_contract_concepts: { findMany: jest.fn() },
   tbl_invoice_advance_details: { aggregate: jest.fn() },
@@ -158,6 +160,12 @@ describe("getWorkDashboard", () => {
     expect(prismaMock.tbl_policies.findMany.mock.calls[0][0].where).toMatchObject({ pol_is_current: true, tbl_contracts: { wrk_id: 8 } });
     for (const [args] of prismaMock.tbl_invoices.findMany.mock.calls) expect(args.where).toMatchObject({ wrk_id: 8 });
     expect(prismaMock.tbl_work_providers.findMany.mock.calls[0][0].where).toMatchObject({ wrk_id: 8 });
+    // Seguimientos abiertos (DEC-076): de las facturas de la obra.
+    expect(prismaMock.tbl_invoice_follow_ups.findMany.mock.calls[0][0].where).toEqual({
+      ifu_close_date: null,
+      sta_id: { not: 3 },
+      tbl_invoices: { wrk_id: 8, sta_id: { not: 3 } },
+    });
     // Los saldos, solo de los contratos de la obra.
     for (const [args] of prismaMock.tbl_contract_concepts.findMany.mock.calls) expect(args.where).toEqual({ ctr_id: 20 });
   });

@@ -15,6 +15,8 @@ const prismaMock = {
   tbl_invoices: { count: jest.fn(async () => 0), groupBy: jest.fn(async () => []), findMany: jest.fn(async () => []) },
   // Nombres de los menús de las pendientes (DEC-074).
   tbl_provider_types: { findMany: jest.fn(async () => []) },
+  // Seguimientos abiertos (DEC-076).
+  tbl_invoice_follow_ups: { count: jest.fn(async () => 0), findMany: jest.fn(async () => []) },
 };
 
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
@@ -51,6 +53,45 @@ describe("getDashboardSummary", () => {
     expect((await getDashboardSummary({ granted: new Set([POLICIES]), scope: OWN })).policies).toBeNull();
     expect((await getDashboardSummary({ granted: new Set([CONTRACTS]), scope: OWN })).policies).toBeNull();
     expect((await getDashboardSummary({ granted: new Set([CONTRACTS, POLICIES]), scope: OWN })).policies).not.toBeNull();
+  });
+
+  it("seguimientos abiertos (DEC-076): cuántos y a qué facturas, en el alcance, con los días abiertos que calcula el servidor", async () => {
+    prismaMock.tbl_invoice_follow_ups.count.mockResolvedValueOnce(1);
+    prismaMock.tbl_invoice_follow_ups.findMany.mockResolvedValueOnce([
+      {
+        ifu_id: 5,
+        ifu_open_date: new Date("2026-10-01T00:00:00Z"),
+        ifu_description: "Falta el soporte",
+        created_by_user: { use_name: "Ana", use_last_name: "Ruiz" },
+        tbl_invoices: { inv_id: 70, pvt_id: 3, inv_type: "NORMAL", inv_number: "F-70", inv_state: "REGISTERED", tbl_providers: { prv_name: "Acme" }, tbl_works: { wrk_code: "OB-8" }, tbl_contracts: { ctr_number: "C-1" } },
+      }
+    ]);
+    const { invoices, referenceDate } = await getDashboardSummary({ granted: ALL, scope: OWN });
+
+    const { where, orderBy } = prismaMock.tbl_invoice_follow_ups.findMany.mock.calls[0][0];
+    expect(where).toEqual({ ifu_close_date: null, sta_id: { not: 3 }, tbl_invoices: { wrk_id: { in: [8] }, sta_id: { not: 3 } } });
+    expect(orderBy).toEqual([{ ifu_open_date: "asc" }, { ifu_id: "asc" }]);
+    const days = Math.round((new Date(`${referenceDate}T00:00:00Z`) - new Date("2026-10-01T00:00:00Z")) / 86400000);
+    expect(invoices.followUps).toEqual({
+      count: 1,
+      items: [
+        {
+          ifuId: 5,
+          invId: 70,
+          pvtId: 3,
+          number: "F-70",
+          typeName: "Normal",
+          state: "REGISTERED",
+          providerName: "Acme",
+          workCode: "OB-8",
+          contractNumber: "C-1",
+          openDate: "2026-10-01",
+          daysOpen: Math.max(0, days),
+          description: "Falta el soporte",
+          createdByName: "Ana Ruiz",
+        },
+      ],
+    });
   });
 
   it("toda consulta lleva el alcance por obra", async () => {
