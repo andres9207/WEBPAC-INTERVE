@@ -10,7 +10,7 @@ Resuelve PD-05 ([`PROJECT_STATE`](../PROJECT_STATE.md)) **para contratos** y las
   - servidor: `server/src/modules/work/contracts/` (`contracts.service.js`, `contractConcepts.service.js` y `contractTerms.js`, las reglas sin BD)
   - API: `/api/work/contracts/<acción>`; los actos sobre conceptos, `create_amendment`, `create_liquidation` y `update_concept`
   - cliente: `client/src/views/work/contracts/` y `client/src/api/requests/contractsApi.js`
-  - menú: "Contratos" dentro del grupo "Obras" (página 16)
+  - menú: "Contratos" dentro del grupo "Obras" (página 16), que desde la migración 0111 se llama "Inicio"
 - **Nombres fijados:**
 
   | Parte | Tabla | Prefijo |

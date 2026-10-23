@@ -8,17 +8,17 @@ import { BUSINESS_RULES, BUSINESS_RULE_NAMES, DEFAULT_EXPIRING_DAYS } from "../s
 // ya asignados y la navegación de cualquier ambiente que ya tenga datos.
 //
 // pag_type: 1 = página padre (grupo en el sidebar), 2 = página hija (item),
-// 3 = página padre que el sidebar dibuja como desplegable (migración 0093).
-// pag_order de los grupos: el de la migración 0069 (Dashboard, Obras,
-// Facturación, Administración, Seguridad). El upsert lo reescribe en cada `yarn db:seed`.
+// 3 = página que el sidebar dibuja como desplegable (migración 0093), hoy Facturas.
+// Grupos: Inicio (tablero, obras, proveedores, contratos y el desplegable
+// Facturas), Administración, Seguridad (migración 0111). El upsert lo reescribe en cada `yarn db:seed`.
 
 const PAGES = [
-  { pag_id: 1, pag_description: "Dashboard", pag_parent: 0, pag_url: "home/default", pag_icon: "dashboard", pag_order: 1, pag_name: "Dashboard", pag_type: 1 },
-  { pag_id: 2, pag_description: "Seguridad", pag_parent: 0, pag_url: null, pag_icon: "shield", pag_order: 5, pag_name: "Seguridad", pag_type: 1 },
+  { pag_id: 1, pag_description: "Dashboard", pag_parent: 13, pag_url: "home/default", pag_icon: "dashboard", pag_order: 1, pag_name: "Dashboard", pag_type: 2 },
+  { pag_id: 2, pag_description: "Seguridad", pag_parent: 0, pag_url: null, pag_icon: "shield", pag_order: 3, pag_name: "Seguridad", pag_type: 1 },
   { pag_id: 3, pag_description: "Perfiles", pag_parent: 2, pag_url: "security/profiles", pag_icon: "id", pag_order: 1, pag_name: "Perfiles", pag_type: 2 },
   { pag_id: 4, pag_description: "Usuarios", pag_parent: 2, pag_url: "security/users", pag_icon: "users", pag_order: 2, pag_name: "Usuarios", pag_type: 2 },
   // database/migrations/0020_seed_admin_identity_documents_pages_permissions.sql
-  { pag_id: 5, pag_description: "Administración", pag_parent: 0, pag_url: null, pag_icon: "settings", pag_order: 4, pag_name: "Administración", pag_type: 1 },
+  { pag_id: 5, pag_description: "Administración", pag_parent: 0, pag_url: null, pag_icon: "settings", pag_order: 2, pag_name: "Administración", pag_type: 1 },
   { pag_id: 6, pag_description: "Tipos de identificación", pag_parent: 5, pag_url: "admin/identityDocuments", pag_icon: "id-card", pag_order: 1, pag_name: "Tipos de identificación", pag_type: 2 },
   // database/migrations/0024_seed_provider_types_pages_permissions.sql
   { pag_id: 7, pag_description: "Tipos de proveedor", pag_parent: 5, pag_url: "admin/providerTypes", pag_icon: "truck", pag_order: 2, pag_name: "Tipos de proveedor", pag_type: 2 },
@@ -33,19 +33,20 @@ const PAGES = [
   // database/migrations/0037_seed_contract_types_pages_permissions.sql
   { pag_id: 12, pag_description: "Tipos de contrato", pag_parent: 5, pag_url: "admin/contractTypes", pag_icon: "contract", pag_order: 7, pag_name: "Tipos de contrato", pag_type: 2 },
   // database/migrations/0041_seed_works_pages_permissions.sql
-  { pag_id: 13, pag_description: "Obras", pag_parent: 0, pag_url: null, pag_icon: "building", pag_order: 2, pag_name: "Obras", pag_type: 1 },
-  { pag_id: 14, pag_description: "Obras", pag_parent: 13, pag_url: "work/works", pag_icon: "building", pag_order: 1, pag_name: "Obras", pag_type: 2 },
+  // Grupo "Inicio" desde 0111 (antes "Obras").
+  { pag_id: 13, pag_description: "Inicio", pag_parent: 0, pag_url: null, pag_icon: "home", pag_order: 1, pag_name: "Inicio", pag_type: 1 },
+  { pag_id: 14, pag_description: "Obras", pag_parent: 13, pag_url: "work/works", pag_icon: "building", pag_order: 2, pag_name: "Obras", pag_type: 2 },
   // database/migrations/0047_seed_providers_pages_permissions.sql
-  { pag_id: 15, pag_description: "Proveedores", pag_parent: 13, pag_url: "work/providers", pag_icon: "truck", pag_order: 2, pag_name: "Proveedores", pag_type: 2 },
+  { pag_id: 15, pag_description: "Proveedores", pag_parent: 13, pag_url: "work/providers", pag_icon: "truck", pag_order: 3, pag_name: "Proveedores", pag_type: 2 },
   // database/migrations/0052_seed_contracts_pages_permissions.sql
-  { pag_id: 16, pag_description: "Contratos", pag_parent: 13, pag_url: "work/contracts", pag_icon: "file-description", pag_order: 3, pag_name: "Contratos", pag_type: 2 },
+  { pag_id: 16, pag_description: "Contratos", pag_parent: 13, pag_url: "work/contracts", pag_icon: "file-description", pag_order: 4, pag_name: "Contratos", pag_type: 2 },
   // database/migrations/0062_seed_reasons_suspensions_permissions.sql
   { pag_id: 17, pag_description: "Motivos", pag_parent: 5, pag_url: "admin/reasons", pag_icon: "message-report", pag_order: 8, pag_name: "Motivos", pag_type: 2 },
   // database/migrations/0069_seed_invoices_pages_permissions.sql; nombre de
   // 0091. Sus entradas no son páginas: una por tipo de proveedor con la
   // casilla del menú, que arma app.service.js (DEC-074). Las páginas 19 y 21
-  // a 23 se retiraron (0091, 0109).
-  { pag_id: 18, pag_description: "Facturas", pag_parent: 0, pag_url: null, pag_icon: "receipt", pag_order: 3, pag_name: "Facturas", pag_type: 3 },
+  // a 23 se retiraron (0091, 0109). Desde 0111, desplegable dentro de Inicio.
+  { pag_id: 18, pag_description: "Facturas", pag_parent: 13, pag_url: null, pag_icon: "receipt", pag_order: 5, pag_name: "Facturas", pag_type: 3 },
   // database/migrations/0082_seed_policies_pages_permissions.sql
   { pag_id: 20, pag_description: "Tipos de póliza", pag_parent: 5, pag_url: "admin/policyTypes", pag_icon: "shield-check", pag_order: 9, pag_name: "Tipos de póliza", pag_type: 2 },
 ];

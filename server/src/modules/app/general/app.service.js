@@ -35,22 +35,25 @@ const toChild = (p) => ({
   icon: p.pag_icon,
   pag_order: p.pag_order,
   label: p.pag_name,
+  // 3: desplegable dentro de su grupo (Facturas en Inicio, migración 0111).
+  collapsible: p.pag_type === 3,
 });
 
-// Grupo "Facturas" (migración 0069). Sus entradas no son páginas: una por
-// tipo de proveedor con la casilla del menú (DEC-074).
+// Desplegable "Facturas" (migración 0069), dentro del grupo Inicio desde la
+// 0111. Sus entradas no son páginas: una por tipo de proveedor con la casilla
+// del menú (DEC-074).
 const BILLING_PAGE_ID = 18;
 
 /**
- * Entradas del grupo Facturas: los menús de los tipos de proveedor, por
- * nombre, si el usuario puede ver facturas. Sin ninguna, el grupo no se
+ * Entradas del desplegable Facturas: los menús de los tipos de proveedor, por
+ * nombre, si el usuario puede ver facturas. Sin ninguna, el desplegable no se
  * muestra (vacío, el sidebar lo dibujaría como una página sin dirección).
  */
 const withInvoiceMenus = async (datos, { per, idu }) => {
-  if (!datos.padres.some((p) => p.id === BILLING_PAGE_ID)) return datos;
+  if (!datos.hijos.some((h) => h.pag_id === BILLING_PAGE_ID)) return datos;
   const seesInvoices = await hasEffectivePermission({ useId: idu, proId: per, perId: PERMISSIONS.billing.invoices.view });
   const menus = seesInvoices ? await listInvoiceMenus() : [];
-  if (menus.length === 0) return { ...datos, padres: datos.padres.filter((p) => p.id !== BILLING_PAGE_ID) };
+  if (menus.length === 0) return { ...datos, hijos: datos.hijos.filter((h) => h.pag_id !== BILLING_PAGE_ID) };
   const entries = menus.map((menu, index) => ({
     pag_id: `invoices-${menu.pvtId}`,
     pag_description: menu.name,

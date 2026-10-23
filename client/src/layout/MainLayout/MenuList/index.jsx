@@ -93,19 +93,31 @@ function MenuList() {
           .filter((entry) => entry.match)
           .map((entry) => ({ pvtId: entry.match[1], name: entry.name }))
       );
+      const toItem = (hijo) => ({
+        id: hijo.toa || `item-${hijo.pag_id}`,
+        title: hijo.label || hijo.pag_description,
+        type: 'item',
+        url: hijo.toa?.startsWith('/') ? hijo.toa : hijo.toa ? `/${hijo.toa}` : '#',
+        icon: getIconByName(hijo.icon)
+      });
       // Transform data to Berry group items format
       const transformMenu = (padres, hijos) => {
         const mapped = padres.map((padre) => {
           const childrenOfPadre = hijos.filter((hijo) => hijo.padre === padre.id);
           
           if (childrenOfPadre.length > 0) {
-            const items = childrenOfPadre.map((hijo) => ({
-              id: hijo.toa || `item-${hijo.id}`,
-              title: hijo.label || hijo.pag_description,
-              type: 'item',
-              url: hijo.toa?.startsWith('/') ? hijo.toa : hijo.toa ? `/${hijo.toa}` : '#',
-              icon: getIconByName(hijo.icon)
-            }));
+            const items = childrenOfPadre.map((hijo) =>
+              // Desplegable dentro del grupo (pag_type 3, migración 0111): Facturas en Inicio, con sus entradas debajo.
+              hijo.collapsible
+                ? {
+                    id: `collapse-${hijo.pag_id}`,
+                    title: hijo.label || hijo.pag_description,
+                    type: 'collapse',
+                    icon: getIconByName(hijo.icon),
+                    children: hijos.filter((nieto) => nieto.padre === hijo.pag_id).map(toItem)
+                  }
+                : toItem(hijo)
+            );
             // Grupo plegable (pag_type 3, migración 0093): sin título fijo,
             // un desplegable con el nombre del grupo y sus páginas dentro.
             if (padre.collapsible) {

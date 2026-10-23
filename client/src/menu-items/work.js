@@ -1,19 +1,20 @@
 // assets
-import { IconBuilding, IconFileDescription, IconTruck } from '@tabler/icons-react';
+import { IconBuilding, IconFileDescription, IconHome, IconTruck } from '@tabler/icons-react';
 
 // ==============================|| WORK MENU ITEMS ||============================== //
-// Solo alimenta las migas de pan: el sidebar sale de tbl_pages.
+// Solo alimenta las migas de pan: el sidebar sale de tbl_pages. Obras,
+// proveedores y contratos están en el grupo Inicio (migración 0111).
 
 const work = {
   id: 'work',
-  title: 'Obras',
+  title: 'Inicio',
   type: 'group',
   children: [
     {
       id: 'work-collapse',
-      title: 'Obras',
+      title: 'Inicio',
       type: 'collapse',
-      icon: IconBuilding,
+      icon: IconHome,
       children: [
         {
           id: 'works',

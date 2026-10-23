@@ -14,7 +14,7 @@ ADR-0012 define el proveedor como entidad reutilizable entre obras, con una rela
   - servidor: `server/src/modules/work/providers/`
   - API: `/api/work/providers/<acción>_provider`; el listado, `pagination_providers`
   - cliente: `client/src/views/work/providers/`, y `client/src/api/requests/providersApi.js`
-  - menú: "Proveedores" dentro del grupo "Obras" (página 15)
+  - menú: "Proveedores" dentro del grupo "Obras" (página 15), que desde la migración 0111 se llama "Inicio"
   - tests: `server/test/modules/work/providers/`
 - **Nombres fijados:**
 
