@@ -71,6 +71,7 @@ const grantedOf = async ({ useId, proId }) => new Set(await getEffectivePermissi
 const listFiltersOf = (req) => {
   const { search, state, pvtId, type, wrkId, prvId, ctrId, sortField, sortOrder } = req.body;
   const { number, voucherNumber, statement, contractNumber, providerName, dateFrom, dateTo, approvalDateFrom, approvalDateTo } = req.body;
+  const { stageName, contractName, valueFrom, valueTo, discountFrom, discountTo, vatPctFrom, vatPctTo } = req.body;
   return {
     search,
     state,
@@ -88,6 +89,14 @@ const listFiltersOf = (req) => {
     dateTo,
     approvalDateFrom,
     approvalDateTo,
+    stageName,
+    contractName,
+    valueFrom,
+    valueTo,
+    discountFrom,
+    discountTo,
+    vatPctFrom,
+    vatPctTo,
     sortField,
     sortOrder,
   };

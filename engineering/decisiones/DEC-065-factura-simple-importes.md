@@ -45,6 +45,19 @@ La factura simple tenía encabezado y ciclo de vida, pero ningún importe: su co
   - En anticipo y devolución, el panel muestra su valor como total. En la liquidación muestra el VALOR, la amortización y el retenido, sin total: su IVA y sus retenciones esperan DEC-03.
 - **DEC-03, respuesta adelantada** (no implementada): en la factura de liquidación, el IVA es VALOR × % IVA, como en el sistema actual; el % de utilidad no entra en ese cálculo. Lo demás de DEC-03 (el signo de la devolución y del descuento de materiales) y DEC-08 siguen abiertos.
 
+## Listado (2026-10-23)
+
+Pedido del usuario: las columnas del listado de facturas simples del sistema que se migra.
+
+- **Columnas de un menú simple, en su orden:** Nro factura, Proveedor, Valor, Descuento, IVA %, Valor IVA, Total, Fecha y Extracto. Después, Obra · etapa y Aprobada el, que ya estaban. El estado sigue en las pestañas.
+- **Valor, descuento y % IVA** son lo guardado. **Valor IVA y Total** los compone el servidor en el listado con `composeSimpleInvoice` (el Total es el mismo TOTAL del panel Detalle). Una simple sin importes muestra "—".
+- **Filtros** (DEC-048, botón Filtros): etapa (contiene) y rangos de valor, descuento y % IVA. Se ordena por esos tres. Valor IVA y Total no se filtran ni se ordenan: no se guardan, y filtrarlos exigiría repetir la fórmula en la BD (decisión del usuario).
+- **Menús de contrato**, igual, con sus columnas en el orden del sistema que se migra: Tipo, Nro factura, Proveedor, Nro contrato, Contrato (nombre), Valor, Descuento, IVA %, Valor IVA, Total, Fecha y Extracto, y después Obra · etapa y Aprobada el. Cada tipo da sus importes:
+  - Normal y liquidación (DEC-075): valor, IVA % e IVA, y el TOTAL de `composeContractInvoice`. El **descuento es el de materiales**, el único que tienen. Las registradas antes de DEC-075 muestran solo su valor.
+  - Anticipo y devolución de retenido: su valor, que es también su total (no llevan IVA ni retenciones).
+  - Los rangos buscan en la tabla de detalle de cada tipo (un `OR`). Se filtra también por el nombre del contrato. En estos menús no se ordena por importes, porque cada tipo los guarda en una tabla distinta.
+- **Reporte** (DEC-070): el de cada menú lleva las mismas columnas de importes.
+
 ## Valor y porcentaje (2026-10-23)
 
 El usuario pidió poder escribir cada importe en pesos o en porcentaje. Salvo el VALOR, que es la base, cada importe muestra su valor y su %. Se escribe en cualquiera de las dos cajas y la otra muestra lo que da.

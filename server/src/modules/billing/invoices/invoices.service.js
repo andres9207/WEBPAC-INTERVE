@@ -9,7 +9,7 @@ import { findExportRows, renderExport } from "../../../common/services/export.se
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
-import { moneyText, percentFor, percentOf, percentText, ratioText, sumMoney, toMoney, toPercent } from "../../../common/utils/money.utils.js";
+import { decimal, moneyText, percentFor, percentOf, percentText, ratioText, sumMoney, toMoney, toPercent } from "../../../common/utils/money.utils.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, getContractFormOptions } from "../../work/contracts/contracts.service.js";
 import { providerSelectOptions } from "../../work/providers/providers.service.js";
@@ -839,6 +839,11 @@ const SORT_FIELDS = {
   approvalDate: (order) => ({ inv_approval_date: order }),
   state: (order) => ({ inv_state: order }),
   updatedAt: (order) => ({ inv_update_at: order }),
+  // Importes guardados de la simple (DEC-065); IVA y total se calculan, no se ordenan. En los menús de contrato no se
+  // ordena por importes: cada tipo los guarda en su propia tabla de detalle.
+  value: (order) => ({ tbl_invoice_simple_details: { isd_value: order } }),
+  discount: (order) => ({ tbl_invoice_simple_details: { isd_discount: order } }),
+  vatPct: (order) => ({ tbl_invoice_simple_details: { isd_vat_pct: order } }),
 };
 
 const LIST_SELECT = {
@@ -858,7 +863,70 @@ const LIST_SELECT = {
   tbl_providers: { select: { prv_name: true } },
   tbl_works: { select: { wrk_code: true, wrk_name: true } },
   tbl_work_stages: { select: { wks_name: true } },
-  tbl_contracts: { select: { ctr_number: true, tbl_work_stages: { select: { wks_name: true } } } },
+  tbl_contracts: { select: { ctr_number: true, ctr_name: true, tbl_work_stages: { select: { wks_name: true } } } },
+  // Importes de cada tipo: lo capturado, para mostrarlo y componer IVA y total (DEC-065, DEC-075).
+  tbl_invoice_advance_details: { select: { iad_value: true } },
+  tbl_invoice_retention_refund_details: { select: { irr_value: true } },
+  tbl_invoice_liquidation_details: {
+    select: {
+      ild_value: true,
+      ild_amortization: true,
+      ild_retention: true,
+      ild_utility_pct: true,
+      ild_vat_pct: true,
+      ild_withholding_pct: true,
+      ild_vat_withholding_pct: true,
+      ild_ica_withholding: true,
+      ild_materials_discount: true,
+      ild_formula_version: true,
+    },
+  },
+  tbl_invoice_simple_details: {
+    select: {
+      isd_value: true,
+      isd_withholding_pct: true,
+      isd_discount: true,
+      isd_vat_pct: true,
+      isd_vat_withholding_pct: true,
+      isd_ica_withholding: true,
+      isd_freight: true,
+      isd_early_payment_discount: true,
+      isd_formula_version: true,
+    },
+  },
+};
+
+const NO_LIST_AMOUNTS = Object.freeze({ value: null, discount: null, vatPct: null, vat: null, total: null });
+
+/**
+ * Columnas de importes del listado, las del sistema que se migra: valor, descuento, % IVA, valor IVA y total.
+ * - Simple (DEC-065): el descuento AI; IVA y total con su fórmula.
+ * - Normal y liquidación (DEC-075): el descuento de materiales; IVA y total con su fórmula. Las registradas antes de
+ *   DEC-075 no tienen composición: solo su valor.
+ * - Anticipo y devolución de retenido: su valor, que es también su total (no llevan IVA ni retenciones).
+ * null lo que el tipo no tiene, y todo en una factura sin importes.
+ */
+const listAmounts = (row) => {
+  const simple = row.tbl_invoice_simple_details;
+  if (simple) {
+    const composed = composeSimpleInvoice(simple);
+    const vatPct = percentText(simple.isd_vat_pct);
+    return { value: moneyText(composed.value), discount: moneyText(composed.discount), vatPct, vat: moneyText(composed.vat), total: moneyText(composed.total) };
+  }
+  const liquidation = row.tbl_invoice_liquidation_details;
+  if (liquidation) {
+    if (!hasContractTaxes(liquidation)) return { ...NO_LIST_AMOUNTS, value: moneyText(liquidation.ild_value) };
+    const composed = composeContractInvoice(liquidation);
+    return {
+      value: moneyText(composed.value),
+      discount: moneyText(composed.materialsDiscount),
+      vatPct: percentText(liquidation.ild_vat_pct),
+      vat: moneyText(composed.vat),
+      total: moneyText(composed.total),
+    };
+  }
+  const plain = row.tbl_invoice_advance_details?.iad_value ?? row.tbl_invoice_retention_refund_details?.irr_value;
+  return plain === undefined ? NO_LIST_AMOUNTS : { ...NO_LIST_AMOUNTS, value: moneyText(plain), total: moneyText(plain) };
 };
 
 const toListDto = (row) => ({
@@ -878,13 +946,35 @@ const toListDto = (row) => ({
   workName: row.tbl_works?.wrk_name ?? null,
   ctrId: row.ctr_id,
   contractNumber: row.tbl_contracts?.ctr_number ?? null,
+  contractName: row.tbl_contracts?.ctr_name ?? null,
   // La simple guarda su etapa; la de una factura de contrato es la del contrato (no se copia).
   stageName: row.tbl_work_stages?.wks_name ?? row.tbl_contracts?.tbl_work_stages?.wks_name ?? null,
+  ...listAmounts(row),
   state: row.inv_state,
   stateName: STATE_NAMES[row.inv_state] ?? row.inv_state,
   updatedAt: row.inv_update_at,
   updatedByName: userFullName(row.updated_by_user),
 });
+
+/**
+ * Rango de un importe guardado, o null. `columns`: la columna de cada tabla de detalle que lo guarda (`{ relación:
+ * columna }`); una factura entra si el suyo está en el rango. Los extremos ya vienen validados.
+ */
+const amountRange = (columns, from, to) => {
+  const range = { ...(text(from) ? { gte: decimal(from) } : {}), ...(text(to) ? { lte: decimal(to) } : {}) };
+  if (Object.keys(range).length === 0) return null;
+  return { OR: Object.entries(columns).map(([relation, column]) => ({ [relation]: { is: { [column]: range } } })) };
+};
+
+// Dónde guarda cada tipo el valor, el descuento y el % IVA de las columnas del listado.
+const VALUE_COLUMNS = {
+  tbl_invoice_simple_details: "isd_value",
+  tbl_invoice_liquidation_details: "ild_value",
+  tbl_invoice_advance_details: "iad_value",
+  tbl_invoice_retention_refund_details: "irr_value",
+};
+const DISCOUNT_COLUMNS = { tbl_invoice_simple_details: "isd_discount", tbl_invoice_liquidation_details: "ild_materials_discount" };
+const VAT_PCT_COLUMNS = { tbl_invoice_simple_details: "isd_vat_pct", tbl_invoice_liquidation_details: "ild_vat_pct" };
 
 // Búsqueda general (DEC-024): número, comprobante, proveedor, contrato u obra.
 const searchWhereOf = (search) => {
@@ -912,7 +1002,11 @@ const countByState = async (where) => {
  * `wrkId`, `prvId` y `ctrId`, por tipo, obra, proveedor o contrato (la
  * pestaña Facturas del contrato). `number`, `voucherNumber`, `statement`,
  * `contractNumber`, `providerName` (razón social) y los rangos de fecha y de aprobación son filtros por
- * campo (DEC-048). Los conteos respetan todos los filtros menos el estado.
+ * campo (DEC-048). Las columnas de importes también: `stageName` (la etapa
+ * de la factura o la de su contrato), `contractName` y los rangos de valor,
+ * descuento y % IVA (`valueFrom`…`vatPctTo`), en la tabla de detalle de cada
+ * tipo; el IVA y el total se calculan y no se filtran.
+ * Los conteos respetan todos los filtros menos el estado.
  *
  * `scope`: alcance por obra de la petición (DEC-047). El filtro de obra va en
  * el `AND`: se suma al alcance y nunca lo reemplaza.
@@ -950,6 +1044,14 @@ const invoiceListQuery = ({
   dateTo,
   approvalDateFrom,
   approvalDateTo,
+  stageName,
+  contractName,
+  valueFrom,
+  valueTo,
+  discountFrom,
+  discountTo,
+  vatPctFrom,
+  vatPctTo,
   sortField,
   sortOrder,
   scope,
@@ -975,6 +1077,11 @@ const invoiceListQuery = ({
       containsFilter(providerName, (c) => ({ tbl_providers: { prv_name: c } })),
       dateRangeFilter("inv_date", dateFrom, dateTo),
       dateRangeFilter("inv_approval_date", approvalDateFrom, approvalDateTo),
+      containsFilter(stageName, (c) => ({ OR: [{ tbl_work_stages: { wks_name: c } }, { tbl_contracts: { tbl_work_stages: { wks_name: c } } }] })),
+      containsFilter(contractName, (c) => ({ tbl_contracts: { ctr_name: c } })),
+      amountRange(VALUE_COLUMNS, valueFrom, valueTo),
+      amountRange(DISCOUNT_COLUMNS, discountFrom, discountTo),
+      amountRange(VAT_PCT_COLUMNS, vatPctFrom, vatPctTo),
     ]),
   };
   return { baseWhere, where: { ...baseWhere, ...(state ? { inv_state: state } : {}) }, orderBy };
@@ -1028,15 +1135,44 @@ const EXPORT_COLUMNS = [
   { header: "Extracto", value: (r) => r.statement },
   { header: "Tipo", value: (r) => r.typeName, contract: true },
   { header: "Proveedor", value: (r) => r.providerName, width: 2 },
-  { header: "Contrato", value: (r) => r.contractNumber, contract: true },
+  { header: "Nro contrato", value: (r) => r.contractNumber, contract: true },
+  { header: "Contrato", value: (r) => r.contractName, contract: true, width: 2 },
   { header: "Obra", value: (r) => [r.workCode, r.workName].filter(Boolean).join(" — "), width: 2 },
   { header: "Etapa", value: (r) => r.stageName },
+  { header: "Valor", value: (r) => r.value, kind: "money" },
+  { header: "Descuento", value: (r) => r.discount, kind: "money" },
+  { header: "IVA %", value: (r) => r.vatPct, kind: "percent" },
+  { header: "Valor IVA", value: (r) => r.vat, kind: "money" },
+  { header: "Total", value: (r) => r.total, kind: "money" },
   { header: "Fecha", value: (r) => r.date, kind: "date" },
   { header: "Aprobada el", value: (r) => r.approvalDate, kind: "date" },
   { header: "Estado", value: (r) => r.stateName },
 ];
 
-const exportFilterLines = async ({ state, search, type, wrkId, prvId, number, voucherNumber, statement, contractNumber, providerName, dateFrom, dateTo, approvalDateFrom, approvalDateTo }) => {
+const exportFilterLines = async ({
+  state,
+  search,
+  type,
+  wrkId,
+  prvId,
+  number,
+  voucherNumber,
+  statement,
+  contractNumber,
+  providerName,
+  dateFrom,
+  dateTo,
+  approvalDateFrom,
+  approvalDateTo,
+  stageName,
+  contractName,
+  valueFrom,
+  valueTo,
+  discountFrom,
+  discountTo,
+  vatPctFrom,
+  vatPctTo,
+}) => {
   const [work, provider] = await Promise.all([
     positiveId(wrkId) ? prisma.tbl_works.findUnique({ where: { wrk_id: positiveId(wrkId) }, select: { wrk_code: true, wrk_name: true } }) : null,
     positiveId(prvId) ? prisma.tbl_providers.findUnique({ where: { prv_id: positiveId(prvId) }, select: { prv_name: true } }) : null,
@@ -1054,6 +1190,11 @@ const exportFilterLines = async ({ state, search, type, wrkId, prvId, number, vo
     ["Contrato contiene", text(contractNumber)],
     ["Fecha", range(dateFrom, dateTo)],
     ["Aprobada el", range(approvalDateFrom, approvalDateTo)],
+    ["Etapa contiene", text(stageName)],
+    ["Contrato (nombre) contiene", text(contractName)],
+    ["Valor", range(valueFrom, valueTo)],
+    ["Descuento", range(discountFrom, discountTo)],
+    ["IVA %", range(vatPctFrom, vatPctTo)],
   ].filter(([, value]) => value);
   return [`Filtros: ${lines.map(([label, value]) => `${label}: ${value}`).join(" · ")}`];
 };

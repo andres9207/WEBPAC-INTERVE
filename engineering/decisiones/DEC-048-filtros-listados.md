@@ -11,7 +11,7 @@ DEC-024 quitó el botón "Filtros" y dejó un solo campo de búsqueda. Con obras
 ## Decisión
 
 - **Cliente:** un botón **Filtros** a la izquierda de la cabecera, con el número de filtros activos, abre `FilterPopper` con un campo por filtro y el botón Limpiar. Se quita el campo de búsqueda. A la derecha siguen las pestañas por estado con conteo y el botón de crear.
-  - Cada página declara sus filtros (`filterFields`) en el formato de FilterPopper: `{ key, type, label, props?, grid? }`. `key` es el parámetro de la petición; un rango (`calendar-range`) viaja como `<key>From` y `<key>To`.
+  - Cada página declara sus filtros (`filterFields`) en el formato de FilterPopper: `{ key, type, label, props?, grid? }`. `key` es el parámetro de la petición; un rango (`calendar-range`, o `number-range` para importes y porcentajes) viaja como `<key>From` y `<key>To`.
   - Los filtros se aplican 300 ms después del último cambio y el listado vuelve a la página 0. El texto viaja recortado; lo vacío no viaja.
   - Las pestañas cuentan dentro de los filtros. Los selectores de tipo de contratos y facturas pasan al popper.
   - Las listas usan `SearchSelect` (cerradas) o `SelectSocket` (maestros, solo los activos).
@@ -29,7 +29,7 @@ DEC-024 quitó el botón "Filtros" y dejó un solo campo de búsqueda. Con obras
 | Obras | Código, nombre, constructora y tipo de interventoría |
 | Proveedores | Razón social, documento, tipo de proveedor y obra asignada |
 | Contratos | Número, nombre, tipo de contrato, proveedor (lista buscada en el servidor), etapa (lista de las etapas con contratos, con el código de la obra), estado (uno o varios, aparte de la pestaña; las pestañas cuentan dentro de lo elegido), rango de fecha fin y obra. Etapa y estado, agregados el 2026-10-23 a pedido del usuario |
-| Facturas | Tipo, número, comprobante, número de contrato, razón social del proveedor, rango de fecha, rango de aprobación y obra |
+| Facturas | Tipo, número, comprobante, número de contrato, razón social del proveedor, rango de fecha, rango de aprobación y obra. En todos los menús, además, etapa y rangos de valor, descuento y % IVA, y en los de contrato el nombre del contrato (2026-10-23, a pedido del usuario; ver DEC-065, "Listado") |
 
 ## Descartado
 

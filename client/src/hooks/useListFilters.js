@@ -8,17 +8,19 @@ const isEmptyValue = (value) =>
   value == null || (typeof value === 'string' && value.trim() === '') || (Array.isArray(value) && value.every((v) => isEmptyValue(v)));
 
 /**
- * Valores del popper → parámetros de la petición. Un rango (`calendar-range`)
- * viaja como `<key>From` y `<key>To`; el texto, recortado; lo vacío no viaja.
+ * Valores del popper → parámetros de la petición. Un rango (`calendar-range`,
+ * `number-range`) viaja como `<key>From` y `<key>To`; el texto, recortado; lo
+ * vacío no viaja. Un número escrito con coma decimal viaja con punto.
  */
 const filterParams = (fields, values) =>
   Object.fromEntries(
     fields.flatMap(({ key, type }) => {
       const value = values[key];
       if (isEmptyValue(value)) return [];
-      if (type === 'calendar-range') {
+      if (type === 'calendar-range' || type === 'number-range') {
+        const bound = (text) => (type === 'number-range' ? text.replace(',', '.') : text);
         const [from, to] = value;
-        return [...(from ? [[`${key}From`, from]] : []), ...(to ? [[`${key}To`, to]] : [])];
+        return [...(from ? [[`${key}From`, bound(from)]] : []), ...(to ? [[`${key}To`, bound(to)]] : [])];
       }
       return [[key, typeof value === 'string' ? value.trim() : value]];
     })

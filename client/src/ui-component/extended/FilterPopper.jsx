@@ -35,9 +35,14 @@ import { showError } from 'services/ToastService';
  *   búsqueda lo deje fuera (el panel se desmonta al cerrarse).
  * - `multiSelect`: varias opciones de `props.options`.
  * - `calendar`: una fecha. `calendar-range`: desde y hasta, como `[desde, hasta]`.
+ * - `number-range`: importe o porcentaje desde y hasta, como `[desde, hasta]`
+ *   en texto (solo dígitos y hasta dos decimales); el servidor los convierte.
  * - `selectButton`: botones exclusivos con `props.options`.
  * - `chips`: lista libre de textos.
  */
+
+// Lo que se puede escribir en un `number-range`: dígitos y hasta dos decimales, con punto o coma.
+const NUMBER_TEXT = /^\d*([.,]\d{0,2})?$/;
 
 const normalizeOptions = (options = []) =>
   options.map((option) => {
@@ -181,6 +186,39 @@ const FilterPopper = ({ anchorEl, open, onClose, filters, setFilters, initialFil
                 slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: range[0] || undefined } }}
                 value={range[1] || ''}
                 onChange={(event) => updateFilter(filter.key, [range[0] || '', event.target.value])}
+              />
+            </Box>
+          </Box>
+        );
+      }
+      case 'number-range': {
+        const range = Array.isArray(value) ? value : ['', ''];
+        const setBound = (index) => (event) => {
+          const text = event.target.value.replace(/\s/g, '');
+          if (!NUMBER_TEXT.test(text)) return;
+          updateFilter(filter.key, index === 0 ? [text, range[1] || ''] : [range[0] || '', text]);
+        };
+        return (
+          <Box>
+            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+              {filter.label}
+            </Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label={filter.props?.labelFrom || 'Desde'}
+                slotProps={{ htmlInput: { inputMode: 'decimal', maxLength: 20 } }}
+                value={range[0] || ''}
+                onChange={setBound(0)}
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label={filter.props?.labelTo || 'Hasta'}
+                slotProps={{ htmlInput: { inputMode: 'decimal', maxLength: 20 } }}
+                value={range[1] || ''}
+                onChange={setBound(1)}
               />
             </Box>
           </Box>

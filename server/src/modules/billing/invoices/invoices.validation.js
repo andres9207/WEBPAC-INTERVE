@@ -50,6 +50,11 @@ export const paginationInvoicesSchema = [
   optionalDate("dateTo"),
   optionalDate("approvalDateFrom"),
   optionalDate("approvalDateTo"),
+  // Columnas de los importes (DEC-065, DEC-075): etapa, nombre del contrato y los importes guardados, por rango.
+  optionalText("stageName", 255),
+  optionalText("contractName", 200),
+  ...["valueFrom", "valueTo", "discountFrom", "discountTo"].map((field) => moneyRule(field, `filtro ${field}`, { optional: true })),
+  ...["vatPctFrom", "vatPctTo"].map((field) => percentRule(field, `filtro ${field}`, { optional: true })),
 ];
 
 const menuQuery = () => query("pvtId").isInt({ min: 1 }).withMessage("pvtId es obligatorio: el menú de facturas.");

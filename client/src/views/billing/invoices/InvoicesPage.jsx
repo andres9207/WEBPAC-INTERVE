@@ -13,7 +13,15 @@ import { exportInvoicesAPI, getInvoiceFilterProvidersAPI, invoicesApi } from 'ap
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField } from 'contexts/WorkScopeContext';
 import { fDateOnly } from 'utils/formatTime';
-import { INVOICE_MODES, INVOICE_MODE_TYPES, INVOICE_STATE_COLORS, INVOICE_STATE_TABS, INVOICE_TYPE_OPTIONS, invoicePath } from 'utils/constants';
+import { fMoneyText, fPercentText } from 'utils/formatNumber';
+import {
+  INVOICE_MODES,
+  INVOICE_MODE_TYPES,
+  INVOICE_STATE_COLORS,
+  INVOICE_STATE_TABS,
+  INVOICE_TYPE_OPTIONS,
+  invoicePath
+} from 'utils/constants';
 
 // Facturas (ADR-0020, DEC-042), en menús dinámicos (DEC-074): uno por tipo de
 // proveedor con la casilla del menú. La ruta lleva el tipo (`:pvtId`), que
@@ -68,8 +76,58 @@ export const INVOICE_COLUMNS = [
 
 export const INVOICE_STATE_FILTER = { param: 'state', tabs: INVOICE_STATE_TABS, colors: INVOICE_STATE_COLORS };
 
-// La simple no tiene tipo que elegir; sí obra y etapa, sin contrato (DEC-058).
-const SIMPLE_COLUMNS = INVOICE_COLUMNS.filter((column) => column.id !== 'type');
+// Importe que llega del servidor como texto (DEC-028): a la derecha, en cifras alineadas.
+const amountColumn = (id, label, format, sortable = false) => ({
+  id,
+  label,
+  sortable,
+  align: 'right',
+  render: (row) => (row[id] === null ? '—' : <span style={{ fontVariantNumeric: 'tabular-nums' }}>{format(row[id])}</span>),
+  cardRender: (row) => (row[id] === null ? '—' : format(row[id]))
+});
+
+// La simple no tiene tipo que elegir; sí obra y etapa, sin contrato (DEC-058). Columnas del sistema que se migra, en
+// su orden, y después obra · etapa y aprobación. Valor, descuento y % IVA son lo guardado; IVA y total los calcula el
+// servidor con la fórmula de la factura (DEC-065), y por eso no se ordenan ni se filtran.
+const columnById = (id) => INVOICE_COLUMNS.find((column) => column.id === id);
+const SIMPLE_COLUMNS = [
+  { ...columnById('number'), label: 'Nro factura' },
+  columnById('provider'),
+  amountColumn('value', 'Valor', fMoneyText, true),
+  amountColumn('discount', 'Descuento', fMoneyText, true),
+  amountColumn('vatPct', 'IVA %', fPercentText, true),
+  amountColumn('vat', 'Valor IVA', fMoneyText),
+  amountColumn('total', 'Total', fMoneyText),
+  columnById('date'),
+  columnById('statement'),
+  columnById('work'),
+  columnById('approvalDate')
+];
+
+// Menús de contrato: las columnas del sistema que se migra, en su orden, y después obra · etapa y aprobación. Cada tipo
+// guarda sus importes en su propia tabla de detalle (el descuento es el de materiales, DEC-075; el anticipo y la
+// devolución solo tienen valor, que es su total): no se ordenan por importes.
+const CONTRACT_MENU_COLUMNS = [
+  columnById('type'),
+  { ...columnById('number'), label: 'Nro factura' },
+  {
+    id: 'provider',
+    label: 'Proveedor',
+    sortable: true,
+    render: (row) => row.providerName
+  },
+  { id: 'contractNumber', label: 'Nro contrato', render: (row) => row.contractNumber ?? '—' },
+  { id: 'contractName', label: 'Contrato', render: (row) => row.contractName ?? '—' },
+  amountColumn('value', 'Valor', fMoneyText),
+  amountColumn('discount', 'Descuento', fMoneyText),
+  amountColumn('vatPct', 'IVA %', fPercentText),
+  amountColumn('vat', 'Valor IVA', fMoneyText),
+  amountColumn('total', 'Total', fMoneyText),
+  columnById('date'),
+  columnById('statement'),
+  columnById('work'),
+  columnById('approvalDate')
+];
 
 const CONTRACT_TYPE_OPTIONS = INVOICE_TYPE_OPTIONS.filter((o) => INVOICE_MODE_TYPES[INVOICE_MODES.CONTRACT].includes(o.value));
 
@@ -91,10 +149,21 @@ const commonFilters = (pvtId) => [
   { key: 'date', type: 'calendar-range', label: 'Fecha', grid: { xs: 12, sm: 6 } },
   { key: 'approvalDate', type: 'calendar-range', label: 'Aprobada el', grid: { xs: 12, sm: 6 } }
 ];
+// Filtros de las columnas del sistema que se migra: etapa y los importes guardados, por rango. IVA y total se
+// calculan y no se filtran.
+const AMOUNT_FILTERS = [
+  { key: 'stageName', type: 'input', label: 'Etapa', props: { maxLength: 255 } },
+  { key: 'value', type: 'number-range', label: 'Valor' },
+  { key: 'discount', type: 'number-range', label: 'Descuento' },
+  { key: 'vatPct', type: 'number-range', label: 'IVA %' }
+];
+const simpleFilters = (pvtId) => [...commonFilters(pvtId), ...AMOUNT_FILTERS];
 const contractFilters = (pvtId) => [
   { key: 'type', type: 'dropdown', label: 'Tipo de factura', props: { options: CONTRACT_TYPE_OPTIONS }, grid: { xs: 12, sm: 6 } },
   { key: 'contractNumber', type: 'input', label: 'Número de contrato', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
-  ...commonFilters(pvtId)
+  { key: 'contractName', type: 'input', label: 'Contrato (nombre)', props: { maxLength: 200 } },
+  ...commonFilters(pvtId),
+  ...AMOUNT_FILTERS
 ];
 
 const rowLabel = (row) => `${row.typeName} ${row.number} — ${row.providerName ?? ''}`;
@@ -114,7 +183,7 @@ export default function InvoicesPage() {
   const outletContext = useMemo(() => ({ pvtId, menu, refresh: () => setReloadKey((k) => k + 1) }), [pvtId, menu]);
   const workFilter = useWorkFilterField();
   const filterFields = useMemo(() => {
-    const fields = simple ? commonFilters(pvtId) : contractFilters(pvtId);
+    const fields = simple ? simpleFilters(pvtId) : contractFilters(pvtId);
     return workFilter ? [...fields, workFilter] : fields;
   }, [simple, pvtId, workFilter]);
   const linked = useLinkedFilters(LINKED_KEYS, describeLinked);
@@ -158,7 +227,7 @@ export default function InvoicesPage() {
         idField="invId"
         api={invoicesApi}
         permissions={permissionsCatalog.billing?.invoices}
-        columns={simple ? SIMPLE_COLUMNS : INVOICE_COLUMNS}
+        columns={simple ? SIMPLE_COLUMNS : CONTRACT_MENU_COLUMNS}
         filterFields={filterFields}
         defaultSort="date"
         rowLabel={rowLabel}

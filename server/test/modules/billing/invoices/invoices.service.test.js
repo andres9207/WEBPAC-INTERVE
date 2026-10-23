@@ -818,6 +818,104 @@ describe("listado", () => {
     expect(exported).not.toHaveProperty("take");
   });
 
+  test("columnas de la simple: valor, descuento y % IVA guardados; IVA y total con su fórmula; null en las de contrato", async () => {
+    prismaMock.tbl_invoices.findMany.mockResolvedValueOnce([
+      {
+        inv_id: 1,
+        inv_type: "SIMPLE",
+        tbl_invoice_simple_details: {
+          isd_value: "1000.00",
+          isd_withholding_pct: "2.50",
+          isd_discount: "100.00",
+          isd_vat_pct: "19.00",
+          isd_vat_withholding_pct: "0.00",
+          isd_ica_withholding: "0.00",
+          isd_freight: "0.00",
+          isd_early_payment_discount: "0.00",
+          isd_formula_version: 1,
+        },
+      },
+      { inv_id: 2, inv_type: "ADVANCE", tbl_invoice_simple_details: null },
+    ]);
+    const { results } = await service.paginationInvoices({ rows: 10, first: 0 });
+    // IVA = (1000 − 100) × 19 % = 171; total = 1000 − 25 − 100 + 171 = 1046.
+    expect(results[0]).toMatchObject({ value: "1000.00", discount: "100.00", vatPct: "19.00", vat: "171.00", total: "1046.00" });
+    expect(results[1]).toMatchObject({ value: null, discount: null, vatPct: null, vat: null, total: null });
+  });
+
+  test("filtra por etapa, nombre del contrato y rangos de valor, descuento y % IVA en el detalle de cada tipo, también en los conteos", async () => {
+    await service.paginationInvoices({ stageName: " Torre ", contractName: "obra gris", valueFrom: "500", valueTo: "2000.5", discountTo: "0", vatPctFrom: "19" });
+
+    const and = prismaMock.tbl_invoices.groupBy.mock.calls.at(-1)[0].where.AND;
+    expect(and).toContainEqual({
+      OR: [{ tbl_work_stages: { wks_name: { contains: "Torre" } } }, { tbl_contracts: { tbl_work_stages: { wks_name: { contains: "Torre" } } } }],
+    });
+    expect(and).toContainEqual({ tbl_contracts: { ctr_name: { contains: "obra gris" } } });
+    // Cada rango: un OR con la columna de cada tabla de detalle que guarda ese importe.
+    const ranges = and
+      .filter((c) => c.OR?.[0] && Object.values(c.OR[0])[0]?.is)
+      .map((c) =>
+        c.OR.map((branch) => {
+          const [relation, { is }] = Object.entries(branch)[0];
+          const [column, range] = Object.entries(is)[0];
+          return [relation, column, Object.fromEntries(Object.entries(range).map(([op, v]) => [op, v.toFixed(2)]))];
+        })
+      );
+    expect(ranges).toEqual([
+      [
+        ["tbl_invoice_simple_details", "isd_value", { gte: "500.00", lte: "2000.50" }],
+        ["tbl_invoice_liquidation_details", "ild_value", { gte: "500.00", lte: "2000.50" }],
+        ["tbl_invoice_advance_details", "iad_value", { gte: "500.00", lte: "2000.50" }],
+        ["tbl_invoice_retention_refund_details", "irr_value", { gte: "500.00", lte: "2000.50" }],
+      ],
+      [
+        ["tbl_invoice_simple_details", "isd_discount", { lte: "0.00" }],
+        ["tbl_invoice_liquidation_details", "ild_materials_discount", { lte: "0.00" }],
+      ],
+      [
+        ["tbl_invoice_simple_details", "isd_vat_pct", { gte: "19.00" }],
+        ["tbl_invoice_liquidation_details", "ild_vat_pct", { gte: "19.00" }],
+      ],
+    ]);
+  });
+
+  test("columnas de las de contrato: la normal con su fórmula (DEC-075), el anticipo y la devolución con su valor como total", async () => {
+    prismaMock.tbl_invoices.findMany.mockResolvedValueOnce([
+      {
+        inv_id: 1,
+        inv_type: "NORMAL",
+        tbl_contracts: { ctr_number: "1", ctr_name: "PRUEBA 1" },
+        tbl_invoice_liquidation_details: {
+          ild_value: "2000000.00",
+          ild_amortization: "0.00",
+          ild_retention: "0.00",
+          ild_utility_pct: "0.00",
+          ild_vat_pct: "19.00",
+          ild_withholding_pct: "2.00",
+          ild_vat_withholding_pct: "0.00",
+          ild_ica_withholding: "0.00",
+          ild_materials_discount: "100.00",
+          ild_formula_version: 1,
+        },
+      },
+      { inv_id: 2, inv_type: "ADVANCE", tbl_invoice_advance_details: { iad_value: "25000.00" } },
+      { inv_id: 3, inv_type: "RETENTION_REFUND", tbl_invoice_retention_refund_details: { irr_value: "700.00" } },
+      // Liquidación registrada antes de DEC-075: sin composición, solo su valor.
+      { inv_id: 4, inv_type: "LIQUIDATION", tbl_invoice_liquidation_details: { ild_value: "900.00", ild_vat_pct: null } },
+    ]);
+    const { results } = await service.paginationInvoices({ rows: 10, first: 0 });
+    // IVA = 2.000.000 × 19 % = 380.000; total = 2.380.000 − 40.000 (2 %) − 100 de materiales = 2.339.900.
+    expect(results[0]).toMatchObject({ contractNumber: "1", contractName: "PRUEBA 1", value: "2000000.00", discount: "100.00", vatPct: "19.00", vat: "380000.00", total: "2339900.00" });
+    expect(results[1]).toMatchObject({ value: "25000.00", discount: null, vatPct: null, vat: null, total: "25000.00" });
+    expect(results[2]).toMatchObject({ value: "700.00", total: "700.00" });
+    expect(results[3]).toMatchObject({ value: "900.00", discount: null, vatPct: null, vat: null, total: null });
+  });
+
+  test("ordena por los importes guardados de la simple", async () => {
+    await service.paginationInvoices({ sortField: "value", sortOrder: 1, rows: 10, first: 0 });
+    expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].orderBy).toEqual({ tbl_invoice_simple_details: { isd_value: "asc" } });
+  });
+
   test("sin tipo no filtra por tipo", async () => {
     await service.paginationInvoices({ type: "", rows: 10, first: 0 });
     expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where).not.toHaveProperty("inv_type");
