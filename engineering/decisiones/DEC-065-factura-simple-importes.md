@@ -45,6 +45,31 @@ La factura simple tenía encabezado y ciclo de vida, pero ningún importe: su co
   - En anticipo y devolución, el panel muestra su valor como total. En la liquidación muestra el VALOR, la amortización y el retenido, sin total: su IVA y sus retenciones esperan DEC-03.
 - **DEC-03, respuesta adelantada** (no implementada): en la factura de liquidación, el IVA es VALOR × % IVA, como en el sistema actual; el % de utilidad no entra en ese cálculo. Lo demás de DEC-03 (el signo de la devolución y del descuento de materiales) y DEC-08 siguen abiertos.
 
+## Valor y porcentaje (2026-10-23)
+
+El usuario pidió poder escribir cada importe en pesos o en porcentaje. Salvo el VALOR, que es la base, cada importe muestra su valor y su %. Se escribe en cualquiera de las dos cajas y la otra muestra lo que da.
+
+| Importe | Base del % | Se guarda como |
+| --- | --- | --- |
+| Rte fuente | VALOR | % |
+| Descuento AI | VALOR | valor |
+| IVA | VALOR − DCTO AI | % |
+| Rte IVA | IVA | % |
+| Rte ICA | VALOR | valor |
+| Flete | VALOR | valor |
+| Descuento pronto pago | VALOR | valor |
+| Amortización del anticipo y retenido (facturas de contrato, al ajustarlos) | VALOR | valor (y su % aplicado, como en DEC-044 y DEC-051) |
+
+- **Lo que se guarda no cambia:** ni la base de datos ni la fórmula v1. Lo escrito por el otro lado se convierte antes de guardar. Por eso no hay que migrar facturas.
+- **Las bases de Descuento AI, Rte ICA, Flete y Pronto pago las fijó el usuario:** en el sistema que se migra esos campos solo se escriben en pesos, así que no había un % que copiar.
+- **La conversión la hace el servidor** (FRONTEND_STANDARD, regla 9), en las vistas previas que ya existían:
+  - `preview_simple_invoice` recibe el otro lado de cada importe (`SIMPLE_PAIRS[].alt`), devuelve en `captured` cómo se guarda y en `pairs` el valor y el % de cada uno.
+  - `get_contract_advance` recibe `amortization`/`amortizationPct` y `retention`/`retentionPct`, y devuelve `amortizationPair` y `retentionPair`.
+  - Guardar solo acepta la forma de siempre.
+- **Redondeo:** un valor escrito en un importe que se guarda como % queda como % con dos decimales (la columna). Al recalcular puede diferir en centavos; al salir de la caja, el formulario muestra el importe que de verdad queda.
+- **Al cambiar el VALOR** se mantiene lo guardado y cambia el otro lado. Ejemplo: el IVA queda en 19 % y cambia su valor. La Rte ICA queda en pesos y cambia su %.
+- **Componente:** `ui-component/extended/AmountPercentField`.
+
 ## Descartado
 
 - **Capturar todas las retenciones como tasa (ADR-0023, decisión 6):** el usuario mantiene el ICA como valor, igual que el sistema actual. Si se corrige el VALOR, el ICA no se recalcula: hay que revisarlo a mano.

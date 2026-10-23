@@ -160,7 +160,8 @@ const PROVIDERS = [
     iddId: ID_DOC.NIT,
     identification: nit("900900103"),
     name: "[DEMO] Ferretería La Constructora Ltda.",
-    pvtIds: [PROVIDER_TYPE.SIMPLE],
+    // Simple no admite contratos (DEC-066): firma los suyos como subcontratista.
+    pvtIds: [PROVIDER_TYPE.SUBCONTRACTOR, PROVIDER_TYPE.SIMPLE],
     serviceType: "Ferretería y herramienta",
     email: "pedidos@ferrelaconstructora.demo",
     contacts: [
@@ -185,7 +186,7 @@ const PROVIDERS = [
     iddId: ID_DOC.NIT,
     identification: nit("900900105"),
     name: "[DEMO] Maderas y Carpintería El Roble S.A.S.",
-    pvtIds: [PROVIDER_TYPE.SIMPLE],
+    pvtIds: [PROVIDER_TYPE.SUBCONTRACTOR, PROVIDER_TYPE.SIMPLE],
     serviceType: "Carpintería en madera",
     email: "ventas@elroble.demo",
     contacts: [{ adtId: ADDRESS_TYPE.OFFICE, name: "Óscar Medina", position: "Gerente", address: "Calle 13 # 68-50, Bogotá", phone: "6015550501", email: "oscar.medina@elroble.demo", main: true }],
@@ -268,6 +269,7 @@ const CONTRACTS = [
     work: "DEMO-OBR-01",
     provider: "hardware",
     type: "supply",
+    stage: "Mampostería",
     name: "Suministro de ferretería para obra",
     startDate: "2026-03-10",
     term: "10",
@@ -325,11 +327,12 @@ const CONTRACTS = [
       { number: "DEMO-POL-0601", concept: { type: "INITIAL" }, type: "DEMO_CUMPLIMIENTO", insurer: 0, percentage: "10", startDate: "2026-01-10", endDate: "2027-01-10" },
       // Vencida.
       { number: "DEMO-POL-0602", concept: { type: "INITIAL" }, type: "DEMO_SALARIOS", insurer: 0, percentage: "5", startDate: "2026-01-10", endDate: "2026-07-10" },
-      // Anulada: queda en el expediente con su motivo.
+      // Anulada: queda en el expediente con su motivo. De otro tipo que la
+      // 0602: una vigente por concepto y tipo, aunque esté vencida (DEC-050).
       {
         number: "DEMO-POL-0603",
         concept: { type: "INITIAL" },
-        type: "DEMO_SALARIOS",
+        type: "DEMO_ESTABILIDAD",
         insurer: 2,
         percentage: "5",
         startDate: "2026-01-10",
@@ -355,6 +358,7 @@ const CONTRACTS = [
     work: "DEMO-OBR-03",
     provider: "wood",
     type: "supply",
+    stage: "Vivienda",
     name: "Suministro de puertas y closets",
     startDate: "2026-04-20",
     term: "6",
@@ -366,6 +370,7 @@ const CONTRACTS = [
     work: "DEMO-OBR-03",
     provider: "hardware",
     type: "supply",
+    stage: "Vivienda",
     name: "Suministro de materiales eléctricos y sanitarios",
     startDate: "2026-05-05",
     term: "5",

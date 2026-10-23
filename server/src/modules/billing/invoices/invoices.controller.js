@@ -7,7 +7,7 @@ import { sendExport } from "../../../common/services/export.service.js";
 import * as invoicesService from "./invoices.service.js";
 import { getInvoiceEvidence } from "./invoiceEvidence.service.js";
 import { grantedViews } from "./invoiceViews.js";
-import { SIMPLE_FIELDS } from "./simpleInvoiceTerms.js";
+import { SIMPLE_FIELDS, SIMPLE_PAIRS } from "./simpleInvoiceTerms.js";
 
 // Importes capturados de la simple, salvo el valor (que comparte con las de contrato).
 const SIMPLE_AMOUNT_FIELDS = Object.keys(SIMPLE_FIELDS).filter((field) => field !== "value");
@@ -166,6 +166,10 @@ export const getContractAdvanceController = handle(async (req) =>
   invoicesService.getContractAdvance({
     ctrId: req.query.ctrId,
     value: req.query.value,
+    amortization: req.query.amortization,
+    amortizationPct: req.query.amortizationPct,
+    retention: req.query.retention,
+    retentionPct: req.query.retentionPct,
     scope: await workScopeOf(req),
     views: (await accessOf(req.user)).views,
   })
@@ -173,7 +177,7 @@ export const getContractAdvanceController = handle(async (req) =>
 
 // Composición de la factura simple para el panel Detalle (DEC-065): solo calcula, no lee datos.
 export const previewSimpleInvoiceController = handle(async (req) =>
-  invoicesService.previewSimpleInvoice(pick(req.body, ["value", ...SIMPLE_AMOUNT_FIELDS]))
+  invoicesService.previewSimpleInvoice(pick(req.body, ["value", ...SIMPLE_AMOUNT_FIELDS, ...SIMPLE_PAIRS.map((pair) => pair.alt)]))
 );
 
 export const saveInvoiceController = handle(async (req) => {

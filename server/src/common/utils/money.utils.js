@@ -62,6 +62,16 @@ export const ratioPercent = (part, whole) => {
   return total.gt(0) ? roundRatio(decimal(part).dividedBy(total).times(HUNDRED)) : ZERO;
 };
 
+/**
+ * El porcentaje que `part` es de `base`, con dos decimales: el inverso de
+ * `percentOf`, para un importe escrito como valor que se guarda como tasa.
+ * 0 si la base no es positiva.
+ */
+export const percentFor = (part, base) => {
+  const total = decimal(base);
+  return total.gt(0) ? toPercent(decimal(part).dividedBy(total).times(HUNDRED)) : ZERO;
+};
+
 /** Suma de importes ya redondeados (Decimal, cadena o null); los null cuentan 0. No redondea. */
 export const sumMoney = (values) => values.reduce((total, value) => (value === null || value === undefined ? total : total.plus(value)), ZERO);
 

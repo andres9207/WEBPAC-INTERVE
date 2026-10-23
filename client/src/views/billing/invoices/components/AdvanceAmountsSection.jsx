@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Controller, useWatch } from 'react-hook-form';
 
@@ -10,6 +10,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
 import FormSection from 'ui-component/extended/FormSection';
+import AmountPercentField from 'ui-component/extended/AmountPercentField';
 import MoneyField from 'ui-component/extended/MoneyField';
 import { getContractAdvanceAPI } from 'api/requests/invoicesApi';
 import { fMoneyText, fPercentText } from 'utils/formatNumber';
@@ -26,7 +27,9 @@ import { isBillingInvoiceType } from 'utils/constants';
  *   valor por defecto, mín(VALOR × % efectivo, pendiente), que calcula el
  *   servidor. Cambiarlo exige su permiso de ajuste y una observación
  *   (`canAdjust`, `canAdjustRetention`). Sin ajuste, el formulario no lo
- *   envía y el servidor usa el de por defecto.
+ *   envía y el servidor usa el de por defecto. Al ajustarlo se escribe su
+ *   valor o su % sobre el VALOR (DEC-065, "Valor y porcentaje"): el
+ *   servidor convierte el % y se guarda el valor.
  * - Devolución de retenido (DEC-051): valor, que no puede superar el saldo
  *   de retenido (I3).
  *
@@ -41,13 +44,26 @@ export const MONEY = /^\d{1,16}(\.\d{0,2})?$/;
  * Importe con valor por defecto que se puede ajustar con permiso: el campo
  * (bloqueado sin ajuste), la casilla y el motivo del ajuste.
  */
-function AdjustableAmount({ control, name, adjustName, observationName, label, adjustLabel, byDefault, defaultHint, canAdjust, readOnly }) {
+function AdjustableAmount({
+  control,
+  name,
+  adjustName,
+  observationName,
+  label,
+  adjustLabel,
+  byDefault,
+  defaultHint,
+  canAdjust,
+  readOnly,
+  pair,
+  onAltChange
+}) {
   const adjust = useWatch({ control, name: adjustName });
   // Una fila propia: el importe, la casilla a su lado (alineada con el
   // campo, no con su ayuda) y el motivo debajo.
   return (
     <Row>
-      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Controller
           name={name}
           control={control}
@@ -56,10 +72,13 @@ function AdjustableAmount({ control, name, adjustName, observationName, label, a
             required: adjust ? 'El importe es requerido.' : false
           }}
           render={({ field, fieldState }) => (
-            <MoneyField
+            <AmountPercentField
+              storedAs="money"
               value={field.value}
               onChange={field.onChange}
               onBlur={field.onBlur}
+              derived={pair?.pct}
+              onAltChange={onAltChange}
               label={label}
               disabled={readOnly || !adjust}
               error={fieldState.error?.message}
@@ -68,7 +87,7 @@ function AdjustableAmount({ control, name, adjustName, observationName, label, a
           )}
         />
       </Grid>
-      <Grid size={{ xs: 12, sm: 6, md: 8 }} sx={{ display: 'flex', alignItems: 'center', minHeight: 40 }}>
+      <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', alignItems: 'center', minHeight: 40 }}>
         {canAdjust ? (
           <Controller
             name={adjustName}
@@ -126,7 +145,10 @@ AdjustableAmount.propTypes = {
   byDefault: PropTypes.string,
   defaultHint: PropTypes.string.isRequired,
   canAdjust: PropTypes.bool,
-  readOnly: PropTypes.bool
+  readOnly: PropTypes.bool,
+  /** Valor y % sobre el VALOR, calculados por el servidor. */
+  pair: PropTypes.shape({ amount: PropTypes.string, pct: PropTypes.string }),
+  onAltChange: PropTypes.func.isRequired
 };
 
 /** Fila completa de la grilla, con su propia grilla interna. */
@@ -164,12 +186,29 @@ export default function AdvanceAmountsSection({
 }) {
   const isLiquidation = isBillingInvoiceType(type);
   const isRefund = type === 'RETENTION_REFUND';
-  const [value, adjustAmortization, adjustRetention] = useWatch({ control, name: ['value', 'adjustAmortization', 'adjustRetention'] });
+  const [value, adjustAmortization, adjustRetention, amortization, retentionValue] = useWatch({
+    control,
+    name: ['value', 'adjustAmortization', 'adjustRetention', 'amortization', 'retention']
+  });
   const [balances, setBalances] = useState(null);
+  // % escrito de la amortización o del retenido, hasta que el servidor lo
+  // convierte a valor (`amortizationPct`, `retentionPct`).
+  const [alts, setAlts] = useState({});
+  const altsRef = useRef(alts);
+  altsRef.current = alts;
+  const setAlt = (alt, text) =>
+    setAlts((prev) => {
+      const next = { ...prev };
+      if (text === null || text === '') delete next[alt];
+      else next[alt] = text;
+      return next;
+    });
 
   // Saldos del contrato y, en la liquidación, la amortización y el retenido
-  // por defecto del VALOR escrito (se piden al dejar de escribir). La página
-  // los recibe para las tarjetas de saldos (`onBalances`, DEC-065).
+  // por defecto del VALOR escrito, con el valor y el % de cada uno (se piden
+  // al dejar de escribir). La página los recibe para las tarjetas de saldos
+  // (`onBalances`, DEC-065).
+  const pairKey = isLiquidation ? [amortization, retentionValue, alts.amortizationPct, alts.retentionPct].map((v) => v ?? '').join('|') : '';
   useEffect(() => {
     if (!ctrId) {
       setBalances(null);
@@ -178,13 +217,33 @@ export default function AdvanceAmountsSection({
     }
     let cancelled = false;
     const amount = isLiquidation && MONEY.test(value ?? '') ? value : '';
+    const sent = amount ? altsRef.current : {};
+    const pairParams = amount
+      ? {
+          ...(MONEY.test(amortization ?? '') ? { amortization } : {}),
+          ...(MONEY.test(retentionValue ?? '') ? { retention: retentionValue } : {}),
+          ...sent
+        }
+      : {};
     const timer = setTimeout(
       () =>
-        getContractAdvanceAPI({ ctrId, ...(amount ? { value: amount } : {}) })
+        getContractAdvanceAPI({ ctrId, ...(amount ? { value: amount } : {}), ...pairParams })
           .then(({ data }) => {
             if (cancelled) return;
             setBalances(data);
             onBalances?.(data);
+            // El % escrito pasa al campo como valor, que es lo que se guarda.
+            const converted = [
+              ['amortizationPct', 'amortization', data.amortizationPair],
+              ['retentionPct', 'retention', data.retentionPair]
+            ].filter(([alt, , pair]) => sent[alt] !== undefined && pair);
+            converted.forEach(([, field, pair]) => setValue(field, pair.amount, { shouldDirty: true, shouldValidate: true }));
+            if (converted.length)
+              setAlts((prev) => {
+                const next = { ...prev };
+                converted.forEach(([alt]) => next[alt] === sent[alt] && delete next[alt]);
+                return next;
+              });
           })
           .catch((err) => !cancelled && onError(err.response?.data?.message || 'Error al cargar los saldos del contrato')),
       amount ? 400 : 0
@@ -193,7 +252,9 @@ export default function AdvanceAmountsSection({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [ctrId, isLiquidation, value, onBalances, onError]);
+    // `pairKey` resume la amortización, el retenido y lo escrito como %.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctrId, isLiquidation, value, pairKey, onBalances, onError, setValue]);
 
   // Sin ajuste, cada campo muestra su valor por defecto.
   const defaultAmortization = balances?.defaultAmortization ?? '';
@@ -269,6 +330,8 @@ export default function AdvanceAmountsSection({
             defaultHint="Valor por defecto: mín(VALOR × % efectivo, pendiente)"
             canAdjust={canAdjust}
             readOnly={readOnly}
+            pair={balances?.amortizationPair}
+            onAltChange={(text) => setAlt('amortizationPct', text)}
           />
         )}
 
@@ -295,6 +358,8 @@ export default function AdvanceAmountsSection({
             defaultHint="Valor por defecto: mín(VALOR × % efectivo, por retener)"
             canAdjust={canAdjustRetention}
             readOnly={readOnly}
+            pair={balances?.retentionPair}
+            onAltChange={(text) => setAlt('retentionPct', text)}
           />
         )}
 

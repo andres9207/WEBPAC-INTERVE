@@ -12,6 +12,8 @@ import {
 } from "../../../common/utils/validation.utils.js";
 import { INVOICE_STATES, INVOICE_TYPES, hasContract } from "./invoiceTerms.js";
 import { CONTRACT_VIEWS, INVOICE_VIEWS } from "./invoiceViews.js";
+import { SIMPLE_PAIRS } from "./simpleInvoiceTerms.js";
+import { decimal } from "../../../common/utils/money.utils.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). Las reglas de
 // negocio (proveedor del alcance, estado del contrato, cronología…) viven en
@@ -99,12 +101,29 @@ export const selectInvoiceContractsSchema = [
   query("includeCtrId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includeCtrId debe ser un entero positivo."),
 ];
 
-export const getContractAdvanceSchema = [
-  query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo."),
-  query("value")
+const moneyQuery = (field, label) =>
+  query(field)
     .optional({ values: "falsy" })
     .matches(/^\d{1,16}(\.\d+)?$/)
-    .withMessage("El valor debe ser un número no negativo, con punto decimal y hasta 16 dígitos enteros."),
+    .withMessage(`${label} debe ser un número no negativo, con punto decimal y hasta 16 dígitos enteros.`);
+const percentQuery = (field, label) =>
+  query(field)
+    .optional({ values: "falsy" })
+    .matches(/^\d{1,3}(\.\d{1,2})?$/)
+    .withMessage(`${label} debe ser un número con hasta dos decimales.`)
+    .bail()
+    .custom((value) => decimal(value).lte(100))
+    .withMessage(`${label} debe estar entre 0 y 100.`);
+
+// Con la amortización o el retenido (o su %), también su valor y su % sobre
+// el VALOR (DEC-065, "Valor y porcentaje").
+export const getContractAdvanceSchema = [
+  query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo."),
+  moneyQuery("value", "El valor"),
+  moneyQuery("amortization", "La amortización"),
+  percentQuery("amortizationPct", "El % de amortización"),
+  moneyQuery("retention", "El retenido"),
+  percentQuery("retentionPct", "El % de retenido"),
 ];
 
 export const saveInvoiceSchema = [
@@ -153,8 +172,16 @@ function simpleAmountRules() {
   ];
 }
 
-// Previsualización de la factura simple: los mismos importes, sin guardar nada.
-export const previewSimpleInvoiceSchema = [moneyRule("value", "valor de la factura", { optional: true }), ...simpleAmountRules()];
+// Previsualización de la factura simple: los mismos importes, sin guardar
+// nada, y cada uno también por su otro lado, valor o % (DEC-065, "Valor y
+// porcentaje"). Al guardar solo se acepta la forma de siempre.
+export const previewSimpleInvoiceSchema = [
+  moneyRule("value", "valor de la factura", { optional: true }),
+  ...simpleAmountRules(),
+  ...SIMPLE_PAIRS.map((pair) =>
+    pair.stored === "percent" ? moneyRule(pair.alt, "valor", { optional: true }) : percentRule(pair.alt, "porcentaje", { optional: true })
+  ),
+];
 
 export const approveInvoiceSchema = [
   idempotencyKeyRule(),

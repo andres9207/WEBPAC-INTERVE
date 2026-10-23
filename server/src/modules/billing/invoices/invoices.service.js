@@ -9,7 +9,7 @@ import { findExportRows, renderExport } from "../../../common/services/export.se
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
-import { moneyText, percentText, ratioText, sumMoney, toMoney } from "../../../common/utils/money.utils.js";
+import { moneyText, percentFor, percentOf, percentText, ratioText, sumMoney, toMoney, toPercent } from "../../../common/utils/money.utils.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, getContractFormOptions } from "../../work/contracts/contracts.service.js";
 import { providerSelectOptions } from "../../work/providers/providers.service.js";
@@ -59,9 +59,11 @@ import {
   SIMPLE_MONEY_COLUMNS,
   SIMPLE_PERCENT_COLUMNS,
   composeSimpleInvoice,
+  convertSimpleAmounts,
   hasSimpleAmounts,
   simpleAmountsDto,
   simpleDetailOf,
+  simplePairsDto,
 } from "./simpleInvoiceTerms.js";
 
 /**
@@ -346,7 +348,10 @@ export const contractsBalances = async (contracts) => {
  * capturado no se podría guardar, `message` dice por qué (no es un error:
  * el formulario sigue en edición).
  */
-export const previewSimpleInvoice = (input) => {
+export const previewSimpleInvoice = (raw) => {
+  // Un importe escrito por su otro lado (valor o %) pasa primero a como se
+  // guarda; `captured` lo devuelve así para que el formulario lo guarde.
+  const input = convertSimpleAmounts(raw);
   let message = null;
   try {
     simpleDetailOf(input);
@@ -356,10 +361,22 @@ export const previewSimpleInvoice = (input) => {
   }
   const zeroed = Object.fromEntries(Object.keys(SIMPLE_FIELDS).map((field) => [field, optionalText(input[field]) ?? "0"]));
   const draft = Object.fromEntries(Object.entries(SIMPLE_FIELDS).map(([field, column]) => [column, zeroed[field]]));
-  return { ...simpleAmountsDto(draft), valid: message === null, message };
+  return { ...simpleAmountsDto(draft), pairs: simplePairsDto(draft), valid: message === null, message };
 };
 
-export const getContractAdvance = async ({ ctrId, value, scope, views }) => {
+/**
+ * Valor y % sobre el VALOR de la amortización o del retenido que se ajusta
+ * (DEC-044, DEC-051; DEC-065, "Valor y porcentaje"): si llega el %, el
+ * importe que da; si no, el % del importe. Se guarda el importe, como
+ * siempre. Sin VALOR o sin ninguno de los dos, null.
+ */
+const amountPairOf = (value, amount, pct) => {
+  if (!value?.gt(0)) return null;
+  const applied = optionalText(pct) !== null ? percentOf(value, toPercent(pct)) : toMoney(amount);
+  return applied === null ? null : { amount: moneyText(applied), pct: percentText(percentFor(applied, value)) };
+};
+
+export const getContractAdvance = async ({ ctrId, value, amortization, amortizationPct, retention, retentionPct, scope, views }) => {
   await assertContractInScope(scope, ctrId);
   const contract = await prisma.tbl_contracts.findFirst({
     where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS } },
@@ -372,10 +389,12 @@ export const getContractAdvance = async ({ ctrId, value, scope, views }) => {
   return {
     ...balancesDto(balances.advance),
     defaultAmortization: amount ? moneyText(defaultAmortization(amount, balances.advance)) : null,
+    amortizationPair: amountPairOf(amount, amortization, amortizationPct),
     retention: {
       ...retentionDto(balances.retention),
       defaultRetention: amount ? moneyText(defaultRetention(amount, balances.retention)) : null,
     },
+    retentionPair: amountPairOf(amount, retention, retentionPct),
     billing: billingDto(balances.billing),
   };
 };

@@ -1,4 +1,4 @@
-import { decimal, moneyText, percentOf, percentText, roundMoney, toMoney, toPercent } from "../../../common/utils/money.utils.js";
+import { decimal, moneyText, percentFor, percentOf, percentText, roundMoney, toMoney, toPercent } from "../../../common/utils/money.utils.js";
 
 /**
  * Composición de la factura simple (ADR-0023, ADR-0026; DEC-065). Sin base
@@ -145,4 +145,58 @@ export const simpleAmountsDto = (detail) => {
     total: moneyText(composed.total),
     billed: moneyText(composed.billed),
   };
+};
+
+/**
+ * Valor y porcentaje de cada importe (DEC-065, "Valor y porcentaje"). Salvo
+ * el valor, cada importe se puede escribir en pesos o como % de su base, y
+ * el formulario muestra los dos. Se guarda como siempre (`stored`): las
+ * retenciones en la fuente y de IVA y el IVA, como tasa; los demás, como
+ * valor. `alt` es el nombre en la API del otro lado, que solo acepta la
+ * previsualización: el formulario guarda lo convertido.
+ *
+ * El orden es el de la fórmula: la base del IVA usa el descuento AI, y la
+ * de la retención de IVA, el IVA.
+ */
+export const SIMPLE_PAIRS = Object.freeze([
+  { field: "withholdingPct", line: "withholding", stored: "percent", alt: "withholdingAmount", base: (c) => c.value },
+  { field: "discount", line: "discount", stored: "money", alt: "discountPct", base: (c) => c.value },
+  { field: "vatPct", line: "vat", stored: "percent", alt: "vatAmount", base: (c) => c.value.minus(c.discount) },
+  { field: "vatWithholdingPct", line: "vatWithholding", stored: "percent", alt: "vatWithholdingAmount", base: (c) => c.vat },
+  { field: "icaWithholding", line: "icaWithholding", stored: "money", alt: "icaWithholdingPct", base: (c) => c.value },
+  { field: "freight", line: "freight", stored: "money", alt: "freightPct", base: (c) => c.value },
+  { field: "earlyPaymentDiscount", line: "earlyPaymentDiscount", stored: "money", alt: "earlyPaymentDiscountPct", base: (c) => c.value },
+]);
+
+const draftOf = (input) =>
+  Object.fromEntries(Object.entries(SIMPLE_FIELDS).map(([field, column]) => [column, blank(input[field]) ? "0" : input[field]]));
+
+/**
+ * Pasa a la forma en que se guarda cada importe escrito por su otro lado
+ * (`alt`): un valor, a % de su base (con dos decimales, como la columna); un
+ * %, a valor. Devuelve la entrada con los campos de siempre; lo demás no
+ * cambia. Un valor que no da un % exacto queda redondeado: el formulario
+ * muestra el importe que resulta.
+ */
+export const convertSimpleAmounts = (input) => {
+  const converted = { ...input };
+  for (const pair of SIMPLE_PAIRS) {
+    if (blank(input[pair.alt])) continue;
+    const base = pair.base(composeSimpleInvoice(draftOf(converted)));
+    converted[pair.field] =
+      pair.stored === "percent" ? percentText(percentFor(toMoney(input[pair.alt]), base)) : moneyText(percentOf(base, toPercent(input[pair.alt])));
+  }
+  return converted;
+};
+
+/** Valor y % de cada importe de un detalle (columnas isd_), como texto, por nombre en la API. */
+export const simplePairsDto = (detail) => {
+  const composed = composeSimpleInvoice(detail);
+  return Object.fromEntries(
+    SIMPLE_PAIRS.map((pair) => {
+      const amount = composed[pair.line];
+      const pct = pair.stored === "percent" ? toPercent(detail[SIMPLE_FIELDS[pair.field]]) : percentFor(amount, pair.base(composed));
+      return [pair.field, { amount: moneyText(amount), pct: percentText(pct) }];
+    })
+  );
 };

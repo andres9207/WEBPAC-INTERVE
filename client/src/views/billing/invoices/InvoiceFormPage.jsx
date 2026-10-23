@@ -786,6 +786,7 @@ export default function InvoiceFormPage() {
                 >
                   <SimpleAmountsSection
                     control={control}
+                    setValue={setValue}
                     readOnly={lockDocument || blocked}
                     required={!isEdit || Boolean(loaded?.amounts)}
                     onPreview={setPreview}

@@ -727,6 +727,13 @@ describe("importes de la factura simple (DEC-065)", () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
+  it("previsualizar: un importe escrito por su otro lado vuelve como se guarda, y cada uno trae su valor y su % (DEC-065)", () => {
+    const preview = service.previewSimpleInvoice({ value: "100000", vatAmount: "19000", freightPct: "1" });
+    expect(preview.captured).toMatchObject({ vatPct: "19.00", freight: "1000.00" });
+    expect(preview.pairs).toMatchObject({ vatPct: { amount: "19000.00", pct: "19.00" }, freight: { amount: "1000.00", pct: "1.00" } });
+    expect(preview).toMatchObject({ valid: true, total: "120000.00" });
+  });
+
   it("una registrada antes de DEC-065, sin importes, se aprueba así", async () => {
     state.invoice = storedSimple();
     await expect(approve()).resolves.toMatchObject({ invId: 70 });
@@ -1157,6 +1164,7 @@ describe("anticipo y amortización (DEC-044)", () => {
       toAmortize: "8000000.00",
       effectivePct: "26.666667",
       defaultAmortization: "8000000.00",
+      amortizationPair: null,
       retention: {
         agreed: "6000000.00",
         retained: "0.00",
@@ -1166,11 +1174,24 @@ describe("anticipo y amortización (DEC-044)", () => {
         effectivePct: "5.000000",
         defaultRetention: "4500000.00",
       },
+      retentionPair: null,
       billing: { base: "120000000.00", billed: "0.00", toBill: "120000000.00" },
     });
 
     prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce(null);
     await expect(service.getContractAdvance({ ctrId: "31" })).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("información del contrato: valor y % sobre el VALOR de la amortización y del retenido (DEC-065)", async () => {
+    prismaMock.tbl_contracts.findFirst.mockResolvedValue({ ctr_id: 30 });
+    const pairs = ({ amortizationPair, retentionPair }) => ({ amortizationPair, retentionPair });
+    await expect(
+      service.getContractAdvance({ ctrId: "30", value: "100000", amortizationPct: "15", retention: "100" }).then(pairs)
+    ).resolves.toEqual({ amortizationPair: { amount: "15000.00", pct: "15.00" }, retentionPair: { amount: "100.00", pct: "0.10" } });
+    await expect(service.getContractAdvance({ ctrId: "30", amortization: "15000" }).then(pairs)).resolves.toEqual({
+      amortizationPair: null,
+      retentionPair: null,
+    });
   });
 });
 

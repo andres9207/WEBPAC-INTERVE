@@ -1,9 +1,11 @@
 import {
   SIMPLE_FORMULA_VERSION,
   composeSimpleInvoice,
+  convertSimpleAmounts,
   hasSimpleAmounts,
   simpleAmountsDto,
   simpleDetailOf,
+  simplePairsDto,
 } from "../../../../src/modules/billing/invoices/simpleInvoiceTerms.js";
 
 // Composición de la factura simple (DEC-065): la fórmula del sistema que se
@@ -83,5 +85,67 @@ describe("hasSimpleAmounts y simpleAmountsDto", () => {
     const dto = simpleAmountsDto(simpleDetailOf(SCREEN));
     expect(dto.lines.map((l) => l.label)).toEqual(["VALOR", "RTE FUENTE", "DCTO AI", "SUBTOTAL", "IVA", "RTE IVA", "RTE ICA", "FLETE", "DCTO PRONTO PAGO"]);
     expect(dto).toMatchObject({ total: "21398.29", billed: "23798.10", formulaVersion: 1, captured: { vatPct: "19.00", icaWithholding: "10.00" } });
+  });
+});
+
+// Valor y porcentaje (DEC-065): la pantalla de factura simple del sistema que
+// se migra, VALOR 100.000 → TOTAL 89.800. Cada importe se escribe por su
+// otro lado y se guarda como siempre.
+const PHOTO = {
+  value: "100000",
+  withholdingPct: "10",
+  discount: "100",
+  vatPct: "19",
+  vatWithholdingPct: "100",
+  icaWithholding: "100",
+  freight: "100",
+  earlyPaymentDiscount: "100",
+};
+
+describe("valor y porcentaje de cada importe", () => {
+  it("cada importe con su valor y su % sobre su base (IVA sobre valor − dcto AI; rte IVA sobre el IVA; los demás sobre el valor)", () => {
+    expect(simplePairsDto(simpleDetailOf(PHOTO))).toEqual({
+      withholdingPct: { amount: "10000.00", pct: "10.00" },
+      discount: { amount: "100.00", pct: "0.10" },
+      vatPct: { amount: "18981.00", pct: "19.00" },
+      vatWithholdingPct: { amount: "18981.00", pct: "100.00" },
+      icaWithholding: { amount: "100.00", pct: "0.10" },
+      freight: { amount: "100.00", pct: "0.10" },
+      earlyPaymentDiscount: { amount: "100.00", pct: "0.10" },
+    });
+  });
+
+  it("escrito todo por el otro lado, se convierte a como se guarda y da la misma factura", () => {
+    const converted = convertSimpleAmounts({
+      value: "100000",
+      withholdingAmount: "10000",
+      discountPct: "0.1",
+      vatAmount: "18981",
+      vatWithholdingAmount: "18981",
+      icaWithholdingPct: "0.1",
+      freightPct: "0.1",
+      earlyPaymentDiscountPct: "0.1",
+    });
+    expect(converted).toMatchObject({
+      withholdingPct: "10.00",
+      discount: "100.00",
+      vatPct: "19.00",
+      vatWithholdingPct: "100.00",
+      icaWithholding: "100.00",
+      freight: "100.00",
+      earlyPaymentDiscount: "100.00",
+    });
+    expect(composeSimpleInvoice(simpleDetailOf(converted)).total.toFixed(2)).toBe("89800.00");
+  });
+
+  it("un valor que no da un % exacto se guarda con dos decimales: el importe que resulta es el que muestra", () => {
+    const converted = convertSimpleAmounts({ value: "97300", vatPct: "19", vatAmount: "18500" });
+    expect(converted.vatPct).toBe("19.01");
+    expect(simplePairsDto(simpleDetailOf(converted)).vatPct).toEqual({ amount: "18496.73", pct: "19.01" });
+  });
+
+  it("sin base, el % es 0 y el valor desde un % es 0; lo que no llega por el otro lado no cambia", () => {
+    expect(convertSimpleAmounts({ vatAmount: "500", freightPct: "10" })).toMatchObject({ vatPct: "0.00", freight: "0.00" });
+    expect(convertSimpleAmounts(PHOTO)).toEqual(PHOTO);
   });
 });
