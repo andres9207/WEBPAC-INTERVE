@@ -27,6 +27,7 @@ import {
   contractTotals,
   historyRow,
   isEndDateProvisional,
+  previewConcept,
   sortConcepts,
   totalExtensions,
 } from "./contractTerms.js";
@@ -243,6 +244,13 @@ export const derivedEndDate = async (tx, contract) => {
  * sin `term`, da el plazo que la produce (contractTermFor), en `termUnit` o en
  * días si no es exacto. Responde siempre `{ endDate, term, termUnit }`.
  */
+/**
+ * Valor y % de cada componente de un concepto mientras se escribe (valor
+ * inicial y otrosí), con la fórmula de conceptAmounts. No lee la BD: no
+ * depende de ningún contrato, así que no pasa por el alcance por obra.
+ */
+export const previewContractConcept = (input) => previewConcept(input);
+
 export const previewContractEndDate = async ({ ctrId, startDate, term, termUnit, endDate, scope }) => {
   let extensions = 0;
   let suspendedDays = 0;

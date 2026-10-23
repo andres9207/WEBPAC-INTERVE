@@ -11,6 +11,7 @@ import {
   getContractSchema,
   selectContractWorksSchema,
   getContractFormOptionsSchema,
+  previewContractConceptSchema,
   previewContractEndDateSchema,
   getContractFieldsSchema,
   saveContractSchema,
@@ -32,6 +33,7 @@ import {
   getContractController,
   selectContractWorksController,
   getContractFormOptionsController,
+  previewContractConceptController,
   previewContractEndDateController,
   getContractFieldsController,
   saveContractController,
@@ -77,6 +79,16 @@ contractsRoutes.get(
   getContractFormOptionsSchema,
   validate,
   getContractFormOptionsController
+);
+// Valor y % de cada componente del concepto mientras se escribe (valor inicial y
+// otrosí): la conversión la hace el servidor (FRONTEND_STANDARD, regla 9).
+contractsRoutes.post(
+  "/preview_contract_concept",
+  verifyToken,
+  requirePermission(can.view),
+  previewContractConceptSchema,
+  validate,
+  previewContractConceptController
 );
 // Fecha fin mientras se edita el formulario: la calcula el servidor (FRONTEND_STANDARD, regla 9).
 contractsRoutes.get(

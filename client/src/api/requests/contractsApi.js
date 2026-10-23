@@ -50,6 +50,13 @@ export const getContractFormOptionsAPI = (params) => httpCliente.get('work/contr
 export const previewContractEndDateAPI = (params) => httpCliente.get('work/contracts/preview_contract_end_date', params);
 
 /**
+ * Valor y % de cada componente de un concepto mientras se escribe: costo
+ * directo, porcentajes y, para convertirlos, su valor (`adminAmount`…).
+ * Devuelve `captured` (porcentajes ya convertidos), `pairs` y `amounts`.
+ */
+export const previewContractConceptAPI = (params) => httpCliente.post('work/contracts/preview_contract_concept', params);
+
+/**
  * Descriptores de los campos configurables del contrato (ADR-0006, DEC-053):
  * la configuración vigente del tipo de proveedor del contrato (DEC-066). Con
  * `ctrId`, los de ese contrato (sin `pvtId`, con su tipo) y su solicitud de AIU.

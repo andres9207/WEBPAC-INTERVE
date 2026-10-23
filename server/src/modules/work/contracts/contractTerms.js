@@ -1,4 +1,4 @@
-import { decimal, percentOf, sumMoney } from "../../../common/utils/money.utils.js";
+import { decimal, moneyText, percentFor, percentOf, percentText, sumMoney, toMoney } from "../../../common/utils/money.utils.js";
 import { addTerm, dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
 import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
@@ -298,17 +298,70 @@ export const conceptAmounts = (concept) => {
   const profit = percentOf(directCost, concept.ccp_profit_pct);
   const hasAiu = [concept.ccp_admin_pct, concept.ccp_contingency_pct, concept.ccp_profit_pct].some((p) => decimal(p).gt(0));
   const base = directCost.plus(administration).plus(contingency).plus(profit);
-  const vat = percentOf(hasAiu ? profit : directCost, concept.ccp_vat_pct);
+  const vatBase = hasAiu ? profit : directCost;
+  const vat = percentOf(vatBase, concept.ccp_vat_pct);
   return {
     directCost,
     administration,
     contingency,
     profit,
     base,
+    vatBase,
     vat,
     value: base.plus(vat),
     advance: percentOf(base, concept.ccp_advance_pct),
     retention: percentOf(base, concept.ccp_retention_pct),
+  };
+};
+
+/**
+ * Valor y porcentaje de cada componente del concepto, como en las facturas
+ * (DEC-065, "Valor y porcentaje"). El formulario muestra los dos y se escribe
+ * en cualquiera; se guarda siempre el porcentaje. `alt` es el nombre en la
+ * API del valor, que solo acepta la previsualización. `base` sale de
+ * conceptAmounts: el IVA, sobre la utilidad si hay AIU; anticipo y retenido,
+ * sobre la base. El orden es el de la fórmula: la base del IVA depende de lo
+ * ya convertido de A, I y U.
+ */
+export const CONCEPT_PAIRS = Object.freeze([
+  { field: "adminPct", column: "ccp_admin_pct", line: "administration", alt: "adminAmount", base: (a) => a.directCost },
+  { field: "contingencyPct", column: "ccp_contingency_pct", line: "contingency", alt: "contingencyAmount", base: (a) => a.directCost },
+  { field: "profitPct", column: "ccp_profit_pct", line: "profit", alt: "profitAmount", base: (a) => a.directCost },
+  { field: "vatPct", column: "ccp_vat_pct", line: "vat", alt: "vatAmount", base: (a) => a.vatBase },
+  { field: "advancePct", column: "ccp_advance_pct", line: "advance", alt: "advanceAmount", base: (a) => a.base },
+  { field: "retentionPct", column: "ccp_retention_pct", line: "retention", alt: "retentionAmount", base: (a) => a.base },
+]);
+
+const blank = (value) => value === null || value === undefined || String(value).trim() === "";
+
+/** Borrador del concepto a partir de la petición (nombres de la API): lo vacío vale 0. */
+const conceptDraftOf = (input) => ({
+  ccp_direct_cost: blank(input.directCost) ? "0" : input.directCost,
+  ...Object.fromEntries(CONCEPT_PAIRS.map((pair) => [pair.column, blank(input[pair.field]) ? "0" : input[pair.field]])),
+});
+
+/**
+ * Previsualización del concepto mientras se escribe (FRONTEND_STANDARD,
+ * regla 9): pasa cada valor escrito por su otro lado (`alt`) a % de su base,
+ * con dos decimales como la columna, y devuelve lo capturado ya convertido
+ * (`captured`), el valor y el % de cada componente (`pairs`) y los importes
+ * del concepto. Un valor sobre una base en 0 da 0 %.
+ */
+export const previewConcept = (input) => {
+  const converted = { ...input };
+  for (const pair of CONCEPT_PAIRS) {
+    if (blank(input[pair.alt])) continue;
+    const base = pair.base(conceptAmounts(conceptDraftOf(converted)));
+    converted[pair.field] = percentText(percentFor(toMoney(input[pair.alt]), base));
+  }
+  const draft = conceptDraftOf(converted);
+  const amounts = conceptAmounts(draft);
+  return {
+    captured: Object.fromEntries(CONCEPT_PAIRS.map((pair) => [pair.field, blank(converted[pair.field]) ? "" : converted[pair.field]])),
+    pairs: Object.fromEntries(
+      CONCEPT_PAIRS.map((pair) => [pair.field, { amount: moneyText(amounts[pair.line]), pct: percentText(draft[pair.column]) }])
+    ),
+    amounts: Object.fromEntries(["directCost", "base", "vat", "value", "advance", "retention"].map((key) => [key, moneyText(amounts[key])])),
   };
 };
 

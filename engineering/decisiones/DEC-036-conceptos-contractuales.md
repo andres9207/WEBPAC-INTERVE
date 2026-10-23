@@ -16,6 +16,18 @@ Resuelve la decisión de negocio DEC-18 del backlog y, en parte, DEC-05 (el porc
 - **Valor derivado, nunca guardado** (`conceptAmounts`, `contractTotals`), con la composición **propuesta** de ADR-0026: con AIU (A, I o U > 0) el IVA va sobre la utilidad; sin AIU, sobre el costo directo. Anticipo y retenido sobre la base (costo directo + AIU). Cada componente se redondea a dos decimales, medio hacia arriba. **Pendiente de validación tributaria** (backlog DEC-03): si cambia, cambia solo `conceptAmounts`.
 - **Los conceptos no se eliminan.** La anulación de un otrosí sigue pendiente (ADR-0016, B12).
 
+## Valor y porcentaje (2026-10-23)
+
+Pedido del usuario, igual que en las facturas ([DEC-065](DEC-065-factura-simple-importes.md), "Valor y porcentaje"): en el valor inicial y en el otrosí, cada porcentaje del concepto muestra su valor y su %, y se escribe en cualquiera de los dos. **Se guarda siempre el %**; no cambia el esquema ni la fórmula.
+
+| Porcentaje | Base del % |
+| --- | --- |
+| Administración, imprevistos, utilidad | Costo directo |
+| IVA | Utilidad si hay AIU; si no, costo directo |
+| Anticipo, retenido | Base (costo directo + AIU) |
+
+La conversión y los valores los da el servidor (`preview_contract_concept`, con `previewConcept` sobre `conceptAmounts`), con el permiso de ver contratos y sin leer la BD. El % sale con dos decimales, como la columna: el valor que da puede diferir en centavos de lo escrito.
+
 ## Dónde
 
 `database/migrations/0050` · `server/src/modules/work/contracts/contractTerms.js` y `contractConcepts.service.js` · `client/src/views/work/contracts/components/` (`ConceptFields`, `ConceptDialog`, `ConceptsTab`)

@@ -10,6 +10,7 @@ import * as conceptsService from "./contractConcepts.service.js";
 import * as suspensionsService from "./contractSuspensions.service.js";
 import * as policiesService from "./contractPolicies.service.js";
 import { exportContractReport, exportContractSummary } from "./contractReports.service.js";
+import { CONCEPT_PAIRS } from "./contractTerms.js";
 
 // Solo leen la petición y delegan. El autor sale de req.user (DEC-005); la
 // clave de idempotencia, del encabezado (DEC-016). Nada más del body llega al
@@ -107,6 +108,12 @@ export const getContractFormOptionsController = handle(async (req) => {
   const { wrkId, includeWksId, includePrvId, includePvtId } = req.query;
   return contractsService.getContractFormOptions({ wrkId, includeWksId, includePrvId, includePvtId, scope: await workScopeOf(req) });
 });
+
+export const previewContractConceptController = handle(async (req) =>
+  contractsService.previewContractConcept(
+    Object.fromEntries(["directCost", ...CONCEPT_PAIRS.flatMap((pair) => [pair.field, pair.alt])].map((field) => [field, req.body[field]]))
+  )
+);
 
 export const previewContractEndDateController = handle(async (req) => {
   const { ctrId, startDate, term, termUnit, endDate } = req.query;

@@ -101,6 +101,14 @@ export const getContractFormOptionsSchema = [
   query("includePvtId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePvtId debe ser un entero positivo."),
 ];
 
+// Valor y % de un concepto mientras se escribe: todo opcional (lo vacío vale 0);
+// cada porcentaje admite también su valor (`<campo>Amount`), que se convierte.
+export const previewContractConceptSchema = [
+  moneyRule("directCost", "costo directo", { optional: true }),
+  ...PERCENTS.map(([field, label]) => percentRule(field, label, { optional: true })),
+  ...PERCENTS.map(([field, label]) => moneyRule(field.replace(/Pct$/, "Amount"), `valor del ${label}`, { optional: true })),
+];
+
 export const previewContractEndDateSchema = [
   query("ctrId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("ctrId debe ser un entero positivo."),
   query("startDate").matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("La fecha de inicio es requerida (AAAA-MM-DD)."),

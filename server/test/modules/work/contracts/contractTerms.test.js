@@ -11,6 +11,7 @@ import {
   contractTotals,
   historyRow,
   isEndDateProvisional,
+  previewConcept,
   sortConcepts,
   suspendedDaysBetween,
   totalExtensions,
@@ -91,6 +92,37 @@ describe("conceptAmounts (ADR-0026, propuesta)", () => {
     const totals = contractTotals([concept(), concept({ ccp_type: "AMENDMENT", ccp_number: 1 }), concept({ sta_id: 3 })]);
     expect(totals.value.toFixed(2)).toBe("2419000.00");
     expect(totals.advance.toFixed(2)).toBe("360000.00");
+  });
+});
+
+describe("previewConcept: valor y % de cada componente (DEC-065, \"Valor y porcentaje\")", () => {
+  const input = { directCost: "1000000", adminPct: "10", contingencyPct: "5", profitPct: "5", vatPct: "19", advancePct: "15", retentionPct: "5" };
+
+  it("devuelve el valor y el % de cada componente con la fórmula de conceptAmounts", () => {
+    const { pairs, amounts, captured } = previewConcept(input);
+    expect(pairs.adminPct).toEqual({ amount: "100000.00", pct: "10.00" });
+    expect(pairs.vatPct).toEqual({ amount: "9500.00", pct: "19.00" });
+    expect(pairs.advancePct).toEqual({ amount: "180000.00", pct: "15.00" });
+    expect(amounts).toMatchObject({ base: "1200000.00", value: "1209500.00", retention: "60000.00" });
+    expect(captured.adminPct).toBe("10");
+  });
+
+  it("convierte un valor escrito a % de su base, en el orden de la fórmula", () => {
+    const { captured, pairs } = previewConcept({ ...input, adminPct: "", adminAmount: "200000", vatPct: "", vatAmount: "9500", advanceAmount: "260000" });
+    // Administración sobre el costo directo; el IVA, sobre la utilidad (hay AIU); el anticipo, sobre la base con la A ya convertida.
+    expect(captured).toMatchObject({ adminPct: "20.00", vatPct: "19.00", advancePct: "20.00" });
+    expect(pairs.advancePct.amount).toBe("260000.00");
+  });
+
+  it("sin AIU, el IVA se convierte sobre el costo directo", () => {
+    const { captured } = previewConcept({ directCost: "1000", vatAmount: "190" });
+    expect(captured.vatPct).toBe("19.00");
+  });
+
+  it("lo vacío vale 0, y un valor sobre una base en 0 da 0 %", () => {
+    const { captured, pairs } = previewConcept({ adminAmount: "50" });
+    expect(captured.adminPct).toBe("0.00");
+    expect(pairs.retentionPct).toEqual({ amount: "0.00", pct: "0.00" });
   });
 });
 

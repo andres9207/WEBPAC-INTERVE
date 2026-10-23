@@ -14,6 +14,7 @@ const EXEMPT = {
   previewWorkEndDateController: "solo suma un plazo a una fecha; no lee la BD",
   previewSimpleInvoiceController: "solo compone los importes que recibe (DEC-065); no lee la BD",
   previewContractInvoiceController: "solo compone los importes que recibe (DEC-075); no lee la BD",
+  previewContractConceptController: "solo compone los importes del concepto que recibe (valor y %); no lee la BD",
   getInvoiceMenuController: "lee un tipo de proveedor del catálogo (su nombre y su forma de facturar), no datos de obras (DEC-074)",
   selectInvoiceMenusController: "lista los tipos de proveedor con la casilla del menú de facturas, no datos de obras (DEC-074)",
   selectWorkManagersController: "lista usuarios candidatos a responsable, no datos de obras",
