@@ -184,6 +184,7 @@ describe("getWorkDashboard", () => {
       invoiced: { approved: "75.00", pending: "0.00", total: "75.00", approvedPct: "50.00", pct: "50.00", level: "MEDIUM" },
       amortized: { approved: "30.00", pending: "0.00", total: "30.00", approvedPct: "40.00", pct: "40.00", level: "LOW" },
     });
+    expect(item.advance.filters).toEqual(["WITH_ADVANCE", "TO_INVOICE", "TO_AMORTIZE"]);
     expect(item.retention).toEqual({ agreed: "75.00", retained: "20.00", refunded: "5.00", balance: "15.00" });
     expect(contracts).toMatchObject({ total: 1, contracted: "1500.00", contractedPct: "50.00" });
     expect(contracts.retention).toEqual({ retained: "20.00", balance: "15.00", balancePct: "75.00" });
@@ -213,6 +214,7 @@ describe("getWorkDashboard", () => {
     // (75 + 60) / 150 = 90 %: alto. (30 + 120) / (75 + 60) = 111,11 %: excedido.
     expect(advance.bars.invoiced).toEqual({ approved: "75.00", pending: "60.00", total: "135.00", approvedPct: "50.00", pct: "90.00", level: "HIGH" });
     expect(advance.bars.amortized).toEqual({ approved: "30.00", pending: "120.00", total: "150.00", approvedPct: "22.22", pct: "111.11", level: "EXCEEDED" });
+    expect(advance.filters).toContain("PENDING");
   });
 
   it.each([

@@ -904,7 +904,6 @@ export default function InvoiceFormPage() {
                   stickyTop={hasAmounts(type) && balances ? cardsHeight + 2 * CARDS_GAP - DIALOG_PADDING : 0}
                   lines={preview?.lines ?? []}
                   total={preview?.total ?? ''}
-                  extra={[{ label: 'Total facturado', value: preview?.billed ?? '', hint: 'Valor del documento; es el costo de la obra' }]}
                   warning={preview && !preview.valid && value ? preview.message : undefined}
                   note="TOTAL es el neto a pagar: descuenta las retenciones y el pronto pago."
                 />

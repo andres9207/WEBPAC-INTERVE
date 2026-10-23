@@ -117,6 +117,25 @@ export default function DataTable({
 
   const visibleColumns = allColumns.filter((col) => (isMobile ? !col.hideInCard : !col.hideInTable));
 
+  // La columna de acciones queda fija a la derecha al desplazar la tabla en
+  // horizontal. Fondo opaco para tapar lo que pasa debajo; el resaltado de la
+  // fila (hover, seleccionada) se repite encima con un degradado.
+  const overlay = (color) => `linear-gradient(${color}, ${color})`;
+  const stickySx = (col) =>
+    col.id === '__actions__'
+      ? {
+          position: 'sticky',
+          right: 0,
+          zIndex: 2,
+          bgcolor: 'background.paper',
+          boxShadow: `inset 1px 0 0 ${theme.vars.palette.divider}`,
+          '.MuiTableRow-hover:hover > &': { backgroundImage: overlay(theme.vars.palette.action.hover) },
+          '.Mui-selected > &': {
+            backgroundImage: overlay(`rgba(${theme.vars.palette.primary.mainChannel} / ${theme.vars.palette.action.selectedOpacity})`)
+          }
+        }
+      : {};
+
   const getCellValue = (row, col, index) => {
     if (isMobile) {
       return col.cardRender?.(row, index) ?? col.render?.(row, index) ?? row[col.id] ?? '-';
@@ -259,7 +278,7 @@ export default function DataTable({
   return (
     <>
       <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto', position: 'relative' }} aria-busy={loading}>
-        {reloading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 }} aria-label={loadingMessage} />}
+        {reloading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 3 }} aria-label={loadingMessage} />}
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -278,7 +297,7 @@ export default function DataTable({
                 <TableCell
                   key={col.id}
                   align={col.align || 'left'}
-                  sx={{ whiteSpace: 'nowrap', ...(col.width ? { width: col.width } : {}) }}
+                  sx={{ whiteSpace: 'nowrap', ...(col.width ? { width: col.width } : {}), ...stickySx(col) }}
                   sortDirection={col.sortable && sortField === col.id ? (sortOrder === 1 ? 'asc' : 'desc') : false}
                 >
                   {col.sortable ? (
@@ -317,7 +336,7 @@ export default function DataTable({
                     </TableCell>
                   )}
                   {visibleColumns.map((col) => (
-                    <TableCell key={col.id} align={col.align || 'left'}>
+                    <TableCell key={col.id} align={col.align || 'left'} sx={stickySx(col)}>
                       {getCellValue(row, col, index)}
                     </TableCell>
                   ))}

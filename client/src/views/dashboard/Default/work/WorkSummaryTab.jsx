@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Link as RouterLink } from 'react-router-dom';
 
@@ -36,6 +37,7 @@ import { fDateOnly } from 'utils/formatTime';
 import { CONTRACT_STATE_COLORS, INVOICE_STATE_COLORS, STATUS, fTerm } from 'utils/constants';
 
 import DashboardCards from '../components/DashboardCards';
+import { AdvanceBar, AdvanceFilter, AdvanceLegend, matchesAdvanceFilter } from './AdvanceBars';
 import { contractRows, daysOpenText, followUpsDrill, invoiceRows, useDrillDown } from './DrillDownDialog';
 import { MANAGER_ROLE_NAMES, POLICY_STATUS_COLORS, barPercent, dashboardTo, initialsOf, plural } from './workDashboard.utils';
 
@@ -223,19 +225,22 @@ function ContractCard({ contract }) {
             {fMoneyText(contract.currentValue)}
           </Typography>
         </Stack>
+        {/* Las barras de anticipo del tablero (DEC-079): facturado frente al pactado y amortizado frente al facturado. */}
         {hasAdvance && (
-          <Stack spacing={0.5}>
+          <Stack spacing={0.75}>
             <Stack direction="row" justifyContent="space-between" spacing={1}>
-              <Typography variant="body2">Anticipo facturado</Typography>
+              <Typography variant="body2">Anticipo</Typography>
               <Typography variant="body2" sx={num}>
-                {fMoneyText(contract.advance.invoiced)} de {fMoneyText(contract.advance.agreed)}
+                Pactado {fMoneyText(contract.advance.agreed)}
               </Typography>
             </Stack>
-            <Bar percent={contract.advance.invoicedPct} label={`Anticipo facturado: ${fPercentText(contract.advance.invoicedPct)}`} />
-            <Typography variant="caption" color="text.secondary">
-              Amortizado: {fMoneyText(contract.advance.amortized)}
-              {contract.advance.toAmortize !== '0.00' && ` · pendiente ${fMoneyText(contract.advance.toAmortize)}`}
-            </Typography>
+            <AdvanceBar label="Facturado" bar={contract.advance.bars.invoiced} />
+            <AdvanceBar label="Amortizado" bar={contract.advance.bars.amortized} />
+            {contract.advance.toAmortize !== '0.00' && (
+              <Typography variant="caption" color="text.secondary">
+                Por amortizar: {fMoneyText(contract.advance.toAmortize)}
+              </Typography>
+            )}
           </Stack>
         )}
         {contract.retention.balance !== '0.00' && (
@@ -575,6 +580,8 @@ ProvidersCard.propTypes = { providers: PropTypes.arrayOf(PropTypes.object).isReq
 export default function WorkSummaryTab({ data, workLabel }) {
   const { work, contracts, invoices, providers } = data;
   const { openDrill, dialog } = useDrillDown();
+  const [advanceFilter, setAdvanceFilter] = useState('');
+  const shownContracts = contracts?.items.filter(matchesAdvanceFilter(advanceFilter)) ?? [];
 
   const kpis = [];
   if (work) {
@@ -666,15 +673,23 @@ export default function WorkSummaryTab({ data, workLabel }) {
         <Grid container spacing={gridSpacing}>
           {contracts && (
             <Grid size={{ xs: 12, lg: 8 }}>
-              <MainCard title="Contratos de la obra" sx={{ height: '100%' }}>
+              <MainCard
+                title="Contratos de la obra"
+                secondary={contracts.items.length > 0 && <AdvanceFilter value={advanceFilter} onChange={setAdvanceFilter} />}
+                sx={{ height: '100%' }}
+              >
                 {contracts.items.length === 0 ? (
                   <Empty>La obra todavía no tiene contratos.</Empty>
                 ) : (
-                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-                    {contracts.items.map((c) => (
-                      <ContractCard key={c.ctrId} contract={c} />
-                    ))}
-                  </Box>
+                  <Stack spacing={2}>
+                    {contracts.items.some((c) => c.advance.agreed !== '0.00') && <AdvanceLegend />}
+                    {shownContracts.length === 0 && <Empty>Ningún contrato cumple el filtro.</Empty>}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
+                      {shownContracts.map((c) => (
+                        <ContractCard key={c.ctrId} contract={c} />
+                      ))}
+                    </Box>
+                  </Stack>
                 )}
               </MainCard>
             </Grid>

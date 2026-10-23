@@ -29,6 +29,7 @@ import { contractBalances } from "../../billing/invoices/invoices.service.js";
 import { openFollowUpsSummary } from "../../billing/invoices/invoiceFollowUps.service.js";
 import { composeSimpleInvoice } from "../../billing/invoices/simpleInvoiceTerms.js";
 import { BILLING_TYPES } from "../../billing/invoices/billingTerms.js";
+import { CONTRACT_ADVANCE_FILTERS, matchesContractAdvance } from "../../billing/invoices/advanceFilters.js";
 
 /**
  * Tablero de una obra (ADR-0002; propuesta B del tablero, DEC-063): la obra
@@ -226,6 +227,10 @@ const balancesOf = ({ advance, retention }, pending = { invoiced: ZERO_MONEY, am
       invoiced: advanceBar(advance.invoiced, pending.invoiced, advance.agreed),
       amortized: advanceBar(advance.amortized, pending.amortized, advance.invoiced.plus(pending.invoiced)),
     },
+    // Los filtros "Anticipo" del listado de contratos que cumple (DEC-079): el tablero filtra con el mismo criterio.
+    filters: Object.values(CONTRACT_ADVANCE_FILTERS).filter((filter) =>
+      filter === CONTRACT_ADVANCE_FILTERS.PENDING ? pending.invoiced.gt(0) || pending.amortized.gt(0) : matchesContractAdvance(filter, advance)
+    ),
   },
   retention: {
     agreed: moneyText(retention.agreed),

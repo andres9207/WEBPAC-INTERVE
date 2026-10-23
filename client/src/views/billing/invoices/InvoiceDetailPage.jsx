@@ -108,7 +108,6 @@ const detailPanelOf = ({ type, amounts }) => {
     return {
       lines: amounts.lines,
       total: amounts.total,
-      extra: [{ label: 'Total facturado', value: amounts.billed, hint: 'Valor del documento; es el costo de la obra' }],
       note: 'TOTAL es el neto a pagar: descuenta las retenciones y el pronto pago.'
     };
   }
