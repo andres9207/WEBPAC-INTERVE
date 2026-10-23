@@ -2244,9 +2244,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/providers/ProvidersPage.jsx": {
-    "mtime": 1792772046.2600338,
-    "seen": 1792772194.300502,
-    "ast_hash": "088a1f689371df0d45dd0845eff1bc46",
+    "mtime": 1792772503.991813,
+    "seen": 1792773239.3445954,
+    "ast_hash": "c7e01a9589edf0fbca6a1ac7ba7bc6f4",
     "semantic_hash": ""
   },
   "client/src/views/work/providers/components/NewProviderDialog.jsx": {
@@ -2298,9 +2298,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/providers/providers.controller.js": {
-    "mtime": 1792441398.8428798,
-    "seen": 1792447981.7008457,
-    "ast_hash": "725ab1b7bb78693c7c26c46d35cb96cc",
+    "mtime": 1792772443.1680045,
+    "seen": 1792773239.3449013,
+    "ast_hash": "f656a100f5872053df4ee7625769cab6",
     "semantic_hash": ""
   },
   "server/src/modules/work/providers/providers.routes.js": {
@@ -2310,9 +2310,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/providers/providers.service.js": {
-    "mtime": 1792759777.4005919,
-    "seen": 1792764934.6337419,
-    "ast_hash": "49fbc1fbece0f7969ae0a84ad16576fc",
+    "mtime": 1792772443.1690013,
+    "seen": 1792773239.3449037,
+    "ast_hash": "0a32a6240e2713a1a1e74b71008087e1",
     "semantic_hash": ""
   },
   "server/src/modules/work/providers/providers.validation.js": {
@@ -2322,15 +2322,15 @@
     "semantic_hash": ""
   },
   "server/test/modules/work/providers/providers.controller.test.js": {
-    "mtime": 1792441850.2265458,
-    "seen": 1792447981.7009208,
-    "ast_hash": "7018dbaa3ab7331f6374336de94294de",
+    "mtime": 1792772443.1710002,
+    "seen": 1792773239.3449981,
+    "ast_hash": "6a0f6a6082209a4b5710e78776b3e084",
     "semantic_hash": ""
   },
   "server/test/modules/work/providers/providers.service.test.js": {
-    "mtime": 1792759777.4496582,
-    "seen": 1792764934.63386,
-    "ast_hash": "5022ff3a85e1d7aab16d8367666a18ae",
+    "mtime": 1792772443.1700013,
+    "seen": 1792773239.3449988,
+    "ast_hash": "8ed222f855d49658bd1dff5b65ebcb55",
     "semantic_hash": ""
   },
   "client/src/views/work/works/components/WorkCard.jsx": {
