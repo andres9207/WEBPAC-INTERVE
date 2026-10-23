@@ -36,39 +36,31 @@ beforeEach(() => {
   prismaMock.tbl_permissions.findMany.mockResolvedValue([1, 2, 3, 4, 5].map((per_id) => ({ per_id })));
 });
 
-describe("updateProfilePermissions — impedir autoconcesión", () => {
-  it("rechaza con 403 si el solicitante pertenece al perfil que intenta modificar", async () => {
+// Decisión del usuario (2026-10-23, SECURITY.md): se pueden modificar los
+// permisos propios y los del propio perfil. Lo único bloqueado sobre uno
+// mismo es eliminarse (users.service.js).
+describe("updateProfilePermissions — el propio perfil", () => {
+  it("permite modificar los permisos del perfil del solicitante", async () => {
     await expect(
       permissionsService.updateProfilePermissions({ permissions: [1], proId: 3, actingProId: 3 })
-    ).rejects.toMatchObject({ status: 403 });
-
-    expect(prismaMock.tbl_profile_permissions.deleteMany).not.toHaveBeenCalled();
-    expect(prismaMock.tbl_profile_permissions.createMany).not.toHaveBeenCalled();
+    ).resolves.toMatchObject({ message: expect.any(String) });
   });
 
-  it("permite modificar los permisos de un perfil distinto al del solicitante", async () => {
+  it("y los de un perfil distinto", async () => {
     await expect(
       permissionsService.updateProfilePermissions({ permissions: [1], proId: 3, actingProId: 7 })
     ).resolves.toMatchObject({ message: expect.any(String) });
   });
 });
 
-describe("updateUserPermissions — impedir autoconcesión", () => {
-  it("rechaza con 403 si el solicitante intenta modificar sus propios permisos", async () => {
+describe("updateUserPermissions — el propio usuario", () => {
+  it("permite que el solicitante modifique sus propios permisos", async () => {
     await expect(
       permissionsService.updateUserPermissions({ permissions: [1], pagIds: [10], useId: 5, actingUseId: 5 })
-    ).rejects.toMatchObject({ status: 403 });
-
-    expect(prismaMock.tbl_users.findUnique).not.toHaveBeenCalled();
+    ).resolves.toMatchObject({ message: expect.any(String) });
   });
 
-  it("aplica también al propio Superadmin (useId=1), sin excepción", async () => {
-    await expect(
-      permissionsService.updateUserPermissions({ permissions: [1], pagIds: [10], useId: 1, actingUseId: 1 })
-    ).rejects.toMatchObject({ status: 403 });
-  });
-
-  it("permite modificar los permisos de un usuario distinto al del solicitante", async () => {
+  it("y los de un usuario distinto", async () => {
     await expect(
       permissionsService.updateUserPermissions({ permissions: [1], pagIds: [10], useId: 5, actingUseId: 1 })
     ).resolves.toMatchObject({ message: expect.any(String) });

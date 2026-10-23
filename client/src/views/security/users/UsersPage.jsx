@@ -157,13 +157,13 @@ export default function UsersPage() {
   ];
 
   const actionItems = (row) => [
-    // Nadie edita sus propios permisos: el servidor responde 403
-    // (updateUserPermissions), así que la acción no se ofrece en la propia fila.
-    ...(canAssignPermission && row.useId !== sessionUser?.useId
+    // También en la propia fila: se pueden editar los permisos propios (decisión del usuario, 2026-10-23).
+    ...(canAssignPermission
       ? [{ label: 'Permisos', icon: <IconKey size={16} />, command: () => handleOpenPermissions(row), tone: 'info' }]
       : []),
     ...(canEdit ? [{ label: 'Editar', icon: <IconEdit size={16} />, command: () => handleEditUser(row), tone: 'edit' }] : []),
-    ...(canDelete
+    // Nadie se elimina a sí mismo (403 en deleteUser): es lo único que no se ofrece en la propia fila.
+    ...(canDelete && row.useId !== sessionUser?.useId
       ? [
           {
             label: 'Eliminar',

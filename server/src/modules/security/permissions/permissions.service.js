@@ -191,17 +191,11 @@ export const updateProfilePermissions = async ({ permissions, proId, actingProId
     throw error;
   }
 
-  // Impide la autoconcesión: quien edita los permisos de un perfil no puede
-  // ser alguien perteneciente a ESE MISMO perfil (se estaría concediendo
-  // permisos a sí mismo indirectamente, junto con todo el resto de usuarios
-  // de ese perfil). Sin excepción para ningún perfil, Superadmin incluido —
-  // no hay ningún caso especial de código que lo exima (ver
-  // requirePermission.middleware.js).
-  if (Number(proId) === Number(actingProId)) {
-    const error = new Error("No puedes modificar los permisos de tu propio perfil.");
-    error.status = 403;
-    throw error;
-  }
+  // Decisión del usuario (2026-10-23, SECURITY.md): quien tiene el permiso de
+  // asignar permisos a perfiles puede modificar también los de su propio
+  // perfil. Lo único que nadie hace sobre sí mismo es eliminarse
+  // (users.service.js). `actingProId` ya no decide nada; se sigue recibiendo
+  // del controller (de req.user) por si la regla vuelve.
 
   await withLockedTransaction({ PERFIL: proId }, async (tx) => {
     const currentPermissions = await tx.tbl_profile_permissions.findMany({
@@ -248,14 +242,8 @@ export const updateUserPermissions = async ({ permissions, pagIds, useId, acting
     throw error;
   }
 
-  // Impide la autoconcesión: nadie puede modificar sus propios permisos,
-  // ni siquiera un usuario del perfil Superadmin — sin excepción de código
-  // para ningún useId (ver requirePermission.middleware.js).
-  if (Number(useId) === Number(actingUseId)) {
-    const error = new Error("No puedes modificar tus propios permisos.");
-    error.status = 403;
-    throw error;
-  }
+  // Decisión del usuario (2026-10-23, SECURITY.md): quien tiene el permiso de
+  // asignar permisos a usuarios puede modificar también los suyos.
 
   // tbl_user_permissions guarda solo las EXCEPCIONES individuales del
   // usuario, no su set completo de permisos: el efectivo es

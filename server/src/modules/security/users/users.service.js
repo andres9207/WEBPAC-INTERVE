@@ -201,6 +201,8 @@ const AUDITED_USER_FIELDS = [
   "use_change_password",
 ];
 
+const forbidden = (message) => Object.assign(new Error(message), { status: 403 });
+
 // El perfil asignado se verifica con su fila ya bloqueada: deleteProfile
 // bloquea el mismo perfil antes de comprobar que no tenga usuarios, así que
 // asignar un perfil y eliminarlo no pueden cruzarse (ADR-0027).
@@ -474,6 +476,9 @@ export const deleteUser = async ({ useId, updatedBy, ctx = { useId: updatedBy } 
     error.status = 400;
     throw error;
   }
+  // Nadie se elimina a sí mismo (SECURITY.md): se dejaría fuera del sistema. Es lo único
+  // que nadie hace sobre su propio usuario (decisión del usuario, 2026-10-23).
+  if (Number(useId) === Number(updatedBy)) throw forbidden("No puedes eliminar tu propio usuario: lo hace otro administrador.");
 
   return withLockedTransaction({ USUARIO: useId }, async (tx) => {
     const before = await tx.tbl_users.findUnique({

@@ -43,7 +43,7 @@ router.<método>("/ruta", verifyToken, requirePermission(...), schema, validate,
 
 ### 4. Regla de negocio — el controller llama al service, nunca al revés
 
-**Autoconcesión**: si un endpoint permite que alguien con un permiso de "asignar" opere sobre el sujeto/objeto que representa a sí mismo (ej. asignarse permisos a sí mismo, o a su propio perfil), rechazarlo explícitamente con 403 — tener el permiso de asignar no implica que se pueda usar sobre uno mismo. Sin excepción para ningún perfil (Superadmin incluido: no hay ningún caso especial de código que lo exima de ninguna regla, ver el punto anterior). Ver `updateUserPermissions`/`updateProfilePermissions` en `security/permissions/permissions.service.js` como referencia — el solicitante siempre sale de `req.user` (pasado por el controller), nunca del body.
+**Acciones sobre uno mismo**: por decisión del usuario (2026-10-23, ver "Autoconcesión: retirada" en [`SECURITY.md`](../anti-patterns/SECURITY.md)), quien tiene un permiso de "asignar" o de editar usuarios **sí** puede usarlo sobre sí mismo y sobre su propio perfil. Lo único que se rechaza con 403 sobre uno mismo es **eliminarse** (`deleteUser`), y la propia contraseña se cambia solo con la actual (ADR-0001, regla 11). Un endpoint nuevo que necesite otra restricción sobre uno mismo la propone como decisión. El solicitante siempre sale de `req.user` (pasado por el controller), nunca del body.
 
 
 - El controller solo parsea `req`, llama al service, y delega errores con `next(err)` — nunca responde el error directamente ni mete lógica de negocio.

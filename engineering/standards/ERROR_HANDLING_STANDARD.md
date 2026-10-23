@@ -19,7 +19,7 @@
 5. **Datos para actuar:** un error con estado explícito puede llevar `err.data`, y el middleware lo devuelve como `data`. Solo para que el cliente ofrezca una acción, no para detalles internos. Caso de uso: el 409 de un proveedor con documento repetido trae el existente en `data.existing` ([DEC-032](../decisiones/DEC-032-identidad-proveedor.md)).
 6. **Stack:** solo fuera de producción.
 7. **Logs:** nunca el `req.body` de una ruta que reciba contraseñas, tokens o códigos, ni en la rama de error.
-7. **Códigos esperados por regla de negocio:** 400 regla incumplida, 403 sin permiso o autoconcesión, 404 inexistente o ya eliminado, 422 clave de idempotencia reutilizada. El código de un duplicado detectado por el service **REQUIERE DECISIÓN** (PD-02 en [`PROJECT_STATE`](../PROJECT_STATE.md)).
+7. **Códigos esperados por regla de negocio:** 400 regla incumplida, 403 sin permiso o acción prohibida sobre uno mismo (eliminarse), 404 inexistente o ya eliminado, 422 clave de idempotencia reutilizada. El código de un duplicado detectado por el service **REQUIERE DECISIÓN** (PD-02 en [`PROJECT_STATE`](../PROJECT_STATE.md)).
 
 ## Cliente
 

@@ -88,7 +88,7 @@ Cobertura actual (24 suites, 200 tests):
 - `requirePermission.middleware.js`.
 - `error.middleware.js`: qué mensaje es seguro de exponer (ver engineering/anti-patterns/SECURITY.md) y códigos de Prisma.
 - `effectivePermissions.service.js`.
-- `security/permissions/permissions.service.js`: autoconcesión y emisión de socket dirigida.
+- `security/permissions/permissions.service.js`: emisión de socket dirigida. La autoconcesión ya no se bloquea (decisión del usuario, 2026-10-23); `users.service.js` impide eliminarse a sí mismo.
 - `app/documents/document.controller.js` y los controllers de `security/users`, `security/profiles` y `security/permissions`: el autor de la auditoría y la identidad del solicitante salen del JWT. Un autor falsificado en el body se ignora.
 - `cors.config.js`.
 - `transaction.service.js`: orden del plan de bloqueo, `REPEATABLE READ` declarado, bloqueo antes de entregar el `tx`. Propaga el error original, e incluye el test de arquitectura que prohíbe mysql2 y `prisma.$transaction` fuera de la utilidad. Además, `saveUser` bloquea perfil → usuario antes de leer, y `error.middleware.js` responde 503 a la espera agotada y 409 al interbloqueo.

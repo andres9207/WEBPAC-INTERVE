@@ -25,7 +25,7 @@ Con la unión, a un usuario no se le podía quitar un permiso que le daba su per
 
 - Nadie lee `tbl_user_permissions` para decidir un permiso: se usa `effectivePermissions.service.js` (`hasEffectivePermission`, `getEffectivePermissionIds`, `findUsersWithPermission`).
 - Una negación sobrevive a un cambio de perfil o a que el perfil deje de dar el permiso. En ese caso no tiene efecto, porque no hay nada que restar.
-- La autoconcesión sigue prohibida: nadie modifica sus propias excepciones.
+- ~~La autoconcesión sigue prohibida: nadie modifica sus propias excepciones.~~ Retirado el 2026-10-23 por decisión del usuario: se pueden modificar las propias excepciones; solo se bloquea eliminarse (ver "Autoconcesión: retirada" en `engineering/anti-patterns/SECURITY.md`).
 
 ## Dónde
 

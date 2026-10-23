@@ -169,6 +169,21 @@ describe("saveUser — contraseña propia (ADR-0001, regla 11)", () => {
   });
 });
 
+describe("saveUser — editándose a sí mismo (decisión del usuario, 2026-10-23)", () => {
+  it("puede cambiar su propio perfil, estado, acceso y páginas", async () => {
+    prismaMock.tbl_users.findUnique.mockResolvedValue({ ...baseUser, use_id: 9 });
+    await usersService.saveUser({ ...editPayload, useId: 9, useBy: 9, password: null, proId: 1, staId: 2, access: 0, usePages: "3,4" });
+    expect(prismaMock.tbl_users.update.mock.calls[0][0].data).toMatchObject({ pro_id: 1, sta_id: 2, use_access: 0 });
+  });
+});
+
+describe("deleteUser — sobre sí mismo (SECURITY.md)", () => {
+  it("nadie se elimina a sí mismo (403), sin abrir la transacción", async () => {
+    await expect(usersService.deleteUser({ useId: 9, updatedBy: 9, ctx })).rejects.toMatchObject({ status: 403 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
 describe("saveUser — protocolo de bloqueo (ADR-0027)", () => {
   const lockedTables = () =>
     prismaMock.$queryRaw.mock.calls.map(([strings, ...values]) => {

@@ -51,7 +51,7 @@ Siempre `{ success: false, message }`. El detalle de qué produce cada código e
 | --- | --- |
 | 400 | Datos inválidos (`validate` agrega `errors: [{ field, message }]`) o regla de negocio incumplida |
 | 401 | Sin sesión o sesión vencida (el cliente intenta renovarla una vez) |
-| 403 | Autenticado pero sin permiso, o autoconcesión |
+| 403 | Autenticado pero sin permiso, o una acción prohibida sobre uno mismo (eliminarse) |
 | 404 | Registro inexistente o ya eliminado |
 | 409 | Duplicado detectado por la BD, interbloqueo, o conflicto de concurrencia |
 | 422 | `Idempotency-Key` reutilizada con otro contenido u otro autor |
