@@ -109,8 +109,11 @@ export const STATE_ALLOWS = Object.freeze({
 
 export const stateAllows = (state, action) => (STATE_ALLOWS[state] ?? []).includes(action);
 
-/** Columnas que se pueden cambiar con `editNotes` (después de aprobar). */
-export const NOTE_COLUMNS = Object.freeze(["inv_statement", "inv_description"]);
+/**
+ * Columnas que se pueden cambiar con `editNotes` (después de aprobar): las
+ * que no entran en ningún cálculo. El número de comprobante, desde DEC-080.
+ */
+export const NOTE_COLUMNS = Object.freeze(["inv_statement", "inv_description", "inv_voucher_number"]);
 
 /** Fila del historial de estado para una transición declarada (con el tx del evento). */
 export const historyRow = ({ invId, transition, fromState = null, useBy, reaId = null, observation = null }) => {

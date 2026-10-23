@@ -72,7 +72,7 @@ const grantedOf = async ({ useId, proId }) => new Set(await getEffectivePermissi
 const listFiltersOf = (req) => {
   const { search, state, pvtId, type, wrkId, prvId, ctrId, sortField, sortOrder } = req.body;
   const { number, voucherNumber, statement, contractNumber, providerName, dateFrom, dateTo, approvalDateFrom, approvalDateTo } = req.body;
-  const { stageName, contractName, valueFrom, valueTo, discountFrom, discountTo, vatPctFrom, vatPctTo } = req.body;
+  const { wksId, contractName, valueFrom, valueTo, discountFrom, discountTo, vatPctFrom, vatPctTo } = req.body;
   const { advance } = req.body;
   return {
     search,
@@ -91,7 +91,7 @@ const listFiltersOf = (req) => {
     dateTo,
     approvalDateFrom,
     approvalDateTo,
-    stageName,
+    wksId,
     contractName,
     valueFrom,
     valueTo,
@@ -159,6 +159,15 @@ export const selectInvoiceFilterProvidersController = handle(async (req) =>
   })
 );
 
+export const selectInvoiceFilterStagesController = handle(async (req) =>
+  invoicesService.selectInvoiceFilterStages({
+    pvtId: req.query.pvtId,
+    search: req.query.search,
+    includeWksId: req.query.includeWksId,
+    scope: await workScopeOf(req),
+  })
+);
+
 export const selectInvoiceContractsController = handle(async (req) =>
   invoicesService.selectInvoiceContracts({
     type: req.query.type,
@@ -173,6 +182,7 @@ export const selectInvoiceContractsController = handle(async (req) =>
 export const getContractAdvanceController = handle(async (req) =>
   invoicesService.getContractAdvance({
     ctrId: req.query.ctrId,
+    invId: req.query.invId,
     value: req.query.value,
     amortization: req.query.amortization,
     amortizationPct: req.query.amortizationPct,

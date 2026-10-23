@@ -113,6 +113,7 @@ export default function AdvanceAmountsSection({
   setValue,
   type,
   ctrId,
+  invId,
   readOnly,
   canAdjust,
   canAdjustRetention,
@@ -145,7 +146,9 @@ export default function AdvanceAmountsSection({
   // por defecto del VALOR escrito, con el valor y el % de cada uno (se piden
   // al dejar de escribir). La página los recibe para las tarjetas de saldos
   // (`onBalances`, DEC-065).
-  const pairKey = isLiquidation ? [amortization, retentionValue, alts.amortizationPct, alts.retentionPct].map((v) => v ?? '').join('|') : '';
+  const pairKey = isLiquidation
+    ? [amortization, retentionValue, alts.amortizationPct, alts.retentionPct].map((v) => v ?? '').join('|')
+    : '';
   useEffect(() => {
     if (!ctrId) {
       setBalances(null);
@@ -164,7 +167,7 @@ export default function AdvanceAmountsSection({
       : {};
     const timer = setTimeout(
       () =>
-        getContractAdvanceAPI({ ctrId, ...(amount ? { value: amount } : {}), ...pairParams })
+        getContractAdvanceAPI({ ctrId, ...(invId ? { invId } : {}), ...(amount ? { value: amount } : {}), ...pairParams })
           .then(({ data }) => {
             if (cancelled) return;
             setBalances(data);
@@ -191,7 +194,7 @@ export default function AdvanceAmountsSection({
     };
     // `pairKey` resume la amortización, el retenido y lo escrito como %.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctrId, isLiquidation, value, pairKey, onBalances, onError, setValue]);
+  }, [ctrId, invId, isLiquidation, value, pairKey, onBalances, onError, setValue]);
 
   // Sin ajuste, cada campo muestra su valor por defecto.
   const defaultAmortization = balances?.defaultAmortization ?? '';
@@ -325,6 +328,8 @@ AdvanceAmountsSection.propTypes = {
   canAdjust: PropTypes.bool,
   canAdjustRetention: PropTypes.bool,
   /** Recibe los saldos del contrato (o null sin contrato) para las tarjetas de la página. */
+  /** Factura que se edita: su anticipo no cuenta como por aprobar. */
+  invId: PropTypes.number,
   onBalances: PropTypes.func,
   onError: PropTypes.func.isRequired,
   /** Normal y liquidación: dibuja un campo de IVA o retenciones por nombre (useContractTaxFields). */

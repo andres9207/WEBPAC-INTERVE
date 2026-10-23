@@ -431,7 +431,7 @@ Las facturas `SIMPLE` no tienen contrato y no participan de esta serialización:
 
 Modificable mientras la factura está `REGISTRADA`: todos los campos, con auditoría funcional.
 
-Modificable **después** de aprobar: únicamente el extracto y la descripción, que no participan en ningún cálculo.
+Modificable **después** de aprobar: únicamente el extracto y la descripción, que no participan en ningún cálculo. Desde [DEC-080](../decisiones/DEC-080-comprobante-factura-aprobada.md), también el número de comprobante, por la misma razón.
 
 **Toda corrección de un importe en una factura aprobada se hace por anulación más registro nuevo.** No hay excepción. La razón: los saldos y las condiciones de liquidación se calcularon sobre esa factura; editarla en sitio haría que el histórico dejara de cuadrar con la base que lo generó.
 

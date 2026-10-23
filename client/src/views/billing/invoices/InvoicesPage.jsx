@@ -12,7 +12,7 @@ import MasterPage from 'ui-component/extended/MasterPage';
 import LinkedFilterNotice from 'ui-component/extended/LinkedFilterNotice';
 import useLinkedFilters from 'hooks/useLinkedFilters';
 import { useInvoiceMenu } from 'hooks/useInvoiceMenus';
-import { exportInvoicesAPI, getInvoiceFilterProvidersAPI, invoicesApi } from 'api/requests/invoicesApi';
+import { exportInvoicesAPI, getInvoiceFilterProvidersAPI, getInvoiceFilterStagesAPI, invoicesApi } from 'api/requests/invoicesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField } from 'contexts/WorkScopeContext';
 import { fDateOnly } from 'utils/formatTime';
@@ -172,14 +172,22 @@ const commonFilters = (pvtId) => [
   { key: 'approvalDate', type: 'calendar-range', label: 'Aprobada el', grid: { xs: 12, sm: 6 } }
 ];
 // Filtros de las columnas del sistema que se migra: etapa y los importes guardados, por rango. IVA y total se
-// calculan y no se filtran.
-const AMOUNT_FILTERS = [
-  { key: 'stageName', type: 'input', label: 'Etapa', props: { maxLength: 255 } },
+// calculan y no se filtran. Etapa: las que tienen facturas del menú (la de la simple o la de su contrato).
+const amountFilters = (pvtId) => [
+  {
+    key: 'wksId',
+    type: 'remoteDropdown',
+    label: 'Etapa',
+    fetchOptions: ({ search, includeId }) =>
+      getInvoiceFilterStagesAPI({ pvtId, ...(search ? { search } : {}), ...(includeId ? { includeWksId: includeId } : {}) }).then(
+        (res) => res.data
+      )
+  },
   { key: 'value', type: 'number-range', label: 'Valor' },
   { key: 'discount', type: 'number-range', label: 'Descuento' },
   { key: 'vatPct', type: 'number-range', label: 'IVA %' }
 ];
-const simpleFilters = (pvtId) => [...commonFilters(pvtId), ...AMOUNT_FILTERS];
+const simpleFilters = (pvtId) => [...commonFilters(pvtId), ...amountFilters(pvtId)];
 const contractFilters = (pvtId) => [
   { key: 'type', type: 'dropdown', label: 'Tipo de factura', props: { options: CONTRACT_TYPE_OPTIONS }, grid: { xs: 12, sm: 6 } },
   // Anticipo, amortización y lo por aprobar de los dos (con la pestaña "Registrada", lo mismo).
@@ -187,7 +195,7 @@ const contractFilters = (pvtId) => [
   { key: 'contractNumber', type: 'input', label: 'Número de contrato', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
   { key: 'contractName', type: 'input', label: 'Contrato (nombre)', props: { maxLength: 200 } },
   ...commonFilters(pvtId),
-  ...AMOUNT_FILTERS
+  ...amountFilters(pvtId)
 ];
 
 const rowLabel = (row) => `${row.typeName} ${row.number} — ${row.providerName ?? ''}`;

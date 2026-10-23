@@ -392,7 +392,7 @@ export default function InvoiceDetailPage() {
           </Button>
           {canEdit && (
             <Button variant="outlined" color="secondary" onClick={() => navigate(invoicePath(invoice.pvtId, invoice.invId, 'edit'))}>
-              {allows('edit') ? 'Editar factura' : 'Editar extracto y descripción'}
+              {allows('edit') ? 'Editar factura' : 'Editar extracto, descripción y comprobante'}
             </Button>
           )}
           {canApprove && (

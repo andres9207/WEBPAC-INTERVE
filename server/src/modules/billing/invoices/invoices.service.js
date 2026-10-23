@@ -124,7 +124,8 @@ const optionalText = (value) => text(value) || null;
 const positiveId = (value) => (Number(value) > 0 ? Number(value) : null);
 
 // Bitácora funcional (ADR-0020, "Auditoría"). Extracto y descripción son de
-// nivel técnico, pero se registran igual: son lo único editable tras aprobar.
+// nivel técnico, pero se registran igual: con el comprobante, son lo único
+// editable tras aprobar (DEC-080).
 const INVOICE_AUDITED = [
   "inv_type",
   "pvt_id",
@@ -432,7 +433,29 @@ const amountPairOf = (value, amount, pct) => {
   return applied === null ? null : { amount: moneyText(applied), pct: percentText(percentFor(applied, value)) };
 };
 
-export const getContractAdvance = async ({ ctrId, value, amortization, amortizationPct, retention, retentionPct, scope }) => {
+/**
+ * Anticipo por aprobar del contrato: las facturas de anticipo registradas y
+ * no eliminadas, salvo `invId` (la que se edita). No reserva saldo (I1 se
+ * revalida al aprobar); solo informa en las tarjetas del formulario.
+ */
+const pendingAdvanceOf = async (ctrId, invId) => {
+  const pending = await prisma.tbl_invoice_advance_details.aggregate({
+    where: {
+      tbl_invoices: {
+        ctr_id: ctrId,
+        inv_type: INVOICE_TYPES.ADVANCE,
+        inv_state: INVOICE_STATES.REGISTERED,
+        sta_id: { not: DELETED_STATUS },
+        ...(Number(invId) > 0 ? { inv_id: { not: Number(invId) } } : {}),
+      },
+    },
+    _sum: { iad_value: true },
+    _count: { _all: true },
+  });
+  return { invoiced: decimal(pending._sum.iad_value), count: pending._count?._all ?? 0 };
+};
+
+export const getContractAdvance = async ({ ctrId, invId, value, amortization, amortizationPct, retention, retentionPct, scope }) => {
   await assertContractInScope(scope, ctrId);
   const contract = await prisma.tbl_contracts.findFirst({
     where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS } },
@@ -440,9 +463,16 @@ export const getContractAdvance = async ({ ctrId, value, amortization, amortizat
   });
   if (!contract) throw httpError(404, "No se encontró el contrato.");
   const balances = await contractBalances(prisma, contract.ctr_id);
+  const pending = await pendingAdvanceOf(contract.ctr_id, invId);
+  const afterPending = balances.advance.toInvoice.minus(pending.invoiced);
   const amount = toMoney(value);
   return {
     ...balancesDto(balances.advance),
+    pending: {
+      invoiced: moneyText(pending.invoiced),
+      count: pending.count,
+      toInvoice: moneyText(afterPending.gt(0) ? afterPending : decimal(0)),
+    },
     defaultAmortization: amount ? moneyText(defaultAmortization(amount, balances.advance)) : null,
     amortizationPair: amountPairOf(amount, amortization, amortizationPct),
     retention: {
@@ -1024,7 +1054,7 @@ const countByState = async (where) => {
  * `wrkId`, `prvId` y `ctrId`, por tipo, obra, proveedor o contrato (la
  * pestaña Facturas del contrato). `number`, `voucherNumber`, `statement`,
  * `contractNumber`, `providerName` (razón social) y los rangos de fecha y de aprobación son filtros por
- * campo (DEC-048). Las columnas de importes también: `stageName` (la etapa
+ * campo (DEC-048). Las columnas de importes también: `wksId` (la etapa
  * de la factura o la de su contrato), `contractName` y los rangos de valor,
  * descuento y % IVA (`valueFrom`…`vatPctTo`), en la tabla de detalle de cada
  * tipo; el IVA y el total se calculan y no se filtran.
@@ -1066,7 +1096,7 @@ const invoiceListQuery = ({
   dateTo,
   approvalDateFrom,
   approvalDateTo,
-  stageName,
+  wksId,
   contractName,
   valueFrom,
   valueTo,
@@ -1100,7 +1130,8 @@ const invoiceListQuery = ({
       containsFilter(providerName, (c) => ({ tbl_providers: { prv_name: c } })),
       dateRangeFilter("inv_date", dateFrom, dateTo),
       dateRangeFilter("inv_approval_date", approvalDateFrom, approvalDateTo),
-      containsFilter(stageName, (c) => ({ OR: [{ tbl_work_stages: { wks_name: c } }, { tbl_contracts: { tbl_work_stages: { wks_name: c } } }] })),
+      // La simple guarda su etapa; las de contrato toman la de su contrato.
+      idFilter(wksId, (id) => ({ OR: [{ wks_id: id }, { tbl_contracts: { wks_id: id } }] })),
       containsFilter(contractName, (c) => ({ tbl_contracts: { ctr_name: c } })),
       amountRange(VALUE_COLUMNS, valueFrom, valueTo),
       amountRange(DISCOUNT_COLUMNS, discountFrom, discountTo),
@@ -1188,7 +1219,7 @@ const exportFilterLines = async ({
   dateTo,
   approvalDateFrom,
   approvalDateTo,
-  stageName,
+  wksId,
   contractName,
   valueFrom,
   valueTo,
@@ -1198,9 +1229,10 @@ const exportFilterLines = async ({
   vatPctTo,
   advance,
 }) => {
-  const [work, provider] = await Promise.all([
+  const [work, provider, stage] = await Promise.all([
     positiveId(wrkId) ? prisma.tbl_works.findUnique({ where: { wrk_id: positiveId(wrkId) }, select: { wrk_code: true, wrk_name: true } }) : null,
     positiveId(prvId) ? prisma.tbl_providers.findUnique({ where: { prv_id: positiveId(prvId) }, select: { prv_name: true } }) : null,
+    positiveId(wksId) ? prisma.tbl_work_stages.findUnique({ where: { wks_id: positiveId(wksId) }, select: STAGE_OPTION_SELECT }) : null,
   ]);
   const range = (from, to) => (from || to ? `${from || "…"} a ${to || "…"}` : "");
   const lines = [
@@ -1215,7 +1247,7 @@ const exportFilterLines = async ({
     ["Contrato contiene", text(contractNumber)],
     ["Fecha", range(dateFrom, dateTo)],
     ["Aprobada el", range(approvalDateFrom, approvalDateTo)],
-    ["Etapa contiene", text(stageName)],
+    ["Etapa", stage && stageOptionLabel(stage)],
     ["Contrato (nombre) contiene", text(contractName)],
     ["Valor", range(valueFrom, valueTo)],
     ["Descuento", range(discountFrom, discountTo)],
@@ -1469,6 +1501,34 @@ export const selectInvoiceProviders = async ({ type, pvtId, search, includePrvId
 export const selectInvoiceFilterProviders = async ({ pvtId, search, includePrvId, scope } = {}) => {
   const invoices = { sta_id: { not: DELETED_STATUS }, ...(positiveId(pvtId) ? { pvt_id: positiveId(pvtId) } : {}), ...invoiceScopeWhere(scope) };
   return providerSelectOptions({ admitted: { tbl_invoices: { some: invoices } }, search, includePrvId });
+};
+
+const STAGE_OPTION_SELECT = { wks_id: true, wks_name: true, tbl_works: { select: { wrk_code: true } } };
+// Con la obra delante: con "Ver todo", dos obras pueden tener etapas del mismo nombre.
+const stageOptionLabel = (row) => `${row.tbl_works?.wrk_code ?? ""} · ${row.wks_name}`;
+
+/**
+ * Etapas con facturas no eliminadas del menú `pvtId` en el alcance por obra,
+ * propias (la simple) o por su contrato: el filtro Etapa del listado. Busca
+ * por nombre de la etapa o código de la obra, con tope (DEC-018);
+ * `includeWksId`, la ya elegida, vuelve aunque la búsqueda la deje fuera.
+ */
+export const selectInvoiceFilterStages = async ({ pvtId, search, includeWksId, scope } = {}) => {
+  const invoices = { sta_id: { not: DELETED_STATUS }, ...(positiveId(pvtId) ? { pvt_id: positiveId(pvtId) } : {}), ...invoiceScopeWhere(scope) };
+  const admitted = { OR: [{ tbl_invoices: { some: invoices } }, { tbl_contracts: { some: { tbl_invoices: { some: invoices } } } }] };
+  const value = text(search);
+  const rows = await prisma.tbl_work_stages.findMany({
+    where: { AND: [admitted, ...(value ? [{ OR: [{ wks_name: { contains: value } }, { tbl_works: { wrk_code: { contains: value } } }] }] : [])] },
+    select: STAGE_OPTION_SELECT,
+    orderBy: [{ tbl_works: { wrk_code: "asc" } }, { wks_order: "asc" }],
+    take: MAX_ROWS,
+  });
+  const includeId = positiveId(includeWksId);
+  if (includeId && !rows.some((row) => row.wks_id === includeId)) {
+    const included = await prisma.tbl_work_stages.findFirst({ where: { AND: [admitted, { wks_id: includeId }] }, select: STAGE_OPTION_SELECT });
+    if (included) rows.unshift(included);
+  }
+  return rows.map((row) => ({ value: row.wks_id, label: stageOptionLabel(row) }));
 };
 
 /**
@@ -1769,7 +1829,7 @@ const updateInvoice = async ({ invId, input, document, granted, useBy, ctx }) =>
       if (!stateAllows(before.inv_state, "edit") && changes.some((c) => !NOTE_COLUMNS.includes(c.field))) {
         throw httpError(
           409,
-          `La factura está ${STATE_NAMES[before.inv_state].toLowerCase()}: solo admite cambios en el extracto y la descripción. Para corregir otro dato, anúlala y regístrala de nuevo.`
+          `La factura está ${STATE_NAMES[before.inv_state].toLowerCase()}: solo admite cambios en el extracto, la descripción y el número de comprobante. Para corregir otro dato, anúlala y regístrala de nuevo.`
         );
       }
 

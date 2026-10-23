@@ -13,6 +13,7 @@ import {
   getInvoiceFormOptionsSchema,
   selectInvoiceProvidersSchema,
   selectInvoiceFilterProvidersSchema,
+  selectInvoiceFilterStagesSchema,
   selectInvoiceContractsSchema,
   getContractAdvanceSchema,
   previewSimpleInvoiceSchema,
@@ -37,6 +38,7 @@ import {
   getInvoiceFormOptionsController,
   selectInvoiceProvidersController,
   selectInvoiceFilterProvidersController,
+  selectInvoiceFilterStagesController,
   selectInvoiceContractsController,
   getContractAdvanceController,
   previewSimpleInvoiceController,
@@ -95,6 +97,8 @@ invoicesRoutes.get(
   validate,
   selectInvoiceFilterProvidersController
 );
+// Filtro Etapa del listado de un menú: etapas con facturas de él, propias o por su contrato.
+invoicesRoutes.get("/select_invoice_filter_stages", verifyToken, canView, selectInvoiceFilterStagesSchema, validate, selectInvoiceFilterStagesController);
 // Contratos firmados bajo el tipo del menú cuyo estado admite el tipo de factura (ADR-0017),
 // y sus proveedores, que se eligen antes que el contrato.
 invoicesRoutes.get("/select_invoice_providers", verifyToken, canView, selectInvoiceProvidersSchema, validate, selectInvoiceProvidersController);

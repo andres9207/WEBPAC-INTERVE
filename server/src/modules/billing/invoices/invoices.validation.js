@@ -51,8 +51,9 @@ export const paginationInvoicesSchema = [
   optionalDate("dateTo"),
   optionalDate("approvalDateFrom"),
   optionalDate("approvalDateTo"),
-  // Columnas de los importes (DEC-065, DEC-075): etapa, nombre del contrato y los importes guardados, por rango.
-  optionalText("stageName", 255),
+  // Columnas de los importes (DEC-065, DEC-075): etapa (la de la factura o la de su contrato), nombre del contrato y
+  // los importes guardados, por rango.
+  optionalId("wksId"),
   optionalText("contractName", 200),
   ...["valueFrom", "valueTo", "discountFrom", "discountTo"].map((field) => moneyRule(field, `filtro ${field}`, { optional: true })),
   ...["vatPctFrom", "vatPctTo"].map((field) => percentRule(field, `filtro ${field}`, { optional: true })),
@@ -110,6 +111,13 @@ export const selectInvoiceFilterProvidersSchema = [
   query("includePrvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePrvId debe ser un entero positivo."),
 ];
 
+// Filtro Etapa del listado: como el de proveedor.
+export const selectInvoiceFilterStagesSchema = [
+  menuQuery(),
+  query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
+  query("includeWksId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includeWksId debe ser un entero positivo."),
+];
+
 export const selectInvoiceContractsSchema = [
   ...contractSelectRules,
   query("prvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("prvId debe ser un entero positivo."),
@@ -134,6 +142,7 @@ const percentQuery = (field, label) =>
 // el VALOR (DEC-065, "Valor y porcentaje").
 export const getContractAdvanceSchema = [
   query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo."),
+  query("invId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("invId debe ser un entero positivo."),
   moneyQuery("value", "El valor"),
   moneyQuery("amortization", "La amortización"),
   percentQuery("amortizationPct", "El % de amortización"),

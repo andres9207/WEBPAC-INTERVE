@@ -24,6 +24,7 @@ const state = {
   historyReplay: null,
   concepts: [],
   advanceSum: null,
+  pendingAdvanceSum: null,
   amortizedSum: null,
   retainedSum: null,
   billedSum: null,
@@ -83,7 +84,11 @@ const prismaMock = {
   tbl_reasons: { findUnique: jest.fn(async () => state.reason) },
   tbl_contract_concepts: { findMany: jest.fn(async () => state.concepts), findFirst: jest.fn(async () => state.liquidationConcept) },
   tbl_invoice_advance_details: {
-    aggregate: jest.fn(async () => ({ _sum: { iad_value: state.advanceSum } })),
+    aggregate: jest.fn(async ({ where }) =>
+      where.tbl_invoices.inv_state === "REGISTERED"
+        ? { _sum: { iad_value: state.pendingAdvanceSum }, _count: { _all: state.pendingAdvanceSum ? 1 : 0 } }
+        : { _sum: { iad_value: state.advanceSum } }
+    ),
     upsert: jest.fn(),
   },
   tbl_invoice_liquidation_details: {
@@ -220,6 +225,7 @@ beforeEach(() => {
   state.reason = { rea_scope: "INVOICE_CANCEL", rea_name: "Error de registro", sta_id: 1 };
   state.concepts = CONCEPTS;
   state.advanceSum = null;
+  state.pendingAdvanceSum = null;
   state.amortizedSum = null;
   state.retainedSum = null;
   state.billedSum = null;
@@ -411,11 +417,17 @@ describe("editar", () => {
     expect(auditRows()[0]).toMatchObject({ aud_field: "inv_number", aud_old_value: "F-100", aud_new_value: "F-101" });
   });
 
-  it("aprobada: solo extracto y descripción (409 para lo demás)", async () => {
+  it("aprobada: solo extracto, descripción y número de comprobante (409 para lo demás, DEC-080)", async () => {
     state.invoice = storedInvoice({ inv_state: "APPROVED", inv_approval_date: new Date("2026-03-05T00:00:00Z") });
-    await expect(save(contractInput({ number: "F-101" }), 70)).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/extracto y la descripción/) });
+    await expect(save(contractInput({ number: "F-101" }), 70)).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringMatching(/extracto, la descripción y el número de comprobante/),
+    });
     await expect(save(contractInput({ description: "Soporte del pago" }), 70)).resolves.toMatchObject({ invId: 70 });
-    expect(prismaMock.tbl_invoices.update).toHaveBeenCalledTimes(1);
+    await expect(save(contractInput({ voucherNumber: "CE-77" }), 70)).resolves.toMatchObject({ invId: 70 });
+    expect(prismaMock.tbl_invoices.update).toHaveBeenCalledTimes(2);
+    expect(prismaMock.tbl_invoices.update.mock.calls[1][0].data).toMatchObject({ inv_voucher_number: "CE-77" });
+    expect(auditRows().find((r) => r.aud_field === "inv_voucher_number")).toMatchObject({ aud_new_value: "CE-77" });
   });
 
   it("anulada: no admite cambios (409)", async () => {
@@ -857,11 +869,11 @@ describe("listado", () => {
   });
 
   test("filtra por etapa, nombre del contrato y rangos de valor, descuento y % IVA en el detalle de cada tipo, también en los conteos", async () => {
-    await service.paginationInvoices({ stageName: " Torre ", contractName: "obra gris", valueFrom: "500", valueTo: "2000.5", discountTo: "0", vatPctFrom: "19" });
+    await service.paginationInvoices({ wksId: "5", contractName: "obra gris", valueFrom: "500", valueTo: "2000.5", discountTo: "0", vatPctFrom: "19" });
 
     const and = prismaMock.tbl_invoices.groupBy.mock.calls.at(-1)[0].where.AND;
     expect(and).toContainEqual({
-      OR: [{ tbl_work_stages: { wks_name: { contains: "Torre" } } }, { tbl_contracts: { tbl_work_stages: { wks_name: { contains: "Torre" } } } }],
+      OR: [{ wks_id: 5 }, { tbl_contracts: { wks_id: 5 } }],
     });
     expect(and).toContainEqual({ tbl_contracts: { ctr_name: { contains: "obra gris" } } });
     // Cada rango: un OR con la columna de cada tabla de detalle que guarda ese importe.
@@ -1043,6 +1055,23 @@ describe("selectores del formulario", () => {
     expect(where.tbl_invoices.some).toEqual({ sta_id: { not: 3 }, pvt_id: 1, wrk_id: { in: [8] } });
     expect(where.OR).toEqual([{ prv_name: { contains: "acer" } }, { prv_identification: { contains: "acer" } }]);
     expect(result).toEqual([{ value: 77, label: "Aceros SA — 800" }]);
+  });
+
+  test("filtro Etapa del listado: con facturas del menú y del alcance, propias o por su contrato; la ya elegida vuelve", async () => {
+    prismaMock.tbl_work_stages.findMany = jest.fn(async () => [{ wks_id: 5, wks_name: "Torre A", tbl_works: { wrk_code: "OB-8" } }]);
+    prismaMock.tbl_work_stages.findFirst = jest.fn(async () => ({ wks_id: 6, wks_name: "Torre B", tbl_works: { wrk_code: "OB-8" } }));
+    const result = await service.selectInvoiceFilterStages({ pvtId: "1", search: " torre ", includeWksId: "6", scope: OWN });
+
+    const invoices = { sta_id: { not: 3 }, pvt_id: 1, wrk_id: { in: [8] } };
+    const { where } = prismaMock.tbl_work_stages.findMany.mock.calls.at(-1)[0];
+    expect(where.AND).toEqual([
+      { OR: [{ tbl_invoices: { some: invoices } }, { tbl_contracts: { some: { tbl_invoices: { some: invoices } } } }] },
+      { OR: [{ wks_name: { contains: "torre" } }, { tbl_works: { wrk_code: { contains: "torre" } } }] },
+    ]);
+    expect(result).toEqual([
+      { value: 6, label: "OB-8 · Torre B" },
+      { value: 5, label: "OB-8 · Torre A" },
+    ]);
   });
 
   test("sin tipo de contrato no hay proveedores", async () => {
@@ -1257,7 +1286,7 @@ describe("anticipo y amortización (DEC-044)", () => {
     state.invoice = storedInvoice(approved);
     await expect(save(contractInput({ value: "9000000" }), 70)).rejects.toMatchObject({
       statusCode: 409,
-      message: expect.stringContaining("extracto y la descripción"),
+      message: expect.stringContaining("extracto, la descripción y el número de comprobante"),
     });
     await expect(save(contractInput({ value: "10000000.00", description: "Nota" }), 70)).resolves.toMatchObject({ invId: 70 });
   });
@@ -1274,6 +1303,7 @@ describe("anticipo y amortización (DEC-044)", () => {
       toInvoice: "0.00",
       toAmortize: "8000000.00",
       effectivePct: "26.666667",
+      pending: { invoiced: "0.00", count: 0, toInvoice: "0.00" },
       defaultAmortization: "8000000.00",
       amortizationPair: null,
       retention: {
@@ -1291,6 +1321,23 @@ describe("anticipo y amortización (DEC-044)", () => {
 
     prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce(null);
     await expect(service.getContractAdvance({ ctrId: "31" })).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("información del contrato: anticipo por aprobar sin contar la factura que se edita", async () => {
+    prismaMock.tbl_contracts.findFirst.mockResolvedValue({ ctr_id: 30 });
+    state.advanceSum = D("10000000");
+    state.pendingAdvanceSum = D("15000000");
+    await expect(service.getContractAdvance({ ctrId: "30" }).then((r) => r.pending)).resolves.toEqual({
+      invoiced: "15000000.00",
+      count: 1,
+      toInvoice: "7000000.00",
+    });
+    await service.getContractAdvance({ ctrId: "30", invId: "70" });
+    const where = prismaMock.tbl_invoice_advance_details.aggregate.mock.calls.at(-1)[0].where.tbl_invoices;
+    expect(where).toMatchObject({ ctr_id: 30, inv_type: "ADVANCE", inv_state: "REGISTERED", inv_id: { not: 70 } });
+
+    state.pendingAdvanceSum = D("40000000");
+    await expect(service.getContractAdvance({ ctrId: "30" }).then((r) => r.pending.toInvoice)).resolves.toBe("0.00");
   });
 
   it("información del contrato: valor y % sobre el VALOR de la amortización y del retenido (DEC-065)", async () => {
@@ -1408,7 +1455,7 @@ describe("retenido contractual (DEC-051)", () => {
     state.invoice = storedLiquidation(approved);
     await expect(save(liquidationInput({ retention: "1000000" }), 70)).rejects.toMatchObject({
       statusCode: 409,
-      message: expect.stringContaining("extracto y la descripción"),
+      message: expect.stringContaining("extracto, la descripción y el número de comprobante"),
     });
     // Como el formulario de una aprobada: sin IVA ni retenciones (DEC-075).
     await expect(save(liquidationInput({ retention: "4500000.00", description: "Nota", vatPct: undefined }), 70)).resolves.toMatchObject({ invId: 70 });

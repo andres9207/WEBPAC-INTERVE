@@ -94,7 +94,7 @@ export const policyBaseName = (base) => POLICY_BASE_OPTIONS.find((o) => o.value 
 // Facturas (DEC-042): estado del ciclo de vida y tipo. Los nombres los manda
 // el servidor (stateName, typeName); aquí solo pestañas, colores y opciones.
 export const INVOICE_STATE_TABS = [
-  { id: 'REGISTERED', name: 'Registradas', color: 'warning' },
+  { id: 'REGISTERED', name: 'Por aprobar', color: 'warning' },
   { id: 'APPROVED', name: 'Aprobadas', color: 'success' },
   { id: 'CANCELLED', name: 'Anuladas' }
 ];

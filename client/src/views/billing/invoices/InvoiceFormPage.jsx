@@ -51,7 +51,8 @@ import { ALL_WORKS } from 'utils/workScope';
  *   ofrece el contrato y qué falta para los demás); la obra sale del contrato.
  * - La factura nueva guarda el tipo del menú (`pvtId`).
  * - Tipo, obra y contrato no cambian después de registrar.
- * - Registrada se edita entera; aprobada, solo extracto y descripción;
+ * - Registrada se edita entera; aprobada, solo extracto, descripción y
+ *   número de comprobante (DEC-080);
  *   anulada, nada. Lo decide el servidor (`allowedActions`).
  * - Estado y fecha de aprobación no están en el formulario: los fijan
  *   Aprobar y Anular. Crear lleva clave de idempotencia.
@@ -192,22 +193,20 @@ const DEFAULT_CONTRACT_TYPE = 'NORMAL';
  * Tipos de factura del contrato elegido, con sus saldos (`get_contract_advance`):
  *
  * - Normal, por defecto, mientras el contrato está en ejecución.
- * - Anticipo: no aparece si el contrato no tiene anticipo pactado.
+ * - Anticipo: deshabilitado si el contrato no tiene anticipo pactado.
  * - Liquidación: deshabilitada mientras no se registre el otrosí de
  *   liquidación (el contrato sigue en ejecución).
- * - Devolución de retenido: no aparece si no hay retenido por devolver.
+ * - Devolución de retenido: deshabilitada si no hay retenido por devolver.
  *
- * Un tipo que no se puede elegir lleva en su opción lo que le falta. Es una
- * guía: al guardar, el servidor vuelve a verificar el estado y los saldos.
+ * Ningún tipo se oculta: el que no se puede elegir aparece deshabilitado y
+ * lleva en su opción lo que le falta. Es una guía: al guardar, el servidor
+ * vuelve a verificar el estado y los saldos.
  */
 const contractTypeChoices = (contract, typeOptions, balances) => {
   if (!contract || !balances) return { options: [] };
   const admitted = contract.types ?? [];
   const options = [];
-  // `hidden`: el tipo no aparece; el motivo queda solo como documentación.
-  const add = (option, reason, hidden = false) => {
-    if (!hidden) options.push({ ...option, disabled: Boolean(reason), description: reason || undefined });
-  };
+  const add = (option, reason) => options.push({ ...option, disabled: Boolean(reason), description: reason || undefined });
   // Normal primero: es la de por defecto.
   const ordered = [...typeOptions].sort((a, b) => (b.value === DEFAULT_CONTRACT_TYPE) - (a.value === DEFAULT_CONTRACT_TYPE));
   for (const option of ordered) {
@@ -218,7 +217,7 @@ const contractTypeChoices = (contract, typeOptions, balances) => {
         break;
       case 'ADVANCE':
         if (!isPositive(balances.agreed))
-          add(option, 'el contrato no tiene anticipo pactado; se pacta en su valor inicial o en un otrosí.', true);
+          add(option, 'el contrato no tiene anticipo pactado; se pacta en su valor inicial o en un otrosí.');
         else if (!allowed) add(option, 'solo con el contrato en ejecución.');
         else add(option, isPositive(balances.toInvoice) ? '' : 'ya se facturó todo el anticipo pactado.');
         break;
@@ -226,7 +225,8 @@ const contractTypeChoices = (contract, typeOptions, balances) => {
         add(option, allowed ? '' : 'el contrato no tiene otrosí de liquidación; regístralo en el expediente del contrato.');
         break;
       case 'RETENTION_REFUND':
-        if (!isPositive(balances.retention?.balance)) add(option, 'el contrato no tiene retenido pendiente por devolver.', true);
+        if (!isPositive(balances.retention?.balance))
+          add(option, 'el contrato no tiene retenido por devolver; se acumula con las facturas normales y de liquidación aprobadas.');
         else add(option, allowed ? '' : 'se registra con el contrato en liquidación (después del otrosí de liquidación).');
         break;
       default:
@@ -536,8 +536,8 @@ export default function InvoiceFormPage() {
         {blocked && <Alert severity="warning">La factura está anulada: no admite cambios.</Alert>}
         {isEdit && !blocked && lockDocument && (
           <Alert severity="info">
-            La factura está aprobada: solo se modifican el extracto y la descripción. Para corregir otro dato, anúlala y regístrala de
-            nuevo.
+            La factura está aprobada: solo se modifican el extracto, la descripción y el número de comprobante. Para corregir otro dato,
+            anúlala y regístrala de nuevo.
           </Alert>
         )}
         {inactiveWork && (
@@ -563,7 +563,7 @@ export default function InvoiceFormPage() {
               boxShadow: { md: `0 -${CARDS_GAP}px 0 0 ${theme.vars.palette.grey[50]}, 0 ${CARDS_GAP}px 0 0 ${theme.vars.palette.grey[50]}` }
             })}
           >
-            <ContractBalanceCards balances={balances} />
+            <ContractBalanceCards balances={balances} type={type} />
           </Box>
         )}
 
@@ -811,6 +811,15 @@ export default function InvoiceFormPage() {
                       )}
                     />
                   </Grid>
+                  {/* Solo se muestra: la fija el acto Aprobar (ApproveInvoiceDialog), no el formulario. */}
+                  <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                    <DateField
+                      value={loaded?.approvalDate ?? ''}
+                      label="Fecha de aprobación"
+                      disabled
+                      helperText={loaded?.approvalDate ? undefined : 'Se fija al aprobar'}
+                    />
+                  </Grid>
                   <Grid size={{ xs: 12, md: 4 }}>
                     <Controller
                       name="voucherNumber"
@@ -821,7 +830,7 @@ export default function InvoiceFormPage() {
                           label="N.º de comprobante"
                           size="small"
                           fullWidth
-                          disabled={lockDocument || blocked}
+                          disabled={blocked}
                           slotProps={{ htmlInput: { maxLength: 50, autoComplete: 'off' } }}
                         />
                       )}
@@ -887,6 +896,7 @@ export default function InvoiceFormPage() {
                   setValue={setValue}
                   type={type}
                   ctrId={ctrId}
+                  invId={isEdit ? invId : undefined}
                   readOnly={lockDocument || blocked}
                   canAdjust={canAdjust}
                   canAdjustRetention={canAdjustRetention}

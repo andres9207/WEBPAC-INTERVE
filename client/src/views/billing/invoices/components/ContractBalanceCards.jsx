@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import { IconChartPie, IconClockHour4, IconCreditCard, IconLock } from '@tabler/icons-react';
+import { IconChartPie, IconCircleCheck, IconClockHour4, IconCreditCard, IconHourglass, IconLock } from '@tabler/icons-react';
 
 import DashboardCards from 'views/dashboard/Default/components/DashboardCards';
 import { ACTION_TONES } from 'ui-component/extended/ActionButton';
@@ -11,10 +11,54 @@ import { fMoneyText } from 'utils/formatNumber';
  * (pactado que falta por facturar), total retenido, total amortizado y pendiente por amortizar. Son los de
  * `contractBalances` (DEC-044, DEC-051), solo con facturas aprobadas; el
  * servidor los vuelve a calcular bajo bloqueo al guardar y al aprobar.
+ *
+ * En la factura de anticipo, el anticipo del contrato: pactado, facturado
+ * (aprobado), por aprobar (las de anticipo registradas, sin la que se edita)
+ * y lo que falta por facturar descontando lo por aprobar.
  */
-export default function ContractBalanceCards({ balances }) {
+export default function ContractBalanceCards({ balances, type }) {
   if (!balances) return null;
   const money = (value) => fMoneyText(value) || '—';
+  if (type === 'ADVANCE') {
+    const pending = balances.pending ?? {};
+    const count = pending.count ?? 0;
+    return (
+      <DashboardCards
+        dense
+        label="Anticipo del contrato"
+        items={[
+          {
+            label: 'Anticipo pactado',
+            value: money(balances.agreed),
+            hint: 'Total del anticipo del contrato',
+            icon: IconCreditCard,
+            tone: ACTION_TONES.info
+          },
+          {
+            label: 'Anticipo facturado',
+            value: money(balances.invoiced),
+            hint: 'Facturas de anticipo aprobadas',
+            icon: IconCircleCheck,
+            tone: ACTION_TONES.success
+          },
+          {
+            label: 'Por aprobar',
+            value: money(pending.invoiced),
+            hint: count === 1 ? '1 factura de anticipo registrada' : `${count} facturas de anticipo registradas`,
+            icon: IconHourglass,
+            tone: ACTION_TONES.edit
+          },
+          {
+            label: 'Falta por facturar',
+            value: money(pending.toInvoice ?? balances.toInvoice),
+            hint: `Pactado menos lo facturado y lo por aprobar. Sin lo por aprobar: ${money(balances.toInvoice)}`,
+            icon: IconClockHour4,
+            tone: ACTION_TONES.danger
+          }
+        ]}
+      />
+    );
+  }
   return (
     <DashboardCards
       dense
@@ -53,4 +97,4 @@ export default function ContractBalanceCards({ balances }) {
   );
 }
 
-ContractBalanceCards.propTypes = { balances: PropTypes.object };
+ContractBalanceCards.propTypes = { balances: PropTypes.object, type: PropTypes.string };

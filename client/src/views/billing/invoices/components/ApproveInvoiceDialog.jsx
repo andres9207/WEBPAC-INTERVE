@@ -72,8 +72,8 @@ export default function ApproveInvoiceDialog({ open, invoice, onClose, onSaved }
       <Grid container spacing={2} sx={{ pt: 1 }}>
         <Grid size={12}>
           <Alert severity="info">
-            Una factura aprobada ya no cambia: solo admite cambios en el extracto y la descripción. Para corregir otro dato habrá que
-            anularla y registrarla de nuevo.
+            Una factura aprobada ya no cambia: solo admite cambios en el extracto, la descripción y el número de comprobante. Para corregir
+            otro dato habrá que anularla y registrarla de nuevo.
           </Alert>
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>

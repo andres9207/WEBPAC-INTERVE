@@ -52,6 +52,13 @@ export const getInvoiceFormOptionsAPI = (params) => httpCliente.get('billing/inv
 export const getInvoiceFilterProvidersAPI = (params) => httpCliente.get('billing/invoices/select_invoice_filter_providers', params);
 
 /**
+ * Etapas con facturas del menú, propias o por su contrato, en el alcance por
+ * obra: el filtro Etapa del listado. Busca por nombre o código de la obra.
+ * @param {{ pvtId: number, search?: string, includeWksId?: number }} params  la ya elegida vuelve aunque la búsqueda la deje fuera
+ */
+export const getInvoiceFilterStagesAPI = (params) => httpCliente.get('billing/invoices/select_invoice_filter_stages', params);
+
+/**
  * Proveedores con algún contrato del menú cuyo estado admite el tipo de
  * factura: se eligen antes que el contrato. Busca por razón social o
  * identificación.
