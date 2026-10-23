@@ -107,7 +107,8 @@ const saveView = (key, value) => {
  *   ej. "Configurar campos" del tipo de proveedor, DEC-053). Cada una con
  *   `label`, `icon`, `command` y `tone`; las filtra por permiso quien las da.
  * - `createOptions`: formas de crear (p. ej. proveedor nuevo o existente).
- *   Con ellas, "Nuevo" despliega un menú; cada una con `label`, `icon` y
+ *   Con varias, "Nuevo" despliega un menú; con una sola, el botón lleva su
+ *   nombre y la ejecuta sin menú. Cada una con `label`, `icon` y
  *   `command`, y las filtra por permiso quien las da. Sin ellas, "Nuevo"
  *   abre el alta con el permiso de crear.
  * - `exportOptions`: botón "Exportar" (Excel o PDF) con `{ permission,
@@ -314,20 +315,24 @@ export default function MasterPage({
     : status !== 'all'
       ? `No hay ${plural} en este estado.`
       : `Todavía no hay ${plural}.`;
-  // Con `createOptions`, "Nuevo" abre el menú; sin ellas, el alta.
-  const hasCreateMenu = Boolean(createOptions?.length);
-  const canCreate = hasCreateMenu || can.create;
-  const handleCreate = (event) => (hasCreateMenu ? setCreateAnchor(event.currentTarget) : openNew());
+  // Con varias `createOptions`, "Nuevo" abre el menú; con una sola (el permiso solo da esa), el botón es ella y la
+  // ejecuta sin menú; sin ellas, el alta.
+  const singleCreateOption = createOptions?.length === 1 ? createOptions[0] : null;
+  const hasCreateMenu = createOptions?.length > 1;
+  const canCreate = Boolean(createOptions?.length) || can.create;
+  const handleCreate = (event) =>
+    hasCreateMenu ? setCreateAnchor(event.currentTarget) : singleCreateOption ? singleCreateOption.command() : openNew();
+  const createIcon = singleCreateOption?.icon ?? <IconPlus size={16} />;
   const emptyAction =
     !fieldFilters.hasFilters && status === 'all' && canCreate ? (
       <Button
         variant="outlined"
         size="small"
-        startIcon={<IconPlus size={16} />}
+        startIcon={createIcon}
         endIcon={hasCreateMenu ? <IconChevronDown size={14} /> : null}
         onClick={handleCreate}
       >
-        {feminine ? 'Crear la primera' : 'Crear el primero'}
+        {singleCreateOption?.label ?? (feminine ? 'Crear la primera' : 'Crear el primero')}
       </Button>
     ) : null;
 
@@ -405,12 +410,12 @@ export default function MasterPage({
               <Button
                 variant="contained"
                 size="small"
-                startIcon={<IconPlus size={16} />}
+                startIcon={createIcon}
                 endIcon={hasCreateMenu ? <IconChevronDown size={14} /> : null}
                 onClick={handleCreate}
                 aria-haspopup={hasCreateMenu ? 'menu' : undefined}
               >
-                Nuevo
+                {singleCreateOption?.label ?? 'Nuevo'}
               </Button>
             )}
             {hasCreateMenu && (

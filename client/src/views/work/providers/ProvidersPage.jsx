@@ -90,12 +90,11 @@ export default function ProvidersPage() {
 
   const canAssign = workId !== null && canDo(perms?.assignWork);
   const canCreate = canDo(perms?.create);
-  const createOptions = canAssign
-    ? [
-        ...(canCreate ? [{ label: 'Crear proveedor nuevo', icon: <IconPlus size={16} />, command: navigation.create }] : []),
-        { label: 'Agregar proveedor existente', icon: <IconSearch size={16} />, command: () => setAssignOpen(true) }
-      ]
-    : undefined;
+  // Una opción por permiso: con las dos, "Nuevo" las despliega; con una sola, el botón es esa opción (MasterPage).
+  const createOptions = [
+    ...(canCreate ? [{ label: 'Crear proveedor nuevo', icon: <IconPlus size={16} />, command: navigation.create }] : []),
+    ...(canAssign ? [{ label: 'Agregar proveedor existente', icon: <IconSearch size={16} />, command: () => setAssignOpen(true) }] : [])
+  ];
 
   return (
     <>
