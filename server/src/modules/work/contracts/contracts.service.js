@@ -2,7 +2,7 @@ import { prisma } from "../../../common/configs/prismaClient.js";
 import { paginate, MAX_ROWS, containsFilter, idFilter, dateRangeFilter, filtersWhere } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { decimal, moneyText, percentText, toMoney, toPercent } from "../../../common/utils/money.utils.js";
-import { dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
+import { dateOnlyText, toDateOnly, todayDateOnly } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { assertInScope, inScope, scopeWhere } from "../../../common/services/workScope.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
@@ -17,6 +17,8 @@ import { PERMISSIONS } from "../../../common/constants/permissions.constants.js"
 import {
   CONCEPT_TYPES,
   CONCEPT_TYPE_NAMES,
+  EXPIRING_TAB,
+  POLICIES_EXPIRING_TAB,
   STATE_ALLOWS,
   STATE_NAMES,
   assertStateAllows,
@@ -36,6 +38,9 @@ import { CONTRACT_POLICY_STATUS_NAMES, assertPolicyStatus, uncoveredContractsWhe
 // Importación circular a propósito: contractPolicies usa los helpers de este
 // archivo y este, insertPolicy. Ninguno de los dos los usa al cargarse.
 import { contractPolicyStatuses, insertPolicy, policyValuesOf } from "./contractPolicies.service.js";
+import { contractsWithExpiringPoliciesWhere, expiringContractsWhere } from "./expirationNotice.service.js";
+import { getRuleValues } from "../../admin/businessRules/businessRules.service.js";
+import { BUSINESS_RULES } from "../../admin/businessRules/businessRules.constants.js";
 
 /**
  * Contratos (ADR-0015 a ADR-0017, DEC-035). El contrato es la raíz del
@@ -437,7 +442,8 @@ export const contractListQuery = async ({
 }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
-  if ((policyStatus || uncovered) && !canViewPolicies) throw httpError(403, "Filtrar por el estado de las pólizas exige el permiso de ver pólizas.");
+  if ((policyStatus || uncovered || state === POLICIES_EXPIRING_TAB) && !canViewPolicies)
+    throw httpError(403, "Filtrar por el estado de las pólizas exige el permiso de ver pólizas.");
   const policyFilters = uncovered ? [uncoveredContractsWhere()] : [];
   if (policyStatus) {
     // La categoría sale de la regla única (DEC-064), sobre los contratos del alcance.
@@ -463,16 +469,34 @@ export const contractListQuery = async ({
       ...policyFilters,
     ]),
   };
-  return { baseWhere, where: { ...baseWhere, ...(state ? { ctr_state: state } : {}) }, orderBy };
+  // "A vencer" y "Pólizas por vencer" (DEC-072): los predicados del aviso, con los días de cada regla de
+  // negocio y la fecha del servidor. El de pólizas, solo para quien puede verlas.
+  const rules = await getRuleValues();
+  const today = todayDateOnly();
+  const days = rules[BUSINESS_RULES.CONTRACT_EXPIRING_DAYS];
+  const expiringWhere = { AND: [baseWhere, expiringContractsWhere({ today, days })] };
+  const policiesExpiringWhere = canViewPolicies
+    ? { AND: [baseWhere, contractsWithExpiringPoliciesWhere({ today, days: rules[BUSINESS_RULES.POLICY_EXPIRING_DAYS] })] }
+    : null;
+  const where =
+    state === EXPIRING_TAB
+      ? expiringWhere
+      : state === POLICIES_EXPIRING_TAB
+        ? policiesExpiringWhere
+        : { ...baseWhere, ...(state ? { ctr_state: state } : {}) };
+  return { baseWhere, where, expiringWhere, policiesExpiringWhere, expiringDays: days, orderBy };
 };
 
 export const paginationContracts = async ({ rows, first, ...filters }) => {
-  const { baseWhere, where, orderBy } = await contractListQuery(filters);
-  const [page, statusCounts] = await Promise.all([
+  const { baseWhere, where, expiringWhere, policiesExpiringWhere, expiringDays, orderBy } = await contractListQuery(filters);
+  const [page, statusCounts, expiring, policiesExpiring] = await Promise.all([
     paginate(prisma.tbl_contracts, { where, select: LIST_SELECT, orderBy }, { first, rows }),
     countByState(baseWhere),
+    prisma.tbl_contracts.count({ where: expiringWhere }),
+    policiesExpiringWhere ? prisma.tbl_contracts.count({ where: policiesExpiringWhere }) : null,
   ]);
-  return { ...page, results: page.results.map(toListDto), statusCounts };
+  const extraCounts = { [EXPIRING_TAB]: expiring, ...(policiesExpiring === null ? {} : { [POLICIES_EXPIRING_TAB]: policiesExpiring }) };
+  return { ...page, results: page.results.map(toListDto), statusCounts: { ...statusCounts, ...extraCounts }, expiringDays };
 };
 
 // Columnas del reporte: las de la tabla del listado (DEC-070).
@@ -513,7 +537,7 @@ export const exportFilterLines = async ({
     Number(prvId) > 0 ? prisma.tbl_providers.findUnique({ where: { prv_id: Number(prvId) }, select: { prv_name: true } }) : null,
   ]);
   const lines = [
-    ["Estado", state ? (STATE_NAMES[state] ?? state) : "Todos"],
+    ["Estado", state === EXPIRING_TAB ? "A vencer" : state === POLICIES_EXPIRING_TAB ? "Pólizas por vencer o vencidas" : state ? (STATE_NAMES[state] ?? state) : "Todos"],
     ["Estados", Array.isArray(states) ? states.map((s) => STATE_NAMES[s] ?? s).join(", ") : ""],
     ["Búsqueda", text(search)],
     ["Obra", work && `${work.wrk_code} — ${work.wrk_name}`],

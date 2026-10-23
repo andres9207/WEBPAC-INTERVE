@@ -93,7 +93,17 @@ export const CONTRACT_COLUMNS = [
   }
 ];
 
-export const CONTRACT_STATE_FILTER = { param: 'state', tabs: CONTRACT_STATE_TABS, colors: CONTRACT_STATE_COLORS };
+// "A vencer" (DEC-072): los contratos en ejecución con la fecha fin dentro de los días de aviso de la regla de
+// negocio (30 por defecto, configurable). No es un estado: es parte de "En ejecución", así que no suma a "Todos".
+export const CONTRACT_STATE_FILTER = {
+  param: 'state',
+  tabs: [...CONTRACT_STATE_TABS, { id: 'EXPIRING', name: 'A vencer', color: 'warning', subset: true }],
+  colors: CONTRACT_STATE_COLORS
+};
+
+// "Pólizas por vencer" (DEC-072): contratos no liquidados con alguna póliza vigente vencida o dentro de los días de
+// aviso de pólizas. Revela datos de pólizas: solo con el permiso de verlas (el servidor responde 403 sin él).
+const POLICIES_EXPIRING_TAB = { id: 'POLICIES_EXPIRING', name: 'Pólizas por vencer', color: 'error', subset: true };
 
 const rowLabel = (row) => `${row.number} — ${row.name}`;
 
@@ -168,6 +178,13 @@ export default function ContractsPage() {
   const workFilter = useWorkFilterField();
   const filterFields = useMemo(() => (workFilter ? [...FILTER_FIELDS, workFilter] : FILTER_FIELDS), [workFilter]);
   const linked = useLinkedFilters(LINKED_KEYS, describeLinked);
+  const policiesView = permissionsCatalog.work?.policies?.view;
+  const canViewPolicies = policiesView != null && hasPermission(policiesView);
+  const stateTabs = useMemo(
+    () =>
+      canViewPolicies ? { ...CONTRACT_STATE_FILTER, tabs: [...CONTRACT_STATE_FILTER.tabs, POLICIES_EXPIRING_TAB] } : CONTRACT_STATE_FILTER,
+    [canViewPolicies]
+  );
   // Reporte de lo que muestra la tabla, sin paginar (DEC-070).
   const exportOptions = useMemo(
     () => ({
@@ -211,7 +228,7 @@ export default function ContractsPage() {
         defaultSort="number"
         rowLabel={rowLabel}
         navigation={navigation}
-        stateTabs={CONTRACT_STATE_FILTER}
+        stateTabs={stateTabs}
         filters={linked.filters}
         initialStatus={linked.initialStatus}
         header={<LinkedFilterNotice label={linked.label} onClear={linked.clear} />}

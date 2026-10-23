@@ -5,6 +5,8 @@ import ExcelJS from "exceljs";
 // con los contratos del listado y las cifras de las reglas que ya existen.
 
 const prismaMock = {
+  // Días de "a vencer" del listado (DEC-072): sin filas, el valor por defecto.
+  tbl_business_rules: { findMany: jest.fn().mockResolvedValue([]) },
   tbl_contracts: { count: jest.fn(), findMany: jest.fn() },
   tbl_invoice_advance_details: { findMany: jest.fn() },
   tbl_invoice_liquidation_details: { findMany: jest.fn() },

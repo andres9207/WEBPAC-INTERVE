@@ -39,25 +39,49 @@ const daysUntil = (endDate, today) => Math.round((endDate.getTime() - today.getT
 const remainingText = (days) => (days === 0 ? "vence hoy" : `faltan ${days} día(s)`);
 const workLabel = (work) => (work?.wrk_code ? ` (obra ${work.wrk_code})` : "");
 
+/**
+ * "A vencer" de un contrato: en ejecución y con la fecha fin entre hoy y hoy
+ * + días. Un solo predicado para el aviso y para la pestaña "A vencer" del
+ * listado de contratos.
+ */
+export const expiringContractsWhere = ({ today, days }) => ({
+  ctr_state: CONTRACT_STATES.IN_PROGRESS,
+  ctr_end_date: { gte: today, lte: addDays(today, days) },
+});
+
 /** Contratos en ejecución cuya fecha fin está entre hoy y hoy + días. */
 export const findExpiringContracts = ({ today, days }) =>
   prisma.tbl_contracts.findMany({
     where: {
       sta_id: { not: DELETED_STATUS },
-      ctr_state: CONTRACT_STATES.IN_PROGRESS,
-      ctr_end_date: { gte: today, lte: addDays(today, days) },
+      ...expiringContractsWhere({ today, days }),
       tbl_works: { sta_id: { not: DELETED_STATUS } },
     },
     select: { ctr_id: true, ctr_number: true, ctr_end_date: true, wrk_id: true, tbl_works: { select: { wrk_code: true } } },
     orderBy: { ctr_id: "asc" },
   });
 
+/**
+ * Póliza por vencer o vencida: la versión vigente, con su fin de vigencia ya
+ * pasado o a más tardar en hoy + días. Un solo predicado para el aviso y para
+ * la pestaña "Pólizas por vencer" del listado de contratos.
+ */
+export const expiringPoliciesWhere = ({ today, days }) => ({
+  pol_is_current: true,
+  pol_end_date: { lte: addDays(today, days) },
+});
+
+/** Contratos con alguna póliza por vencer o vencida, salvo los liquidados (ya no se renuevan). */
+export const contractsWithExpiringPoliciesWhere = ({ today, days }) => ({
+  ctr_state: { not: CONTRACT_STATES.LIQUIDATED },
+  tbl_policies: { some: expiringPoliciesWhere({ today, days }) },
+});
+
 /** Pólizas vigentes ya vencidas o cuyo fin de vigencia llega a hoy + días. */
 export const findExpiringPolicies = ({ today, days }) =>
   prisma.tbl_policies.findMany({
     where: {
-      pol_is_current: true,
-      pol_end_date: { lte: addDays(today, days) },
+      ...expiringPoliciesWhere({ today, days }),
       tbl_contracts: {
         sta_id: { not: DELETED_STATUS },
         ctr_state: { not: CONTRACT_STATES.LIQUIDATED },

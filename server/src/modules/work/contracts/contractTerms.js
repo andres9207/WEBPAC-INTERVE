@@ -27,6 +27,20 @@ export const STATE_NAMES = Object.freeze({
 
 export const TRANSITION_ORIGINS = Object.freeze({ AUTOMATIC: "AUTOMATIC", MANUAL: "MANUAL" });
 
+/**
+ * Pestaña "A vencer" del listado (DEC-072): no es un estado del ciclo de
+ * vida, sino los contratos en ejecución que entran en su plazo de aviso. Va
+ * en el mismo parámetro que las pestañas de estado (`state`).
+ */
+export const EXPIRING_TAB = "EXPIRING";
+
+/**
+ * Pestaña "Pólizas por vencer" (DEC-072): contratos no liquidados con alguna
+ * póliza vigente por vencer o ya vencida. Revela datos de pólizas: exige
+ * poder verlas.
+ */
+export const POLICIES_EXPIRING_TAB = "POLICIES_EXPIRING";
+
 const { IN_PROGRESS, SUSPENDED, IN_LIQUIDATION } = CONTRACT_STATES;
 
 /** Destino de una transición que devuelve el contrato al estado que tenía (suspensión superpuesta). */

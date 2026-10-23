@@ -12,7 +12,7 @@ import {
 } from "../../../common/utils/validation.utils.js";
 import { TERM_UNITS } from "../../../common/utils/term.utils.js";
 import { CONTRACT_POLICY_STATUS } from "./policyTerms.js";
-import { CONTRACT_STATES } from "./contractTerms.js";
+import { CONTRACT_STATES, EXPIRING_TAB, POLICIES_EXPIRING_TAB } from "./contractTerms.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). Las reglas de
 // negocio (etapa de la obra, estado que admite el acto, cronología…) viven en
@@ -69,7 +69,11 @@ export const selectContractFilterStagesSchema = [
 export const paginationContractsSchema = [
   ...paginationRules(),
   optionalText("search", 100),
-  body("state").optional({ values: "falsy" }).isIn(Object.values(CONTRACT_STATES)).withMessage("El estado no es válido."),
+  // La pestaña: un estado del ciclo de vida, "A vencer" o "Pólizas por vencer" (DEC-072).
+  body("state")
+    .optional({ values: "falsy" })
+    .isIn([...Object.values(CONTRACT_STATES), EXPIRING_TAB, POLICIES_EXPIRING_TAB])
+    .withMessage("El estado no es válido."),
   optionalId("wrkId"),
   optionalId("wksId"),
   optionalId("cttId"),

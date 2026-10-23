@@ -31,6 +31,12 @@ El umbral de "a vencer" de las pólizas vivía en la variable de entorno `POLICY
 - Las notificaciones existentes no tienen obra: se ven con cualquier obra elegida.
 - En desarrollo el cron no corre (tampoco al arrancar): se prueba guardando las reglas o con `yarn cron:run expiration-notice`.
 
+## Pestaña "A vencer" del listado de contratos (2026-10-23)
+
+Pedido del usuario: el listado de contratos suma la pestaña **A vencer**, con su conteo, después de las de estado. Usa el mismo predicado que el aviso (`expiringContractsWhere`): contrato **en ejecución** con la fecha fin entre hoy y hoy + los días de la regla `CONTRACT_EXPIRING_DAYS` (30 por defecto), con la fecha del servidor. Va en el mismo parámetro que las pestañas (`state: "EXPIRING"`), cuenta dentro de los demás filtros y del alcance por obra, y sirve también al reporte. No es un estado: es parte de "En ejecución", así que no suma al total de "Todos" (`subset` en `StatusTabs`).
+
+Después, en el mismo pedido, la pestaña **Pólizas por vencer**: contratos no liquidados con **alguna** póliza vigente por vencer (hasta hoy + los días de `POLICY_EXPIRING_DAYS`) **o ya vencida**, con el predicado del aviso de pólizas (`contractsWithExpiringPoliciesWhere`). Decidido por el usuario: cuenta cualquier póliza, no solo la de mayor valor asegurado del tablero (DEC-064), y suma las vencidas. Revela datos de pólizas: solo se muestra y se cuenta con el permiso de ver pólizas, y sin él responde 403. Tampoco suma a "Todos".
+
 ## Dónde
 
 `database/migrations/0105_create_business_rules.sql`, `0106_notifications_work_and_key.sql`, `0107_seed_business_rules_permission.sql`; `server/src/modules/admin/businessRules/`, `server/src/modules/work/contracts/expirationNotice.service.js`, `server/src/cron/jobs/expirationNotice.job.js`, `server/src/modules/app/notifications/`, `server/src/modules/work/contracts/policyTerms.js`; `client/src/views/admin/businessRules/BusinessRulesDialog.jsx`, `client/src/layout/MainLayout/Header/ProfileSection/index.jsx`, `client/src/layout/MainLayout/Header/NotificationSection/`. Tests: `test/modules/admin/businessRules/`, `test/modules/work/contracts/expirationNotice.service.test.js`, `test/modules/app/notifications/notifications.service.test.js`.

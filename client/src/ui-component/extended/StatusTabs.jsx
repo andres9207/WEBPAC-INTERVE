@@ -36,7 +36,8 @@ export default function StatusTabs({ statusTabs, selectedStatus, onChange, hideA
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [anchorEl, setAnchorEl] = useState(null);
 
-  const totalCount = statusTabs.reduce((acc, s) => acc + s.total, 0);
+  // Una pestaña `subset` (p. ej. "A vencer", dentro de "En ejecución") no suma a "Todos": ya está contada en otra.
+  const totalCount = statusTabs.filter((s) => !s.subset).reduce((acc, s) => acc + s.total, 0);
 
   const selectedLabel = selectedStatus === 'all'
     ? 'Todos'
@@ -157,6 +158,8 @@ StatusTabs.propTypes = {
       color: PropTypes.string,
       total: PropTypes.number,
       count: PropTypes.number,
+      /** Subconjunto de otra pestaña: no suma al total de "Todos". */
+      subset: PropTypes.bool,
     })
   ).isRequired,
   selectedStatus: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,

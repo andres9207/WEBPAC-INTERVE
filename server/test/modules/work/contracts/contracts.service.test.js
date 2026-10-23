@@ -9,6 +9,8 @@ import { CONTRACT_FIELDS_CATALOG, typeFieldRows } from "../../../helpers/contrac
 const state = { contract: null, typeFields: [] };
 
 const prismaMock = {
+  // Días de "a vencer" del listado (DEC-072): sin filas, el valor por defecto.
+  tbl_business_rules: { findMany: jest.fn().mockResolvedValue([]) },
   tbl_contracts: {
     findUnique: jest.fn(async ({ where }) => (where.ctr_idempotency_key ? null : state.contract)),
     findFirst: jest.fn(),
@@ -447,7 +449,8 @@ describe("paginationContracts", () => {
       orderBy: { ctr_update_at: "asc" },
     });
     expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, AND: [{ wrk_id: 8 }] });
-    expect(page.statusCounts).toEqual({ IN_PROGRESS: 4 });
+    // "A vencer" se cuenta con count dentro de los mismos filtros (DEC-072).
+    expect(page.statusCounts).toEqual({ IN_PROGRESS: 4, EXPIRING: 1 });
     expect(page.results[0]).toMatchObject({ ctrId: 30, currentValue: "1190.00", stateName: "En ejecución", endDate: "2026-07-31", endDateProvisional: false });
   });
 
@@ -567,6 +570,53 @@ describe("paginationContracts", () => {
       { value: 12, label: "Estructura — OB-1" },
       { value: 13, label: "Cimentación — OB-1" },
     ]);
+  });
+
+  it("pestaña A vencer (DEC-072): en ejecución, con la fecha fin de hoy a hoy + los días de la regla, dentro de los filtros", async () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 9, 23, 10));
+    prismaMock.tbl_business_rules.findMany.mockResolvedValueOnce([{ bru_key: "CONTRACT_EXPIRING_DAYS", bru_value: 10 }]);
+    prismaMock.tbl_contracts.count.mockResolvedValue(2);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+
+    const page = await service.paginationContracts({ state: "EXPIRING", prvId: "77" });
+    jest.useRealTimers();
+
+    const { where } = prismaMock.tbl_contracts.findMany.mock.calls[0][0];
+    expect(where.AND[0]).toMatchObject({ sta_id: { not: 3 }, AND: [{ prv_id: 77 }] });
+    expect(where.AND[1]).toEqual({
+      ctr_state: "IN_PROGRESS",
+      ctr_end_date: { gte: new Date(Date.UTC(2026, 9, 23)), lte: new Date(Date.UTC(2026, 10, 2)) },
+    });
+    expect(page.statusCounts.EXPIRING).toBe(2);
+    expect(page.expiringDays).toBe(10);
+  });
+
+  it("pestaña Pólizas por vencer (DEC-072): no liquidados con alguna póliza vigente vencida o que vence a hoy + los días de la regla", async () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 9, 23, 10));
+    prismaMock.tbl_business_rules.findMany.mockResolvedValueOnce([{ bru_key: "POLICY_EXPIRING_DAYS", bru_value: 5 }]);
+    prismaMock.tbl_contracts.count.mockResolvedValue(3);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+
+    const page = await service.paginationContracts({ state: "POLICIES_EXPIRING", canViewPolicies: true });
+    jest.useRealTimers();
+
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where.AND[1]).toEqual({
+      ctr_state: { not: "LIQUIDATED" },
+      tbl_policies: { some: { pol_is_current: true, pol_end_date: { lte: new Date(Date.UTC(2026, 9, 28)) } } },
+    });
+    expect(page.statusCounts).toMatchObject({ POLICIES_EXPIRING: 3, EXPIRING: 3 });
+  });
+
+  it("sin el permiso de ver pólizas, la pestaña Pólizas por vencer responde 403 y no se cuenta", async () => {
+    await expect(service.paginationContracts({ state: "POLICIES_EXPIRING" })).rejects.toMatchObject({ statusCode: 403 });
+
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+    const page = await service.paginationContracts({});
+    expect(page.statusCounts).not.toHaveProperty("POLICIES_EXPIRING");
   });
 
   it("los filtros vacíos no filtran", async () => {

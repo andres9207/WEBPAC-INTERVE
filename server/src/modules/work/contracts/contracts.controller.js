@@ -42,12 +42,13 @@ const CONTRACT_FIELDS = ["wrkId", "prvId", "pvtId", "wksId", "cttId", "number", 
 const ACT_FIELDS = ["startDate", "description", ...CONCEPT_FIELDS];
 
 // Filtros del listado, también los del reporte (DEC-070). Los del tablero
-// por pólizas exigen poder verlas (DEC-052).
-const listFiltersOf = async (req) => {
+// por pólizas exigen poder verlas (DEC-052). `granted`: los permisos
+// efectivos, leídos una vez por petición.
+const listFiltersOf = (req, granted) => {
   const { search, state, states, wrkId, wksId, cttId, prvId, number, name, providerName, endDateFrom, endDateTo, sortField, sortOrder } = req.body;
   const { policyStatus, uncovered } = req.body;
-  const canViewPolicies =
-    Boolean(policyStatus || uncovered) && (await getEffectivePermissionIds(req.user)).includes(PERMISSIONS.work.policies.view);
+  // Siempre: la pestaña "Pólizas por vencer" se cuenta solo para quien puede ver pólizas (DEC-072).
+  const canViewPolicies = granted.has(PERMISSIONS.work.policies.view);
   return {
     search,
     policyStatus,
@@ -69,18 +70,19 @@ const listFiltersOf = async (req) => {
   };
 };
 
-export const paginationContractsController = handle(async (req) =>
-  contractsService.paginationContracts({ ...(await listFiltersOf(req)), scope: await workScopeOf(req), rows: req.body.rows, first: req.body.first })
-);
+export const paginationContractsController = handle(async (req) => {
+  const granted = new Set(await getEffectivePermissionIds(req.user));
+  return contractsService.paginationContracts({ ...listFiltersOf(req, granted), scope: await workScopeOf(req), rows: req.body.rows, first: req.body.first });
+});
 
 // Reporte del listado (DEC-070): responde el archivo, no JSON.
 // `report`: sin él, el listado; "control" o "advances", los reportes de
 // control, con las cifras de facturas si el usuario puede verlas (DEC-074).
 export const exportContractsController = handleExport(async (req) => {
   const { format, report } = req.body;
-  const filters = { ...(await listFiltersOf(req)), scope: await workScopeOf(req), format };
-  if (!report || report === "list") return contractsService.exportContracts(filters);
   const granted = new Set(await getEffectivePermissionIds(req.user));
+  const filters = { ...listFiltersOf(req, granted), scope: await workScopeOf(req), format };
+  if (!report || report === "list") return contractsService.exportContracts(filters);
   return exportContractReport({ ...filters, report, seesInvoices: granted.has(PERMISSIONS.billing.invoices.view) });
 });
 
