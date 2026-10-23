@@ -26,11 +26,12 @@ jest.unstable_mockModule("../../../../src/common/services/effectivePermissions.s
 // Alcance por obra (DEC-047): el controller lo resuelve y lo pasa al service.
 const SCOPE = Object.freeze({ all: false, wrkId: 8 });
 const workScopeOf = jest.fn(async () => SCOPE);
-jest.unstable_mockModule("../../../../src/common/services/workScope.service.js", () => ({ workScopeOf, selectMyWorks: jest.fn() }));
+const canViewAllWorks = jest.fn(async () => false);
+jest.unstable_mockModule("../../../../src/common/services/workScope.service.js", () => ({ workScopeOf, canViewAllWorks, selectMyWorks: jest.fn() }));
 jest.unstable_mockModule("../../../../src/common/configs/socket.manager.js", () => ({ getIO: () => ({ emit }) }));
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: {} }));
 
-const { saveProviderController, assignProviderController, unassignProviderController } = await import(
+const { paginationProvidersController, saveProviderController, assignProviderController, unassignProviderController } = await import(
   "../../../../src/modules/work/providers/providers.controller.js"
 );
 
@@ -89,6 +90,19 @@ describe("providers.controller", () => {
     expect(Object.keys(args.input).sort()).toEqual(["assignmentDate", "observation", "pvtIds", "staId"]);
     expect(emit).toHaveBeenCalledWith("refresh-works", {});
     expect(emit).toHaveBeenCalledWith("refresh-providers", {});
+  });
+
+  it("el listado pide el conteo de obras solo con el permiso de ver todas las obras, y lo decide el servidor", async () => {
+    serviceMock.paginationProviders.mockResolvedValue({ results: [] });
+    const user = { useId: 7, proId: 2 };
+
+    await paginationProvidersController(mockReq({ user, body: { withWorksCount: true } }), buildRes(), jest.fn());
+    expect(canViewAllWorks).toHaveBeenCalledWith(user);
+    expect(serviceMock.paginationProviders.mock.calls[0][0]).toMatchObject({ withWorksCount: false, scope: SCOPE });
+
+    canViewAllWorks.mockResolvedValueOnce(true);
+    await paginationProvidersController(mockReq({ user, body: {} }), buildRes(), jest.fn());
+    expect(serviceMock.paginationProviders.mock.calls[1][0].withWorksCount).toBe(true);
   });
 
   it("un error del service va a next y no emite", async () => {

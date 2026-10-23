@@ -768,6 +768,21 @@ describe("alcance por obra (DEC-047)", () => {
     expect(prismaMock.tbl_providers.findMany.mock.calls.at(-1)[0].where.tbl_work_providers).toEqual({ some: { wrk_id: { in: [8] } } });
   });
 
+  it("a cuántas obras está asignado (todas, no solo las del alcance) solo va con el permiso de ver todas las obras", async () => {
+    prismaMock.tbl_providers.findMany.mockResolvedValue([{ prv_id: 77, prv_name: "Acme", tbl_provider_classifications: [], _count: { tbl_work_providers: 4 } }]);
+    prismaMock.tbl_providers.count.mockResolvedValue(1);
+    prismaMock.tbl_providers.groupBy.mockResolvedValue([]);
+
+    const withCount = await service.paginationProviders({ scope: OWN, withWorksCount: true });
+    expect(prismaMock.tbl_providers.findMany.mock.calls.at(-1)[0].select._count).toEqual({ select: { tbl_work_providers: true } });
+    expect(withCount.results[0].worksCount).toBe(4);
+
+    prismaMock.tbl_providers.findMany.mockResolvedValue([{ prv_id: 77, prv_name: "Acme", tbl_provider_classifications: [] }]);
+    const withoutCount = await service.paginationProviders({ scope: OWN });
+    expect(prismaMock.tbl_providers.findMany.mock.calls.at(-1)[0].select._count).toBeUndefined();
+    expect(withoutCount.results[0].worksCount).toBeNull();
+  });
+
   it("un proveedor que no está en la obra del alcance no se lee ni se edita (404)", async () => {
     await expect(service.getProvider({ prvId: 77, scope: OTHER })).rejects.toMatchObject({ statusCode: 404 });
     expect(prismaMock.tbl_providers.findFirst.mock.calls[0][0].where.tbl_work_providers).toEqual({ some: { wrk_id: { in: [9] } } });

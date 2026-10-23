@@ -2,7 +2,7 @@ import { getIO } from "../../../common/configs/socket.manager.js";
 import { auditContext } from "../../../common/services/audit.service.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
-import { workScopeOf } from "../../../common/services/workScope.service.js";
+import { canViewAllWorks, workScopeOf } from "../../../common/services/workScope.service.js";
 import * as providersService from "./providers.service.js";
 
 // Solo leen la petición y delegan. El autor y sus permisos salen de req.user
@@ -43,6 +43,8 @@ export const paginationProvidersController = handle(async (req) => {
     sortField,
     sortOrder,
     scope: await workScopeOf(req),
+    // El conteo de obras abarca todas las del proveedor: solo con el permiso de ver todas las obras.
+    withWorksCount: await canViewAllWorks(req.user),
   });
 });
 

@@ -259,6 +259,11 @@ Migraciones `0011_fk_audit_columns.sql`, `0012_add_delete_columns.sql`, `0013_cr
 - **`paginationContracts` y `paginationInvoices` armaban el `where` con `...scopeWhere(scope)` y después `...{ wrk_id: wrkId }`**: las dos condiciones usan la misma clave, así que el filtro del cliente reemplazaba la del alcance. Un usuario limitado a la obra 8 que enviara `wrkId: 9` veía los contratos y las facturas de la obra 9. Ahora los filtros por campo van en un `AND` (`filtersWhere`, `pagination.utils.js`) y el alcance queda como condición propia: el filtro se suma, nunca la reemplaza. La misma regla vale para el filtro de estado de las pestañas cuando va en `AND`.
 - Tests de regresión en `contracts.service.test.js`, `invoices.service.test.js` y `providers.service.test.js` ("el filtro de obra se suma al alcance").
 
+## El listado de proveedores contaba obras fuera del alcance (DEC-047)
+
+- **`paginationProviders` devolvía `worksCount` con todas las asignaciones del proveedor**, no solo las de la obra del alcance: un usuario limitado a su obra sabía en cuántas obras más trabajaba cada proveedor. Ahora el conteo solo se lee y se envía con el permiso de ver todas las obras (91), que decide el controller con `canViewAllWorks`; sin él, `worksCount` es `null` y la columna "Obras" no se muestra (pedido del usuario, 2026-10-23). El detalle del proveedor ya contaba dentro del alcance.
+- Tests en `providers.service.test.js` ("a cuántas obras está asignado…") y `providers.controller.test.js` ("el listado pide el conteo de obras…").
+
 ## Pendientes
 
 Los hallazgos señalados y todavía no corregidos están en [`debt/TECHNICAL_DEBT.md`](../debt/TECHNICAL_DEBT.md), sección "Seguridad". Este archivo registra solo lo que ya se corrigió.

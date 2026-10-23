@@ -75,8 +75,9 @@ const LIST_SELECT = {
   tbl_provider_classifications: CLASSIFICATIONS_SELECT,
   tbl_status: { select: { sta_name: true } },
   updated_by_user: USER_NAME_SELECT,
-  _count: { select: { tbl_work_providers: true } },
 };
+// Obras a las que está asignado, todas (no solo las del alcance): solo con el permiso de ver todas las obras.
+const WORKS_COUNT_SELECT = { _count: { select: { tbl_work_providers: true } } };
 
 const toListDto = (row) => ({
   prvId: row.prv_id,
@@ -85,7 +86,7 @@ const toListDto = (row) => ({
   identification: row.prv_identification,
   providerTypes: typeNamesOf(row.tbl_provider_classifications),
   serviceType: row.prv_service_type,
-  worksCount: row._count?.tbl_work_providers ?? 0,
+  worksCount: row._count?.tbl_work_providers ?? null,
   staId: row.sta_id,
   statusName: row.tbl_status?.sta_name ?? null,
   updatedAt: row.prv_update_at,
@@ -142,9 +143,25 @@ export const assertProviderInScope = async (scope, prvId) => {
  * `scope`: alcance por obra de la petición (DEC-047): solo los proveedores de
  * esa obra. `name`, `identification`, `pvtId` (uno de sus tipos) y `wrkId`
  * (asignado a esa obra): filtros por campo (DEC-048), también en los conteos.
- * El de obra se suma al alcance, nunca lo reemplaza.
+ * El de obra se suma al alcance, nunca lo reemplaza. `withWorksCount`: con el
+ * permiso de ver todas las obras, `worksCount` trae a cuántas está asignado;
+ * sin él, null (revelaría obras fuera de su alcance).
  */
-export const paginationProviders = async ({ search, staId, name, identification, pvtId, wrkId, rows, first, sortField, sortOrder, scope }) => {
+export const paginationProviders = async ({
+  search,
+  staId,
+  name,
+  identification,
+  pvtId,
+  wrkId,
+  rows,
+  first,
+  sortField,
+  sortOrder,
+  scope,
+  withWorksCount = false,
+}) => {
+  const select = withWorksCount ? { ...LIST_SELECT, ...WORKS_COUNT_SELECT } : LIST_SELECT;
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
@@ -162,7 +179,7 @@ export const paginationProviders = async ({ search, staId, name, identification,
   const where = staId ? { ...baseWhere, AND: [...(baseWhere.AND ?? []), { sta_id: Number(staId) }] } : baseWhere;
 
   const [page, statusCounts] = await Promise.all([
-    paginate(prisma.tbl_providers, { where, select: LIST_SELECT, orderBy }, { first, rows }),
+    paginate(prisma.tbl_providers, { where, select, orderBy }, { first, rows }),
     countByStatus(prisma.tbl_providers, baseWhere),
   ]);
   return { ...page, results: page.results.map(toListDto), statusCounts };

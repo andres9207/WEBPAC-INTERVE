@@ -42,9 +42,10 @@ const COLUMNS = [
     cardRender: (row) => row.name
   },
   { id: 'identification', label: 'Documento', sortable: true, render: (row) => `${row.identityCode ?? ''} ${row.identification}` },
-  { id: 'providerTypes', label: 'Tipos', render: (row) => row.providerTypes.join(', ') },
-  { id: 'worksCount', label: 'Obras', align: 'right' }
+  { id: 'providerTypes', label: 'Tipos', render: (row) => row.providerTypes.join(', ') }
 ];
+// A cuántas obras está asignado, todas: solo con el permiso de ver todas las obras (el servidor no lo envía sin él).
+const WORKS_COUNT_COLUMN = { id: 'worksCount', label: 'Obras', align: 'right' };
 
 // Filtros del listado (DEC-048). El de obra, solo con "Ver todo" (useWorkFilterField).
 const FILTER_FIELDS = [
@@ -69,7 +70,8 @@ export default function ProvidersPage() {
   const { permissionsCatalog, hasPermission } = useAuth();
   const perms = permissionsCatalog.work?.providers;
   const canDo = (perId) => perId != null && hasPermission(perId);
-  const { activeWork } = useWorkScope();
+  // viewAll: el permiso de ver todas las obras, según el servidor (select_my_works, DEC-047).
+  const { activeWork, viewAll } = useWorkScope();
   const workId = activeWork !== null && activeWork !== ALL_WORKS ? activeWork : null;
   const [assignOpen, setAssignOpen] = useState(false);
   const navigate = useNavigate();
@@ -78,6 +80,7 @@ export default function ProvidersPage() {
   const workFilter = useWorkFilterField();
   const filterFields = useMemo(() => (workFilter ? [...FILTER_FIELDS, workFilter] : FILTER_FIELDS), [workFilter]);
   const linked = useLinkedFilters(NO_LINKED_KEYS, describeNothing);
+  const columns = useMemo(() => (viewAll ? [...COLUMNS, WORKS_COUNT_COLUMN] : COLUMNS), [viewAll]);
 
   const navigation = useMemo(
     () => ({
@@ -104,7 +107,7 @@ export default function ProvidersPage() {
         idField="prvId"
         api={providersApi}
         permissions={perms}
-        columns={COLUMNS}
+        columns={columns}
         filterFields={filterFields}
         defaultSort="name"
         rowLabel={rowLabel}
