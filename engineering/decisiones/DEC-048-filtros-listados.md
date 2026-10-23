@@ -28,7 +28,7 @@ DEC-024 quitó el botón "Filtros" y dejó un solo campo de búsqueda. Con obras
 | Usuarios | Nombre, apellido, documento, usuario, correo y perfil |
 | Obras | Código, nombre, constructora y tipo de interventoría |
 | Proveedores | Razón social, documento, tipo de proveedor y obra asignada |
-| Contratos | Número, nombre, tipo de contrato, razón social del proveedor, rango de fecha fin y obra |
+| Contratos | Número, nombre, tipo de contrato, proveedor (lista buscada en el servidor), etapa (lista de las etapas con contratos, con el código de la obra), estado (uno o varios, aparte de la pestaña; las pestañas cuentan dentro de lo elegido), rango de fecha fin y obra. Etapa y estado, agregados el 2026-10-23 a pedido del usuario |
 | Facturas | Tipo, número, comprobante, número de contrato, razón social del proveedor, rango de fecha, rango de aprobación y obra |
 
 ## Descartado

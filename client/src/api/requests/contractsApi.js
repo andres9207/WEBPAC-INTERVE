@@ -36,6 +36,13 @@ export const getContractWorksSelectAPI = (search) => httpCliente.get('work/contr
 export const getContractFilterProvidersAPI = (params) => httpCliente.get('work/contracts/select_contract_filter_providers', params);
 
 /**
+ * Etapas con contratos en el alcance por obra: el filtro Etapa del listado.
+ * Busca por nombre de la etapa o código de la obra.
+ * @param {{ search?: string, includeWksId?: number }} params  la ya elegida vuelve aunque la búsqueda la deje fuera
+ */
+export const getContractFilterStagesAPI = (params) => httpCliente.get('work/contracts/select_contract_filter_stages', params);
+
+/**
  * Etapas y proveedores asignados de una obra, para el formulario.
  * @param {{ wrkId: number, includeWksId?: number, includePrvId?: number }} params  los actuales se incluyen aunque estén inactivos
  */

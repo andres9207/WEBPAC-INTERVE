@@ -44,7 +44,7 @@ const ACT_FIELDS = ["startDate", "description", ...CONCEPT_FIELDS];
 // Filtros del listado, también los del reporte (DEC-070). Los del tablero
 // por pólizas exigen poder verlas (DEC-052).
 const listFiltersOf = async (req) => {
-  const { search, state, wrkId, cttId, prvId, number, name, providerName, endDateFrom, endDateTo, sortField, sortOrder } = req.body;
+  const { search, state, states, wrkId, wksId, cttId, prvId, number, name, providerName, endDateFrom, endDateTo, sortField, sortOrder } = req.body;
   const { policyStatus, uncovered } = req.body;
   const canViewPolicies =
     Boolean(policyStatus || uncovered) && (await getEffectivePermissionIds(req.user)).includes(PERMISSIONS.work.policies.view);
@@ -54,7 +54,9 @@ const listFiltersOf = async (req) => {
     uncovered: uncovered === true || uncovered === "true",
     canViewPolicies,
     state,
+    states,
     wrkId,
+    wksId,
     cttId,
     prvId,
     number,
@@ -96,6 +98,10 @@ export const exportContractController = handleExport(async (req) => {
 
 export const selectContractFilterProvidersController = handle(async (req) =>
   contractsService.selectContractFilterProviders({ search: req.query.search, includePrvId: req.query.includePrvId, scope: await workScopeOf(req) })
+);
+
+export const selectContractFilterStagesController = handle(async (req) =>
+  contractsService.selectContractFilterStages({ search: req.query.search, includeWksId: req.query.includeWksId, scope: await workScopeOf(req) })
 );
 
 export const getContractController = handle(async (req) => contractsService.getContract({ ctrId: req.query.ctrId, scope: await workScopeOf(req) }));

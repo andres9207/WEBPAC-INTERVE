@@ -370,12 +370,37 @@ export const selectContractFilterProviders = ({ search, includePrvId, scope } = 
   });
 
 /**
+ * Filtro Etapa del listado: etapas con contratos no eliminados en el alcance
+ * por obra, con tope y búsqueda (DEC-018), como el de proveedor. La etiqueta
+ * lleva el código de la obra: con "Ver todo" hay etapas de varias obras con
+ * el mismo nombre.
+ */
+export const selectContractFilterStages = async ({ search, includeWksId, scope } = {}) => {
+  const admitted = { tbl_contracts: { some: { sta_id: { not: DELETED_STATUS }, ...scopeWhere(scope) } } };
+  const select = { wks_id: true, wks_name: true, tbl_works: { select: { wrk_code: true } } };
+  const value = String(search ?? "").trim();
+  const rows = await prisma.tbl_work_stages.findMany({
+    where: { ...admitted, ...(value ? { OR: [{ wks_name: { contains: value } }, { tbl_works: { wrk_code: { contains: value } } }] } : {}) },
+    select,
+    orderBy: [{ tbl_works: { wrk_code: "asc" } }, { wks_order: "asc" }],
+    take: MAX_ROWS,
+  });
+  const includeId = Number(includeWksId) > 0 ? Number(includeWksId) : null;
+  if (includeId && !rows.some((row) => row.wks_id === includeId)) {
+    const included = await prisma.tbl_work_stages.findFirst({ where: { ...admitted, wks_id: includeId }, select });
+    if (included) rows.unshift(included);
+  }
+  return rows.map((row) => ({ value: row.wks_id, label: `${row.wks_name} — ${row.tbl_works.wrk_code}` }));
+};
+
+/**
  * Contratos no eliminados, paginados. `state` filtra por estado del ciclo de
  * vida (las pestañas), `wrkId`, por obra (la pestaña de la obra), `cttId`,
  * por tipo de contrato, y `prvId`, por proveedor. `number`, `name`, `providerName` (razón social) y el
  * rango de la fecha fin (`endDateFrom`, `endDateTo`) son filtros por campo
- * (DEC-048). Los conteos de las pestañas respetan todos los filtros menos el
- * estado.
+ * (DEC-048), igual que `wksId` (etapa) y `states` (uno o varios estados, aparte
+ * de la pestaña: los dos se suman). Los conteos de las pestañas respetan todos
+ * los filtros menos la pestaña.
  *
  * `scope`: alcance por obra de la petición (DEC-047). El filtro de obra va en
  * el `AND`: se suma al alcance y nunca lo reemplaza.
@@ -396,7 +421,9 @@ export const contractListQuery = async ({
   uncovered,
   canViewPolicies = false,
   state,
+  states,
   wrkId,
+  wksId,
   cttId,
   prvId,
   number,
@@ -426,7 +453,9 @@ export const contractListQuery = async ({
     ...searchWhereOf(search),
     ...filtersWhere([
       idFilter(wrkId, (id) => ({ wrk_id: id })),
+      idFilter(wksId, (id) => ({ wks_id: id })),
       idFilter(prvId, (id) => ({ prv_id: id })),
+      Array.isArray(states) && states.length > 0 ? { ctr_state: { in: states } } : null,
       containsFilter(providerName, (c) => ({ tbl_providers: { prv_name: c } })),
       containsFilter(number, (c) => ({ ctr_number: c })),
       containsFilter(name, (c) => ({ ctr_name: c })),
@@ -461,16 +490,34 @@ const EXPORT_COLUMNS = [
 ];
 
 // Líneas de los filtros aplicados, para el encabezado del reporte.
-export const exportFilterLines = async ({ state, search, wrkId, cttId, prvId, number, name, providerName, endDateFrom, endDateTo, policyStatus, uncovered }) => {
-  const [work, type, provider] = await Promise.all([
+export const exportFilterLines = async ({
+  state,
+  states,
+  search,
+  wrkId,
+  wksId,
+  cttId,
+  prvId,
+  number,
+  name,
+  providerName,
+  endDateFrom,
+  endDateTo,
+  policyStatus,
+  uncovered,
+}) => {
+  const [work, stage, type, provider] = await Promise.all([
     Number(wrkId) > 0 ? prisma.tbl_works.findUnique({ where: { wrk_id: Number(wrkId) }, select: { wrk_code: true, wrk_name: true } }) : null,
+    Number(wksId) > 0 ? prisma.tbl_work_stages.findUnique({ where: { wks_id: Number(wksId) }, select: { wks_name: true } }) : null,
     Number(cttId) > 0 ? prisma.tbl_contract_types.findUnique({ where: { ctt_id: Number(cttId) }, select: { ctt_name: true } }) : null,
     Number(prvId) > 0 ? prisma.tbl_providers.findUnique({ where: { prv_id: Number(prvId) }, select: { prv_name: true } }) : null,
   ]);
   const lines = [
     ["Estado", state ? (STATE_NAMES[state] ?? state) : "Todos"],
+    ["Estados", Array.isArray(states) ? states.map((s) => STATE_NAMES[s] ?? s).join(", ") : ""],
     ["Búsqueda", text(search)],
     ["Obra", work && `${work.wrk_code} — ${work.wrk_name}`],
+    ["Etapa", stage?.wks_name],
     ["Tipo de contrato", type?.ctt_name],
     ["Proveedor", provider?.prv_name ?? text(providerName)],
     ["Número contiene", text(number)],

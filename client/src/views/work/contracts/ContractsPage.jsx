@@ -8,7 +8,13 @@ import MasterPage from 'ui-component/extended/MasterPage';
 import LinkedFilterNotice from 'ui-component/extended/LinkedFilterNotice';
 import ExportDialog from 'ui-component/extended/ExportDialog';
 import useLinkedFilters from 'hooks/useLinkedFilters';
-import { contractsApi, exportContractAPI, exportContractsAPI, getContractFilterProvidersAPI } from 'api/requests/contractsApi';
+import {
+  contractsApi,
+  exportContractAPI,
+  exportContractsAPI,
+  getContractFilterProvidersAPI,
+  getContractFilterStagesAPI
+} from 'api/requests/contractsApi';
 import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField } from 'contexts/WorkScopeContext';
@@ -129,6 +135,25 @@ const FILTER_FIELDS = [
       getContractFilterProvidersAPI({ ...(search ? { search } : {}), ...(includeId ? { includePrvId: includeId } : {}) }).then(
         (res) => res.data
       ),
+    grid: { xs: 12, sm: 6 }
+  },
+  // Etapa: las que tienen contratos, con el código de su obra (con "Ver todo" hay etapas de varias obras).
+  {
+    key: 'wksId',
+    type: 'remoteDropdown',
+    label: 'Etapa',
+    fetchOptions: ({ search, includeId }) =>
+      getContractFilterStagesAPI({ ...(search ? { search } : {}), ...(includeId ? { includeWksId: includeId } : {}) }).then(
+        (res) => res.data
+      ),
+    grid: { xs: 12, sm: 6 }
+  },
+  // Estado: uno o varios, aparte de la pestaña (`state`); las pestañas cuentan dentro de lo elegido.
+  {
+    key: 'states',
+    type: 'multiSelect',
+    label: 'Estado',
+    props: { options: CONTRACT_STATE_TABS },
     grid: { xs: 12, sm: 6 }
   },
   { key: 'endDate', type: 'calendar-range', label: 'Fecha fin' }

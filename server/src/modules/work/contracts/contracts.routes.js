@@ -8,6 +8,7 @@ import {
   exportContractsSchema,
   exportContractSchema,
   selectContractFilterProvidersSchema,
+  selectContractFilterStagesSchema,
   getContractSchema,
   selectContractWorksSchema,
   getContractFormOptionsSchema,
@@ -30,6 +31,7 @@ import {
   exportContractsController,
   exportContractController,
   selectContractFilterProvidersController,
+  selectContractFilterStagesController,
   getContractController,
   selectContractWorksController,
   getContractFormOptionsController,
@@ -68,6 +70,15 @@ contractsRoutes.get(
   selectContractFilterProvidersSchema,
   validate,
   selectContractFilterProvidersController
+);
+// Filtro Etapa del listado: etapas con contratos en el alcance por obra.
+contractsRoutes.get(
+  "/select_contract_filter_stages",
+  verifyToken,
+  requirePermission(can.view),
+  selectContractFilterStagesSchema,
+  validate,
+  selectContractFilterStagesController
 );
 contractsRoutes.get("/get_contract", verifyToken, requirePermission(can.view), getContractSchema, validate, getContractController);
 // Obras activas, y etapas y proveedores de una obra, para el formulario.

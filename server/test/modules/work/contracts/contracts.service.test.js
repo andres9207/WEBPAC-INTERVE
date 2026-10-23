@@ -30,7 +30,7 @@ const prismaMock = {
   tbl_policy_types: { findUnique: jest.fn() },
   tbl_insurers: { findUnique: jest.fn() },
   tbl_works: { findUnique: jest.fn() },
-  tbl_work_stages: { findUnique: jest.fn() },
+  tbl_work_stages: { findUnique: jest.fn(), findMany: jest.fn(), findFirst: jest.fn() },
   tbl_work_providers: { findUnique: jest.fn() },
   tbl_contract_types: { findUnique: jest.fn() },
   tbl_contract_fields: { findMany: jest.fn(async () => CONTRACT_FIELDS_CATALOG) },
@@ -536,6 +536,37 @@ describe("paginationContracts", () => {
     expect(where.OR).toEqual([{ prv_name: { contains: "acer" } }, { prv_identification: { contains: "acer" } }]);
     expect(take).toBe(100);
     expect(result.map((o) => o.value)).toEqual([77, 78]);
+  });
+
+  it("filtra por etapa (wksId) y por uno o varios estados (states), también en los conteos", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+
+    await service.paginationContracts({ wksId: "12", states: ["IN_PROGRESS", "SUSPENDED"], state: "SUSPENDED" });
+
+    const filters = [{ wks_id: 12 }, { ctr_state: { in: ["IN_PROGRESS", "SUSPENDED"] } }];
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where).toMatchObject({ AND: filters, ctr_state: "SUSPENDED" });
+    // Las pestañas cuentan dentro del filtro de estados, sin la pestaña elegida.
+    const counted = prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where;
+    expect(counted.AND).toEqual(filters);
+    expect(counted).not.toHaveProperty("ctr_state");
+  });
+
+  it("filtro Etapa: con contratos no eliminados del alcance, por nombre o código de obra; la ya elegida vuelve", async () => {
+    prismaMock.tbl_work_stages.findMany.mockResolvedValueOnce([{ wks_id: 13, wks_name: "Cimentación", tbl_works: { wrk_code: "OB-1" } }]);
+    prismaMock.tbl_work_stages.findFirst.mockResolvedValueOnce({ wks_id: 12, wks_name: "Estructura", tbl_works: { wrk_code: "OB-1" } });
+
+    const result = await service.selectContractFilterStages({ search: " estr ", includeWksId: "12", scope: { all: false, wrkId: 8 } });
+
+    const { where, take } = prismaMock.tbl_work_stages.findMany.mock.calls.at(-1)[0];
+    expect(where.tbl_contracts).toEqual({ some: { sta_id: { not: 3 }, wrk_id: { in: [8] } } });
+    expect(where.OR).toEqual([{ wks_name: { contains: "estr" } }, { tbl_works: { wrk_code: { contains: "estr" } } }]);
+    expect(take).toBe(100);
+    expect(result).toEqual([
+      { value: 12, label: "Estructura — OB-1" },
+      { value: 13, label: "Cimentación — OB-1" },
+    ]);
   });
 
   it("los filtros vacíos no filtran", async () => {
