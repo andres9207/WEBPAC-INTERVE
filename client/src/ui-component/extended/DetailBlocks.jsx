@@ -49,6 +49,62 @@ export function DataList({ items }) {
 
 DataList.propTypes = { items: PropTypes.arrayOf(PropTypes.array).isRequired };
 
+/**
+ * Resumen compacto de un agregado, para la columna fija del modal
+ * (RouteDialog `aside`, DEC-057): las cifras clave una debajo de otra y los
+ * datos principales con la etiqueta encima del valor, porque la columna es
+ * angosta. `notice`: un aviso arriba (p. ej. contrato suspendido).
+ * `figures`: `[{ label, value, hint }]`; `items`: `[[etiqueta, valor], …]`.
+ */
+export function SummaryAside({ figures, items = [], notice }) {
+  return (
+    <Box>
+      <Typography variant="subtitle1" component="h3" sx={{ mb: 1.5 }}>
+        Resumen
+      </Typography>
+      {notice && <Box sx={{ mb: 1.5 }}>{notice}</Box>}
+      <Box component="dl" sx={{ m: 0 }}>
+        {figures.map(({ label, value, hint }) => (
+          <Box key={label} sx={{ py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Typography component="dt" variant="caption" color="text.secondary">
+              {label}
+            </Typography>
+            <Typography component="dd" variant="h5" sx={{ m: 0, fontVariantNumeric: 'tabular-nums', color: 'text.dark' }}>
+              {value || '—'}
+            </Typography>
+            {hint && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                {hint}
+              </Typography>
+            )}
+          </Box>
+        ))}
+      </Box>
+      {items.length > 0 && (
+        <Box component="dl" sx={{ m: 0, mt: 2, display: 'grid', rowGap: 1 }}>
+          {items.map(([label, value]) => (
+            <Box key={label}>
+              <Typography component="dt" variant="caption" color="text.secondary">
+                {label}
+              </Typography>
+              <Typography component="dd" variant="body2" sx={{ m: 0, wordBreak: 'break-word' }}>
+                {value || '—'}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+SummaryAside.propTypes = {
+  figures: PropTypes.arrayOf(PropTypes.shape({ label: PropTypes.string.isRequired, value: PropTypes.node, hint: PropTypes.string }))
+    .isRequired,
+  items: PropTypes.arrayOf(PropTypes.array),
+  notice: PropTypes.node
+};
+
 /** Pestaña vacía o parte que todavía no existe: dice qué habrá y cuándo llega. */
 export function Pending({ title, text, action }) {
   return (

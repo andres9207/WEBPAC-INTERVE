@@ -17,9 +17,9 @@ import { IconEdit, IconPlus, IconUnlink } from '@tabler/icons-react';
 import SubCard from 'ui-component/cards/SubCard';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import ContactsEditor from 'ui-component/extended/ContactsEditor';
-import { DataList, Figure, Pending } from 'ui-component/extended/DetailBlocks';
+import { DataList, Figure, Pending, SummaryAside } from 'ui-component/extended/DetailBlocks';
 import FormSection from 'ui-component/extended/FormSection';
-import RouteDialog from 'ui-component/extended/RouteDialog';
+import RouteDialog, { useRouteDialogAside } from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import ContactsList from 'ui-component/extended/ContactsList';
 import WorkProviderDialog from './components/WorkProviderDialog';
@@ -60,6 +60,10 @@ import { STATUS } from 'utils/constants';
  *   obra tiene sus tipos de proveedor (DEC-066): se proponen los de la ficha.
  * - La pestaña Facturas lista las del proveedor (DEC-042); la simple, que es
  *   del proveedor (DEC-054), se registra desde aquí.
+ * - Resumen al lado (DEC-057): donde cabe, el resumen es una columna fija a la
+ *   izquierda y no una pestaña; en pantallas chicas vuelve a ser la pestaña.
+ *   Lee el mismo `provider` que se recarga al guardar y al asignar, editar o
+ *   desasignar una obra. Al crear no se muestra.
  */
 
 const TABS = [
@@ -112,6 +116,12 @@ function ProviderView() {
   const [addingContact, setAddingContact] = useState(false);
   const [identityOptions, setIdentityOptions] = useState([]);
   const [conflict, setConflict] = useState(null);
+
+  // Con el resumen al lado no hay pestaña Resumen: se abre en los datos (o en Contactos, sin permiso de editar).
+  const asideMode = useRouteDialogAside();
+  useEffect(() => {
+    if (asideMode && tab === 'summary') setTab(canEdit ? 'data' : 'contacts');
+  }, [asideMode, tab, canEdit]);
 
   const { control, handleSubmit, reset, formState } = useForm({ defaultValues: EMPTY_FORM });
   const { errors, isDirty } = formState;
@@ -195,7 +205,7 @@ function ProviderView() {
 
   if (loading || (!isNew && !provider)) return <RouteDialog onClose={close} loading />;
 
-  const visibleTabs = TABS.filter((t) => t.key !== 'data' || canEdit);
+  const visibleTabs = TABS.filter((t) => (t.key !== 'data' || canEdit) && (t.key !== 'summary' || !asideMode));
   // Al crear, solo las pestañas del formulario: el resto necesita el proveedor guardado.
   const enabled = (t) => !isNew || t.form;
   const hidden = (key) => ({ display: tab === key ? 'block' : 'none' });
@@ -285,6 +295,33 @@ function ProviderView() {
       onClose={requestClose}
       closeLabel={isDirty ? 'Cerrar sin guardar' : 'Cerrar'}
       labelledBy="provider-title"
+      aside={
+        asideMode && !isNew ? (
+          <SummaryAside
+            figures={[
+              { label: 'Documento', value: documentText, hint: provider.identityName },
+              {
+                label: 'Obras',
+                value: String(provider.worksCount),
+                hint: `${provider.works.filter((w) => w.staId === STATUS.ACTIVE).length} con asignación activa`
+              },
+              {
+                label: 'Contactos',
+                value: String(provider.contacts.length),
+                hint: (() => {
+                  const main = provider.contacts.find((c) => c.main);
+                  return main ? `Principal: ${main.name || main.addressType}` : 'Sin principal';
+                })()
+              }
+            ]}
+            items={[
+              [provider.providerTypes.length === 1 ? 'Tipo de proveedor' : 'Tipos de proveedor', typesText],
+              ['Tipo de servicio', provider.serviceType],
+              ['Correo', provider.email]
+            ]}
+          />
+        ) : undefined
+      }
       header={
         isNew ? (
           <>

@@ -40,6 +40,18 @@ Pedido del usuario (2026-10-22): el contrato también en una sola vista, con lo 
 
 `ContractFormPage.jsx` desaparece: el modelo vive en `components/contractForm.js`, el estado del formulario en `components/useContractForm.js` y la pestaña en `components/ContractDataForm.jsx`.
 
+## Resumen al lado (2026-10-23)
+
+Pedido del usuario: en el contrato, la obra y el proveedor, el resumen deja de ser una pestaña y pasa a una **columna fija a la izquierda** de las pestañas, que no se cierra al cambiar de pestaña.
+
+- **Resumen compacto:** las cifras clave una debajo de otra y los datos principales (`SummaryAside`). El resumen completo de antes sigue siendo la pestaña Resumen en pantallas chicas.
+- **Se actualiza al guardar cada acto:** lee el mismo registro que recarga cada acto (póliza, otrosí, suspensión, asignación a obra, guardar los datos) y el aviso de que otro usuario cambió el contrato. Lo escrito y no guardado no se refleja.
+- **Al crear no se muestra:** el formulario de alta usa todo el ancho y el panel aparece al guardar.
+- **Pantallas chicas** (por debajo de `md`, donde el modal ocupa la pantalla completa): no hay columna; el resumen vuelve a ser la primera pestaña. `useRouteDialogAside` decide con el mismo corte que el modal.
+- El modal se ensancha (`xl`) cuando lleva la columna. El detalle se abre en "Datos…" (o en la primera pestaña de consulta, sin permiso de editar).
+
+**Descartado:** reflejar en el panel lo que se escribe sin guardar (exigiría pedir al servidor valor y fecha fin mientras se escribe), y una franja plegable arriba en pantallas chicas (el usuario prefirió la pestaña).
+
 ## Dónde
 
 `client/src/views/work/works/` · `client/src/views/work/providers/` · `client/src/views/work/contracts/` · `client/src/routes/MainRoutes.jsx` · [`standards/DESIGN_SYSTEM.md`](../standards/DESIGN_SYSTEM.md)

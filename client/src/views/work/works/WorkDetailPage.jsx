@@ -17,10 +17,10 @@ import Typography from '@mui/material/Typography';
 import SubCard from 'ui-component/cards/SubCard';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import ContactsEditor from 'ui-component/extended/ContactsEditor';
-import { DataList, Figure, Pending } from 'ui-component/extended/DetailBlocks';
+import { DataList, Figure, Pending, SummaryAside } from 'ui-component/extended/DetailBlocks';
 import EditableList from 'ui-component/extended/EditableList';
 import FormSection from 'ui-component/extended/FormSection';
-import RouteDialog from 'ui-component/extended/RouteDialog';
+import RouteDialog, { useRouteDialogAside } from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import ContactsList from 'ui-component/extended/ContactsList';
 import ManagerDialog from './components/ManagerDialog';
@@ -61,6 +61,10 @@ import { STATUS, STATUS_OPTIONS, fTerm } from 'utils/constants';
  *   Activar, desactivar y eliminar viven aquí, no en el listado. Proveedores,
  *   contratos y facturas tienen sus propios endpoints (DEC-031, DEC-035,
  *   DEC-042).
+ * - Resumen al lado (DEC-057): donde cabe, el resumen es una columna fija a la
+ *   izquierda y no una pestaña; en pantallas chicas vuelve a ser la pestaña.
+ *   Lee la misma `work` que se recarga al guardar y con cada acto de sus
+ *   pestañas. Al crear no se muestra.
  */
 
 const TABS = [
@@ -122,6 +126,12 @@ function WorkView() {
   const [userOptions, setUserOptions] = useState([]);
   const [managerDialog, setManagerDialog] = useState(null);
   const [addingContact, setAddingContact] = useState(false);
+
+  // Con el resumen al lado no hay pestaña Resumen: se abre en los datos (o en Responsables, sin permiso de editar).
+  const asideMode = useRouteDialogAside();
+  useEffect(() => {
+    if (asideMode && tab === 'summary') setTab(canEdit ? 'data' : 'managers');
+  }, [asideMode, tab, canEdit]);
 
   const { control, handleSubmit, reset, setValue, getValues, formState } = useForm({ defaultValues: EMPTY_FORM });
   const { errors, isDirty, isSubmitted } = formState;
@@ -293,7 +303,7 @@ function WorkView() {
     refresh?.();
   };
 
-  const visibleTabs = TABS.filter((t) => t.key !== 'data' || canEdit);
+  const visibleTabs = TABS.filter((t) => (t.key !== 'data' || canEdit) && (t.key !== 'summary' || !asideMode));
   // Al crear, solo las pestañas del formulario: el resto necesita la obra guardada.
   const enabled = (t) => !isNew || t.form;
 
@@ -309,6 +319,38 @@ function WorkView() {
       onClose={requestClose}
       closeLabel={isDirty ? 'Cerrar sin guardar' : 'Cerrar'}
       labelledBy="work-title"
+      aside={
+        asideMode && !isNew ? (
+          <SummaryAside
+            figures={[
+              {
+                label: 'Valor vigente',
+                value: fMoneyText(work.currentValue),
+                hint: work.extendedValue ? 'Valor ampliado' : 'Valor inicial'
+              },
+              {
+                label: 'Plazo inicial',
+                value: fTerm(work.initialTerm, work.termUnit),
+                hint: work.endDate ? `Termina el ${fDateOnly(work.endDate)}` : undefined
+              },
+              { label: 'Costo directo', value: fMoneyText(work.directCost) },
+              {
+                label: 'Responsables activos',
+                value: String(activeManagers.length),
+                hint: `Principal: ${mainManager?.name ?? 'sin asignar'}`
+              },
+              { label: 'Etapas', value: String(work.stages.length) },
+              { label: 'Proveedores', value: String(work.providersCount ?? 0) },
+              { label: 'Contratos', value: String(work.contractsCount ?? 0) }
+            ]}
+            items={[
+              ['Constructora', work.constructionCompany],
+              ['Tipo de contrato', work.contractType],
+              ['Tipo de interventoría', work.supervisionType]
+            ]}
+          />
+        ) : undefined
+      }
       header={
         isNew ? (
           <>

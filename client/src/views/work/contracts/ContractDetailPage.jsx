@@ -16,9 +16,9 @@ import Typography from '@mui/material/Typography';
 import SubCard from 'ui-component/cards/SubCard';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import ExportButton from 'ui-component/extended/ExportButton';
-import { DataList, Figure, Pending } from 'ui-component/extended/DetailBlocks';
+import { DataList, Figure, Pending, SummaryAside } from 'ui-component/extended/DetailBlocks';
 import FormSection from 'ui-component/extended/FormSection';
-import RouteDialog from 'ui-component/extended/RouteDialog';
+import RouteDialog, { useRouteDialogAside } from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import ConceptFields from './components/ConceptFields';
 import ConceptsTab from './components/ConceptsTab';
@@ -64,6 +64,12 @@ import { CONTRACT_STATE_COLORS, INVOICE_MODES, fTerm } from 'utils/constants';
  * - El estado no se edita: lo cambian los actos. La suspensión se levanta
  *   registrando un otrosí en la pestaña Valor (DEC-039). Reabrir llega con la
  *   liquidación.
+ * - Resumen al lado (DEC-057): donde cabe, el resumen es una columna fija a
+ *   la izquierda (ContractAside) y no una pestaña; en pantallas chicas vuelve
+ *   a ser la pestaña Resumen. Lee el mismo `contract` que recarga cada acto,
+ *   así que se actualiza al registrar una póliza, un otrosí o una factura, al
+ *   guardar los datos y cuando otro usuario cambia el contrato. Al crear no
+ *   se muestra.
  */
 
 const TABS = [
@@ -110,6 +116,12 @@ function ContractView() {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [suspending, setSuspending] = useState(false);
   const [addingPolicy, setAddingPolicy] = useState(false);
+
+  // Con el resumen al lado no hay pestaña Resumen: se abre en los datos (o en Valor, sin permiso de editar).
+  const asideMode = useRouteDialogAside();
+  useEffect(() => {
+    if (asideMode && tab === 'summary') setTab(canEdit ? 'data' : 'value');
+  }, [asideMode, tab, canEdit]);
 
   const form = useContractForm({ ctrId, isNew, contract });
   const { methods, resetEndDate } = form;
@@ -216,7 +228,7 @@ function ContractView() {
     }
   };
 
-  const visibleTabs = TABS.filter((t) => t.key !== 'data' || canEdit);
+  const visibleTabs = TABS.filter((t) => (t.key !== 'data' || canEdit) && (t.key !== 'summary' || !asideMode));
   // Al crear, solo las pestañas del formulario: el resto necesita el contrato guardado.
   const enabled = (t) => !isNew || (t.form && (t.key !== 'policies' || canCreatePolicies));
 
@@ -239,6 +251,7 @@ function ContractView() {
       onClose={requestClose}
       closeLabel={isDirty ? 'Cerrar sin guardar' : 'Cerrar'}
       labelledBy="contract-title"
+      aside={asideMode && !isNew ? <ContractAside contract={contract} /> : undefined}
       header={
         isNew ? (
           <>
@@ -547,6 +560,46 @@ function ContractSummary({ contract }) {
   );
 }
 
+/** Resumen compacto del contrato, en la columna fija del modal. */
+function ContractAside({ contract }) {
+  const open = contract.openSuspension;
+  return (
+    <SummaryAside
+      notice={
+        open && (
+          <Alert severity="warning" color="lilac" sx={{ py: 0 }}>
+            Suspendido desde el {fDateOnly(open.suspensionDate)}
+          </Alert>
+        )
+      }
+      figures={[
+        { label: 'Valor vigente', value: fMoneyText(contract.currentValue), hint: `${contract.concepts.length} concepto(s)` },
+        {
+          label: 'Fecha fin',
+          value: fDateOnly(contract.endDate),
+          hint: contract.endDateProvisional ? 'Provisional hasta reanudar' : undefined
+        },
+        {
+          label: 'Plazo',
+          value: fTerm(contract.term, contract.termUnit),
+          hint: contract.totalExtensions ? `+ ${fTerm(contract.totalExtensions, contract.termUnit)} de prórrogas` : undefined
+        },
+        { label: 'Anticipo pactado', value: fMoneyText(contract.advance) },
+        { label: 'Retenido pactado', value: fMoneyText(contract.retention) },
+        { label: 'Pólizas vigentes', value: String(contract.currentPolicies ?? 0) }
+      ]}
+      items={[
+        ['Proveedor', contract.providerName],
+        ['Obra', `${contract.workCode} — ${contract.workName}`],
+        ['Etapa', contract.stageName],
+        ['Tipo de proveedor', contract.providerTypeName],
+        ['Tipo de contrato', contract.contractType],
+        ['AIU', contract.aiuRequested === false ? 'No solicitado' : 'Solicitado']
+      ]}
+    />
+  );
+}
+
 function StateHistory({ history }) {
   return (
     <Box
@@ -617,5 +670,6 @@ function Suspensions({ suspensions }) {
 }
 
 ContractSummary.propTypes = { contract: PropTypes.object.isRequired };
+ContractAside.propTypes = { contract: PropTypes.object.isRequired };
 StateHistory.propTypes = { history: PropTypes.array.isRequired };
 Suspensions.propTypes = { suspensions: PropTypes.array.isRequired };
