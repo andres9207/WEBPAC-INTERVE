@@ -2178,9 +2178,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/works/WorkDetailPage.jsx": {
-    "mtime": 1792759777.34972,
-    "seen": 1792764934.6328993,
-    "ast_hash": "7ae0a3318203e0ef8c0b8b20cc25b8bf",
+    "mtime": 1792768252.2237737,
+    "seen": 1792768422.6615834,
+    "ast_hash": "95d6ad496adec3e820ffcd52f8e33a8b",
     "semantic_hash": ""
   },
   "client/src/views/work/works/components/ManagerDialog.jsx": {
@@ -2232,15 +2232,15 @@
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/DetailBlocks.jsx": {
-    "mtime": 1790891490.5464406,
-    "seen": 1790892250.919407,
-    "ast_hash": "01a19e58e043eefe9823da20c742f94a",
+    "mtime": 1792768252.2618167,
+    "seen": 1792768422.6614587,
+    "ast_hash": "f48327d38961d9a31f9e52588e0290d0",
     "semantic_hash": ""
   },
   "client/src/views/work/providers/ProviderDetailPage.jsx": {
-    "mtime": 1792759777.34972,
-    "seen": 1792764934.6328378,
-    "ast_hash": "87b956b2844fcf2f716458d937d7519d",
+    "mtime": 1792768223.5862446,
+    "seen": 1792768422.661575,
+    "ast_hash": "1d51bd8e27ef5e26d284831c933f38e4",
     "semantic_hash": ""
   },
   "client/src/views/work/providers/ProvidersPage.jsx": {
@@ -2358,15 +2358,15 @@
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/RouteDialog.jsx": {
-    "mtime": 1790962488.162954,
-    "seen": 1790969118.9599116,
-    "ast_hash": "1882f4d1965b029237230a8d3b9fd04f",
+    "mtime": 1792768123.6858056,
+    "seen": 1792768422.66148,
+    "ast_hash": "59ca8d68f97292b75e500448f45edd2b",
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractDetailPage.jsx": {
-    "mtime": 1792765276.4460084,
-    "seen": 1792765482.740353,
-    "ast_hash": "1ff6ad4ebfbd98ee835e282ac09aca9f",
+    "mtime": 1792768160.094498,
+    "seen": 1792768422.6615598,
+    "ast_hash": "75f281ec8b65be262e4d0994c7a82b58",
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractsPage.jsx": {
