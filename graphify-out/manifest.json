@@ -2346,9 +2346,9 @@
     "semantic_hash": ""
   },
   "client/src/api/requests/contractsApi.js": {
-    "mtime": 1792765751.988973,
-    "seen": 1792766797.913874,
-    "ast_hash": "b9d0c8ed19b2769c1ce51c247a6782fd",
+    "mtime": 1792767695.3135889,
+    "seen": 1792768005.9463727,
+    "ast_hash": "4a11a20477452a40a5be0aa454524ad5",
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/PercentField.jsx": {
@@ -2370,9 +2370,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractsPage.jsx": {
-    "mtime": 1792700305.6940193,
-    "seen": 1792700675.0691938,
-    "ast_hash": "3b48ce7e610fe1a6293fe308731ca4ff",
+    "mtime": 1792767697.42679,
+    "seen": 1792768005.94666,
+    "ast_hash": "deb15e243d3d208a89f912e19a373d5a",
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/components/ConceptDialog.jsx": {
@@ -2442,27 +2442,27 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contracts.controller.js": {
-    "mtime": 1792765670.7836843,
-    "seen": 1792766797.9145591,
-    "ast_hash": "421256eca57ce1baf8bb57b47c8848e6",
+    "mtime": 1792767639.5780287,
+    "seen": 1792768005.94704,
+    "ast_hash": "339b258bbf0196690c6c518c421427b3",
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contracts.routes.js": {
-    "mtime": 1792765685.8305585,
-    "seen": 1792766797.9145603,
-    "ast_hash": "40b8cc82eae42b55aa78e9c4e0b6d629",
+    "mtime": 1792767641.05044,
+    "seen": 1792768005.9470413,
+    "ast_hash": "c38393b968afc525864c0138c9d15319",
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contracts.service.js": {
-    "mtime": 1792765668.6098542,
-    "seen": 1792766797.9145613,
-    "ast_hash": "4c1b53532c0217ecb9e7b2433ff3bec0",
+    "mtime": 1792767615.5079231,
+    "seen": 1792768005.9470422,
+    "ast_hash": "d7850ece57217bc7a450710fc3613ec5",
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contracts.validation.js": {
-    "mtime": 1792765684.3152266,
-    "seen": 1792766797.9145622,
-    "ast_hash": "a5d6fa4b70fe97a6102001f67ef4ff70",
+    "mtime": 1792767617.6427977,
+    "seen": 1792768005.9470434,
+    "ast_hash": "82a3a58a3ac656daefc5ae2a31967ead",
     "semantic_hash": ""
   },
   "server/test/modules/work/contracts/contractConcepts.service.test.js": {
@@ -2484,9 +2484,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/work/contracts/contracts.service.test.js": {
-    "mtime": 1792759777.4496582,
-    "seen": 1792764934.6338549,
-    "ast_hash": "2995f192ab41ecf25a5a232fb745b907",
+    "mtime": 1792767665.2469387,
+    "seen": 1792768005.9471393,
+    "ast_hash": "6cec2352904d7ab28caa1d1e4ae14329",
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/components/configurableFields.jsx": {
