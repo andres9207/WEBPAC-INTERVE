@@ -659,6 +659,38 @@ describe("paginationContracts", () => {
     expect(prismaMock.tbl_contracts.findMany.mock.calls[1][0].where.AND).toContainEqual({ ctr_id: { in: [41] } });
   });
 
+  it("anticipo: por saldo, los contratos que resolvió el controller; por aprobar, con facturas registradas de anticipo o amortización", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+
+    await service.paginationContracts({ advance: "TO_AMORTIZE", advanceCtrIds: [41, 42], canViewInvoices: true });
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where.AND).toContainEqual({ ctr_id: { in: [41, 42] } });
+
+    // Sin contratos que cumplan, ninguno (no "sin filtro").
+    await service.paginationContracts({ advance: "AMORTIZED", advanceCtrIds: [], canViewInvoices: true });
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[1][0].where.AND).toContainEqual({ ctr_id: { in: [] } });
+
+    await service.paginationContracts({ advance: "PENDING", canViewInvoices: true });
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[2][0].where.AND).toContainEqual({
+      tbl_invoices: {
+        some: {
+          sta_id: { not: 3 },
+          inv_state: "REGISTERED",
+          OR: [
+            { inv_type: "ADVANCE" },
+            { inv_type: { in: ["NORMAL", "LIQUIDATION"] }, tbl_invoice_liquidation_details: { ild_amortization: { gt: 0 } } },
+          ],
+        },
+      },
+    });
+  });
+
+  it("anticipo: sin el permiso de ver facturas, 403", async () => {
+    await expect(service.paginationContracts({ advance: "PENDING" })).rejects.toMatchObject({ statusCode: 403 });
+    expect(prismaMock.tbl_contracts.findMany).not.toHaveBeenCalled();
+  });
+
   it("estado de pólizas: sin permiso de ver pólizas, 403; un estado desconocido, 400", async () => {
     await expect(service.paginationContracts({ policyStatus: "EXPIRED" })).rejects.toMatchObject({ statusCode: 403 });
     await expect(service.paginationContracts({ policyStatus: "OTHER", canViewPolicies: true })).rejects.toMatchObject({ statusCode: 400 });

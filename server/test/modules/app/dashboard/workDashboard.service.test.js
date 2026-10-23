@@ -59,7 +59,7 @@ const prismaMock = {
 
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
 
-const { getWorkDashboard } = await import("../../../../src/modules/app/dashboard/workDashboard.service.js");
+const { advanceLevel, getWorkDashboard } = await import("../../../../src/modules/app/dashboard/workDashboard.service.js");
 
 const WORKS = 52;
 const PROVIDERS = 60;
@@ -178,12 +178,53 @@ describe("getWorkDashboard", () => {
     expect(work.managers).toEqual([{ name: "Laura Gómez", role: "MAIN" }]);
     // 1000 + 500 de costo directo, sin AIU ni IVA; anticipo 10 % y retenido 5 % de la base.
     expect(item).toMatchObject({ currentValue: "1500.00", stateName: "En ejecución", stageName: "Cimentación" });
-    expect(item.advance).toEqual({ agreed: "150.00", invoiced: "75.00", amortized: "30.00", toAmortize: "45.00", invoicedPct: "50.00", amortizedPct: "20.00" });
+    // Facturado frente al pactado; amortizado frente al facturado.
+    expect(item.advance).toMatchObject({ agreed: "150.00", invoiced: "75.00", amortized: "30.00", toAmortize: "45.00", invoicedPct: "50.00", amortizedPct: "40.00" });
+    expect(item.advance.bars).toEqual({
+      invoiced: { approved: "75.00", pending: "0.00", total: "75.00", approvedPct: "50.00", pct: "50.00", level: "MEDIUM" },
+      amortized: { approved: "30.00", pending: "0.00", total: "30.00", approvedPct: "40.00", pct: "40.00", level: "LOW" },
+    });
     expect(item.retention).toEqual({ agreed: "75.00", retained: "20.00", refunded: "5.00", balance: "15.00" });
     expect(contracts).toMatchObject({ total: 1, contracted: "1500.00", contractedPct: "50.00" });
     expect(contracts.retention).toEqual({ retained: "20.00", balance: "15.00", balancePct: "75.00" });
     expect(contracts.withRetentionBalance).toEqual([{ ctrId: 20, number: "C-1", balance: "15.00", stateName: "En ejecución" }]);
     expect(contracts.byState.find((s) => s.state === "IN_PROGRESS")).toMatchObject({ count: 1, value: "1500.00", countPct: "100.00" });
+  });
+
+  it("barras de anticipo: suman lo por aprobar, que no mueve los saldos, y el nivel sale del total", async () => {
+    // La primera consulta de facturas es la de lo por aprobar de los contratos; la segunda y la tercera, el bloque de facturas.
+    prismaMock.tbl_invoices.findMany.mockResolvedValueOnce([
+      { ctr_id: 20, tbl_invoice_advance_details: { iad_value: "60.00" }, tbl_invoice_liquidation_details: null },
+      { ctr_id: 20, tbl_invoice_advance_details: null, tbl_invoice_liquidation_details: { ild_amortization: "120.00" } },
+      { ctr_id: 99, tbl_invoice_advance_details: { iad_value: "500.00" }, tbl_invoice_liquidation_details: null },
+    ]);
+    const { contracts } = await getWorkDashboard({ granted: new Set([CONTRACTS]), scope: OWN });
+    const { advance } = contracts.items[0];
+
+    expect(prismaMock.tbl_invoices.findMany.mock.calls[0][0].where).toEqual({
+      wrk_id: 8,
+      sta_id: { not: 3 },
+      ctr_id: { not: null },
+      inv_state: "REGISTERED",
+      inv_type: { in: ["ADVANCE", "NORMAL", "LIQUIDATION"] },
+    });
+    // Los saldos no cambian: solo cuentan las aprobadas.
+    expect(advance).toMatchObject({ invoiced: "75.00", amortized: "30.00", toAmortize: "45.00" });
+    // (75 + 60) / 150 = 90 %: alto. (30 + 120) / (75 + 60) = 111,11 %: excedido.
+    expect(advance.bars.invoiced).toEqual({ approved: "75.00", pending: "60.00", total: "135.00", approvedPct: "50.00", pct: "90.00", level: "HIGH" });
+    expect(advance.bars.amortized).toEqual({ approved: "30.00", pending: "120.00", total: "150.00", approvedPct: "22.22", pct: "111.11", level: "EXCEEDED" });
+  });
+
+  it.each([
+    ["0", "LOW"],
+    ["49.99", "LOW"],
+    ["50", "MEDIUM"],
+    ["79.99", "MEDIUM"],
+    ["80", "HIGH"],
+    ["100", "HIGH"],
+    ["100.01", "EXCEEDED"],
+  ])("nivel de una barra de anticipo: %s %% es %s", (percent, level) => {
+    expect(advanceLevel(percent)).toBe(level);
   });
 
   it("pólizas: la categoría del tablero general, la póliza que la decide y los conceptos sin póliza", async () => {

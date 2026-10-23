@@ -843,6 +843,19 @@ describe("listado", () => {
     expect(results[1]).toMatchObject({ value: null, discount: null, vatPct: null, vat: null, total: null });
   });
 
+  test.each([
+    ["ADVANCE", { inv_type: "ADVANCE" }],
+    ["AMORTIZATION", { inv_type: { in: ["NORMAL", "LIQUIDATION"] }, tbl_invoice_liquidation_details: { ild_amortization: { gt: 0 } } }],
+    ["PENDING_ADVANCE", { inv_state: "REGISTERED", inv_type: "ADVANCE" }],
+    [
+      "PENDING_AMORTIZATION",
+      { inv_state: "REGISTERED", inv_type: { in: ["NORMAL", "LIQUIDATION"] }, tbl_invoice_liquidation_details: { ild_amortization: { gt: 0 } } },
+    ],
+  ])("filtro Anticipo %s, también en los conteos de las pestañas", async (advance, condition) => {
+    await service.paginationInvoices({ advance });
+    expect(prismaMock.tbl_invoices.groupBy.mock.calls.at(-1)[0].where.AND).toContainEqual(condition);
+  });
+
   test("filtra por etapa, nombre del contrato y rangos de valor, descuento y % IVA en el detalle de cada tipo, también en los conteos", async () => {
     await service.paginationInvoices({ stageName: " Torre ", contractName: "obra gris", valueFrom: "500", valueTo: "2000.5", discountTo: "0", vatPctFrom: "19" });
 

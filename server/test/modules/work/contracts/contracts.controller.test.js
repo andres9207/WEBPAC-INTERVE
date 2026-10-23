@@ -29,6 +29,9 @@ jest.unstable_mockModule("../../../../src/modules/work/contracts/contractSuspens
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractPolicies.service.js", () => policiesServiceMock);
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractReports.service.js", () => ({ exportContractReport, exportContractSummary }));
 jest.unstable_mockModule("../../../../src/common/services/effectivePermissions.service.js", () => ({ getEffectivePermissionIds }));
+// Filtro "Anticipo": los contratos que cumplen el saldo los resuelve el service de facturas.
+const contractIdsByAdvance = jest.fn(async () => null);
+jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.service.js", () => ({ contractIdsByAdvance }));
 // Alcance por obra (DEC-047): el controller lo resuelve y lo pasa al service.
 const SCOPE = Object.freeze({ all: false, wrkId: 8 });
 const workScopeOf = jest.fn(async () => SCOPE);
@@ -36,7 +39,14 @@ jest.unstable_mockModule("../../../../src/common/services/workScope.service.js",
 jest.unstable_mockModule("../../../../src/common/configs/socket.manager.js", () => ({ getIO: () => ({ emit }) }));
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: {} }));
 
-const { saveContractController, createAmendmentController, suspendContractController, exportContractsController, exportContractController } = await import(
+const {
+  paginationContractsController,
+  saveContractController,
+  createAmendmentController,
+  suspendContractController,
+  exportContractsController,
+  exportContractController,
+} = await import(
   "../../../../src/modules/work/contracts/contracts.controller.js"
 );
 
@@ -52,6 +62,24 @@ const KEY = "3f2b8c1e-5d4a-4e6b-9a7c-1b2d3e4f5a6b";
 beforeEach(() => jest.clearAllMocks());
 
 describe("contracts.controller", () => {
+  describe("filtro Anticipo del listado", () => {
+    it("con el permiso de ver facturas, resuelve los contratos por saldo con el alcance y los pasa al service", async () => {
+      getEffectivePermissionIds.mockResolvedValueOnce([115]);
+      contractIdsByAdvance.mockResolvedValueOnce([41]);
+      await paginationContractsController(mockReq({ user: { useId: 7, proId: 2 }, body: { advance: "TO_AMORTIZE" } }), buildRes(), jest.fn());
+      expect(contractIdsByAdvance).toHaveBeenCalledWith(expect.objectContaining({ advance: "TO_AMORTIZE", scope: SCOPE }));
+      expect(contractsServiceMock.paginationContracts).toHaveBeenCalledWith(
+        expect.objectContaining({ advance: "TO_AMORTIZE", canViewInvoices: true, advanceCtrIds: [41], scope: SCOPE })
+      );
+    });
+
+    it("sin el permiso, no calcula saldos: el service responde 403", async () => {
+      await paginationContractsController(mockReq({ user: { useId: 7, proId: 2 }, body: { advance: "TO_AMORTIZE" } }), buildRes(), jest.fn());
+      expect(contractIdsByAdvance).not.toHaveBeenCalled();
+      expect(contractsServiceMock.paginationContracts).toHaveBeenCalledWith(expect.objectContaining({ advance: "TO_AMORTIZE", canViewInvoices: false }));
+    });
+  });
+
   // Reportes (DEC-070): sin `report`, el listado; con "control" o "advances",
   // los de control, con las cifras de facturas si el usuario puede verlas (DEC-074).
   describe("exportContracts", () => {

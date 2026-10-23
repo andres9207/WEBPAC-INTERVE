@@ -12,6 +12,7 @@ import {
 } from "../../../common/utils/validation.utils.js";
 import { INVOICE_STATES, INVOICE_TYPES, hasContract } from "./invoiceTerms.js";
 import { SIMPLE_PAIRS } from "./simpleInvoiceTerms.js";
+import { INVOICE_ADVANCE_FILTERS } from "./advanceFilters.js";
 import { CONTRACT_PAIRS } from "./contractInvoiceTerms.js";
 import { decimal } from "../../../common/utils/money.utils.js";
 
@@ -55,6 +56,8 @@ export const paginationInvoicesSchema = [
   optionalText("contractName", 200),
   ...["valueFrom", "valueTo", "discountFrom", "discountTo"].map((field) => moneyRule(field, `filtro ${field}`, { optional: true })),
   ...["vatPctFrom", "vatPctTo"].map((field) => percentRule(field, `filtro ${field}`, { optional: true })),
+  // Anticipo, amortización y lo por aprobar de los dos.
+  body("advance").optional({ values: "falsy" }).isIn(Object.values(INVOICE_ADVANCE_FILTERS)).withMessage("El filtro de anticipo no es válido."),
 ];
 
 const menuQuery = () => query("pvtId").isInt({ min: 1 }).withMessage("pvtId es obligatorio: el menú de facturas.");

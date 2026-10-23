@@ -11,6 +11,7 @@ import * as suspensionsService from "./contractSuspensions.service.js";
 import * as policiesService from "./contractPolicies.service.js";
 import { exportContractReport, exportContractSummary } from "./contractReports.service.js";
 import { getContractMenu } from "./contractMenus.js";
+import { contractIdsByAdvance } from "../../billing/invoices/invoices.service.js";
 import { CONCEPT_PAIRS } from "./contractTerms.js";
 
 // Solo leen la petición y delegan. El autor sale de req.user (DEC-005); la
@@ -47,7 +48,7 @@ const ACT_FIELDS = ["startDate", "description", ...CONCEPT_FIELDS];
 // efectivos, leídos una vez por petición.
 const listFiltersOf = (req, granted) => {
   const { search, state, states, wrkId, wksId, cttId, prvId, pvtId, number, name, providerName, endDateFrom, endDateTo, sortField, sortOrder } = req.body;
-  const { policyStatus, uncovered } = req.body;
+  const { policyStatus, uncovered, advance } = req.body;
   // Siempre: la pestaña "Pólizas por vencer" se cuenta solo para quien puede ver pólizas (DEC-072).
   const canViewPolicies = granted.has(PERMISSIONS.work.policies.view);
   return {
@@ -55,6 +56,8 @@ const listFiltersOf = (req, granted) => {
     policyStatus,
     uncovered: uncovered === true || uncovered === "true",
     canViewPolicies,
+    advance,
+    canViewInvoices: granted.has(PERMISSIONS.billing.invoices.view),
     state,
     states,
     wrkId,
@@ -72,9 +75,15 @@ const listFiltersOf = (req, granted) => {
   };
 };
 
+// Los filtros (con su alcance) y, si filtran por el saldo de anticipo, los
+// contratos que lo cumplen (contractIdsByAdvance; solo con el permiso de ver
+// facturas: sin él, el service responde 403).
+const withAdvance = async (filters) => (filters.canViewInvoices ? { ...filters, advanceCtrIds: await contractIdsByAdvance(filters) } : filters);
+
 export const paginationContractsController = handle(async (req) => {
   const granted = new Set(await getEffectivePermissionIds(req.user));
-  return contractsService.paginationContracts({ ...listFiltersOf(req, granted), scope: await workScopeOf(req), rows: req.body.rows, first: req.body.first });
+  const filters = await withAdvance({ ...listFiltersOf(req, granted), scope: await workScopeOf(req) });
+  return contractsService.paginationContracts({ ...filters, rows: req.body.rows, first: req.body.first });
 });
 
 // Reporte del listado (DEC-070): responde el archivo, no JSON.
@@ -83,7 +92,7 @@ export const paginationContractsController = handle(async (req) => {
 export const exportContractsController = handleExport(async (req) => {
   const { format, report } = req.body;
   const granted = new Set(await getEffectivePermissionIds(req.user));
-  const filters = { ...listFiltersOf(req, granted), scope: await workScopeOf(req), format };
+  const filters = { ...(await withAdvance({ ...listFiltersOf(req, granted), scope: await workScopeOf(req) })), format };
   if (!report || report === "list") return contractsService.exportContracts(filters);
   return exportContractReport({ ...filters, report, seesInvoices: granted.has(PERMISSIONS.billing.invoices.view) });
 });

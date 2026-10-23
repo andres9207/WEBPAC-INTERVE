@@ -11,6 +11,7 @@ import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudi
 import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
 import { assertProviderInScope, providerSelectOptions } from "../providers/providers.service.js";
 import { isContractMode, isSimpleMode } from "../../billing/invoices/invoiceMenus.js";
+import { CONTRACT_ADVANCE_FILTERS, CONTRACT_ADVANCE_FILTER_NAMES, contractsWithPendingAdvanceWhere } from "../../billing/invoices/advanceFilters.js";
 import { resolveContractTypeFields } from "../../admin/providerTypes/providerTypeFields.service.js";
 import { FIELD_GROUPS, enforceFields, typeAppliesAiu, withContractAiu } from "../../admin/providerTypes/contractFields.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
@@ -399,6 +400,19 @@ export const selectContractFilterStages = async ({ search, includeWksId, scope }
 };
 
 /**
+ * Filtro "Anticipo" (advanceFilters.js). Revela importes de facturas, así que
+ * exige poder verlas (`canViewInvoices`). "Por aprobar" es una condición
+ * sobre las facturas del contrato; los demás salen de sus saldos, que el
+ * controller resuelve (`contractIdsByAdvance`) y llegan en `advanceCtrIds`.
+ */
+const advanceWhereOf = ({ advance, advanceCtrIds, canViewInvoices }) => {
+  if (!advance) return null;
+  if (!canViewInvoices) throw httpError(403, "Filtrar por el anticipo exige el permiso de ver facturas.");
+  if (advance === CONTRACT_ADVANCE_FILTERS.PENDING) return contractsWithPendingAdvanceWhere();
+  return { ctr_id: { in: advanceCtrIds ?? [] } };
+};
+
+/**
  * Contratos no eliminados, paginados. `state` filtra por estado del ciclo de
  * vida (las pestañas), `wrkId`, por obra (la pestaña de la obra), `cttId`,
  * por tipo de contrato, `prvId`, por proveedor, y `pvtId`, por el tipo de
@@ -426,6 +440,9 @@ export const contractListQuery = async ({
   policyStatus,
   uncovered,
   canViewPolicies = false,
+  advance,
+  advanceCtrIds = null,
+  canViewInvoices = false,
   state,
   states,
   wrkId,
@@ -446,6 +463,7 @@ export const contractListQuery = async ({
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
   if ((policyStatus || uncovered || state === POLICIES_EXPIRING_TAB) && !canViewPolicies)
     throw httpError(403, "Filtrar por el estado de las pólizas exige el permiso de ver pólizas.");
+  const advanceFilter = advanceWhereOf({ advance, advanceCtrIds, canViewInvoices });
   const policyFilters = uncovered ? [uncoveredContractsWhere()] : [];
   if (policyStatus) {
     // La categoría sale de la regla única (DEC-064), sobre los contratos del alcance.
@@ -470,6 +488,7 @@ export const contractListQuery = async ({
       containsFilter(name, (c) => ({ ctr_name: c })),
       dateRangeFilter("ctr_end_date", endDateFrom, endDateTo),
       ...policyFilters,
+      advanceFilter,
     ]),
   };
   // "A vencer" y "Pólizas por vencer" (DEC-072): los predicados del aviso, con los días de cada regla de
@@ -533,6 +552,7 @@ export const exportFilterLines = async ({
   endDateTo,
   policyStatus,
   uncovered,
+  advance,
 }) => {
   const [work, stage, type, provider, menu] = await Promise.all([
     Number(wrkId) > 0 ? prisma.tbl_works.findUnique({ where: { wrk_id: Number(wrkId) }, select: { wrk_code: true, wrk_name: true } }) : null,
@@ -555,6 +575,7 @@ export const exportFilterLines = async ({
     ["Fecha fin", endDateFrom || endDateTo ? `${endDateFrom || "…"} a ${endDateTo || "…"}` : ""],
     ["Pólizas", policyStatus ? (CONTRACT_POLICY_STATUS_NAMES[policyStatus] ?? policyStatus) : ""],
     ["Conceptos sin póliza", uncovered ? "Sí" : ""],
+    ["Anticipo", advance ? (CONTRACT_ADVANCE_FILTER_NAMES[advance] ?? advance) : ""],
   ].filter(([, value]) => value);
   return [`Filtros: ${lines.map(([label, value]) => `${label}: ${value}`).join(" · ")}`];
 };

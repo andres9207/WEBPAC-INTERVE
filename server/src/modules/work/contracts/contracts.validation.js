@@ -1,3 +1,4 @@
+import { CONTRACT_ADVANCE_FILTERS } from "../../billing/invoices/advanceFilters.js";
 import { body, query } from "express-validator";
 import {
   paginationRules,
@@ -91,6 +92,8 @@ export const paginationContractsSchema = [
   // Filtros del tablero (DEC-052): el mismo predicado que la cifra.
   body("policyStatus").optional({ values: "falsy" }).isIn(Object.values(CONTRACT_POLICY_STATUS)).withMessage("El estado de pólizas no es válido."),
   body("uncovered").optional({ values: "falsy" }).isBoolean().withMessage("uncovered debe ser verdadero o falso."),
+  // Anticipo: por sus saldos o con facturas por aprobar.
+  body("advance").optional({ values: "falsy" }).isIn(Object.values(CONTRACT_ADVANCE_FILTERS)).withMessage("El filtro de anticipo no es válido."),
 ];
 
 // Reporte del listado (DEC-070): los mismos filtros, y el formato.

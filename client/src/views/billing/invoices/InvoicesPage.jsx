@@ -18,6 +18,7 @@ import { useWorkFilterField } from 'contexts/WorkScopeContext';
 import { fDateOnly } from 'utils/formatTime';
 import { fMoneyText, fPercentText } from 'utils/formatNumber';
 import {
+  INVOICE_ADVANCE_FILTER_OPTIONS,
   INVOICE_MODES,
   INVOICE_MODE_TYPES,
   INVOICE_STATE_COLORS,
@@ -181,6 +182,8 @@ const AMOUNT_FILTERS = [
 const simpleFilters = (pvtId) => [...commonFilters(pvtId), ...AMOUNT_FILTERS];
 const contractFilters = (pvtId) => [
   { key: 'type', type: 'dropdown', label: 'Tipo de factura', props: { options: CONTRACT_TYPE_OPTIONS }, grid: { xs: 12, sm: 6 } },
+  // Anticipo, amortización y lo por aprobar de los dos (con la pestaña "Registrada", lo mismo).
+  { key: 'advance', type: 'dropdown', label: 'Anticipo', props: { options: INVOICE_ADVANCE_FILTER_OPTIONS }, grid: { xs: 12, sm: 6 } },
   { key: 'contractNumber', type: 'input', label: 'Número de contrato', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
   { key: 'contractName', type: 'input', label: 'Contrato (nombre)', props: { maxLength: 200 } },
   ...commonFilters(pvtId),

@@ -111,6 +111,23 @@ export const INVOICE_TYPE_OPTIONS = [
 
 const CONTRACT_INVOICE_TYPES = ['ADVANCE', 'NORMAL', 'LIQUIDATION', 'RETENTION_REFUND'];
 
+// Filtro "Anticipo" de los listados (advanceFilters.js del servidor). "Por
+// aprobar": las facturas registradas, que todavía no mueven los saldos.
+export const INVOICE_ADVANCE_FILTER_OPTIONS = [
+  { value: 'ADVANCE', label: 'Anticipo' },
+  { value: 'AMORTIZATION', label: 'Con amortización' },
+  { value: 'PENDING', label: 'Anticipo o amortización por aprobar' },
+  { value: 'PENDING_ADVANCE', label: 'Anticipo por aprobar' },
+  { value: 'PENDING_AMORTIZATION', label: 'Amortización por aprobar' }
+];
+export const CONTRACT_ADVANCE_FILTER_OPTIONS = [
+  { value: 'WITH_ADVANCE', label: 'Con anticipo pactado' },
+  { value: 'TO_INVOICE', label: 'Anticipo por facturar' },
+  { value: 'TO_AMORTIZE', label: 'Anticipo por amortizar' },
+  { value: 'AMORTIZED', label: 'Anticipo amortizado por completo' },
+  { value: 'PENDING', label: 'Anticipo o amortización por aprobar' }
+];
+
 // Facturan el valor del contrato (DEC-071): VALOR antes de IVA, amortización
 // del anticipo y retenido. La normal, en ejecución; la liquidación, al final.
 export const isBillingInvoiceType = (type) => type === 'NORMAL' || type === 'LIQUIDATION';

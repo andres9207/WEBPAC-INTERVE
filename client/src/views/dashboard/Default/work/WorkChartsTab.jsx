@@ -638,15 +638,39 @@ InvoicedByContract.propTypes = {
   onDrill: PropTypes.func.isRequired
 };
 
-function Advances({ contracts }) {
+// Nivel de una barra de anticipo (lo decide el servidor por su porcentaje con lo por aprobar): color y nombre.
+// El nombre y la cifra van en texto junto a la barra: el amarillo y el verde no llegan a 3:1 sobre el fondo
+// (DESIGN_SYSTEM, "Gráficos"), así que el color no es la única señal.
+const ADVANCE_LEVELS = {
+  LOW: { color: 'primary.800', name: 'Menos de 50 %' },
+  MEDIUM: { color: 'warning.dark', name: '50 % a 80 %' },
+  HIGH: { color: 'success.dark', name: '80 % a 100 %' },
+  EXCEEDED: { color: 'error.dark', name: 'Más de 100 %' }
+};
+// Lo por aprobar: la misma barra, rayada (forma, no opacidad).
+const pendingStripes = (color) => `repeating-linear-gradient(135deg, ${color} 0 4px, transparent 4px 8px)`;
+
+/** Barra de anticipo: lo aprobado relleno y lo por aprobar rayado; por encima de 100 %, con la marca del 100 %. */
+function AdvanceBar({ label, bar, onClick }) {
   const palette = useSchemePalette();
-  const list = contracts.filter((c) => c.advance.agreed !== '0.00');
-  const row = (label, value, percent, color) => (
+  const level = ADVANCE_LEVELS[bar.level] ?? ADVANCE_LEVELS.LOW;
+  const color = paletteColor(palette, level.color);
+  const scale = Math.max(100, chartAmount(bar.pct));
+  const approved = (Math.max(0, chartAmount(bar.approvedPct)) / scale) * 100;
+  const pending = (Math.max(0, chartAmount(bar.pct) - chartAmount(bar.approvedPct)) / scale) * 100;
+  const hasPending = bar.pending !== '0.00';
+  const description = [
+    `${label}: ${fMoneyText(bar.total)}, ${fPercentText(bar.pct, 1)} (${level.name.toLowerCase()})`,
+    hasPending && `incluye ${fMoneyText(bar.pending)} por aprobar`
+  ]
+    .filter(Boolean)
+    .join(', ');
+  return (
     // En el teléfono la cifra baja a su propia línea: la barra conserva el ancho.
     <Box
       sx={{
         display: 'grid',
-        gridTemplateColumns: { xs: '80px minmax(0, 1fr)', sm: '90px minmax(0, 1fr) 150px' },
+        gridTemplateColumns: { xs: '80px minmax(0, 1fr)', sm: '90px minmax(0, 1fr) 170px' },
         columnGap: 1.25,
         rowGap: 0.25,
         alignItems: 'center'
@@ -655,28 +679,122 @@ function Advances({ contracts }) {
       <Typography variant="caption" color="text.secondary">
         {label}
       </Typography>
-      <LinearProgress
-        variant="determinate"
-        value={barPercent(percent)}
-        aria-label={`${label}: ${fPercentText(percent, 1)}`}
-        sx={{
-          height: 10,
-          borderRadius: 1,
-          bgcolor: 'grey.100',
-          '& .MuiLinearProgress-bar': { bgcolor: paletteColor(palette, color), borderRadius: 1 }
-        }}
-      />
-      <Typography variant="caption" sx={{ ...num, textAlign: 'right', fontWeight: 500, gridColumn: { xs: 2, sm: 'auto' } }}>
-        {fMillions(value)} · {fPercentText(percent, 1)}
-      </Typography>
+      <Tooltip title={description}>
+        <Box
+          // Con detalle es un botón (con su nombre); sin él, una imagen descrita.
+          role={onClick ? undefined : 'img'}
+          aria-label={description}
+          {...(onClick && { component: ButtonBase, onClick })}
+          sx={{
+            position: 'relative',
+            display: 'flex',
+            width: '100%',
+            height: 12,
+            borderRadius: 1,
+            overflow: 'hidden',
+            bgcolor: 'grey.100',
+            ...(onClick && { cursor: 'pointer', '&:hover, &.Mui-focusVisible': { outline: 2, outlineColor: 'primary.main' } })
+          }}
+        >
+          {/* Dentro de un botón, solo elementos en línea (span). */}
+          <Box component="span" sx={{ height: '100%', width: `${approved}%`, bgcolor: color }} />
+          {pending > 0 && <Box component="span" sx={{ height: '100%', width: `${pending}%`, backgroundImage: pendingStripes(color) }} />}
+          {scale > 100 && (
+            <Box
+              component="span"
+              sx={{ position: 'absolute', top: 0, bottom: 0, left: `${(100 / scale) * 100}%`, width: 2, bgcolor: 'text.primary' }}
+            />
+          )}
+        </Box>
+      </Tooltip>
+      <Stack sx={{ gridColumn: { xs: 2, sm: 'auto' }, textAlign: { xs: 'left', sm: 'right' } }}>
+        <Typography variant="caption" sx={{ ...num, fontWeight: 500 }}>
+          {fMillions(bar.total)} · {fPercentText(bar.pct, 1)}
+        </Typography>
+        {(hasPending || bar.level === 'EXCEEDED') && (
+          <Typography variant="caption" color={bar.level === 'EXCEEDED' ? 'error.dark' : 'text.secondary'} sx={num}>
+            {[hasPending && `${fMillions(bar.pending)} por aprobar`, bar.level === 'EXCEEDED' && 'excede'].filter(Boolean).join(' · ')}
+          </Typography>
+        )}
+      </Stack>
     </Box>
   );
+}
+
+AdvanceBar.propTypes = { label: PropTypes.string.isRequired, bar: PropTypes.object.isRequired, onClick: PropTypes.func };
+
+function AdvanceLegend() {
+  const palette = useSchemePalette();
   return (
-    <MainCard title={<CardTitle title="Anticipos" sub="Facturado y amortizado frente al anticipo pactado" />} sx={{ height: '100%' }}>
+    <Stack direction="row" useFlexGap flexWrap="wrap" columnGap={2} rowGap={0.5}>
+      {Object.values(ADVANCE_LEVELS).map((level) => (
+        <Stack key={level.name} direction="row" spacing={0.75} alignItems="center">
+          <Swatch color={paletteColor(palette, level.color)} />
+          <Typography variant="caption" color="text.secondary">
+            {level.name}
+          </Typography>
+        </Stack>
+      ))}
+      <Stack direction="row" spacing={0.75} alignItems="center">
+        <Box
+          component="span"
+          aria-hidden
+          sx={{ width: 12, height: 12, borderRadius: 0.75, backgroundImage: pendingStripes(paletteColor(palette, 'grey.600')) }}
+        />
+        <Typography variant="caption" color="text.secondary">
+          Por aprobar
+        </Typography>
+      </Stack>
+    </Stack>
+  );
+}
+
+/**
+ * Detalle de una barra de anticipo: las facturas de las que sale, aprobadas y por aprobar. El anticipo, por
+ * su valor; la amortización, por lo que amortiza cada normal o liquidación.
+ */
+const advanceDrill = (items, contract, kind) => {
+  const own = items.filter((inv) => inv.ctrId === contract.ctrId);
+  if (kind === 'invoiced')
+    return {
+      title: `Anticipo facturado · contrato ${contract.number}`,
+      subtitle: 'Facturas de anticipo registradas y aprobadas',
+      total: contract.advance.bars.invoiced.total,
+      noun: INVOICE_NOUN,
+      rows: invoiceRows(own.filter((inv) => inv.type === 'ADVANCE')),
+      emptyText: 'El contrato no tiene facturas de anticipo.'
+    };
+  return {
+    title: `Anticipo amortizado · contrato ${contract.number}`,
+    subtitle: 'Facturas que amortizan, registradas y aprobadas',
+    total: contract.advance.bars.amortized.total,
+    noun: INVOICE_NOUN,
+    rows: invoiceRows(
+      own.filter((inv) => inv.amortization && inv.amortization !== '0.00').map((inv) => ({ ...inv, value: inv.amortization }))
+    ),
+    emptyText: 'Ninguna factura del contrato amortiza anticipo.'
+  };
+};
+
+function Advances({ contracts, invoices, onDrill }) {
+  const list = contracts.filter((c) => c.advance.agreed !== '0.00');
+  // Sin el permiso de ver facturas no hay filas para el detalle: las barras no se abren.
+  const drill = (c, kind) => invoices && (() => onDrill(advanceDrill(invoices.items, c, kind)));
+  return (
+    <MainCard
+      title={
+        <CardTitle
+          title="Anticipos"
+          sub="Facturado frente al anticipo pactado y amortizado frente al facturado, con lo por aprobar (rayado)"
+        />
+      }
+      sx={{ height: '100%' }}
+    >
       {list.length === 0 ? (
         <Empty>Ningún contrato de la obra pacta anticipo.</Empty>
       ) : (
         <Stack spacing={2.5}>
+          <AdvanceLegend />
           {list.map((c) => (
             <Stack key={c.ctrId} spacing={1}>
               <Stack direction="row" justifyContent="space-between" spacing={1}>
@@ -687,8 +805,8 @@ function Advances({ contracts }) {
                   Pactado {fMoneyText(c.advance.agreed)}
                 </Typography>
               </Stack>
-              {row('Facturado', c.advance.invoiced, c.advance.invoicedPct, 'primary.800')}
-              {row('Amortizado', c.advance.amortized, c.advance.amortizedPct, 'cyan.main')}
+              <AdvanceBar label="Facturado" bar={c.advance.bars.invoiced} onClick={drill(c, 'invoiced')} />
+              <AdvanceBar label="Amortizado" bar={c.advance.bars.amortized} onClick={drill(c, 'amortized')} />
             </Stack>
           ))}
         </Stack>
@@ -697,7 +815,11 @@ function Advances({ contracts }) {
   );
 }
 
-Advances.propTypes = { contracts: PropTypes.arrayOf(PropTypes.object).isRequired };
+Advances.propTypes = {
+  contracts: PropTypes.arrayOf(PropTypes.object).isRequired,
+  invoices: PropTypes.object,
+  onDrill: PropTypes.func.isRequired
+};
 
 function ContractsByState({ contracts, onDrill }) {
   const theme = useTheme();
@@ -977,7 +1099,7 @@ export default function WorkChartsTab({ data }) {
           )}
           {contracts && (
             <Grid size={{ xs: 12, lg: invoices ? 5 : 12 }}>
-              <Advances contracts={contracts.items} />
+              <Advances contracts={contracts.items} invoices={invoices} onDrill={openDrill} />
             </Grid>
           )}
         </Grid>

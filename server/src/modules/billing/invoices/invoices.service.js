@@ -53,6 +53,7 @@ import {
   retentionDto,
 } from "./retentionTerms.js";
 import { INVOICE_MODES, SIMPLE_TYPE_WHERE, getInvoiceMenu, isContractMode, isSimpleMode } from "./invoiceMenus.js";
+import { CONTRACT_ADVANCE_FILTERS, INVOICE_ADVANCE_FILTER_NAMES, invoiceAdvanceWhere, matchesContractAdvance } from "./advanceFilters.js";
 import { BILLING_TYPES, assertBillingFits, billingBalances, billingDto, isBillingType } from "./billingTerms.js";
 import {
   SIMPLE_FIELDS,
@@ -347,6 +348,24 @@ export const contractsBalances = async (contracts) => {
       return [ctrId, { ...balances, paid }];
     })
   );
+};
+
+/**
+ * Contratos del alcance cuyo saldo de anticipo cumple el filtro "Anticipo"
+ * del listado de contratos (advanceFilters.js): con los mismos saldos del
+ * expediente y de los reportes (`contractsBalances`), sin guardar nada. null
+ * si el filtro no es de saldos (sin filtro, o "por aprobar", que se resuelve
+ * con una condición sobre las facturas). Lo llama el controller de contratos:
+ * su service no importa este módulo, que importa el suyo.
+ */
+export const contractIdsByAdvance = async ({ advance, scope }) => {
+  if (!advance || advance === CONTRACT_ADVANCE_FILTERS.PENDING) return null;
+  const contracts = await prisma.tbl_contracts.findMany({
+    where: { sta_id: { not: DELETED_STATUS }, ...scopeWhere(scope) },
+    select: { ctr_id: true, tbl_contract_concepts: { select: CONCEPT_SELECT } },
+  });
+  const balances = await contractsBalances(contracts);
+  return contracts.filter((c) => matchesContractAdvance(advance, balances.get(c.ctr_id).advance)).map((c) => c.ctr_id);
 };
 
 /**
@@ -1055,6 +1074,7 @@ const invoiceListQuery = ({
   discountTo,
   vatPctFrom,
   vatPctTo,
+  advance,
   sortField,
   sortOrder,
   scope,
@@ -1085,6 +1105,7 @@ const invoiceListQuery = ({
       amountRange(VALUE_COLUMNS, valueFrom, valueTo),
       amountRange(DISCOUNT_COLUMNS, discountFrom, discountTo),
       amountRange(VAT_PCT_COLUMNS, vatPctFrom, vatPctTo),
+      invoiceAdvanceWhere(advance),
     ]),
   };
   return { baseWhere, where: { ...baseWhere, ...(state ? { inv_state: state } : {}) }, orderBy };
@@ -1175,6 +1196,7 @@ const exportFilterLines = async ({
   discountTo,
   vatPctFrom,
   vatPctTo,
+  advance,
 }) => {
   const [work, provider] = await Promise.all([
     positiveId(wrkId) ? prisma.tbl_works.findUnique({ where: { wrk_id: positiveId(wrkId) }, select: { wrk_code: true, wrk_name: true } }) : null,
@@ -1198,6 +1220,7 @@ const exportFilterLines = async ({
     ["Valor", range(valueFrom, valueTo)],
     ["Descuento", range(discountFrom, discountTo)],
     ["IVA %", range(vatPctFrom, vatPctTo)],
+    ["Anticipo", advance ? (INVOICE_ADVANCE_FILTER_NAMES[advance] ?? advance) : ""],
   ].filter(([, value]) => value);
   return [`Filtros: ${lines.map(([label, value]) => `${label}: ${value}`).join(" · ")}`];
 };

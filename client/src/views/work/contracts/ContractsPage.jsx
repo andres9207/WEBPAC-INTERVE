@@ -24,7 +24,13 @@ import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField } from 'contexts/WorkScopeContext';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly } from 'utils/formatTime';
-import { CONTRACT_POLICY_STATUS_LABELS, CONTRACT_STATE_COLORS, CONTRACT_STATE_TABS, contractPath } from 'utils/constants';
+import {
+  CONTRACT_ADVANCE_FILTER_OPTIONS,
+  CONTRACT_POLICY_STATUS_LABELS,
+  CONTRACT_STATE_COLORS,
+  CONTRACT_STATE_TABS,
+  contractPath
+} from 'utils/constants';
 
 // Contratos (ADR-0015, DEC-035). Reutiliza el listado de MasterPage con
 // pestañas por el estado del ciclo de vida (en ejecución, suspendido, en
@@ -175,6 +181,14 @@ const FILTER_FIELDS = [
   },
   { key: 'endDate', type: 'calendar-range', label: 'Fecha fin' }
 ];
+// Anticipo: por sus saldos o con facturas por aprobar. Revela importes de facturas: solo con el permiso de verlas.
+const ADVANCE_FILTER = {
+  key: 'advance',
+  type: 'dropdown',
+  label: 'Anticipo',
+  props: { options: CONTRACT_ADVANCE_FILTER_OPTIONS },
+  grid: { xs: 12, sm: 6 }
+};
 
 /**
  * El menú de contratos de la ruta (DEC-077): `{ menu, error }`. Sin `pvtId`
@@ -208,7 +222,12 @@ export default function ContractsPage() {
   const basePath = contractPath(pvtId);
   const outletContext = useMemo(() => ({ returnTo: basePath, menu, refresh: () => setReloadKey((k) => k + 1) }), [basePath, menu]);
   const workFilter = useWorkFilterField();
-  const filterFields = useMemo(() => (workFilter ? [...FILTER_FIELDS, workFilter] : FILTER_FIELDS), [workFilter]);
+  const invoicesView = permissionsCatalog.billing?.invoices?.view;
+  const canViewInvoices = invoicesView != null && hasPermission(invoicesView);
+  const filterFields = useMemo(
+    () => [...FILTER_FIELDS, ...(canViewInvoices ? [ADVANCE_FILTER] : []), ...(workFilter ? [workFilter] : [])],
+    [canViewInvoices, workFilter]
+  );
   const linked = useLinkedFilters(LINKED_KEYS, describeLinked);
   const filters = useMemo(() => (pvtId ? { pvtId, ...linked.filters } : linked.filters), [pvtId, linked.filters]);
   const policiesView = permissionsCatalog.work?.policies?.view;

@@ -28,6 +28,7 @@ import { policyExpiringDays } from "../../admin/businessRules/businessRules.serv
 import { contractBalances } from "../../billing/invoices/invoices.service.js";
 import { openFollowUpsSummary } from "../../billing/invoices/invoiceFollowUps.service.js";
 import { composeSimpleInvoice } from "../../billing/invoices/simpleInvoiceTerms.js";
+import { BILLING_TYPES } from "../../billing/invoices/billingTerms.js";
 
 /**
  * Tablero de una obra (ADR-0002; propuesta B del tablero, DEC-063): la obra
@@ -56,6 +57,7 @@ const LATEST_ROWS = 5;
 const MONTHS = 12;
 
 const pct = (part, whole) => percentText(ratioPercent(part, whole));
+const ZERO_MONEY = decimal(0);
 const daysBetween = (from, to) => Math.round((to.getTime() - from.getTime()) / DAY_MS);
 
 // ─── Obra ────────────────────────────────────────────────────────────────────
@@ -176,14 +178,54 @@ const policyCounts = (policies, items, options) => {
   return { ...counts, withoutPolicy: items.filter((c) => c.policies.status === CONTRACT_POLICY_STATUS.NONE).length };
 };
 
-const balancesOf = ({ advance, retention }) => ({
+// Nivel de una barra de anticipo, por su porcentaje: hasta 50 % (sin incluir), bajo; hasta 80 %, medio;
+// hasta 100 % (incluido), alto; por encima, excedido.
+export const ADVANCE_LEVELS = Object.freeze({ LOW: "LOW", MEDIUM: "MEDIUM", HIGH: "HIGH", EXCEEDED: "EXCEEDED" });
+export const advanceLevel = (percent) => {
+  const value = decimal(percent);
+  if (value.gt(100)) return ADVANCE_LEVELS.EXCEEDED;
+  if (value.gte(80)) return ADVANCE_LEVELS.HIGH;
+  if (value.gte(50)) return ADVANCE_LEVELS.MEDIUM;
+  return ADVANCE_LEVELS.LOW;
+};
+
+/**
+ * Barra de anticipo: lo aprobado más lo por aprobar frente a `whole`. `pct`
+ * (el total, que decide el nivel) puede pasar de 100: eso avisa que, si se
+ * aprueba lo registrado, se excede; `approvedPct` es la parte aprobada sobre
+ * la misma base.
+ */
+const advanceBar = (approved, pending, whole) => {
+  const total = approved.plus(pending);
+  const percent = ratioPercent(total, whole);
+  return {
+    approved: moneyText(approved),
+    pending: moneyText(pending),
+    total: moneyText(total),
+    approvedPct: pct(approved, whole),
+    pct: percentText(percent),
+    level: advanceLevel(percent),
+  };
+};
+
+/**
+ * Saldos del contrato. `pending`: anticipo y amortización de sus facturas
+ * registradas (por aprobar), que no mueven los saldos (DEC-044) y solo se
+ * suman en las barras: facturado frente al anticipo pactado y amortizado
+ * frente al anticipo facturado, los dos con lo por aprobar.
+ */
+const balancesOf = ({ advance, retention }, pending = { invoiced: ZERO_MONEY, amortized: ZERO_MONEY }) => ({
   advance: {
     agreed: moneyText(advance.agreed),
     invoiced: moneyText(advance.invoiced),
     amortized: moneyText(advance.amortized),
     toAmortize: moneyText(advance.toAmortize),
     invoicedPct: pct(advance.invoiced, advance.agreed),
-    amortizedPct: pct(advance.amortized, advance.agreed),
+    amortizedPct: pct(advance.amortized, advance.invoiced),
+    bars: {
+      invoiced: advanceBar(advance.invoiced, pending.invoiced, advance.agreed),
+      amortized: advanceBar(advance.amortized, pending.amortized, advance.invoiced.plus(pending.invoiced)),
+    },
   },
   retention: {
     agreed: moneyText(retention.agreed),
@@ -192,6 +234,33 @@ const balancesOf = ({ advance, retention }) => ({
     balance: moneyText(retention.balance),
   },
 });
+
+/**
+ * Anticipo y amortización por aprobar de los contratos de la obra: las
+ * facturas registradas de anticipo y de facturación (BILLING_TYPES), por
+ * contrato. Map ctr_id → { invoiced, amortized }.
+ */
+const pendingAdvances = async (wrkId) => {
+  const rows = await prisma.tbl_invoices.findMany({
+    where: {
+      wrk_id: wrkId,
+      ...notDeleted,
+      ctr_id: { not: null },
+      inv_state: INVOICE_STATES.REGISTERED,
+      inv_type: { in: [INVOICE_TYPES.ADVANCE, ...BILLING_TYPES] },
+    },
+    select: { ctr_id: true, tbl_invoice_advance_details: { select: { iad_value: true } }, tbl_invoice_liquidation_details: { select: { ild_amortization: true } } },
+  });
+  const byContract = new Map();
+  for (const row of rows) {
+    const entry = byContract.get(row.ctr_id) ?? { invoiced: ZERO_MONEY, amortized: ZERO_MONEY };
+    byContract.set(row.ctr_id, {
+      invoiced: entry.invoiced.plus(decimal(row.tbl_invoice_advance_details?.iad_value)),
+      amortized: entry.amortized.plus(decimal(row.tbl_invoice_liquidation_details?.ild_amortization)),
+    });
+  }
+  return byContract;
+};
 
 /**
  * Contratos no eliminados de la obra, con su valor vigente, sus saldos de
@@ -239,6 +308,7 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
   // Las mismas sumas del expediente y de la conciliación (DEC-061): un
   // contrato por consulta, pocas por obra.
   const balances = await Promise.all(rows.map((row) => contractBalances(prisma, row.ctr_id)));
+  const pending = await pendingAdvances(wrkId);
 
   const items = rows.map((row, i) => {
     const totals = contractTotals(row.tbl_contract_concepts);
@@ -257,7 +327,7 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
       endDate: dateOnlyText(row.ctr_end_date),
       endDateProvisional: isEndDateProvisional(row.ctr_state),
       currentValue: moneyText(totals.value),
-      ...balancesOf(balances[i]),
+      ...balancesOf(balances[i], pending.get(row.ctr_id)),
       policies: withPolicies ? contractPolicies(sortConcepts(row.tbl_contract_concepts), own, policyOptions, conceptLabels) : null,
       _value: totals.value,
       _balances: balances[i],
@@ -313,7 +383,7 @@ const INVOICE_SELECT = {
   tbl_providers: { select: { prv_name: true } },
   tbl_contracts: { select: { ctr_number: true } },
   tbl_invoice_advance_details: { select: { iad_value: true } },
-  tbl_invoice_liquidation_details: { select: { ild_value: true } },
+  tbl_invoice_liquidation_details: { select: { ild_value: true, ild_amortization: true } },
   tbl_invoice_retention_refund_details: { select: { irr_value: true } },
   tbl_invoice_simple_details: true,
 };
@@ -343,6 +413,8 @@ const invoiceDto = (row) => ({
   stateName: INVOICE_STATE_NAMES[row.inv_state] ?? row.inv_state,
   providerName: row.tbl_providers?.prv_name ?? null,
   value: moneyText(invoiceValue(row)),
+  // Amortización de anticipo de la normal y la liquidación (DEC-044): el detalle de la barra "Amortizado".
+  amortization: moneyText(row.tbl_invoice_liquidation_details?.ild_amortization ?? null),
 });
 
 /** Los `MONTHS` meses que terminan en el de la fecha de referencia, como "AAAA-MM". */
