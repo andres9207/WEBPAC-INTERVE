@@ -70,11 +70,11 @@ const TABS = [
   { key: 'summary', label: 'Resumen' },
   { key: 'data', label: 'Datos del contrato', form: true },
   { key: 'value', label: 'Valor', newLabel: 'Valor inicial', form: true },
-  { key: 'history', label: 'Historial de estado' },
-  { key: 'suspensions', label: 'Suspensiones' },
   { key: 'policies', label: 'Pólizas', form: true },
   { key: 'invoices', label: 'Facturas' },
-  { key: 'documents', label: 'Documentos' }
+  { key: 'documents', label: 'Documentos' },
+  { key: 'suspensions', label: 'Suspensiones' },
+  { key: 'history', label: 'Historial de estado' }
 ];
 
 // Cambiar de contrato (o pasar de "nuevo" al creado) vuelve a montar la vista.
