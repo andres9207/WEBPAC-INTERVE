@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import InputAdornment from '@mui/material/InputAdornment';
 import TextField from '@mui/material/TextField';
@@ -7,7 +8,14 @@ import TextField from '@mui/material/TextField';
  * el valor del formulario es el texto que recibe el servidor (`12.5`), con
  * hasta tres enteros y dos decimales. El rango 0–100 lo valida quien lo usa
  * (y el servidor).
+ *
+ * Debounce: lo escrito pasa al formulario cuando se deja de escribir
+ * (`DEBOUNCE_MS`) o al salir del campo, para no validar a medio escribir. Un
+ * decimal sin terminar ("2,") se muestra, pero al formulario llega sin la
+ * coma ("2"): no es un error, falta el siguiente dígito.
  */
+const DEBOUNCE_MS = 400;
+
 const toValue = (text) =>
   text
     .replace(/[^\d,.]/g, '')
@@ -18,12 +26,48 @@ const toValue = (text) =>
 
 const toText = (value) => String(value ?? '').replace('.', ',');
 
+const complete = (value) => value.replace(/\.$/, '');
+
 export default function PercentField({ value, onChange, onBlur, label, required, error, helperText, disabled }) {
+  const [text, setText] = useState(toText(value));
+  const timer = useRef(null);
+  // Último valor entregado al formulario: un `value` distinto viene de fuera
+  // (reinicio, conversión del servidor) y reemplaza lo que se muestra.
+  const sent = useRef(String(value ?? ''));
+
+  useEffect(() => {
+    if (String(value ?? '') === sent.current) return;
+    sent.current = String(value ?? '');
+    setText(toText(value));
+  }, [value]);
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const emit = (raw) => {
+    clearTimeout(timer.current);
+    timer.current = null;
+    sent.current = complete(raw);
+    onChange(sent.current);
+  };
+
+  const handleChange = (e) => {
+    const raw = toValue(e.target.value);
+    setText(toText(raw));
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => emit(raw), DEBOUNCE_MS);
+  };
+
+  const handleBlur = () => {
+    if (timer.current) emit(toValue(text));
+    setText(toText(complete(toValue(text))));
+    onBlur?.();
+  };
+
   return (
     <TextField
-      value={toText(value)}
-      onChange={(e) => onChange(toValue(e.target.value))}
-      onBlur={onBlur}
+      value={text}
+      onChange={handleChange}
+      onBlur={handleBlur}
       label={label}
       required={required}
       disabled={disabled}
