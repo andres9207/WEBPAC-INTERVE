@@ -846,9 +846,9 @@
     "semantic_hash": ""
   },
   "client/src/views/security/profiles/ProfilePage.jsx": {
-    "mtime": 1791377793.3000877,
-    "seen": 1791385610.8424644,
-    "ast_hash": "315c1187c6a801c12737ea14c92e41f6",
+    "mtime": 1792770363.6353974,
+    "seen": 1792770479.8392413,
+    "ast_hash": "9c18e929f35ce679fbad0cbd4b267510",
     "semantic_hash": ""
   },
   "client/src/views/security/profiles/components/PermissionsDrawer.jsx": {
@@ -864,9 +864,9 @@
     "semantic_hash": ""
   },
   "client/src/views/security/users/UsersPage.jsx": {
-    "mtime": 1792447133.4379184,
-    "seen": 1792447981.7005746,
-    "ast_hash": "32d95e67f19654dc92d229da0481aa39",
+    "mtime": 1792770363.731102,
+    "seen": 1792770479.839245,
+    "ast_hash": "24228d959caa03d34ef5efb2b180aa23",
     "semantic_hash": ""
   },
   "client/src/views/security/users/components/AccountSettings.jsx": {
@@ -882,8 +882,8 @@
     "semantic_hash": ""
   },
   "client/src/views/security/users/components/UserDialog.jsx": {
-    "mtime": 1791217044.2811027,
-    "seen": 1791220409.1428525,
+    "mtime": 1792770363.6373618,
+    "seen": 1792770479.839248,
     "ast_hash": "4085c884db2d5814932296e4a767e655",
     "semantic_hash": ""
   },
@@ -1290,9 +1290,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/security/permissions/permissions.service.js": {
-    "mtime": 1792446541.1058981,
-    "seen": 1792447981.7008262,
-    "ast_hash": "dba67dfa2ac058e3c39df17a7df35a8a",
+    "mtime": 1792770313.9979181,
+    "seen": 1792770479.839546,
+    "ast_hash": "73cc5e8fae76582d8d1fe97de41b4482",
     "semantic_hash": ""
   },
   "server/src/modules/security/permissions/permissions.validation.js": {
@@ -1302,8 +1302,8 @@
     "semantic_hash": ""
   },
   "server/src/modules/security/profiles/profiles.controller.js": {
-    "mtime": 1790714089.9194722,
-    "seen": 1790714844.6664839,
+    "mtime": 1792770314.0010297,
+    "seen": 1792770479.8395479,
     "ast_hash": "5b039d9761b89770ca3bc740a81dcc78",
     "semantic_hash": ""
   },
@@ -1314,8 +1314,8 @@
     "semantic_hash": ""
   },
   "server/src/modules/security/profiles/profiles.service.js": {
-    "mtime": 1790976388.8791606,
-    "seen": 1790976704.6150048,
+    "mtime": 1792770313.9984238,
+    "seen": 1792770479.8395498,
     "ast_hash": "421d01114417ea664aef3111989b9b30",
     "semantic_hash": ""
   },
@@ -1338,9 +1338,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/security/users/users.service.js": {
-    "mtime": 1792163580.7467446,
-    "seen": 1792447981.7008333,
-    "ast_hash": "e6024b20e1711cb308022a796228a243",
+    "mtime": 1792770313.9984238,
+    "seen": 1792770479.8395538,
+    "ast_hash": "64c9881b39e1a83a8c5ff9af68c7fa22",
     "semantic_hash": ""
   },
   "server/src/modules/security/users/users.validation.js": {
@@ -1482,9 +1482,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/security/permissions/permissions.service.test.js": {
-    "mtime": 1792446611.9405694,
-    "seen": 1792447981.700906,
-    "ast_hash": "60dd67eff7bb1c720a0c5ea98dd4f67e",
+    "mtime": 1792770336.291458,
+    "seen": 1792770479.8396425,
+    "ast_hash": "970e409ccf404b5b1e8368585e25258b",
     "semantic_hash": ""
   },
   "server/test/modules/security/profiles/profiles.controller.test.js": {
@@ -1494,8 +1494,8 @@
     "semantic_hash": ""
   },
   "server/test/modules/security/profiles/profiles.service.test.js": {
-    "mtime": 1790341924.2994597,
-    "seen": 1790694517.664718,
+    "mtime": 1792770336.2937725,
+    "seen": 1792770479.8396447,
     "ast_hash": "b675155bd8f5039b3e730aed06e0ecba",
     "semantic_hash": ""
   },
@@ -1506,9 +1506,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/security/users/users.service.test.js": {
-    "mtime": 1791217022.3330016,
-    "seen": 1791220409.1431162,
-    "ast_hash": "de424fdd6cbe419c5ecab7e9683843b8",
+    "mtime": 1792770336.2929926,
+    "seen": 1792770479.8396475,
+    "ast_hash": "a263fb236e646c7edf2e7664c7402794",
     "semantic_hash": ""
   },
   "client/.yarnrc.yml": {
