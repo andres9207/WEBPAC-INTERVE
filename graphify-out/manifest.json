@@ -2364,9 +2364,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractDetailPage.jsx": {
-    "mtime": 1792759777.34972,
-    "seen": 1792764934.6327522,
-    "ast_hash": "29f02f58d7d07a5d5837d580d46d329c",
+    "mtime": 1792765276.4460084,
+    "seen": 1792765482.740353,
+    "ast_hash": "1ff6ad4ebfbd98ee835e282ac09aca9f",
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractsPage.jsx": {
