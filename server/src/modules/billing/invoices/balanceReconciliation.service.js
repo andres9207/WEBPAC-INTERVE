@@ -21,9 +21,10 @@ const BATCH_SIZE = 200;
 
 /**
  * Invariantes que se concilian: cada una compara un valor con su límite. El
- * límite solo puede quedar por debajo del valor por un defecto: el saldo
- * pactado no baja con los actos que hoy existen (DOM-07; la anulación de
- * otrosí no está implementada).
+ * límite solo puede quedar por debajo del valor por un defecto: el único acto
+ * que baja el saldo pactado con facturas aprobadas, modificar un otrosí,
+ * revalida I1 a I5 (DOM-07, DEC-078; la anulación de otrosí no está
+ * implementada).
  */
 const CHECKS = [
   { invariant: "I1", label: "anticipo facturado supera el pactado", value: (b) => b.advance.invoiced, limit: (b) => b.advance.agreed },

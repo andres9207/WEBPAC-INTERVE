@@ -222,6 +222,9 @@ export const updateConceptSchema = [
   optionalLongText("description", "La descripción", 500),
   ...conceptRules(),
   extensionRule,
+  // Obligatoria solo si cambia el costo o un porcentaje de un otrosí con
+  // facturas aprobadas: lo decide el service (DOM-07, DEC-078).
+  optionalLongText("observation", "La observación", 1000),
 ];
 
 export const deleteContractSchema = [requiredId("ctrId")];

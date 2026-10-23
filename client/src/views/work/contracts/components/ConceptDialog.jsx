@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Controller, FormProvider, useForm } from 'react-hook-form';
+import { Controller, FormProvider, useForm, useWatch } from 'react-hook-form';
 import { format } from 'date-fns';
 
 import Alert from '@mui/material/Alert';
@@ -52,13 +52,24 @@ import { TERM_UNIT_OPTIONS } from 'utils/constants';
  * sección no aparece y se registran después desde la pestaña Pólizas.
  *
  * Si el contrato ya tiene facturas aprobadas (`economicsLocked`), al
- * modificar un concepto el costo y los porcentajes van en solo lectura
- * (DOM-07): se corrigen con un otrosí. Lo exige también el servidor.
+ * modificar el valor inicial el costo y los porcentajes van en solo lectura
+ * (DOM-07): se corrigen con un otrosí. Los de un otrosí sí cambian, con una
+ * observación obligatoria, y el servidor rechaza el cambio si deja lo ya
+ * facturado por encima de lo pactado (DEC-078).
  */
 
 const TITLES = { amendment: 'Registrar otrosí', liquidation: 'Registrar otrosí de liquidación', edit: 'Modificar concepto' };
 const today = () => format(new Date(), 'yyyy-MM-dd');
 const text = (value) => String(value ?? '').trim();
+// "800", "800.0" y "800.00" son el mismo valor: compara sin ceros decimales al final.
+const sameNumber = (a, b) => {
+  const norm = (value) =>
+    text(value)
+      .replace(/(\.\d*?)0+$/, '$1')
+      .replace(/\.$/, '');
+  return norm(a) === norm(b);
+};
+const ECONOMIC_INPUTS = Object.keys(EMPTY_CONCEPT);
 
 const unitName = (unit) => TERM_UNIT_OPTIONS.find((o) => o.value === unit)?.label.toLowerCase() ?? '';
 
@@ -106,6 +117,7 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
             startDate: concept.startDate,
             description: concept.description ?? '',
             extension: concept.extension === null || concept.extension === undefined ? '' : String(concept.extension),
+            observation: '',
             confirmed: true
           }
         : { ...EMPTY_CONCEPT, startDate: today(), description: '', extension: '', liftDate: today(), confirmed: false, policies: [] }
@@ -118,7 +130,14 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
   const fields = shownFields(descriptors, 'CONCEPT', stored, { skip });
   const descriptionFields = toFormFields(fields.filter((field) => field.key === 'CONCEPT_DESCRIPTION'));
   const inherited = fields.filter((field) => field.inherited);
-  const economicsLocked = isEdit && Boolean(contract?.economicsLocked);
+  // Con facturas aprobadas: el valor inicial, congelado; un otrosí, con observación (DEC-078).
+  const invoiced = isEdit && Boolean(contract?.economicsLocked);
+  const economicsLocked = invoiced && isInitial;
+  const economicValues = useWatch({ control, name: ECONOMIC_INPUTS });
+  const needsObservation =
+    invoiced &&
+    !isInitial &&
+    ECONOMIC_INPUTS.some((name, i) => economicValues[i] !== undefined && !sameNumber(economicValues[i], concept?.[name]));
 
   const save = async (form) => {
     setSaving(true);
@@ -130,6 +149,7 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
       ...configured,
       ...(hasExtension ? { extension: text(form.extension) } : {}),
       ...(suspension ? { liftDate: form.liftDate } : {}),
+      ...(needsObservation ? { observation: text(form.observation) } : {}),
       ...(canCreatePolicies &&
         form.policies?.length > 0 && {
           policies: form.policies.map(({ pltId, insId, number, percentage, startDate, endDate, observation }) => ({
@@ -203,8 +223,14 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
           )}
           {economicsLocked && (
             <Alert severity="info">
-              El contrato ya tiene facturas aprobadas: el costo directo y los porcentajes no cambian. Para corregir el valor, registra un
-              otrosí. La fecha, la prórroga y la descripción sí se pueden modificar.
+              El contrato ya tiene facturas aprobadas: el costo directo y los porcentajes del valor inicial no cambian. Para corregir el
+              valor, registra un otrosí o modifica uno. La fecha y la descripción sí se pueden modificar.
+            </Alert>
+          )}
+          {invoiced && !isInitial && (
+            <Alert severity="warning">
+              El contrato ya tiene facturas aprobadas. Si cambias el costo directo o un porcentaje, escribe una observación: queda en la
+              bitácora. No se guarda si lo ya facturado, el anticipo o el retenido quedan por encima de lo pactado.
             </Alert>
           )}
           {inherited.length > 0 && (
@@ -298,6 +324,34 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
             <Typography variant="body2" color="text.secondary">
               Cargando los campos del contrato…
             </Typography>
+          )}
+
+          {needsObservation && (
+            <Controller
+              name="observation"
+              control={control}
+              shouldUnregister
+              rules={{
+                validate: (value) => text(value) !== '' || 'La observación es requerida.',
+                maxLength: { value: 1000, message: 'Máximo 1000 caracteres.' }
+              }}
+              render={({ field, fieldState }) => (
+                <TextField
+                  {...field}
+                  value={field.value ?? ''}
+                  label="Observación"
+                  required
+                  multiline
+                  minRows={2}
+                  size="small"
+                  fullWidth
+                  error={Boolean(fieldState.error)}
+                  helperText={
+                    fieldState.error?.message ?? 'Por qué cambian los valores del otrosí con facturas aprobadas: queda en la bitácora.'
+                  }
+                />
+              )}
+            />
           )}
 
           {canCreatePolicies && (

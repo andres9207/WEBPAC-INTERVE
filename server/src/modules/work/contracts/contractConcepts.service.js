@@ -25,6 +25,8 @@ import { insertPolicy } from "./contractPolicies.service.js";
 import { liftWithAmendment } from "./contractSuspensions.service.js";
 import { contractLabel, notifyWorkManagers } from "./contractNotifications.service.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
+import { contractBalances } from "../../billing/invoices/invoices.service.js";
+import { balanceViolations } from "../../billing/invoices/balanceReconciliation.service.js";
 
 /**
  * Conceptos contractuales (ADR-0016, DEC-036): otrosí, otrosí de liquidación
@@ -37,8 +39,9 @@ import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.
  * - Cada concepto pacta sus propios porcentajes: no se heredan.
  * - El valor vigente antes y después del acto queda en la bitácora, aunque
  *   no se guarde (ADR-0016, "Auditoría").
- * - Inmutabilidad tras la primera factura aprobada (PRO-BE-16): llega con
- *   facturación; hoy no hay facturas que la activen.
+ * - Tras la primera factura aprobada (DOM-07, DEC-078): el costo y los
+ *   porcentajes del valor inicial no cambian; los de un otrosí, sí, con una
+ *   observación, y solo si los saldos del contrato siguen cumpliendo I1 a I5.
  * - Descripción y porcentajes son campos configurables (DEC-053): se aplican
  *   con la configuración actual de los tipos del proveedor del contrato,
  *   resuelta en la transacción por la misma función que alimenta el
@@ -71,6 +74,27 @@ const assertStartDate = (values) => {
 const assertChronology = (sequence, index, startDate) => {
   const message = chronologyError(sequence, index, startDate);
   if (message) throw httpError(400, message);
+};
+
+// Límites de lo facturado que salen de los valores de los conceptos (DEC-078).
+const BALANCE_LIMITS = [
+  ["saldo.base_vigente", (b) => b.billing.base],
+  ["saldo.anticipo_pactado", (b) => b.advance.agreed],
+  ["saldo.retenido_pactado", (b) => b.retention.agreed],
+];
+
+/**
+ * Con facturas aprobadas, los valores nuevos de un otrosí no pueden dejar lo
+ * ya facturado por encima de lo pactado: I1 a I4 (las de la conciliación) e
+ * I5 (F ≤ B). 409 con cada incumplimiento; la transacción se revierte.
+ */
+const assertBalancesHold = (balances) => {
+  const violations = balanceViolations(balances).map((v) => `${v.label} en ${v.excess} (${v.invariant})`);
+  const { base, billed } = balances.billing;
+  if (billed.gt(base)) violations.push(`lo facturado supera la base vigente en ${moneyText(billed.minus(base))} (I5)`);
+  if (violations.length > 0) {
+    throw httpError(409, `El cambio deja el contrato por debajo de lo ya facturado: ${violations.join("; ")}.`);
+  }
 };
 
 /** Recalcula la fecha fin y la guarda si cambió; devuelve el cambio para la bitácora, o null. */
@@ -339,20 +363,43 @@ export const updateConcept = async ({ ccpId, input, useBy, scope, ctx = { useId:
       };
       assertStartDate(values);
       const economicChanges = diffFields(auditableConcept(before), auditableConcept(values), ECONOMIC_COLUMNS);
-      if (economicChanges.length > 0 && (await hasApprovedInvoices(tx, contract.ctr_id))) {
+      // DOM-07 (DEC-078): con facturas aprobadas, el valor inicial queda
+      // congelado; un otrosí cambia sus valores con observación y saldos que cuadren.
+      const afterInvoices = economicChanges.length > 0 && (await hasApprovedInvoices(tx, contract.ctr_id));
+      const observation = String(input.observation ?? "").trim();
+      if (afterInvoices && isInitial) {
         throw httpError(
           409,
-          "El contrato ya tiene facturas aprobadas: el costo directo y los porcentajes de sus conceptos no cambian. Corrige con un otrosí."
+          "El contrato ya tiene facturas aprobadas: el costo directo y los porcentajes del valor inicial no cambian. Corrige con un otrosí."
         );
+      }
+      if (afterInvoices && !observation) {
+        throw httpError(400, "El contrato ya tiene facturas aprobadas: para cambiar el costo directo o un porcentaje del otrosí, escribe una observación.");
       }
       const sequence = activeSequence(concepts);
       assertChronology(sequence, sequence.indexOf(before), values.ccp_start_date);
 
+      const balancesBefore = afterInvoices ? await contractBalances(tx, contract.ctr_id) : null;
       await tx.tbl_contract_concepts.update({ where: { ccp_id: before.ccp_id }, data: { ...values, ccp_update_by: Number(useBy) } });
+      const balancesAfter = afterInvoices ? await contractBalances(tx, contract.ctr_id) : null;
+      if (balancesAfter) assertBalancesHold(balancesAfter);
 
       const after = concepts.map((c) => (c.ccp_id === before.ccp_id ? { ...c, ...values } : c));
       const endChange = before.ccp_extension !== values.ccp_extension ? await refreshEndDate(tx, contract, Number(useBy)) : null;
-      const conceptChanges = diffFields(auditableConcept(before), auditableConcept(values), CONCEPT_AUDITED);
+      const conceptChanges = [
+        ...diffFields(auditableConcept(before), auditableConcept(values), CONCEPT_AUDITED),
+        // Con facturas aprobadas, la justificación y los límites que movió.
+        ...(afterInvoices
+          ? [
+              { field: "observation", oldValue: null, newValue: observation },
+              ...BALANCE_LIMITS.map(([field, limit]) => ({
+                field,
+                oldValue: moneyText(limit(balancesBefore)),
+                newValue: moneyText(limit(balancesAfter)),
+              })).filter((row) => row.oldValue !== row.newValue),
+            ]
+          : []),
+      ];
       if (conceptChanges.length > 0 || endChange) {
         await auditAct(tx, {
           operationId: newOperationId(),

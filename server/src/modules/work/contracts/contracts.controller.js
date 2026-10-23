@@ -218,7 +218,7 @@ export const suspendContractController = handle(async (req) => {
 export const updateConceptController = handle(async (req) => {
   const result = await conceptsService.updateConcept({
     ccpId: req.body.ccpId,
-    input: pick(req.body, [...ACT_FIELDS, "extension"]),
+    input: pick(req.body, [...ACT_FIELDS, "extension", "observation"]),
     useBy: req.user.useId,
     scope: await workScopeOf(req),
     ctx: auditContext(req),

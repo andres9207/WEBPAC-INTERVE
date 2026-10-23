@@ -6,7 +6,7 @@ import { CONTRACT_FIELDS_CATALOG, typeFieldRows } from "../../../helpers/contrac
 // bloqueo, prórroga y fecha fin, otrosí de liquidación con su transición, y
 // modificación según el estado.
 
-const state = { contract: null, concepts: [], typeFields: [], approvedInvoices: 0 };
+const state = { contract: null, concepts: [], typeFields: [], approvedInvoices: 0, sums: {} };
 
 const prismaMock = {
   tbl_contracts: { findUnique: jest.fn(async () => state.contract), update: jest.fn() },
@@ -18,6 +18,12 @@ const prismaMock = {
   },
   tbl_contract_status_history: { create: jest.fn() },
   tbl_invoices: { count: jest.fn(async () => state.approvedInvoices) },
+  // Sumas de lo aprobado, para los saldos del contrato (contractBalances).
+  tbl_invoice_advance_details: { aggregate: jest.fn(async () => ({ _sum: { iad_value: state.sums.advance ?? null } })) },
+  tbl_invoice_liquidation_details: {
+    aggregate: jest.fn(async () => ({ _sum: { ild_value: state.sums.billed ?? null, ild_amortization: null, ild_retention: null } })),
+  },
+  tbl_invoice_retention_refund_details: { aggregate: jest.fn(async () => ({ _sum: { irr_value: null } })) },
   tbl_contract_fields: { findMany: jest.fn(async () => CONTRACT_FIELDS_CATALOG) },
   tbl_provider_classifications: { findMany: jest.fn(async () => [{ pvt_id: 1 }]) },
   tbl_provider_type_fields: { findMany: jest.fn(async () => state.typeFields) },
@@ -270,19 +276,66 @@ describe("updateConcept", () => {
     state.approvedInvoices = 0;
   });
 
-  it("con una factura aprobada no cambian costo ni porcentajes (409, DOM-07); fecha y prórroga sí", async () => {
+  it("con una factura aprobada, el valor inicial no cambia costo ni porcentajes (409, DOM-07); fecha y prórroga sí", async () => {
     state.approvedInvoices = 1;
-    await expect(service.updateConcept({ ccpId: 300, input: act({ directCost: "2000" }), useBy: 9, ctx })).rejects.toMatchObject({
+    await expect(service.updateConcept({ ccpId: 300, input: act({ directCost: "2000", observation: "Ajuste" }), useBy: 9, ctx })).rejects.toMatchObject({
       statusCode: 409,
-      message: expect.stringMatching(/facturas aprobadas/),
+      message: expect.stringMatching(/valor inicial/),
     });
     expect(prismaMock.tbl_invoices.count).toHaveBeenCalledWith({ where: { ctr_id: 30, inv_approval_date: { not: null } } });
     expect(prismaMock.tbl_contract_concepts.update).not.toHaveBeenCalled();
 
-    // Mismos valores económicos que el concepto guardado: solo cambian fecha y prórroga.
+    // Mismos valores económicos que el concepto guardado: solo cambian fecha y prórroga, sin observación.
     const same = { directCost: "1000", advancePct: "15", retentionPct: "0" };
     await expect(service.updateConcept({ ccpId: 301, input: act({ startDate: "2026-02-15", extension: 1, ...same }), useBy: 9, ctx })).resolves.toMatchObject({
       ccpId: 301,
+    });
+  });
+
+  describe("valores de un otrosí con facturas aprobadas (DEC-078)", () => {
+    // Base 1000 + 800 = 1800; anticipo 150 + 80 = 230; retenido 0 + 40 = 40.
+    const lowered = concept({ ccp_id: 301, ccp_type: "AMENDMENT", ccp_number: 1, ccp_direct_cost: "800.00", ccp_advance_pct: "10.00", ccp_retention_pct: "5.00" });
+    const input = (overrides = {}) => act({ startDate: "2026-02-15", directCost: "800", observation: "Cantidades reales medidas", ...overrides });
+
+    beforeEach(() => {
+      state.approvedInvoices = 1;
+      state.sums = {};
+      prismaMock.tbl_contract_concepts.findMany
+        .mockResolvedValueOnce(state.concepts)
+        .mockResolvedValueOnce(state.concepts)
+        .mockResolvedValueOnce([concept(), lowered]);
+    });
+
+    afterEach(() => {
+      prismaMock.tbl_contract_concepts.findMany.mockReset();
+      prismaMock.tbl_contract_concepts.findMany.mockImplementation(async () => state.concepts);
+    });
+
+    it("exige una observación (400)", async () => {
+      await expect(service.updateConcept({ ccpId: 301, input: input({ observation: "  " }), useBy: 9, ctx })).rejects.toMatchObject({
+        statusCode: 400,
+        message: expect.stringMatching(/observación/),
+      });
+      expect(prismaMock.tbl_contract_concepts.update).not.toHaveBeenCalled();
+    });
+
+    it("con saldos que cuadran, guarda y deja la observación y los límites en la bitácora", async () => {
+      state.sums = { advance: "200.00", billed: "1500.00" };
+      await expect(service.updateConcept({ ccpId: 301, input: input(), useBy: 9, ctx })).resolves.toMatchObject({ ccpId: 301 });
+      expect(prismaMock.tbl_contract_concepts.update.mock.calls[0][0].data.ccp_direct_cost.toFixed(2)).toBe("800.00");
+      const rows = auditRows();
+      expect(rows.find((r) => r.aud_field === "observation")).toMatchObject({ aud_new_value: "Cantidades reales medidas" });
+      expect(rows.find((r) => r.aud_field === "saldo.base_vigente")).toMatchObject({ aud_old_value: "2000.00", aud_new_value: "1800.00" });
+      expect(rows.find((r) => r.aud_field === "saldo.anticipo_pactado")).toMatchObject({ aud_old_value: "300.00", aud_new_value: "230.00" });
+    });
+
+    it("si deja lo facturado por encima de lo pactado, responde 409 con cada invariante", async () => {
+      state.sums = { advance: "250.00", billed: "1900.00" };
+      await expect(service.updateConcept({ ccpId: 301, input: input(), useBy: 9, ctx })).rejects.toMatchObject({
+        statusCode: 409,
+        message: expect.stringMatching(/I1.*I5/),
+      });
+      expect(prismaMock.tbl_audit_log.createMany).not.toHaveBeenCalled();
     });
   });
 
