@@ -21,6 +21,7 @@ import ContractBalanceCards from './components/ContractBalanceCards';
 import InvoiceDetailPanel from './components/InvoiceDetailPanel';
 import SimpleAmountsSection, { SIMPLE_AMOUNT_FIELDS } from './components/SimpleAmountsSection';
 import {
+  getContractAdvanceAPI,
   getInvoiceContractsSelectAPI,
   getInvoiceFormOptionsAPI,
   getInvoiceProvidersSelectAPI,
@@ -45,7 +46,8 @@ import { ALL_WORKS } from 'utils/workScope';
  *   un proveedor que trabaja en ella con el tipo del menú, sin contrato
  *   (DEC-058). La de contrato elige, en ese orden, el proveedor, uno de sus
  *   contratos firmados bajo el tipo del menú (los que hoy admiten algún tipo)
- *   y el tipo que admite el estado de ese contrato; la obra sale del contrato.
+ *   y el tipo de factura, Normal por defecto (`contractTypeChoices`: qué tipos
+ *   ofrece el contrato y qué falta para los demás); la obra sale del contrato.
  * - La factura nueva guarda el tipo del menú (`pvtId`).
  * - Tipo, obra y contrato no cambian después de registrar.
  * - Registrada se edita entera; aprobada, solo extracto y descripción;
@@ -180,6 +182,60 @@ function useRemoteOptions(enabled, fetchOptions, errorMessage) {
 
   return { ...state, search: search.trim(), setSearch };
 }
+
+// Importe del servidor (texto) mayor que cero, sin pasarlo a número (DEC-045).
+const isPositive = (amount) => /^\d/.test(amount ?? '') && /[1-9]/.test(amount);
+
+const DEFAULT_CONTRACT_TYPE = 'NORMAL';
+
+/**
+ * Tipos de factura del contrato elegido, con sus saldos (`get_contract_advance`):
+ *
+ * - Normal, por defecto, mientras el contrato está en ejecución.
+ * - Anticipo: no aparece si el contrato no tiene anticipo pactado.
+ * - Liquidación: deshabilitada mientras no se registre el otrosí de
+ *   liquidación (el contrato sigue en ejecución).
+ * - Devolución de retenido: no aparece si no hay retenido por devolver.
+ *
+ * `notes` dice qué falta para cada tipo que no se puede elegir. Es una guía:
+ * al guardar, el servidor vuelve a verificar el estado y los saldos.
+ */
+const contractTypeChoices = (contract, typeOptions, balances) => {
+  if (!contract || !balances) return { options: [], notes: [] };
+  const admitted = contract.types ?? [];
+  const notes = [];
+  const options = [];
+  const add = (option, reason, hidden = false) => {
+    if (reason) notes.push(`${option.label}: ${reason}`);
+    if (!hidden) options.push({ ...option, disabled: Boolean(reason), description: reason || undefined });
+  };
+  // Normal primero: es la de por defecto.
+  const ordered = [...typeOptions].sort((a, b) => (b.value === DEFAULT_CONTRACT_TYPE) - (a.value === DEFAULT_CONTRACT_TYPE));
+  for (const option of ordered) {
+    const allowed = admitted.includes(option.value);
+    switch (option.value) {
+      case 'NORMAL':
+        add(option, allowed ? '' : 'solo con el contrato en ejecución.');
+        break;
+      case 'ADVANCE':
+        if (!isPositive(balances.agreed))
+          add(option, 'el contrato no tiene anticipo pactado; se pacta en su valor inicial o en un otrosí.', true);
+        else if (!allowed) add(option, 'solo con el contrato en ejecución.');
+        else add(option, isPositive(balances.toInvoice) ? '' : 'ya se facturó todo el anticipo pactado.');
+        break;
+      case 'LIQUIDATION':
+        add(option, allowed ? '' : 'el contrato no tiene otrosí de liquidación; regístralo en el expediente del contrato.');
+        break;
+      case 'RETENTION_REFUND':
+        if (!isPositive(balances.retention?.balance)) add(option, 'el contrato no tiene retenido pendiente por devolver.', true);
+        else add(option, allowed ? '' : 'se registra con el contrato en liquidación (después del otrosí de liquidación).');
+        break;
+      default:
+        add(option, allowed ? '' : 'el estado del contrato no lo admite.');
+    }
+  }
+  return { options, notes };
+};
 
 const readOnlyField = (label, value) => (
   <TextField label={label} value={value ?? ''} size="small" fullWidth slotProps={{ input: { readOnly: true } }} />
@@ -336,6 +392,35 @@ export default function InvoiceFormPage() {
     };
   }, [simple, wrkId, loaded]);
 
+  // Saldos del contrato elegido (anticipo pactado, retenido por devolver): deciden qué tipos se ofrecen.
+  // Se guardan con su contrato: al cambiarlo, los del anterior no cuentan.
+  const [loadedBalances, setLoadedBalances] = useState(null);
+  const contractBalances = loadedBalances && Number(loadedBalances.ctrId) === Number(ctrId) ? loadedBalances.data : null;
+  useEffect(() => {
+    if (isEdit || !contractView || !ctrId) return undefined;
+    let cancelled = false;
+    getContractAdvanceAPI({ ctrId })
+      .then(({ data }) => !cancelled && setLoadedBalances({ ctrId, data }))
+      .catch((err) => !cancelled && showError(err.response?.data?.message || 'Error al cargar los saldos del contrato'));
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, contractView, ctrId]);
+
+  const contract =
+    contractOptions.items.find((c) => Number(c.value) === Number(ctrId)) ??
+    (pickedContract && Number(pickedContract.value) === Number(ctrId) ? pickedContract : undefined);
+  const typeChoices = contractTypeChoices(contract, typeOptions, contractBalances);
+  const enabledTypes = typeChoices.options.filter((o) => !o.disabled).map((o) => o.value);
+  const defaultType = enabledTypes.includes(DEFAULT_CONTRACT_TYPE) ? DEFAULT_CONTRACT_TYPE : (enabledTypes[0] ?? '');
+
+  // Elegido el contrato, el tipo es Normal por defecto (o el primero que admita); el que ya estaba se conserva si se puede.
+  useEffect(() => {
+    if (isEdit || !contractView || !contractBalances || enabledTypes.includes(type)) return;
+    if (type !== defaultType) changeType(defaultType);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, contractView, contractBalances, type, defaultType, enabledTypes.join()]);
+
   // Otro tipo: los importes son de él. Proveedor y contrato se conservan.
   const changeType = (value) => {
     setValue('type', value ?? '', { shouldDirty: true });
@@ -400,11 +485,6 @@ export default function InvoiceFormPage() {
   const blocked = !allows('editNotes');
   const lockDocument = isEdit && !fullEdit;
   const hasErrors = Object.keys(errors).length > 0;
-  const contract =
-    contractOptions.items.find((c) => Number(c.value) === Number(ctrId)) ??
-    (pickedContract && Number(pickedContract.value) === Number(ctrId) ? pickedContract : undefined);
-  // Tipos del menú que admite hoy el estado del contrato elegido.
-  const contractTypeOptions = contract ? typeOptions.filter((o) => (contract.types ?? []).includes(o.value)) : [];
   const noOptions = wrkId && !loadingOptions;
   // La etapa solo es obligatoria si la obra tiene etapas (DEC-069); el servidor lo vuelve a verificar.
   const withoutStages = Boolean(noOptions) && options.stages.length === 0;
@@ -486,7 +566,7 @@ export default function InvoiceFormPage() {
                 title={contractView ? 'Origen y tipo' : 'Obra y proveedor'}
                 subtitle={
                   contractView
-                    ? 'Elige el proveedor, uno de sus contratos y el tipo de factura que admite el estado del contrato. No cambian después de registrar.'
+                    ? 'Elige el proveedor y uno de sus contratos. El tipo de factura es Normal por defecto; la ayuda del campo dice qué falta para los demás. No cambian después de registrar.'
                     : 'La factura simple se imputa a la obra, sin contrato, y a una de sus etapas si la obra las tiene. El proveedor debe estar asignado a la obra. La obra no cambia después de registrar.'
                 }
               >
@@ -564,21 +644,21 @@ export default function InvoiceFormPage() {
                           <Controller
                             name="type"
                             control={control}
-                            rules={{ required: 'Selecciona el tipo de factura.' }}
-                            render={({ field, fieldState }) => (
+                            render={({ field }) => (
                               <SearchSelect
                                 value={field.value}
-                                onChange={changeType}
-                                options={contractTypeOptions}
-                                disabled={!contract}
+                                onChange={(value) => value && changeType(value)}
+                                options={typeChoices.options}
+                                loading={Boolean(contract) && !contractBalances}
+                                disabled={!contract || !contractBalances}
+                                disableClearable
                                 label="Tipo de factura"
-                                required
-                                error={fieldState.error?.message}
                                 helperText={
                                   !contract
                                     ? 'Elige primero el contrato'
-                                    : (typeOptions.find((o) => o.value === field.value)?.hint ??
-                                      'Los que admite hoy el estado del contrato')
+                                    : [typeOptions.find((o) => o.value === field.value)?.hint, ...typeChoices.notes]
+                                        .filter(Boolean)
+                                        .join(' · ')
                                 }
                               />
                             )}
@@ -697,7 +777,7 @@ export default function InvoiceFormPage() {
                       render={({ field, fieldState }) => (
                         <TextField
                           {...field}
-                          label="Número de factura"
+                          label="N.º de factura"
                           required
                           size="small"
                           fullWidth
@@ -736,7 +816,7 @@ export default function InvoiceFormPage() {
                       render={({ field }) => (
                         <TextField
                           {...field}
-                          label="Número de comprobante"
+                          label="N.º de comprobante"
                           size="small"
                           fullWidth
                           disabled={lockDocument || blocked}

@@ -39,8 +39,6 @@ export default function ContractDataForm({ form, contract, isNew, blocked }) {
     recalcTerm,
     recalcEndDate,
     contractFields,
-    canChangeAiu,
-    aiuDefault,
     showAiu
   } = form;
   const { control, getValues } = methods;
@@ -195,7 +193,7 @@ export default function ContractDataForm({ form, contract, isNew, blocked }) {
               render={({ field, fieldState }) => (
                 <TextField
                   {...field}
-                  label="Número"
+                  label="N.º del contrato"
                   required
                   size="small"
                   fullWidth
@@ -336,29 +334,10 @@ export default function ContractDataForm({ form, contract, isNew, blocked }) {
               <GenericFormSection fields={otherContractFields} />
             </Grid>
           )}
-          {showAiu && (
+          {/* Al crear, la solicitud de AIU va en «Valor inicial», junto a los campos que muestra u oculta. */}
+          {showAiu && !isNew && (
             <Grid size={12}>
-              <Controller
-                name="aiuRequested"
-                control={control}
-                render={({ field }) => (
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={Boolean(field.value)}
-                        onChange={(e) => field.onChange(e.target.checked)}
-                        disabled={blocked || (!canChangeAiu && Boolean(field.value) === aiuDefault)}
-                      />
-                    }
-                    label="Solicita AIU (administración, imprevistos y utilidad)"
-                  />
-                )}
-              />
-              <FormHelperText sx={{ mt: -0.5 }}>
-                {canChangeAiu
-                  ? 'Sin AIU, los conceptos del contrato no llevan administración, imprevistos ni utilidad. Cambiarlo queda en la bitácora.'
-                  : 'Cambiar la solicitud de AIU exige el permiso de cambiar la solicitud de AIU del contrato.'}
-              </FormHelperText>
+              <AiuRequestField form={form} blocked={blocked} />
             </Grid>
           )}
         </Grid>
@@ -368,6 +347,47 @@ export default function ContractDataForm({ form, contract, isNew, blocked }) {
     </Stack>
   );
 }
+
+/**
+ * Casilla "Solicita AIU" (DEC-046): sin AIU, los conceptos no llevan A, I ni
+ * U. Al crear se dibuja en «Valor inicial», donde se ven los campos que
+ * muestra u oculta; en un contrato guardado, en «Datos del contrato», que es
+ * donde se guarda.
+ */
+export function AiuRequestField({ form, blocked = false }) {
+  const { methods, canChangeAiu, aiuDefault } = form;
+  return (
+    <Box>
+      <Controller
+        name="aiuRequested"
+        control={methods.control}
+        render={({ field }) => (
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={Boolean(field.value)}
+                onChange={(e) => field.onChange(e.target.checked)}
+                disabled={blocked || (!canChangeAiu && Boolean(field.value) === aiuDefault)}
+              />
+            }
+            label="Solicita AIU (administración, imprevistos y utilidad)"
+          />
+        )}
+      />
+      <FormHelperText sx={{ mt: -0.5 }}>
+        {canChangeAiu
+          ? 'Sin AIU, los conceptos del contrato no llevan administración, imprevistos ni utilidad. Cambiarlo queda en la bitácora.'
+          : 'Cambiar la solicitud de AIU exige el permiso de cambiar la solicitud de AIU del contrato.'}
+      </FormHelperText>
+    </Box>
+  );
+}
+
+AiuRequestField.propTypes = {
+  /** Estado del formulario (useContractForm). */
+  form: PropTypes.object.isRequired,
+  blocked: PropTypes.bool
+};
 
 ContractDataForm.propTypes = {
   /** Estado del formulario (useContractForm). */

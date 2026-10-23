@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import Autocomplete, { createFilterOptions } from '@mui/material/Autocomplete';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
 import InputAdornment from '@mui/material/InputAdornment';
 import TextField from '@mui/material/TextField';
 import { IconSearch } from '@tabler/icons-react';
@@ -20,6 +22,8 @@ import { IconSearch } from '@tabler/icons-react';
  * - `onSearch`: búsqueda en el servidor, para listas con tope (DEC-018). No
  *   filtra en memoria: avisa el texto escrito y el padre trae las opciones.
  *   La opción elegida se conserva aunque una búsqueda nueva no la traiga.
+ * - Una opción con `disabled` se ve pero no se elige; su `description`, si
+ *   la tiene, se muestra debajo (p. ej. qué falta para habilitarla).
  */
 const filterOptions = createFilterOptions({ ignoreAccents: true, ignoreCase: true, stringify: (option) => option.label ?? '' });
 
@@ -67,6 +71,24 @@ export default function SearchSelect({
       options={listed}
       filterOptions={remote ? (list) => list : filterOptions}
       getOptionLabel={(option) => option.label ?? ''}
+      getOptionDisabled={(option) => Boolean(option.disabled)}
+      renderOption={(props, option) => {
+        const { key, ...rest } = props;
+        return (
+          <li key={key} {...rest}>
+            {option.description ? (
+              <Box>
+                <Typography variant="body2">{option.label}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {option.description}
+                </Typography>
+              </Box>
+            ) : (
+              option.label
+            )}
+          </li>
+        );
+      }}
       isOptionEqualToValue={(option, current) => option.value === current.value}
       inputValue={inputValue}
       onInputChange={(_, text, reason) => {
@@ -113,9 +135,15 @@ SearchSelect.propTypes = {
   /** Un valor; con `multiple`, la lista de valores elegidos. */
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.string, PropTypes.number]))]),
   onChange: PropTypes.func.isRequired,
-  /** `[{ value, label }]` */
-  options: PropTypes.arrayOf(PropTypes.shape({ value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]), label: PropTypes.string }))
-    .isRequired,
+  /** `[{ value, label, disabled?, description? }]` */
+  options: PropTypes.arrayOf(
+    PropTypes.shape({
+      value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      label: PropTypes.string,
+      disabled: PropTypes.bool,
+      description: PropTypes.string
+    })
+  ).isRequired,
   label: PropTypes.string.isRequired,
   required: PropTypes.bool,
   /** Mensaje de error; también marca el campo. */

@@ -217,7 +217,7 @@ export default function PolicyDialog({ open, contract, concepts = [], policy, dr
             render={({ field, fieldState }) => (
               <TextField
                 {...field}
-                label="Número de la póliza"
+                label="N.º de la póliza"
                 required
                 size="small"
                 fullWidth

@@ -22,7 +22,7 @@ import RouteDialog from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import ConceptFields from './components/ConceptFields';
 import ConceptsTab from './components/ConceptsTab';
-import ContractDataForm from './components/ContractDataForm';
+import ContractDataForm, { AiuRequestField } from './components/ContractDataForm';
 import PoliciesDraftEditor from './components/PoliciesDraftEditor';
 import PoliciesTab from './components/PoliciesTab';
 import SuspendDialog from './components/SuspendDialog';
@@ -352,7 +352,10 @@ function ContractView() {
           <Box sx={hidden('value')}>
             <FormSection title="Valor inicial" subtitle="Todo contrato nace con su valor inicial. Su fecha es la de inicio del contrato.">
               {form.fieldsReady ? (
-                <ConceptFields control={control} prefix="initialConcept." fields={form.conceptFields} />
+                <Stack spacing={2}>
+                  {form.showAiu && <AiuRequestField form={form} />}
+                  <ConceptFields control={control} prefix="initialConcept." fields={form.conceptFields} />
+                </Stack>
               ) : (
                 <Typography variant="body2" color="text.secondary">
                   Elige el proveedor y su tipo en «Datos del contrato» para capturar el valor inicial: sus porcentajes dependen de la
