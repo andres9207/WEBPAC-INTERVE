@@ -5,7 +5,7 @@ import MasterPage from 'ui-component/extended/MasterPage';
 import ProviderTypeFieldsDialog from './components/ProviderTypeFieldsDialog';
 import { providerTypesApi } from 'api/requests/providerTypesApi';
 import { useAuth } from 'contexts/AuthContext';
-import { INVOICE_MODE_OPTIONS, invoiceModeName } from 'utils/constants';
+import { INVOICE_MODES, INVOICE_MODE_OPTIONS, invoiceModeName } from 'utils/constants';
 
 // Maestro de tipos de proveedor (ADR-0010) sobre la vista reutilizable de
 // maestro (MAE-FE-01): el nombre, la forma de facturar y la casilla del menú
@@ -14,12 +14,15 @@ import { INVOICE_MODE_OPTIONS, invoiceModeName } from 'utils/constants';
 // permiso propio; sin él, la matriz se ve en solo lectura. La forma decide si
 // el tipo admite contratos o facturas simples, y no cambia si el tipo ya
 // tiene contratos o facturas (409). Con la casilla, el tipo es una entrada
-// del menú "Facturas"; quitarla solo oculta la entrada.
+// del menú "Facturas"; quitarla solo oculta la entrada. La del menú de
+// contratos, propia, lo hace entrada del menú "Contratos" (DEC-077), y solo
+// la admite un tipo que factura con contrato.
 
 const COLUMNS = [
   { id: 'name', label: 'Nombre', sortable: true },
   { id: 'invoiceMode', label: 'Forma de facturar', sortable: true, render: (row) => invoiceModeName(row.invoiceMode) },
-  { id: 'invoiceMenu', label: 'Menú de facturas', sortable: true, render: (row) => (row.invoiceMenu ? 'Sí' : 'No') }
+  { id: 'invoiceMenu', label: 'Menú de facturas', sortable: true, render: (row) => (row.invoiceMenu ? 'Sí' : 'No') },
+  { id: 'contractMenu', label: 'Menú de contratos', sortable: true, render: (row) => (row.contractMenu ? 'Sí' : 'No') }
 ];
 
 const FORM_FIELDS = [
@@ -47,7 +50,18 @@ const FORM_FIELDS = [
     defaultValue: false,
     // El servidor lo vuelve a verificar (y la BD, con su CHECK).
     validation: { validate: (value, form) => !value || Boolean(form.invoiceMode) || 'Elige la forma de facturar para que vaya al menú' },
-    grid: { xs: 12 }
+    grid: { xs: 12, sm: 6 }
+  },
+  {
+    name: 'contractMenu',
+    type: 'checkbox',
+    label: 'Va al menú de contratos',
+    defaultValue: false,
+    validation: {
+      validate: (value, form) =>
+        !value || form.invoiceMode === INVOICE_MODES.CONTRACT || 'Solo un tipo que factura con contrato va al menú de contratos'
+    },
+    grid: { xs: 12, sm: 6 }
   }
 ];
 

@@ -10,6 +10,7 @@ import { useGetMenuMaster } from 'api/menu';
 import { useAuth } from 'contexts/AuthContext';
 import { getMenuAPI } from 'api/requests/appApi';
 import { setBillingMenus } from 'menu-items/billing';
+import { setContractMenus } from 'menu-items/work';
 import { useSocket } from 'socket/SocketProvider';
 import * as TablerIcons from '@tabler/icons-react';
 
@@ -21,6 +22,15 @@ let cachedUserId = null;
 // Entradas del grupo Facturas (DEC-074): una por tipo de proveedor con la
 // casilla del menú, con dirección `billing/invoices/:pvtId`.
 const INVOICE_MENU_URL = /^\/?billing\/invoices\/(\d+)$/;
+// Entradas del desplegable Contratos (DEC-077): `work/contracts/menu/:pvtId`.
+const CONTRACT_MENU_URL = /^\/?work\/contracts\/menu\/(\d+)$/;
+
+/** Las entradas del servidor cuya dirección es la de un menú: `[{ pvtId, name }]`. */
+const menuEntries = (hijos, pattern) =>
+  hijos
+    .map((hijo) => ({ match: pattern.exec(hijo.toa ?? ''), name: hijo.label || hijo.pag_description }))
+    .filter((entry) => entry.match)
+    .map((entry) => ({ pvtId: entry.match[1], name: entry.name }));
 
 const getIconByName = (iconName) => {
   if (!iconName) return null;
@@ -86,13 +96,9 @@ function MenuList() {
   const fetchMenu = useCallback(async () => {
     try {
       const { data } = await getMenuAPI();
-      // Las migas de pan de Facturas siguen a las entradas del servidor.
-      setBillingMenus(
-        (data.hijos || [])
-          .map((hijo) => ({ match: INVOICE_MENU_URL.exec(hijo.toa ?? ''), name: hijo.label || hijo.pag_description }))
-          .filter((entry) => entry.match)
-          .map((entry) => ({ pvtId: entry.match[1], name: entry.name }))
-      );
+      // Las migas de pan de Facturas y Contratos siguen a las entradas del servidor.
+      setBillingMenus(menuEntries(data.hijos || [], INVOICE_MENU_URL));
+      setContractMenus(menuEntries(data.hijos || [], CONTRACT_MENU_URL));
       const toItem = (hijo) => ({
         id: hijo.toa || `item-${hijo.pag_id}`,
         title: hijo.label || hijo.pag_description,
@@ -104,10 +110,11 @@ function MenuList() {
       const transformMenu = (padres, hijos) => {
         const mapped = padres.map((padre) => {
           const childrenOfPadre = hijos.filter((hijo) => hijo.padre === padre.id);
-          
+
           if (childrenOfPadre.length > 0) {
             const items = childrenOfPadre.map((hijo) =>
-              // Desplegable dentro del grupo (pag_type 3, migración 0111): Facturas en Inicio, con sus entradas debajo.
+              // Desplegable dentro del grupo (pag_type 3, migración 0111): Facturas en Inicio, con sus entradas debajo;
+              // también Contratos con menús (DEC-077).
               hijo.collapsible
                 ? {
                     id: `collapse-${hijo.pag_id}`,
@@ -148,11 +155,11 @@ function MenuList() {
               type: 'group',
               children: [
                 {
-                id: padre.toa || `item-${padre.id}`,
-                title: padre.label || padre.pag_description,
-                type: 'item',
-                url: padre.toa?.startsWith('/') ? padre.toa : padre.toa ? `/${padre.toa}` : '#',
-                icon: getIconByName(padre.icon)
+                  id: padre.toa || `item-${padre.id}`,
+                  title: padre.label || padre.pag_description,
+                  type: 'item',
+                  url: padre.toa?.startsWith('/') ? padre.toa : padre.toa ? `/${padre.toa}` : '#',
+                  icon: getIconByName(padre.icon)
                 }
               ]
             };
@@ -167,7 +174,7 @@ function MenuList() {
       cachedUserId = user?.useId;
       setMenuList(transformed);
     } catch (err) {
-      console.error("Error loading menu:", err);
+      console.error('Error loading menu:', err);
     } finally {
       setLoading(false);
     }
@@ -183,8 +190,9 @@ function MenuList() {
     fetchMenu();
   }, [user, fetchMenu]);
 
-  // Un tipo de proveedor que entra o sale del menú de facturas, o cambia de
-  // nombre, cambia el sidebar de todos (DEC-074): se vuelve a pedir.
+  // Un tipo de proveedor que entra o sale del menú de facturas o del de
+  // contratos, o cambia de nombre, cambia el sidebar de todos (DEC-074,
+  // DEC-077): se vuelve a pedir.
   useEffect(() => {
     if (!socket || !user?.useId) return undefined;
     socket.on('refresh-provider-types', fetchMenu);
@@ -202,14 +210,7 @@ function MenuList() {
   const navItems = menuList.map((item, index) => {
     switch (item.type) {
       case 'group':
-        return (
-          <NavGroup
-            key={item.id}
-            setSelectedID={setSelectedID}
-            selectedID={selectedID}
-            item={item}
-          />
-        );
+        return <NavGroup key={item.id} setSelectedID={setSelectedID} selectedID={selectedID} item={item} />;
       default:
         return (
           <Typography key={item.id} variant="h6" align="center" sx={{ color: 'error.main' }}>

@@ -1,5 +1,8 @@
-import { useMemo, useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Outlet, useNavigate, useParams } from 'react-router-dom';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
 import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 import { IconDownload } from '@tabler/icons-react';
@@ -13,14 +16,15 @@ import {
   exportContractAPI,
   exportContractsAPI,
   getContractFilterProvidersAPI,
-  getContractFilterStagesAPI
+  getContractFilterStagesAPI,
+  getContractMenuAPI
 } from 'api/requests/contractsApi';
 import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField } from 'contexts/WorkScopeContext';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly } from 'utils/formatTime';
-import { CONTRACT_POLICY_STATUS_LABELS, CONTRACT_STATE_COLORS, CONTRACT_STATE_TABS } from 'utils/constants';
+import { CONTRACT_POLICY_STATUS_LABELS, CONTRACT_STATE_COLORS, CONTRACT_STATE_TABS, contractPath } from 'utils/constants';
 
 // Contratos (ADR-0015, DEC-035). Reutiliza el listado de MasterPage con
 // pestañas por el estado del ciclo de vida (en ejecución, suspendido, en
@@ -31,6 +35,9 @@ import { CONTRACT_POLICY_STATUS_LABELS, CONTRACT_STATE_COLORS, CONTRACT_STATE_TA
 // filtros del listado (DEC-048): las pestañas cuentan dentro de los filtros.
 // Desde el tablero llega con el estado de pólizas o "con conceptos sin
 // póliza" (DEC-052): el servidor filtra con el mismo predicado de la cifra.
+// Menús dinámicos (DEC-077): la misma pantalla es "Todos" (`/work/contracts`)
+// y el listado de un menú (`/work/contracts/menu/:pvtId`), que muestra solo los
+// contratos firmados bajo ese tipo de proveedor y lo fija al crear.
 
 export const CONTRACT_COLUMNS = [
   { id: 'number', label: 'Número', sortable: true },
@@ -169,15 +176,41 @@ const FILTER_FIELDS = [
   { key: 'endDate', type: 'calendar-range', label: 'Fecha fin' }
 ];
 
+/**
+ * El menú de contratos de la ruta (DEC-077): `{ menu, error }`. Sin `pvtId`
+ * ("Todos"), `menu` es null y no se pide nada.
+ */
+function useContractMenu(pvtId) {
+  const [state, setState] = useState({ menu: null, error: null });
+
+  useEffect(() => {
+    setState({ menu: null, error: null });
+    if (!pvtId) return undefined;
+    let cancelled = false;
+    getContractMenuAPI(pvtId)
+      .then(({ data }) => !cancelled && setState({ menu: data, error: null }))
+      .catch((err) => !cancelled && setState({ menu: null, error: err.response?.data?.message || 'No se encontró el menú de contratos.' }));
+    return () => {
+      cancelled = true;
+    };
+  }, [pvtId]);
+
+  return state;
+}
+
 export default function ContractsPage() {
+  const { pvtId } = useParams();
+  const { menu, error } = useContractMenu(pvtId);
   const { permissionsCatalog, hasPermission } = useAuth();
   const [exporting, setExporting] = useState(null);
   const navigate = useNavigate();
   const [reloadKey, setReloadKey] = useState(0);
-  const outletContext = useMemo(() => ({ refresh: () => setReloadKey((k) => k + 1) }), []);
+  const basePath = contractPath(pvtId);
+  const outletContext = useMemo(() => ({ returnTo: basePath, menu, refresh: () => setReloadKey((k) => k + 1) }), [basePath, menu]);
   const workFilter = useWorkFilterField();
   const filterFields = useMemo(() => (workFilter ? [...FILTER_FIELDS, workFilter] : FILTER_FIELDS), [workFilter]);
   const linked = useLinkedFilters(LINKED_KEYS, describeLinked);
+  const filters = useMemo(() => (pvtId ? { pvtId, ...linked.filters } : linked.filters), [pvtId, linked.filters]);
   const policiesView = permissionsCatalog.work?.policies?.view;
   const canViewPolicies = policiesView != null && hasPermission(policiesView);
   const stateTabs = useMemo(
@@ -190,10 +223,10 @@ export default function ContractsPage() {
     () => ({
       permission: permissionsCatalog.work?.contracts?.export,
       request: exportContractsAPI,
-      fileName: 'contratos',
+      fileName: pvtId ? `contratos_${pvtId}` : 'contratos',
       reports: CONTRACT_REPORTS
     }),
-    [permissionsCatalog]
+    [permissionsCatalog, pvtId]
   );
 
   // Reporte de un contrato desde su fila: el expediente completo (DEC-070).
@@ -209,17 +242,28 @@ export default function ContractsPage() {
 
   const navigation = useMemo(
     () => ({
-      create: () => navigate('/work/contracts/new'),
+      create: () => navigate(contractPath(pvtId, 'new')),
       // Sin "Editar": el detalle es también el formulario (DEC-057).
-      view: (row) => navigate(`/work/contracts/${row.ctrId}`)
+      view: (row) => navigate(contractPath(pvtId, row.ctrId))
     }),
-    [navigate]
+    [navigate, pvtId]
   );
+
+  if (error) return <Alert severity="warning">{error}</Alert>;
+  if (pvtId && (!menu || String(menu.pvtId) !== String(pvtId))) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+        <CircularProgress size={28} />
+      </Box>
+    );
+  }
 
   return (
     <>
       <MasterPage
+        key={pvtId ?? 'all'}
         title="Contrato"
+        {...(menu ? { pluralTitle: `Contratos ${menu.name}` } : {})}
         idField="ctrId"
         api={contractsApi}
         permissions={permissionsCatalog.work?.contracts}
@@ -229,7 +273,7 @@ export default function ContractsPage() {
         rowLabel={rowLabel}
         navigation={navigation}
         stateTabs={stateTabs}
-        filters={linked.filters}
+        filters={filters}
         initialStatus={linked.initialStatus}
         header={<LinkedFilterNotice label={linked.label} onClear={linked.clear} />}
         reloadKey={reloadKey}

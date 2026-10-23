@@ -117,6 +117,17 @@ const MainRoutes = {
                 { path: ':ctrId', element: <ContractDetailPage /> },
                 { path: ':ctrId/edit', element: <ContractDetailPage /> }
               ]
+            },
+            {
+              // Menús de contratos (DEC-077): el mismo listado, con el tipo de
+              // proveedor del menú. Sin el menú, "Todos" (la ruta de arriba).
+              path: 'contracts/menu/:pvtId',
+              element: <ContractsPage />,
+              children: [
+                { path: 'new', element: <ContractDetailPage /> },
+                { path: ':ctrId', element: <ContractDetailPage /> },
+                { path: ':ctrId/edit', element: <ContractDetailPage /> }
+              ]
             }
           ]
         },

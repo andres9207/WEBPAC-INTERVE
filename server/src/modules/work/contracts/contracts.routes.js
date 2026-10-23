@@ -10,6 +10,7 @@ import {
   selectContractFilterProvidersSchema,
   selectContractFilterStagesSchema,
   getContractSchema,
+  getContractMenuSchema,
   selectContractWorksSchema,
   getContractFormOptionsSchema,
   previewContractConceptSchema,
@@ -33,6 +34,7 @@ import {
   selectContractFilterProvidersController,
   selectContractFilterStagesController,
   getContractController,
+  getContractMenuController,
   selectContractWorksController,
   getContractFormOptionsController,
   previewContractConceptController,
@@ -80,6 +82,8 @@ contractsRoutes.get(
   validate,
   selectContractFilterStagesController
 );
+// Un menú de contratos (DEC-077): el tipo de proveedor del listado.
+contractsRoutes.get("/get_contract_menu", verifyToken, requirePermission(can.view), getContractMenuSchema, validate, getContractMenuController);
 contractsRoutes.get("/get_contract", verifyToken, requirePermission(can.view), getContractSchema, validate, getContractController);
 // Obras activas, y etapas y proveedores de una obra, para el formulario.
 contractsRoutes.get("/select_contract_works", verifyToken, requirePermission(can.view), selectContractWorksSchema, validate, selectContractWorksController);

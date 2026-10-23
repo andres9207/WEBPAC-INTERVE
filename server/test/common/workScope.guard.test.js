@@ -17,6 +17,7 @@ const EXEMPT = {
   previewContractConceptController: "solo compone los importes del concepto que recibe (valor y %); no lee la BD",
   getInvoiceMenuController: "lee un tipo de proveedor del catálogo (su nombre y su forma de facturar), no datos de obras (DEC-074)",
   selectInvoiceMenusController: "lista los tipos de proveedor con la casilla del menú de facturas, no datos de obras (DEC-074)",
+  getContractMenuController: "lee un tipo de proveedor del catálogo (su nombre), no datos de obras (DEC-077)",
   selectWorkManagersController: "lista usuarios candidatos a responsable, no datos de obras",
   checkIdentificationController: "coincidencia exacta en el catálogo de proveedores, para no crear duplicados (DEC-047)",
   selectProvidersController: "catálogo de proveedores para asignar a la obra, para no crear duplicados (DEC-047)",

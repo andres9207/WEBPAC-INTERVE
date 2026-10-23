@@ -34,6 +34,7 @@ export default function ContractDataForm({ form, contract, isNew, blocked }) {
     options,
     loadingOptions,
     providerTypes,
+    fixedMenu,
     fetchContractTypes,
     changeWork,
     recalcTerm,
@@ -140,8 +141,12 @@ export default function ContractDataForm({ form, contract, isNew, blocked }) {
                     !wrkId
                       ? 'Elige primero la obra'
                       : noOptions && options.providers.length === 0
-                        ? 'Asigna antes un proveedor a la obra'
-                        : ''
+                        ? fixedMenu
+                          ? `Ningún proveedor trabaja en esta obra como ${fixedMenu.name}: edita su asignación`
+                          : 'Asigna antes un proveedor a la obra'
+                        : fixedMenu
+                          ? `Los que trabajan en la obra como ${fixedMenu.name}`
+                          : ''
                   }
                 />
               )}
@@ -158,18 +163,21 @@ export default function ContractDataForm({ form, contract, isNew, blocked }) {
                   onChange={field.onChange}
                   options={providerTypes}
                   loading={loadingOptions}
-                  disabled={!prvId}
+                  // Desde un menú de contratos, el tipo es el del menú (DEC-077).
+                  disabled={!prvId || Boolean(fixedMenu)}
                   label="Tipo de proveedor"
                   required
                   error={fieldState.error?.message}
                   helperText={
-                    !prvId
-                      ? 'Elige primero el proveedor'
-                      : providerTypes.length === 0
-                        ? 'En esta obra no trabaja con un tipo que facture con contrato: edita su asignación'
-                        : chosenType
-                          ? `Sus facturas van al menú ${chosenType.label}`
-                          : 'Los tipos con que trabaja en la obra que facturan con contrato'
+                    fixedMenu
+                      ? `El del menú ${fixedMenu.name}`
+                      : !prvId
+                        ? 'Elige primero el proveedor'
+                        : providerTypes.length === 0
+                          ? 'En esta obra no trabaja con un tipo que facture con contrato: edita su asignación'
+                          : chosenType
+                            ? `Sus facturas van al menú ${chosenType.label}`
+                            : 'Los tipos con que trabaja en la obra que facturan con contrato'
                   }
                 />
               )}

@@ -401,7 +401,8 @@ export const selectContractFilterStages = async ({ search, includeWksId, scope }
 /**
  * Contratos no eliminados, paginados. `state` filtra por estado del ciclo de
  * vida (las pestañas), `wrkId`, por obra (la pestaña de la obra), `cttId`,
- * por tipo de contrato, y `prvId`, por proveedor. `number`, `name`, `providerName` (razón social) y el
+ * por tipo de contrato, `prvId`, por proveedor, y `pvtId`, por el tipo de
+ * proveedor bajo el que se firmó (el menú de contratos, DEC-077). `number`, `name`, `providerName` (razón social) y el
  * rango de la fecha fin (`endDateFrom`, `endDateTo`) son filtros por campo
  * (DEC-048), igual que `wksId` (etapa) y `states` (uno o varios estados, aparte
  * de la pestaña: los dos se suman). Los conteos de las pestañas respetan todos
@@ -431,6 +432,7 @@ export const contractListQuery = async ({
   wksId,
   cttId,
   prvId,
+  pvtId,
   number,
   name,
   providerName,
@@ -461,6 +463,7 @@ export const contractListQuery = async ({
       idFilter(wrkId, (id) => ({ wrk_id: id })),
       idFilter(wksId, (id) => ({ wks_id: id })),
       idFilter(prvId, (id) => ({ prv_id: id })),
+      idFilter(pvtId, (id) => ({ pvt_id: id })),
       Array.isArray(states) && states.length > 0 ? { ctr_state: { in: states } } : null,
       containsFilter(providerName, (c) => ({ tbl_providers: { prv_name: c } })),
       containsFilter(number, (c) => ({ ctr_number: c })),
@@ -522,6 +525,7 @@ export const exportFilterLines = async ({
   wksId,
   cttId,
   prvId,
+  pvtId,
   number,
   name,
   providerName,
@@ -530,13 +534,15 @@ export const exportFilterLines = async ({
   policyStatus,
   uncovered,
 }) => {
-  const [work, stage, type, provider] = await Promise.all([
+  const [work, stage, type, provider, menu] = await Promise.all([
     Number(wrkId) > 0 ? prisma.tbl_works.findUnique({ where: { wrk_id: Number(wrkId) }, select: { wrk_code: true, wrk_name: true } }) : null,
     Number(wksId) > 0 ? prisma.tbl_work_stages.findUnique({ where: { wks_id: Number(wksId) }, select: { wks_name: true } }) : null,
     Number(cttId) > 0 ? prisma.tbl_contract_types.findUnique({ where: { ctt_id: Number(cttId) }, select: { ctt_name: true } }) : null,
     Number(prvId) > 0 ? prisma.tbl_providers.findUnique({ where: { prv_id: Number(prvId) }, select: { prv_name: true } }) : null,
+    Number(pvtId) > 0 ? prisma.tbl_provider_types.findUnique({ where: { pvt_id: Number(pvtId) }, select: { pvt_name: true } }) : null,
   ]);
   const lines = [
+    ["Tipo de proveedor", menu?.pvt_name],
     ["Estado", state === EXPIRING_TAB ? "A vencer" : state === POLICIES_EXPIRING_TAB ? "Pólizas por vencer o vencidas" : state ? (STATE_NAMES[state] ?? state) : "Todos"],
     ["Estados", Array.isArray(states) ? states.map((s) => STATE_NAMES[s] ?? s).join(", ") : ""],
     ["Búsqueda", text(search)],

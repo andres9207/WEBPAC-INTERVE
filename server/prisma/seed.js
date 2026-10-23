@@ -240,11 +240,12 @@ const IDENTITY_DOCUMENTS = [
 ];
 
 // Tipos de proveedor iniciales (database/migrations/0023_seed_provider_types.sql),
-// con su forma de facturar y en el menú de facturas (0109, DEC-074).
+// con su forma de facturar y en el menú de facturas (0109, DEC-074); los que
+// facturan con contrato, también en el de contratos (0114, DEC-077).
 const PROVIDER_TYPES = [
-  { pvt_id: 1, pvt_name: "Simple", pvt_invoice_mode: "SIMPLE", pvt_invoice_menu: true, sta_id: 1 },
-  { pvt_id: 2, pvt_name: "Subcontratista", pvt_invoice_mode: "CONTRACT", pvt_invoice_menu: true, sta_id: 1 },
-  { pvt_id: 3, pvt_name: "Contrato mayor", pvt_invoice_mode: "CONTRACT", pvt_invoice_menu: true, sta_id: 1 },
+  { pvt_id: 1, pvt_name: "Simple", pvt_invoice_mode: "SIMPLE", pvt_invoice_menu: true, pvt_contract_menu: false, sta_id: 1 },
+  { pvt_id: 2, pvt_name: "Subcontratista", pvt_invoice_mode: "CONTRACT", pvt_invoice_menu: true, pvt_contract_menu: true, sta_id: 1 },
+  { pvt_id: 3, pvt_name: "Contrato mayor", pvt_invoice_mode: "CONTRACT", pvt_invoice_menu: true, pvt_contract_menu: true, sta_id: 1 },
 ];
 
 // Tipos de dirección iniciales (database/migrations/0026_seed_address_types.sql).

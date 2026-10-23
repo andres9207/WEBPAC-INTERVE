@@ -37,7 +37,7 @@ import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
-import { CONTRACT_STATE_COLORS, INVOICE_MODES, fTerm } from 'utils/constants';
+import { CONTRACT_STATE_COLORS, INVOICE_MODES, contractPath, fTerm } from 'utils/constants';
 
 /**
  * Un contrato en un solo modal (DEC-057), sobre el listado y con dirección
@@ -96,8 +96,10 @@ function ContractView() {
   const navigate = useNavigate();
   const location = useLocation();
   const socket = useSocket();
-  // `returnTo`: abierto sobre otra pantalla (el tablero), cerrar vuelve a ella.
-  const { refresh, returnTo = '/work/contracts' } = useOutletContext() ?? {};
+  // `returnTo`: abierto sobre otra pantalla (el tablero) o en un menú de
+  // contratos (DEC-077), cerrar vuelve a ella. `menu`: el de ese menú, que fija
+  // el tipo de proveedor al crear; el contrato creado se abre en su listado.
+  const { refresh, returnTo = '/work/contracts', menu = null } = useOutletContext() ?? {};
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
   const perms = permissionsCatalog.work?.contracts;
@@ -123,7 +125,7 @@ function ContractView() {
     if (asideMode && tab === 'summary') setTab(canEdit ? 'data' : 'value');
   }, [asideMode, tab, canEdit]);
 
-  const form = useContractForm({ ctrId, isNew, contract });
+  const form = useContractForm({ ctrId, isNew, contract, menu });
   const { methods, resetEndDate } = form;
   const { control, handleSubmit, reset, formState } = methods;
   const { errors, isDirty } = formState;
@@ -180,7 +182,7 @@ function ContractView() {
       showSuccess(data.message || 'Guardado correctamente.');
       refresh?.();
       if (isNew) {
-        navigate(`/work/contracts/${data.ctrId}`, { replace: true, state: { tab: 'summary' } });
+        navigate(contractPath(menu?.pvtId, data.ctrId), { replace: true, state: { tab: 'summary' } });
         return;
       }
       await load({ resetForm: true });

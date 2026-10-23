@@ -2,6 +2,7 @@ import { prisma } from "../../../common/configs/prismaClient.js";
 import { getEffectivePermissionIds, hasEffectivePermission } from "../../../common/services/effectivePermissions.service.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import { listInvoiceMenus } from "../../billing/invoices/invoiceMenus.js";
+import { listContractMenus } from "../../work/contracts/contractMenus.js";
 import { userFullName } from "../../../common/utils/user.utils.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
@@ -66,7 +67,34 @@ const withInvoiceMenus = async (datos, { per, idu }) => {
   return { ...datos, hijos: [...datos.hijos.filter((h) => h.padre !== BILLING_PAGE_ID), ...entries] };
 };
 
-export const getMenu = async (args) => withInvoiceMenus(await getPagesMenu(args), args);
+// Página "Contratos" (work/contracts). Con algún menú de contratos (DEC-077)
+// el sidebar la dibuja desplegable: "Todos" (el listado general, la misma
+// página) y una entrada por tipo con la casilla. Sin ninguno, sigue siendo
+// una página. Las entradas no son páginas: la página 16 decide quién las ve.
+const CONTRACTS_PAGE_ID = 16;
+
+const withContractMenus = async (datos) => {
+  const page = datos.hijos.find((h) => h.pag_id === CONTRACTS_PAGE_ID);
+  if (!page) return datos;
+  const menus = await listContractMenus();
+  if (menus.length === 0) return datos;
+  const entries = [
+    { pag_id: "contracts-all", pag_description: "Todos", padre: CONTRACTS_PAGE_ID, toa: page.toa, icon: page.icon, pag_order: 0, label: "Todos" },
+    ...menus.map((menu, index) => ({
+      pag_id: `contracts-${menu.pvtId}`,
+      pag_description: menu.name,
+      padre: CONTRACTS_PAGE_ID,
+      toa: `work/contracts/menu/${menu.pvtId}`,
+      icon: "contract",
+      pag_order: index + 1,
+      label: menu.name,
+    })),
+  ];
+  const hijos = datos.hijos.map((h) => (h.pag_id === CONTRACTS_PAGE_ID ? { ...h, toa: null, collapsible: true } : h));
+  return { ...datos, hijos: [...hijos, ...entries] };
+};
+
+export const getMenu = async (args) => withContractMenus(await withInvoiceMenus(await getPagesMenu(args), args));
 
 const getPagesMenu = async ({ per, idu }) => {
   const datos = { padres: [], hijos: [] };

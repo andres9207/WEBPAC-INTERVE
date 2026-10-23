@@ -131,6 +131,15 @@ export const invoiceModeName = (mode) => INVOICE_MODE_OPTIONS.find((o) => o.valu
 /** Tipos de factura de cada forma de facturar. */
 export const INVOICE_MODE_TYPES = { [INVOICE_MODES.SIMPLE]: ['SIMPLE'], [INVOICE_MODES.CONTRACT]: CONTRACT_INVOICE_TYPES };
 
+/**
+ * Dirección de un contrato o de un listado de contratos: sin menú, el general
+ * (`/work/contracts`); con él, el del menú de su tipo de proveedor (DEC-077):
+ * `contractPath(3, 70)` → `/work/contracts/menu/3/70`.
+ */
+export const contractPath = (pvtId, ctrId, suffix) =>
+  [pvtId ? `/work/contracts/menu/${pvtId}` : '/work/contracts', ctrId, suffix]
+    .filter((part) => part !== undefined && part !== null && part !== '')
+    .join('/');
 /** Dirección del listado de un menú (su tipo de proveedor), o de una factura en él: `invoicePath(3, 70, 'edit')`. */
 export const invoicePath = (pvtId, invId, suffix) =>
   ['/billing/invoices', pvtId, invId, suffix].filter((part) => part !== undefined && part !== null && part !== '').join('/');

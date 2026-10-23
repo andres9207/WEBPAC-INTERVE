@@ -78,6 +78,8 @@ export const paginationContractsSchema = [
   optionalId("wksId"),
   optionalId("cttId"),
   optionalId("prvId"),
+  // El menú de contratos (DEC-077): el tipo de proveedor bajo el que se firmó.
+  optionalId("pvtId"),
   // Filtros por campo (DEC-048). `states`: uno o varios estados, aparte de la pestaña (`state`).
   body("states").optional({ values: "falsy" }).isArray({ max: Object.values(CONTRACT_STATES).length }).withMessage("states debe ser una lista."),
   body("states.*").isIn(Object.values(CONTRACT_STATES)).withMessage("Un estado de la lista no es válido."),
@@ -99,6 +101,8 @@ export const exportContractsSchema = [
 ];
 
 export const exportContractSchema = [requiredId("ctrId"), exportFormatRule()];
+
+export const getContractMenuSchema = [query("pvtId").isInt({ min: 1 }).withMessage("pvtId es obligatorio y debe ser un entero positivo.")];
 
 export const getContractSchema = [query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo.")];
 

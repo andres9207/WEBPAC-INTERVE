@@ -142,7 +142,7 @@ export const PERMISSIONS = {
     // otrosí, crear el de liquidación (cambia el estado) y modificar un
     // concepto (cambia el valor) van aparte de editar (ADR-0016, "Autorización").
     contracts: {
-      view: 68, // pagination_contracts, get_contract, select_contract_works, get_contract_form_options
+      view: 68, // pagination_contracts, get_contract, get_contract_menu, select_contract_works, get_contract_form_options
       create: 69,
       edit: 70,
       delete: 71,

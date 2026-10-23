@@ -468,6 +468,17 @@ describe("paginationContracts", () => {
     expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, ctt_id: 4 });
   });
 
+  it("el menú de contratos filtra por el tipo de proveedor, también en los conteos (DEC-077)", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+
+    await service.paginationContracts({ pvtId: "2", rows: 10, first: 0 });
+
+    expect(JSON.stringify(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where)).toContain('{"pvt_id":2}');
+    expect(JSON.stringify(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where)).toContain('{"pvt_id":2}');
+  });
+
   it("filtra por número, nombre, razón social del proveedor y rango de fecha fin, también en los conteos (DEC-048)", async () => {
     prismaMock.tbl_contracts.count.mockResolvedValue(0);
     prismaMock.tbl_contracts.findMany.mockResolvedValue([]);

@@ -423,6 +423,7 @@ model tbl_identity_documents {
 /// pvt_config_version: versión vigente de la configuración de campos del contrato del tipo (DEC-053).
 /// pvt_invoice_mode: forma de facturar, SIMPLE o CONTRACT (NULL: no factura); pvt_invoice_menu: el tipo es una
 /// entrada del menú "Facturas", exige forma (CHECK). Migración 0109, DEC-074.
+/// pvt_contract_menu: el tipo es una entrada del menú "Contratos", exige forma CONTRACT (CHECK). Migración 0114, DEC-077.
 /// pvt_name_active es una columna GENERADA por MySQL (respalda la unicidad entre no eliminados):
 /// nunca se escribe desde el código.
 model tbl_provider_types {
@@ -430,6 +431,7 @@ model tbl_provider_types {
   pvt_name                         String                             @db.VarChar(100)
   pvt_invoice_mode                 String?                            @db.VarChar(20)
   pvt_invoice_menu                 Boolean                            @default(false)
+  pvt_contract_menu                Boolean                            @default(false)
   pvt_config_version               Int                                @default(1)
   sta_id                           Int                                @default(1)
   pvt_create_by                    Int?
@@ -871,6 +873,7 @@ model tbl_contracts {
   @@unique([ctr_id, wrk_id, prv_id, pvt_id], map: "uq_contracts_id_work_provider_type")
   @@index([ctr_state], map: "idx_contracts_state")
   @@index([ctt_id], map: "tbl_contracts_contract_type")
+  @@index([pvt_id], map: "idx_contracts_provider_type")
   @@index([ctr_create_by], map: "tbl_contracts_create_by")
   @@index([ctr_delete_by], map: "tbl_contracts_delete_by")
   @@index([prv_id], map: "tbl_contracts_provider")

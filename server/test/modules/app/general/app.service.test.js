@@ -2,16 +2,17 @@ import { jest } from "@jest/globals";
 
 // Menú lateral: páginas del perfil, y el desplegable "Facturas" (página 18),
 // dentro del grupo Inicio (migración 0111), con una entrada por tipo de
-// proveedor con la casilla del menú (DEC-074).
+// proveedor con la casilla del menú (DEC-074). Contratos (página 16), igual:
+// desplegable con "Todos" y una entrada por tipo con su casilla (DEC-077).
 
-const state = { pages: [], children: [], canView: true, menus: [] };
+const state = { pages: [], children: [], canView: true, menus: [], contractMenus: [] };
 
 const prismaMock = {
   tbl_user_pages: { findMany: jest.fn(async () => []) },
   tbl_pages: { findMany: jest.fn(async ({ where }) => (where.pag_parent === 0 ? state.pages : state.children)) },
   tbl_profile_permissions: { findFirst: jest.fn(async () => (state.canView ? { prp_id: 1 } : null)) },
   tbl_user_permissions: { findFirst: jest.fn(async () => null) },
-  tbl_provider_types: { findMany: jest.fn(async () => state.menus) },
+  tbl_provider_types: { findMany: jest.fn(async ({ where }) => (where.pvt_contract_menu ? state.contractMenus : state.menus)) },
 };
 
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
@@ -21,6 +22,7 @@ const { getMenu } = await import("../../../../src/modules/app/general/app.servic
 const page = (pag_id, pag_name, extra = {}) => ({ pag_id, pag_name, pag_description: pag_name, pag_url: null, pag_icon: "x", pag_order: 1, pag_type: 1, ...extra });
 const HOME = page(13, "Inicio");
 const DASHBOARD = page(1, "Dashboard", { pag_parent: 13, pag_url: "home/default", pag_type: 2 });
+const CONTRACTS = page(16, "Contratos", { pag_parent: 13, pag_url: "work/contracts", pag_type: 2, pag_icon: "file-description", pag_order: 4 });
 const BILLING = page(18, "Facturas", { pag_parent: 13, pag_type: 3, pag_icon: "receipt", pag_order: 5 });
 
 beforeEach(() => {
@@ -31,6 +33,10 @@ beforeEach(() => {
   state.menus = [
     { pvt_id: 3, pvt_name: "Contrato mayor", pvt_invoice_mode: "CONTRACT", pvt_invoice_menu: true, sta_id: 1 },
     { pvt_id: 4, pvt_name: "Orden de servicio", pvt_invoice_mode: "SIMPLE", pvt_invoice_menu: true, sta_id: 1 },
+  ];
+  state.contractMenus = [
+    { pvt_id: 3, pvt_name: "Contrato mayor", pvt_contract_menu: true, sta_id: 1 },
+    { pvt_id: 2, pvt_name: "Subcontratista", pvt_contract_menu: true, sta_id: 1 },
   ];
 });
 
@@ -68,6 +74,37 @@ describe("getMenu — desplegable Facturas (DEC-074)", () => {
     state.children = [DASHBOARD];
     await getMenu({ per: 2, idu: 7 });
     expect(prismaMock.tbl_profile_permissions.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_provider_types.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("getMenu — desplegable Contratos (DEC-077)", () => {
+  beforeEach(() => {
+    state.children = [DASHBOARD, CONTRACTS];
+  });
+
+  it("con tipos con la casilla, Contratos es un desplegable: Todos primero y una entrada por tipo, en su orden", async () => {
+    const menu = await getMenu({ per: 2, idu: 7 });
+
+    expect(menu.hijos.find((h) => h.pag_id === 16)).toMatchObject({ padre: 13, collapsible: true, toa: null });
+    expect(menu.hijos.filter((h) => h.padre === 16)).toEqual([
+      { pag_id: "contracts-all", pag_description: "Todos", padre: 16, toa: "work/contracts", icon: "file-description", pag_order: 0, label: "Todos" },
+      { pag_id: "contracts-3", pag_description: "Contrato mayor", padre: 16, toa: "work/contracts/menu/3", icon: "contract", pag_order: 1, label: "Contrato mayor" },
+      { pag_id: "contracts-2", pag_description: "Subcontratista", padre: 16, toa: "work/contracts/menu/2", icon: "contract", pag_order: 2, label: "Subcontratista" },
+    ]);
+    expect(prismaMock.tbl_provider_types.findMany.mock.calls[0][0].where).toEqual({ sta_id: 1, pvt_contract_menu: true });
+  });
+
+  it("sin ningún tipo con la casilla, Contratos sigue siendo una página", async () => {
+    state.contractMenus = [];
+    const menu = await getMenu({ per: 2, idu: 7 });
+    expect(menu.hijos.find((h) => h.pag_id === 16)).toMatchObject({ toa: "work/contracts", collapsible: false });
+    expect(childIds(menu)).toEqual([1, 16]);
+  });
+
+  it("sin Contratos en sus páginas, no lee los tipos", async () => {
+    state.children = [DASHBOARD];
+    await getMenu({ per: 2, idu: 7 });
     expect(prismaMock.tbl_provider_types.findMany).not.toHaveBeenCalled();
   });
 });

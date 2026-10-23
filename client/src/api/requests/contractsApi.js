@@ -25,6 +25,9 @@ export const exportContractAPI = (ctrId, format) =>
 export const exportContractsAPI = (params, format, report) =>
   httpCliente.post('work/contracts/export_contracts', { ...params, format, report }, { responseType: 'blob' });
 
+/** Un menú de contratos (DEC-077), también oculto: `{ pvtId, name, menu }`. */
+export const getContractMenuAPI = (pvtId) => httpCliente.get('work/contracts/get_contract_menu', { pvtId });
+
 /** Obras activas para el formulario de contrato. @param {string} [search] */
 export const getContractWorksSelectAPI = (search) => httpCliente.get('work/contracts/select_contract_works', search ? { search } : {});
 

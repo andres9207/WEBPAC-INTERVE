@@ -43,8 +43,13 @@ import { ALL_WORKS } from 'utils/workScope';
  *   lectura, marcado como heredado.
  *
  * `contract` es el contrato guardado (null al crear).
+ *
+ * `menu`: el menú de contratos desde el que se crea (DEC-077), `{ pvtId, name }`.
+ * Al crear, el tipo de proveedor queda fijo en el suyo: solo se ofrecen los
+ * proveedores que trabajan con ese tipo en la obra.
  */
-export default function useContractForm({ ctrId, isNew, contract }) {
+export default function useContractForm({ ctrId, isNew, contract, menu = null }) {
+  const fixedPvtId = isNew && menu ? Number(menu.pvtId) : null;
   const { activeWork, works: scopeWorks } = useWorkScope();
   // Obra fija del encabezado; null con "Ver todo" (se elige en el formulario).
   const headerWork = activeWork === ALL_WORKS ? null : (scopeWorks.find((work) => work.value === activeWork) ?? null);
@@ -123,9 +128,17 @@ export default function useContractForm({ ctrId, isNew, contract }) {
     };
   }, [wrkId, isNew, storedWksId, storedPrvId, storedPvtId]);
 
+  // Desde un menú (DEC-077), solo los proveedores que trabajan en la obra con su tipo, y solo ese tipo.
+  const providers = useMemo(
+    () => (fixedPvtId ? options.providers.filter((p) => (p.types ?? []).some((t) => t.value === fixedPvtId)) : options.providers),
+    [options.providers, fixedPvtId]
+  );
   // Tipos con que el proveedor elegido trabaja en la obra y admiten contratos (DEC-066).
-  const providerOption = useMemo(() => options.providers.find((p) => p.value === Number(prvId)) ?? null, [options.providers, prvId]);
-  const providerTypes = useMemo(() => providerOption?.types ?? [], [providerOption]);
+  const providerOption = useMemo(() => providers.find((p) => p.value === Number(prvId)) ?? null, [providers, prvId]);
+  const providerTypes = useMemo(
+    () => (providerOption?.types ?? []).filter((t) => !fixedPvtId || t.value === fixedPvtId),
+    [providerOption, fixedPvtId]
+  );
   // Si el tipo elegido no es del proveedor (cambió el proveedor), se limpia;
   // si el proveedor tiene uno solo, se elige solo. Espera a tener las opciones.
   useEffect(() => {
@@ -179,9 +192,11 @@ export default function useContractForm({ ctrId, isNew, contract }) {
     resetEndDate,
     headerWork,
     workOptions,
-    options,
+    options: fixedPvtId ? { ...options, providers } : options,
     loadingOptions,
     providerTypes,
+    // El menú desde el que se crea, con el tipo fijo (DEC-077); null si no.
+    fixedMenu: fixedPvtId ? menu : null,
     fetchContractTypes,
     changeWork,
     recalcTerm,

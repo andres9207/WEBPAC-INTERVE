@@ -26,8 +26,8 @@ const assertModeUnchangedInUse = async (tx, { id, before, values }) => {
 // (DEC-023) y, en cada obra, la participación del proveedor (DEC-066). Su
 // forma de facturar (simple o con contrato) decide si admite contratos o
 // facturas simples, y la casilla del menú, si el tipo aparece como entrada
-// propia en el menú "Facturas" (DEC-074): los menús salen de aquí, no del
-// código. Configura además los campos de los contratos firmados bajo él
+// propia en el menú "Facturas" (DEC-074); la del menú de contratos, en el menú
+// "Contratos" (DEC-077): los menús salen de aquí, no del código. Configura además los campos de los contratos firmados bajo él
 // (DEC-053): su configuración, su versión (pvt_config_version) y su permiso
 // viven en providerTypeFields.service.js; este maestro no las toca. Nivel 1:
 // auditoría técnica.
@@ -53,6 +53,8 @@ export const providerTypesConfig = defineMaster({
       sortable: true,
     },
     { name: "invoiceMenu", column: "pvt_invoice_menu", label: "va al menú de facturas", boolean: true, required: false, sortable: true },
+    // Entrada propia del menú "Contratos" (DEC-077): solo para tipos que facturan con contrato.
+    { name: "contractMenu", column: "pvt_contract_menu", label: "va al menú de contratos", boolean: true, required: false, sortable: true },
   ],
   defaultSort: "name",
   selectOrder: "name",
@@ -63,6 +65,9 @@ export const providerTypesConfig = defineMaster({
   assertValues: (values) => {
     if (values.pvt_invoice_menu && !values.pvt_invoice_mode) {
       throw httpError(400, "Para que el tipo vaya al menú de facturas, elige su forma de facturar.");
+    }
+    if (values.pvt_contract_menu && values.pvt_invoice_mode !== INVOICE_MODES.CONTRACT) {
+      throw httpError(400, "Solo un tipo que factura con contrato puede ir al menú de contratos.");
     }
   },
   beforeUpdate: assertModeUnchangedInUse,

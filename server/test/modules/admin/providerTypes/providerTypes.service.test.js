@@ -157,3 +157,42 @@ describe("forma de facturar y menú de facturas (DEC-074)", () => {
     expect(types.update.mock.calls[0][0].data).toMatchObject({ pvt_invoice_mode: "SIMPLE" });
   });
 });
+
+describe("menú de contratos (DEC-077)", () => {
+  const edit = (input) => service.save({ id: 2, input: { name: "Subcontratista", ...input }, useBy: 9 });
+  const create = (input) => service.save({ id: 0, input: { name: "Orden de obra", ...input }, useBy: 9, idempotencyKey: KEY });
+
+  beforeEach(() => {
+    types.findUnique.mockResolvedValue({ pvt_name: "Subcontratista", pvt_invoice_mode: "CONTRACT", pvt_invoice_menu: true, pvt_contract_menu: true, sta_id: 1 });
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_invoices.count.mockResolvedValue(0);
+  });
+
+  it("la casilla es propia: se guarda aparte de la del menú de facturas", async () => {
+    types.findUnique.mockResolvedValue(null);
+    types.create.mockResolvedValue({ pvt_id: 4 });
+    await create({ invoiceMode: "CONTRACT", invoiceMenu: false, contractMenu: true });
+    expect(types.create.mock.calls[0][0].data).toMatchObject({ pvt_invoice_mode: "CONTRACT", pvt_invoice_menu: false, pvt_contract_menu: true });
+
+    await create({ name: "Otro", invoiceMode: "CONTRACT", invoiceMenu: true, contractMenu: undefined });
+    expect(types.create.mock.calls[1][0].data).toMatchObject({ pvt_invoice_menu: true, pvt_contract_menu: false });
+  });
+
+  it("solo un tipo que factura con contrato va al menú de contratos (400), al crear y al editar", async () => {
+    await expect(create({ invoiceMode: "SIMPLE", contractMenu: true })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining("factura con contrato"),
+    });
+    await expect(create({ invoiceMode: "", contractMenu: true })).rejects.toMatchObject({ statusCode: 400 });
+    await expect(edit({ invoiceMode: "SIMPLE", contractMenu: true })).rejects.toMatchObject({ statusCode: 400 });
+    expect(types.create).not.toHaveBeenCalled();
+    expect(types.update).not.toHaveBeenCalled();
+  });
+
+  it("desmarcarla solo oculta la entrada: no toca los contratos", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(4);
+    await edit({ invoiceMode: "CONTRACT", invoiceMenu: true, contractMenu: false });
+    expect(types.update.mock.calls[0][0].data).toMatchObject({ pvt_contract_menu: false });
+    expect(prismaMock.tbl_contracts.updateMany).not.toHaveBeenCalled();
+  });
+});

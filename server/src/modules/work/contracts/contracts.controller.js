@@ -10,6 +10,7 @@ import * as conceptsService from "./contractConcepts.service.js";
 import * as suspensionsService from "./contractSuspensions.service.js";
 import * as policiesService from "./contractPolicies.service.js";
 import { exportContractReport, exportContractSummary } from "./contractReports.service.js";
+import { getContractMenu } from "./contractMenus.js";
 import { CONCEPT_PAIRS } from "./contractTerms.js";
 
 // Solo leen la petición y delegan. El autor sale de req.user (DEC-005); la
@@ -45,7 +46,7 @@ const ACT_FIELDS = ["startDate", "description", ...CONCEPT_FIELDS];
 // por pólizas exigen poder verlas (DEC-052). `granted`: los permisos
 // efectivos, leídos una vez por petición.
 const listFiltersOf = (req, granted) => {
-  const { search, state, states, wrkId, wksId, cttId, prvId, number, name, providerName, endDateFrom, endDateTo, sortField, sortOrder } = req.body;
+  const { search, state, states, wrkId, wksId, cttId, prvId, pvtId, number, name, providerName, endDateFrom, endDateTo, sortField, sortOrder } = req.body;
   const { policyStatus, uncovered } = req.body;
   // Siempre: la pestaña "Pólizas por vencer" se cuenta solo para quien puede ver pólizas (DEC-072).
   const canViewPolicies = granted.has(PERMISSIONS.work.policies.view);
@@ -60,6 +61,7 @@ const listFiltersOf = (req, granted) => {
     wksId,
     cttId,
     prvId,
+    pvtId,
     number,
     name,
     providerName,
@@ -105,6 +107,9 @@ export const selectContractFilterProvidersController = handle(async (req) =>
 export const selectContractFilterStagesController = handle(async (req) =>
   contractsService.selectContractFilterStages({ search: req.query.search, includeWksId: req.query.includeWksId, scope: await workScopeOf(req) })
 );
+
+// Nombre de un menú de contratos (DEC-077), también oculto: el título de su listado.
+export const getContractMenuController = handle(async (req) => getContractMenu({ pvtId: req.query.pvtId }));
 
 export const getContractController = handle(async (req) => contractsService.getContract({ ctrId: req.query.ctrId, scope: await workScopeOf(req) }));
 
