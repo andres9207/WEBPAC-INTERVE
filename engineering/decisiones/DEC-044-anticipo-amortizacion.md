@@ -48,7 +48,7 @@ En la fase A, las facturas no tenían importes. El contrato ya calculaba, sin gu
 - **Las registradas no reservan saldo.** Todo se recalcula bajo el bloqueo del contrato, que es la primera sentencia de la transacción. El cliente nunca envía saldos.
 - **Permiso 89 "Ajustar amortización de anticipo"**:
   - Una amortización distinta de la de por defecto lo exige. El service lo verifica bajo bloqueo con los permisos efectivos (`granted`).
-  - También exige una observación.
+  - ~~También exige una observación.~~ **Cambio del 2026-10-23, pedido del usuario:** la observación es opcional. El formulario deja el campo abierto para quien tiene el permiso, como en el sistema que se migra, sin casilla ni motivo. La evidencia del ajuste sigue en el detalle y en la bitácora: la amortización por defecto, el porcentaje efectivo y el aplicado.
   - Aceptar el valor por defecto no lo exige. Sin amortización en la petición, el servidor usa la de por defecto.
 - **Una aprobada no cambia sus importes.** Enviar uno distinto responde 409, igual que con cualquier otro dato no editable (DOM-05).
 - **Una factura de anticipo o de liquidación sin detalle** (registrada en la fase A) no se puede aprobar: 409. Se edita para registrar sus importes.

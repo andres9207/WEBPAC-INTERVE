@@ -3,10 +3,7 @@ import PropTypes from 'prop-types';
 import { Controller, useWatch } from 'react-hook-form';
 
 import Alert from '@mui/material/Alert';
-import Checkbox from '@mui/material/Checkbox';
-import FormControlLabel from '@mui/material/FormControlLabel';
 import Grid from '@mui/material/Grid';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
 import FormSection from 'ui-component/extended/FormSection';
@@ -25,125 +22,76 @@ import { isBillingInvoiceType } from 'utils/constants';
  * - Liquidación: VALOR (base antes de IVA, con AIU), amortización del
  *   anticipo (DEC-044) y retenido contractual (DEC-051). Cada uno tiene un
  *   valor por defecto, mín(VALOR × % efectivo, pendiente), que calcula el
- *   servidor. Cambiarlo exige su permiso de ajuste y una observación
- *   (`canAdjust`, `canAdjustRetention`). Sin ajuste, el formulario no lo
- *   envía y el servidor usa el de por defecto. Al ajustarlo se escribe su
+ *   servidor. El campo está abierto para quien tiene su permiso de ajuste
+ *   (`canAdjust`, `canAdjustRetention`), sin casilla ni observación. Si el
+ *   usuario no lo cambia, el formulario no lo envía y el servidor usa el de
+ *   por defecto. Al ajustarlo se escribe su
  *   valor o su % sobre el VALOR (DEC-065, "Valor y porcentaje"): el
  *   servidor convierte el % y se guarda el valor.
  * - Devolución de retenido (DEC-051): valor, que no puede superar el saldo
  *   de retenido (I3).
  *
- * El retenido es una garantía contractual, no una retención tributaria: se
- * muestra aparte. Los saldos son orientativos: al guardar y al aprobar el
- * servidor los recalcula bajo bloqueo y rechaza lo que ya no quepa.
+ * En la normal y la liquidación, el IVA y las retenciones (`taxField`, de
+ * useContractTaxFields) van en este mismo panel, en el orden de la pantalla
+ * del sistema que se migra: VALOR, % utilidad, % IVA, % rte fuente, rte IVA,
+ * rte ICA, amortización, retenido y descuento de materiales.
+ *
+ * El retenido es una garantía contractual, no una retención tributaria. Los
+ * saldos son orientativos: al guardar y al aprobar el servidor los recalcula
+ * bajo bloqueo y rechaza lo que ya no quepa.
  */
+
+// Impuestos antes de la amortización y descuento de materiales al final, como en la pantalla del sistema que se migra.
+const TAXES_BEFORE_ADVANCE = ['utilityPct', 'vatPct', 'withholdingPct', 'vatWithholdingPct', 'icaWithholding'];
+const TAXES_AFTER_RETENTION = ['materialsDiscount'];
 
 export const MONEY = /^\d{1,16}(\.\d{0,2})?$/;
 
 /**
- * Importe con valor por defecto que se puede ajustar con permiso: el campo
- * (bloqueado sin ajuste), la casilla y el motivo del ajuste.
+ * Importe con valor por defecto, abierto para quien tiene su permiso de
+ * ajuste, como en la pantalla del sistema que se migra. Llega con el de por
+ * defecto y lo sigue hasta que el usuario escribe en él (`adjustName`); desde
+ * ahí se envía lo escrito. Sin permiso, se ve bloqueado con el de por
+ * defecto. Ajustar no pide observación (DEC-044, DEC-051).
  */
-function AdjustableAmount({
-  control,
-  name,
-  adjustName,
-  observationName,
-  label,
-  adjustLabel,
-  byDefault,
-  defaultHint,
-  canAdjust,
-  readOnly,
-  pair,
-  onAltChange
-}) {
-  const adjust = useWatch({ control, name: adjustName });
-  // Una fila propia: el importe, la casilla a su lado (alineada con el
-  // campo, no con su ayuda) y el motivo debajo.
+function AdjustableAmount({ control, setValue, name, adjustName, label, canAdjust, readOnly, pair, onAltChange }) {
+  const markAdjusted = () => setValue(adjustName, true, { shouldDirty: true });
   return (
-    <Row>
-      <Grid size={{ xs: 12, md: 6 }}>
-        <Controller
-          name={name}
-          control={control}
-          rules={{
-            pattern: { value: MONEY, message: 'Importe no válido.' },
-            required: adjust ? 'El importe es requerido.' : false
-          }}
-          render={({ field, fieldState }) => (
-            <AmountPercentField
-              storedAs="money"
-              value={field.value}
-              onChange={field.onChange}
-              onBlur={field.onBlur}
-              derived={pair?.pct}
-              onAltChange={onAltChange}
-              label={label}
-              disabled={readOnly || !adjust}
-              error={fieldState.error?.message}
-              helperText={adjust ? `Por defecto: ${fMoneyText(byDefault) || '—'}` : defaultHint}
-            />
-          )}
-        />
-      </Grid>
-      <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', alignItems: 'center', minHeight: 40 }}>
-        {canAdjust ? (
-          <Controller
-            name={adjustName}
-            control={control}
-            render={({ field }) => (
-              <FormControlLabel
-                control={<Checkbox checked={Boolean(field.value)} onChange={(e) => field.onChange(e.target.checked)} disabled={readOnly} />}
-                label={adjustLabel}
-              />
-            )}
-          />
-        ) : (
-          <Typography variant="caption" color="text.secondary">
-            Cambiar este valor exige el permiso de {adjustLabel.toLowerCase()}.
-          </Typography>
-        )}
-      </Grid>
-      {adjust && (
-        <Grid size={12}>
-          <Controller
-            name={observationName}
-            control={control}
-            rules={{
-              validate: (v) => String(v ?? '').trim() !== '' || 'Explica por qué se aparta del valor por defecto.',
-              maxLength: { value: 1000, message: 'Máximo 1000 caracteres.' }
+    <Grid size={{ xs: 12, md: 6 }}>
+      <Controller
+        name={name}
+        control={control}
+        rules={{ pattern: { value: MONEY, message: 'Importe no válido.' } }}
+        render={({ field, fieldState }) => (
+          <AmountPercentField
+            storedAs="money"
+            value={field.value}
+            onChange={(text) => {
+              markAdjusted();
+              field.onChange(text);
             }}
-            render={({ field, fieldState }) => (
-              <TextField
-                {...field}
-                label={`Motivo del ajuste (${label.toLowerCase()})`}
-                required
-                size="small"
-                fullWidth
-                multiline
-                minRows={2}
-                disabled={readOnly}
-                error={Boolean(fieldState.error)}
-                helperText={fieldState.error?.message ?? 'Queda en la bitácora con el valor por defecto y el aplicado.'}
-              />
-            )}
+            onBlur={field.onBlur}
+            derived={pair?.pct}
+            onAltChange={(text) => {
+              if (text !== null) markAdjusted();
+              onAltChange(text);
+            }}
+            label={label}
+            disabled={readOnly || !canAdjust}
+            error={fieldState.error?.message}
           />
-        </Grid>
-      )}
-    </Row>
+        )}
+      />
+    </Grid>
   );
 }
 
 AdjustableAmount.propTypes = {
   control: PropTypes.object.isRequired,
+  setValue: PropTypes.func.isRequired,
   name: PropTypes.string.isRequired,
   adjustName: PropTypes.string.isRequired,
-  observationName: PropTypes.string.isRequired,
   label: PropTypes.string.isRequired,
-  adjustLabel: PropTypes.string.isRequired,
-  byDefault: PropTypes.string,
-  defaultHint: PropTypes.string.isRequired,
   canAdjust: PropTypes.bool,
   readOnly: PropTypes.bool,
   /** Valor y % sobre el VALOR, calculados por el servidor. */
@@ -151,25 +99,12 @@ AdjustableAmount.propTypes = {
   onAltChange: PropTypes.func.isRequired
 };
 
-/** Fila completa de la grilla, con su propia grilla interna. */
-function Row({ children }) {
-  return (
-    <Grid size={12}>
-      <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
-        {children}
-      </Grid>
-    </Grid>
-  );
-}
-
-Row.propTypes = { children: PropTypes.node };
-
 const SUBTITLES = {
   ADVANCE: 'El valor del anticipo no puede superar lo que queda por facturar del anticipo pactado.',
   NORMAL:
-    'Avance del contrato. VALOR antes de IVA, con AIU, hasta lo que queda por facturar. La amortización del anticipo y el retenido se calculan con los porcentajes efectivos del contrato.',
+    'Avance del contrato. VALOR antes de IVA, con AIU, hasta lo que queda por facturar. VALOR y % IVA son obligatorios; los demás impuestos, vacíos, valen 0. La amortización del anticipo y el retenido se calculan con los porcentajes efectivos del contrato.',
   LIQUIDATION:
-    'VALOR antes de IVA, con AIU, hasta lo que queda por facturar. La amortización del anticipo y el retenido se calculan con los porcentajes efectivos del contrato.',
+    'VALOR antes de IVA, con AIU, hasta lo que queda por facturar. VALOR y % IVA son obligatorios; los demás impuestos, vacíos, valen 0. La amortización del anticipo y el retenido se calculan con los porcentajes efectivos del contrato.',
   RETENTION_REFUND: 'El valor devuelto no puede superar el saldo de retenido del contrato. Se admiten varias devoluciones.'
 };
 
@@ -182,9 +117,11 @@ export default function AdvanceAmountsSection({
   canAdjust,
   canAdjustRetention,
   onBalances,
-  onError
+  onError,
+  taxField
 }) {
   const isLiquidation = isBillingInvoiceType(type);
+  const taxes = (names) => (isLiquidation && taxField ? names.map(taxField) : null);
   const isRefund = type === 'RETENTION_REFUND';
   const [value, adjustAmortization, adjustRetention, amortization, retentionValue] = useWatch({
     control,
@@ -292,42 +229,46 @@ export default function AdvanceAmountsSection({
           </Grid>
         )}
 
-        <Row>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Controller
-              name="value"
-              control={control}
-              rules={{
-                required: 'El valor es requerido.',
-                pattern: { value: MONEY, message: 'Importe no válido.' },
-                validate: (v) => !/^0*(\.0*)?$/.test(v ?? '') || 'Debe ser mayor que cero.'
-              }}
-              render={({ field, fieldState }) => (
-                <MoneyField
-                  value={field.value}
-                  onChange={field.onChange}
-                  onBlur={field.onBlur}
-                  label={{ ADVANCE: 'Valor del anticipo', NORMAL: 'VALOR', LIQUIDATION: 'VALOR', RETENTION_REFUND: 'Valor devuelto' }[type]}
-                  required
-                  disabled={readOnly}
-                  error={fieldState.error?.message}
-                  helperText={valueHint}
-                />
-              )}
-            />
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Controller
+            name="value"
+            control={control}
+            rules={{
+              required: 'El valor es requerido.',
+              pattern: { value: MONEY, message: 'Importe no válido.' },
+              validate: (v) => !/^0*(\.0*)?$/.test(v ?? '') || 'Debe ser mayor que cero.'
+            }}
+            render={({ field, fieldState }) => (
+              <MoneyField
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                label={{ ADVANCE: 'Valor del anticipo', NORMAL: 'VALOR', LIQUIDATION: 'VALOR', RETENTION_REFUND: 'Valor devuelto' }[type]}
+                required
+                disabled={readOnly}
+                error={fieldState.error?.message}
+                helperText={valueHint}
+              />
+            )}
+          />
+        </Grid>
+
+        {taxes(TAXES_BEFORE_ADVANCE)}
+
+        {/* Como en la pantalla del sistema que se migra: siempre bloqueado y en 0, porque el anticipo es su propio tipo de factura (DEC-044, DEC-075). */}
+        {isLiquidation && (
+          <Grid size={{ xs: 12, md: 6 }}>
+            <MoneyField value="0" onChange={() => {}} label="Valor anticipo" disabled />
           </Grid>
-        </Row>
+        )}
 
         {isLiquidation && (
           <AdjustableAmount
             control={control}
+            setValue={setValue}
             name="amortization"
             adjustName="adjustAmortization"
-            observationName="amortizationObservation"
             label="Amortización del anticipo"
-            adjustLabel="Ajustar la amortización"
-            byDefault={defaultAmortization}
-            defaultHint="Valor por defecto: mín(VALOR × % efectivo, pendiente)"
             canAdjust={canAdjust}
             readOnly={readOnly}
             pair={balances?.amortizationPair}
@@ -335,7 +276,8 @@ export default function AdvanceAmountsSection({
           />
         )}
 
-        {ctrId && (isLiquidation || isRefund) && (
+        {/* En la normal y la liquidación, el retenido sigue a la amortización sin título, como en la pantalla del sistema que se migra. */}
+        {ctrId && isRefund && (
           <Grid size={12}>
             <Typography variant="subtitle2" sx={{ mt: 1 }}>
               Retenido contractual
@@ -349,19 +291,18 @@ export default function AdvanceAmountsSection({
         {isLiquidation && (
           <AdjustableAmount
             control={control}
+            setValue={setValue}
             name="retention"
             adjustName="adjustRetention"
-            observationName="retentionObservation"
             label="Retenido"
-            adjustLabel="Ajustar el retenido"
-            byDefault={defaultRetention}
-            defaultHint="Valor por defecto: mín(VALOR × % efectivo, por retener)"
             canAdjust={canAdjustRetention}
             readOnly={readOnly}
             pair={balances?.retentionPair}
             onAltChange={(text) => setAlt('retentionPct', text)}
           />
         )}
+
+        {taxes(TAXES_AFTER_RETENTION)}
 
         {readOnly && (
           <Grid size={12}>
@@ -385,5 +326,7 @@ AdvanceAmountsSection.propTypes = {
   canAdjustRetention: PropTypes.bool,
   /** Recibe los saldos del contrato (o null sin contrato) para las tarjetas de la página. */
   onBalances: PropTypes.func,
-  onError: PropTypes.func.isRequired
+  onError: PropTypes.func.isRequired,
+  /** Normal y liquidación: dibuja un campo de IVA o retenciones por nombre (useContractTaxFields). */
+  taxField: PropTypes.func
 };

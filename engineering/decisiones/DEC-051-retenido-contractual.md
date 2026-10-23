@@ -44,7 +44,7 @@ ADR-0025 dejaba pendientes de validación la base, el porcentaje por defecto, el
 - **Varias devoluciones por contrato**, mientras quede saldo, solo con el contrato en liquidación (ya lo exigía `STATE_ALLOWS` del contrato). Se aprueban con el permiso normal de aprobar facturas. No llevan IVA ni retenciones tributarias hasta la fase B.
 - **Las registradas no reservan saldo.** Todo se recalcula bajo el bloqueo del contrato, que es la primera sentencia de la transacción. El cliente nunca envía saldos.
 - **Permiso 103 "Ajustar retenido"** (migración `0084`):
-  - Un retenido distinto del de por defecto lo exige, además de una observación. El service lo verifica bajo bloqueo con los permisos efectivos (`granted`).
+  - Un retenido distinto del de por defecto lo exige. El service lo verifica bajo bloqueo con los permisos efectivos (`granted`). **Desde el 2026-10-23** (pedido del usuario, igual que la amortización en DEC-044) no exige observación: el campo queda abierto para quien tiene el permiso, sin casilla ni motivo; la evidencia es el retenido por defecto y el aplicado.
   - Es independiente del permiso 89: ajustar solo el retenido no exige el de la amortización, y al revés.
   - Aceptar el valor por defecto no lo exige. Sin retenido en la petición, el servidor usa el de por defecto.
 - **Una liquidación registrada sin retenido** (antes de esta decisión) no se puede aprobar: 409. Se edita para calcularlo. Una aprobada sin retenido cuenta como cero.

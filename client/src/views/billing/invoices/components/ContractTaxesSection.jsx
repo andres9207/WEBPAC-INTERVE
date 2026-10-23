@@ -1,28 +1,31 @@
 import { useEffect, useState } from 'react';
-import PropTypes from 'prop-types';
 import { Controller, useWatch } from 'react-hook-form';
 
 import Grid from '@mui/material/Grid';
 
-import FormSection from 'ui-component/extended/FormSection';
 import AmountPercentField from 'ui-component/extended/AmountPercentField';
 import { previewContractInvoiceAPI } from 'api/requests/invoicesApi';
 import { MONEY } from './AdvanceAmountsSection';
 
 /**
  * IVA, retenciones tributarias y descuento de materiales de la normal y la
- * liquidación (DEC-075), en el orden de la pantalla del sistema que se
- * migra. El % IVA es obligatorio; los demás, vacíos, valen 0. Cada importe
- * tiene su valor y su % juntos (DEC-065, "Valor y porcentaje"): se escribe
- * en cualquiera de los dos. Se guarda como siempre: % utilidad, IVA y
- * retenciones en la fuente y de IVA, como tasa; la retención de ICA y el
- * descuento de materiales, como valor.
+ * liquidación (DEC-075). El % IVA es obligatorio; los demás, vacíos, valen 0.
+ * Cada importe tiene su valor y su % juntos (DEC-065, "Valor y porcentaje"):
+ * se escribe en cualquiera de los dos. Se guarda como siempre: % utilidad,
+ * IVA y retenciones en la fuente y de IVA, como tasa; la retención de ICA y
+ * el descuento de materiales, como valor.
+ *
+ * Es un hook y no un panel: devuelve `taxField(name)`, que dibuja un campo,
+ * para que AdvanceAmountsSection los intercale con el VALOR, la amortización
+ * y el retenido en un solo panel, en el orden de la pantalla del sistema que
+ * se migra.
  *
  * Mientras se escribe, pide al servidor la composición (`onPreview`) con el
  * VALOR, la amortización y el retenido del formulario, para el panel
  * Detalle, el otro lado de cada importe y la conversión de lo escrito por el
  * otro lado: el cliente no calcula ninguna cifra (FRONTEND_STANDARD, regla
  * 9). Al guardar, el servidor recalcula todo bajo el bloqueo del contrato.
+ * Con `enabled` en false (otro tipo de factura) no pide nada.
  */
 
 export const CONTRACT_TAX_FIELDS = ['utilityPct', 'vatPct', 'withholdingPct', 'vatWithholdingPct', 'icaWithholding', 'materialsDiscount'];
@@ -58,7 +61,9 @@ const FIELDS = [
   }
 ];
 
-export default function ContractTaxesSection({ control, setValue, readOnly, required = true, onPreview, onError }) {
+const FIELDS_BY_NAME = Object.fromEntries(FIELDS.map((f) => [f.name, f]));
+
+export default function useContractTaxFields({ control, setValue, enabled, readOnly, required = true, onPreview, onError }) {
   const values = useWatch({ control, name: WATCHED });
   // Lo escrito por el otro lado, hasta que el servidor lo convierte; y el
   // valor y el % de cada importe, de la última vista previa.
@@ -76,6 +81,7 @@ export default function ContractTaxesSection({ control, setValue, readOnly, requ
   // Composición del servidor al dejar de escribir.
   const key = [...values.map((v) => v ?? ''), JSON.stringify(alts)].join('|');
   useEffect(() => {
+    if (!enabled) return undefined;
     let cancelled = false;
     const sent = alts;
     const params = { ...Object.fromEntries(WATCHED.map((field, i) => [field, values[i] ?? ''])), ...sent };
@@ -105,49 +111,36 @@ export default function ContractTaxesSection({ control, setValue, readOnly, requ
     };
     // `key` resume `values` y `alts`, que cambian de identidad en cada render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, onPreview, onError, setValue]);
+  }, [enabled, key, onPreview, onError, setValue]);
 
-  return (
-    <FormSection
-      title="IVA y retenciones"
-      subtitle="% IVA es obligatorio; los demás, vacíos, valen 0. El panel Detalle se calcula en el servidor con la misma fórmula que al guardar."
-    >
-      <Grid container spacing={2}>
-        {FIELDS.map((f) => (
-          <Grid key={f.name} size={{ xs: 12, md: 6 }}>
-            <Controller
-              name={f.name}
-              control={control}
-              rules={f.kind === 'percent' ? percentRules(required && f.required) : moneyRules}
-              render={({ field, fieldState }) => (
-                <AmountPercentField
-                  storedAs={f.kind}
-                  value={field.value}
-                  onChange={field.onChange}
-                  onBlur={field.onBlur}
-                  derived={f.kind === 'percent' ? pairs[f.name]?.amount : pairs[f.name]?.pct}
-                  onAltChange={(text) => setAlt(f.alt, text)}
-                  label={f.label}
-                  required={required && f.required}
-                  disabled={readOnly}
-                  error={fieldState.error?.message}
-                  helperText={f.helper}
-                />
-              )}
+  // `required` en false: una factura registrada antes de DEC-075 se consulta sin exigir el % IVA.
+  const taxField = (name) => {
+    const f = FIELDS_BY_NAME[name];
+    return (
+      <Grid key={f.name} size={{ xs: 12, md: 6 }}>
+        <Controller
+          name={f.name}
+          control={control}
+          rules={f.kind === 'percent' ? percentRules(required && f.required) : moneyRules}
+          render={({ field, fieldState }) => (
+            <AmountPercentField
+              storedAs={f.kind}
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              derived={f.kind === 'percent' ? pairs[f.name]?.amount : pairs[f.name]?.pct}
+              onAltChange={(text) => setAlt(f.alt, text)}
+              label={f.label}
+              required={required && f.required}
+              disabled={readOnly}
+              error={fieldState.error?.message}
+              helperText={f.helper}
             />
-          </Grid>
-        ))}
+          )}
+        />
       </Grid>
-    </FormSection>
-  );
-}
+    );
+  };
 
-ContractTaxesSection.propTypes = {
-  control: PropTypes.object.isRequired,
-  setValue: PropTypes.func.isRequired,
-  readOnly: PropTypes.bool,
-  /** false: una factura registrada antes de DEC-075 se consulta sin exigir el % IVA. */
-  required: PropTypes.bool,
-  onPreview: PropTypes.func.isRequired,
-  onError: PropTypes.func.isRequired
-};
+  return taxField;
+}

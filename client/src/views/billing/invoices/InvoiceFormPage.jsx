@@ -20,7 +20,7 @@ import AdvanceAmountsSection from './components/AdvanceAmountsSection';
 import ContractBalanceCards from './components/ContractBalanceCards';
 import InvoiceDetailPanel from './components/InvoiceDetailPanel';
 import SimpleAmountsSection, { SIMPLE_AMOUNT_FIELDS } from './components/SimpleAmountsSection';
-import ContractTaxesSection, { CONTRACT_TAX_FIELDS } from './components/ContractTaxesSection';
+import useContractTaxFields, { CONTRACT_TAX_FIELDS } from './components/ContractTaxesSection';
 import {
   getContractAdvanceAPI,
   getInvoiceContractsSelectAPI,
@@ -79,13 +79,12 @@ const EMPTY_FORM = {
   statement: '',
   description: '',
   // Importes del anticipo, la liquidación y la devolución (DEC-044, DEC-051).
+  // `adjust…`: el usuario escribió la amortización o el retenido; sin eso, siguen al valor por defecto.
   value: '',
   amortization: '',
   adjustAmortization: false,
-  amortizationObservation: '',
   retention: '',
   adjustRetention: false,
-  retentionObservation: '',
   // Importes de la simple (DEC-065); `value` es compartido.
   withholdingPct: '',
   discount: '',
@@ -119,23 +118,18 @@ const toForm = (invoice) => ({
   ...(invoice.amounts?.captured ?? {}),
   value: invoice.amounts?.captured?.value ?? invoice.amounts?.value ?? '',
   amortization: invoice.amounts?.amortization ?? '',
-  adjustAmortization: Boolean(invoice.amounts?.adjustmentObservation),
-  amortizationObservation: invoice.amounts?.adjustmentObservation ?? '',
+  // Ajustada: la guardada se aparta de la de por defecto (el servidor da las dos con el mismo formato).
+  adjustAmortization: invoice.amounts?.amortization != null && invoice.amounts.amortization !== invoice.amounts.defaultAmortization,
   retention: invoice.amounts?.retention ?? '',
-  adjustRetention: Boolean(invoice.amounts?.retentionObservation),
-  retentionObservation: invoice.amounts?.retentionObservation ?? ''
+  adjustRetention: invoice.amounts?.retention != null && invoice.amounts.retention !== invoice.amounts.defaultRetention
 });
 
 // Sin ajuste, la amortización y el retenido no se envían: el servidor usa
-// los de por defecto.
+// los de por defecto. Un ajuste no lleva observación (DEC-044, DEC-051).
 const amountsPayload = (form) => ({
   value: form.value,
-  ...(isBillingInvoiceType(form.type) && form.adjustAmortization
-    ? { amortization: form.amortization, amortizationObservation: text(form.amortizationObservation) }
-    : {}),
-  ...(isBillingInvoiceType(form.type) && form.adjustRetention
-    ? { retention: form.retention, retentionObservation: text(form.retentionObservation) }
-    : {}),
+  ...(isBillingInvoiceType(form.type) && form.adjustAmortization ? { amortization: form.amortization } : {}),
+  ...(isBillingInvoiceType(form.type) && form.adjustRetention ? { retention: form.retention } : {}),
   // IVA, retenciones y descuento de materiales (DEC-075).
   ...(isBillingInvoiceType(form.type) ? Object.fromEntries(CONTRACT_TAX_FIELDS.map((field) => [field, form[field]])) : {})
 });
@@ -203,16 +197,15 @@ const DEFAULT_CONTRACT_TYPE = 'NORMAL';
  *   liquidación (el contrato sigue en ejecución).
  * - Devolución de retenido: no aparece si no hay retenido por devolver.
  *
- * `notes` dice qué falta para cada tipo que no se puede elegir. Es una guía:
- * al guardar, el servidor vuelve a verificar el estado y los saldos.
+ * Un tipo que no se puede elegir lleva en su opción lo que le falta. Es una
+ * guía: al guardar, el servidor vuelve a verificar el estado y los saldos.
  */
 const contractTypeChoices = (contract, typeOptions, balances) => {
-  if (!contract || !balances) return { options: [], notes: [] };
+  if (!contract || !balances) return { options: [] };
   const admitted = contract.types ?? [];
-  const notes = [];
   const options = [];
+  // `hidden`: el tipo no aparece; el motivo queda solo como documentación.
   const add = (option, reason, hidden = false) => {
-    if (reason) notes.push(`${option.label}: ${reason}`);
     if (!hidden) options.push({ ...option, disabled: Boolean(reason), description: reason || undefined });
   };
   // Normal primero: es la de por defecto.
@@ -240,7 +233,7 @@ const contractTypeChoices = (contract, typeOptions, balances) => {
         add(option, allowed ? '' : 'el estado del contrato no lo admite.');
     }
   }
-  return { options, notes };
+  return { options };
 };
 
 const readOnlyField = (label, value) => (
@@ -430,15 +423,7 @@ export default function InvoiceFormPage() {
   // Otro tipo: los importes son de él. Proveedor y contrato se conservan.
   const changeType = (value) => {
     setValue('type', value ?? '', { shouldDirty: true });
-    for (const field of [
-      'value',
-      'amortization',
-      'amortizationObservation',
-      'retention',
-      'retentionObservation',
-      ...SIMPLE_AMOUNT_FIELDS,
-      ...CONTRACT_TAX_FIELDS
-    ]) {
+    for (const field of ['value', 'amortization', 'retention', ...SIMPLE_AMOUNT_FIELDS, ...CONTRACT_TAX_FIELDS]) {
       setValue(field, '', { shouldDirty: true });
     }
     setValue('adjustAmortization', false, { shouldDirty: true });
@@ -488,12 +473,25 @@ export default function InvoiceFormPage() {
     }
   };
 
-  if (loading) return <RouteDialog onClose={leave} loading />;
-
-  const allows = (action) => !isEdit || loaded.allowedActions.includes(action);
+  // Antes del retorno de carga, porque useContractTaxFields es un hook; mientras carga, `loaded` es null.
+  const allows = (action) => !isEdit || Boolean(loaded?.allowedActions.includes(action));
   const fullEdit = allows('edit');
   const blocked = !allows('editNotes');
   const lockDocument = isEdit && !fullEdit;
+
+  // IVA y retenciones de la normal y la liquidación, en el panel de importes (DEC-075).
+  const taxField = useContractTaxFields({
+    control,
+    setValue,
+    enabled: !loading && isBillingInvoiceType(type),
+    readOnly: lockDocument || blocked,
+    required: fullEdit,
+    onPreview: setPreview,
+    onError: showError
+  });
+
+  if (loading) return <RouteDialog onClose={leave} loading />;
+
   const hasErrors = Object.keys(errors).length > 0;
   const noOptions = wrkId && !loadingOptions;
   // La etapa solo es obligatoria si la obra tiene etapas (DEC-069); el servidor lo vuelve a verificar.
@@ -663,13 +661,7 @@ export default function InvoiceFormPage() {
                                 disabled={!contract || !contractBalances}
                                 disableClearable
                                 label="Tipo de factura"
-                                helperText={
-                                  !contract
-                                    ? 'Elige primero el contrato'
-                                    : [typeOptions.find((o) => o.value === field.value)?.hint, ...typeChoices.notes]
-                                        .filter(Boolean)
-                                        .join(' · ')
-                                }
+                                helperText={!contract ? 'Elige primero el contrato' : undefined}
                               />
                             )}
                           />
@@ -900,16 +892,7 @@ export default function InvoiceFormPage() {
                   canAdjustRetention={canAdjustRetention}
                   onBalances={setBalances}
                   onError={showError}
-                />
-              )}
-              {isBillingInvoiceType(type) && (
-                <ContractTaxesSection
-                  control={control}
-                  setValue={setValue}
-                  readOnly={lockDocument || blocked}
-                  required={fullEdit}
-                  onPreview={setPreview}
-                  onError={showError}
+                  taxField={isBillingInvoiceType(type) ? taxField : undefined}
                 />
               )}
             </Stack>

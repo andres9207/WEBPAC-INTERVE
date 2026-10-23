@@ -1060,21 +1060,26 @@ describe("anticipo y amortización (DEC-044)", () => {
     expect(liquidationUpsert().create.ild_amortization.toFixed(2)).toBe("10000000.00");
   });
 
-  it("ajustar la amortización exige el permiso (403) y una observación (400)", async () => {
+  it("ajustar la amortización exige el permiso (403), sin observación", async () => {
     state.contract = contract({ ctr_state: "IN_LIQUIDATION" });
     state.advanceSum = D("32000000");
     await expect(save(liquidationInput({ amortization: "20000000" }))).rejects.toMatchObject({
       statusCode: 403,
       message: expect.stringContaining("24000000.00"),
     });
-    await expect(save(liquidationInput({ amortization: "20000000" }), 0, [CAN_ADJUST])).rejects.toMatchObject({ statusCode: 400 });
     expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
 
-    await expect(
-      save(liquidationInput({ amortization: "20000000", amortizationObservation: " Acuerdo de pago " }), 0, [CAN_ADJUST])
-    ).resolves.toMatchObject({ invId: 70 });
-    expect(liquidationUpsert().create).toMatchObject({ ild_adjustment_observation: "Acuerdo de pago" });
+    await expect(save(liquidationInput({ amortization: "20000000" }), 0, [CAN_ADJUST])).resolves.toMatchObject({ invId: 70 });
+    expect(liquidationUpsert().create).toMatchObject({ ild_adjustment_observation: null });
     expect(liquidationUpsert().create.ild_applied_pct.toFixed(6)).toBe("22.222222");
+    expect(liquidationUpsert().create.ild_default_amortization.toFixed(2)).toBe("24000000.00");
+  });
+
+  it("la observación de un ajuste, si llega, se guarda", async () => {
+    state.contract = contract({ ctr_state: "IN_LIQUIDATION" });
+    state.advanceSum = D("32000000");
+    await save(liquidationInput({ amortization: "20000000", amortizationObservation: " Acuerdo de pago " }), 0, [CAN_ADJUST]);
+    expect(liquidationUpsert().create).toMatchObject({ ild_adjustment_observation: "Acuerdo de pago" });
   });
 
   it("enviar el valor por defecto no exige el permiso", async () => {
@@ -1233,19 +1238,16 @@ describe("retenido contractual (DEC-051)", () => {
     expect(liquidationUpsert().create.ild_retention.toFixed(2)).toBe("1000000.00");
   });
 
-  it("ajustar el retenido exige su propio permiso (403) y una observación (400)", async () => {
+  it("ajustar el retenido exige su propio permiso (403), sin observación", async () => {
     await expect(save(liquidationInput({ retention: "3000000" }), 0, [CAN_ADJUST])).rejects.toMatchObject({
       statusCode: 403,
       message: expect.stringContaining("retenido por defecto es 4500000.00"),
     });
-    await expect(save(liquidationInput({ retention: "3000000" }), 0, [CAN_ADJUST_RETENTION])).rejects.toMatchObject({ statusCode: 400 });
     expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
 
     // Ajustar solo el retenido no exige el permiso de la amortización.
-    await expect(
-      save(liquidationInput({ retention: "3000000", retentionObservation: " Garantía bancaria " }), 0, [CAN_ADJUST_RETENTION])
-    ).resolves.toMatchObject({ invId: 70 });
-    expect(liquidationUpsert().create).toMatchObject({ ild_retention_observation: "Garantía bancaria", ild_adjustment_observation: null });
+    await expect(save(liquidationInput({ retention: "3000000" }), 0, [CAN_ADJUST_RETENTION])).resolves.toMatchObject({ invId: 70 });
+    expect(liquidationUpsert().create).toMatchObject({ ild_retention_observation: null, ild_adjustment_observation: null });
     expect(liquidationUpsert().create.ild_retention_applied_pct.toFixed(6)).toBe("3.333333");
     expect(liquidationUpsert().create.ild_default_retention.toFixed(2)).toBe("4500000.00");
   });
