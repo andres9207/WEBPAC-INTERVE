@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-10-13 · **Tipo:** Obligatoria · **ADR:** [0022](../adr/0022-facturacion-subcontratista.md), [0020](../adr/0020-facturacion.md), [0010](../adr/0010-tipos-proveedor.md), [0027](../adr/0027-integridad-transaccional.md)
 
+> **Reemplazada en parte por [DEC-074](DEC-074-menus-facturas-dinamicos.md) (2026-10-23):** `pvt_invoice_view` se reemplaza por la forma de facturar (`pvt_invoice_mode`) y la casilla del menú (`pvt_invoice_menu`), e `inv_view` por el tipo de proveedor de la factura (`tbl_invoices.pvt_id`). Sigue vigente `updateOptions` del patrón de maestro.
+
 Decidido por el usuario el 2026-10-13. Reemplaza lo que [DEC-054](DEC-054-vistas-facturas-simple-sin-obra.md) decía del menú de facturas del **tipo de contrato** (`ctt_invoice_view`, su bloqueo con facturas y el de cambiar el tipo de un contrato con facturas). Las tres vistas, sus permisos, sus páginas y la factura simple sin obra siguen como dice DEC-054. Cierra la tarea PRO-BE-40 del backlog.
 
 > **Reemplazada en parte por [DEC-066](DEC-066-tipo-proveedor-por-obra-y-contrato.md)** (2026-10-19): un proveedor puede tener tipos de menús distintos; el tipo se define en cada obra y en cada contrato, que guarda su menú (`ctr_invoice_view`), y la factura de contrato toma el de su contrato. Se retiraron `assertNotMixed`, el menú calculado del proveedor y la decisión de mover las facturas o dejarlas como histórico. Siguen vigentes el menú en el tipo de proveedor y la vista guardada en la factura.

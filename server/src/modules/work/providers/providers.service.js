@@ -10,7 +10,6 @@ import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudi
 import { identityDocumentsService } from "../../admin/identityDocuments/identityDocuments.service.js";
 import { identificationError } from "../../admin/identityDocuments/identityDocuments.formats.js";
 import { providerTypesService } from "../../admin/providerTypes/providerTypes.service.js";
-import { PROVIDER_INVOICE_VIEWS } from "../../billing/invoices/invoiceViews.js";
 import { defineContacts } from "../../admin/addressTypes/addressTypes.contacts.js";
 import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
@@ -53,9 +52,9 @@ const SORT_FIELDS = {
   updatedAt: (order) => ({ prv_update_at: order }),
 };
 
-// Tipos del proveedor (DEC-041), por nombre, con su menú de facturas.
+// Tipos del proveedor (DEC-041), por nombre, con su forma de facturar (DEC-074).
 const CLASSIFICATIONS_SELECT = {
-  select: { pvt_id: true, tbl_provider_types: { select: { pvt_name: true, pvt_invoice_view: true } } },
+  select: { pvt_id: true, tbl_provider_types: { select: { pvt_name: true, pvt_invoice_mode: true } } },
   orderBy: { tbl_provider_types: { pvt_name: "asc" } },
 };
 const typeNamesOf = (classifications = []) => classifications.map((c) => c.tbl_provider_types?.pvt_name).filter(Boolean);
@@ -63,7 +62,7 @@ const typeNamesOf = (classifications = []) => classifications.map((c) => c.tbl_p
 // Tipos con que trabaja el proveedor en una obra (DEC-066), del mismo modo.
 const WORK_TYPES_SELECT = CLASSIFICATIONS_SELECT;
 const workTypesOf = (rows = []) =>
-  rows.map((r) => ({ pvtId: r.pvt_id, name: r.tbl_provider_types?.pvt_name ?? null, invoiceView: r.tbl_provider_types?.pvt_invoice_view ?? null }));
+  rows.map((r) => ({ pvtId: r.pvt_id, name: r.tbl_provider_types?.pvt_name ?? null, invoiceMode: r.tbl_provider_types?.pvt_invoice_mode ?? null }));
 
 const LIST_SELECT = {
   prv_id: true,
@@ -452,8 +451,9 @@ const findAssignmentTypeIds = async (db, { wrkId, prvId }) =>
  * tipos pedidos ya bloqueados. Un tipo que se quita no puede estar en uso:
  * - 409 si algún contrato de la obra (también eliminado) se firmó bajo él;
  *   la FK compuesta del contrato es la garantía, esto da el mensaje.
- * - 409 si era el último de menú simples y el proveedor tiene facturas
- *   simples en la obra (DEC-058, DEC-066).
+ * - 409 si alguna factura del proveedor en la obra (también anulada o
+ *   eliminada) es de su menú (DEC-074); la FK compuesta de la factura es la
+ *   garantía, esto da el mensaje.
  */
 const applyAssignmentTypes = async (tx, { wrkId, prvId, currentIds, pvtIds }) => {
   const toDelete = currentIds.filter((id) => !pvtIds.includes(id));
@@ -461,10 +461,7 @@ const applyAssignmentTypes = async (tx, { wrkId, prvId, currentIds, pvtIds }) =>
   const where = { wrk_id: Number(wrkId), prv_id: Number(prvId) };
 
   if (toDelete.length > 0) {
-    const types = await tx.tbl_provider_types.findMany({
-      where: { pvt_id: { in: [...currentIds, ...pvtIds] } },
-      select: { pvt_id: true, pvt_name: true, pvt_invoice_view: true },
-    });
+    const types = await tx.tbl_provider_types.findMany({ where: { pvt_id: { in: toDelete } }, select: { pvt_id: true, pvt_name: true } });
     const byId = Object.fromEntries(types.map((t) => [t.pvt_id, t]));
     const contracts = await tx.tbl_contracts.findMany({ where: { ...where, pvt_id: { in: toDelete } }, select: { pvt_id: true, ctr_number: true } });
     if (contracts.length > 0) {
@@ -472,12 +469,10 @@ const applyAssignmentTypes = async (tx, { wrkId, prvId, currentIds, pvtIds }) =>
       const numbers = contracts.map((c) => c.ctr_number).join(", ");
       throw httpError(409, `No se puede quitar el tipo ${names} de la obra: lo usa(n) ${contracts.length} contrato(s) (${numbers}).`);
     }
-    const isSimple = (id) => byId[id]?.pvt_invoice_view === PROVIDER_INVOICE_VIEWS.SIMPLE;
-    if (toDelete.some(isSimple) && !pvtIds.some(isSimple)) {
-      const invoices = await tx.tbl_invoices.count({ where: { ...where, ctr_id: null } });
-      if (invoices > 0) {
-        throw httpError(409, `No se puede quitar el último tipo de facturas simples de la obra: el proveedor tiene ${invoices} factura(s) simple(s) en ella.`);
-      }
+    const invoices = await tx.tbl_invoices.findMany({ where: { ...where, pvt_id: { in: toDelete } }, select: { pvt_id: true } });
+    if (invoices.length > 0) {
+      const names = [...new Set(invoices.map((i) => byId[i.pvt_id]?.pvt_name))].join(", ");
+      throw httpError(409, `No se puede quitar el tipo ${names} de la obra: el proveedor tiene ${invoices.length} factura(s) de ese menú en ella.`);
     }
     await tx.tbl_work_provider_types.deleteMany({ where: { ...where, pvt_id: { in: toDelete } } });
   }

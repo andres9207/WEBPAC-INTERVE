@@ -16,7 +16,7 @@ import GenericFormSection from 'ui-component/extended/GenericFormSection';
 import SearchSelect from 'ui-component/extended/SearchSelect';
 import SelectSocket from 'ui-component/extended/SelectSocket';
 import { toFormFields } from './configurableFields';
-import { TERM_UNIT_OPTIONS, providerInvoiceViewName } from 'utils/constants';
+import { TERM_UNIT_OPTIONS } from 'utils/constants';
 
 /**
  * Pestaña "Datos del contrato" del expediente (DEC-057): obra, proveedor, su
@@ -168,8 +168,10 @@ export default function ContractDataForm({ form, contract, isNew, blocked }) {
                     !prvId
                       ? 'Elige primero el proveedor'
                       : providerTypes.length === 0
-                        ? 'En esta obra no trabaja como contrato mayor ni subcontratista: edita su asignación'
-                        : `Facturas: ${providerInvoiceViewName(chosenType?.invoiceView)}`
+                        ? 'En esta obra no trabaja con un tipo que facture con contrato: edita su asignación'
+                        : chosenType
+                          ? `Sus facturas van al menú ${chosenType.label}`
+                          : 'Los tipos con que trabaja en la obra que facturan con contrato'
                   }
                 />
               )}

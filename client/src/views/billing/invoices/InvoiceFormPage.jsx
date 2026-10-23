@@ -31,20 +31,22 @@ import { useAuth } from 'contexts/AuthContext';
 import { useWorkScope } from 'contexts/WorkScopeContext';
 import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
-import { INVOICE_TYPE_OPTIONS, INVOICE_VIEWS, invoicePath, isBillingInvoiceType } from 'utils/constants';
+import { INVOICE_MODE_TYPES, INVOICE_TYPE_OPTIONS, invoicePath, isBillingInvoiceType } from 'utils/constants';
 import { ALL_WORKS } from 'utils/workScope';
 
 /**
  * Registro y edición de una factura (ADR-0020, DEC-042), en un modal sobre el
- * listado de su vista (DEC-054) con dirección propia `…/new` y
- * `…/:invId/edit` (DEC-034). La vista llega por el contexto del Outlet.
+ * listado de su menú (DEC-074) con dirección propia `…/new` y
+ * `…/:invId/edit` (DEC-034). El menú (su tipo de proveedor, su nombre y su
+ * forma de facturar) llega por el contexto del Outlet.
  *
- * - La vista decide los tipos: la de simples registra solo la simple, que
- *   pide la obra, una etapa de ella (si la obra tiene etapas, DEC-069) y un
- *   proveedor asignado a ella, sin contrato (DEC-058). Las de contrato mayor y subcontratistas eligen, en
- *   ese orden, el proveedor, uno de sus contratos de la clase de la vista
- *   (los que hoy admiten algún tipo) y el tipo que admite el estado de ese
- *   contrato; la obra sale del contrato.
+ * - La forma del menú decide los tipos: la simple registra solo la simple,
+ *   que pide la obra, una etapa de ella (si la obra tiene etapas, DEC-069) y
+ *   un proveedor que trabaja en ella con el tipo del menú, sin contrato
+ *   (DEC-058). La de contrato elige, en ese orden, el proveedor, uno de sus
+ *   contratos firmados bajo el tipo del menú (los que hoy admiten algún tipo)
+ *   y el tipo que admite el estado de ese contrato; la obra sale del contrato.
+ * - La factura nueva guarda el tipo del menú (`pvtId`).
  * - Tipo, obra y contrato no cambian después de registrar.
  * - Registrada se edita entera; aprobada, solo extracto y descripción;
  *   anulada, nada. Lo decide el servidor (`allowedActions`).
@@ -130,9 +132,9 @@ const amountsPayload = (form) => ({
     : {})
 });
 
-const toPayload = (invId, form, sendAmounts) => ({
+const toPayload = (invId, form, sendAmounts, pvtId) => ({
   invId,
-  ...(invId ? {} : { type: form.type, ...(isSimple(form.type) ? { wrkId: form.wrkId } : { ctrId: form.ctrId }) }),
+  ...(invId ? {} : { type: form.type, pvtId, ...(isSimple(form.type) ? { wrkId: form.wrkId } : { ctrId: form.ctrId }) }),
   ...(isSimple(form.type) ? { prvId: form.prvId, wksId: form.wksId } : {}),
   number: text(form.number),
   date: form.date,
@@ -188,10 +190,10 @@ export default function InvoiceFormPage() {
   const invId = Number(invIdParam) || 0;
   const isEdit = invId > 0;
   const navigate = useNavigate();
-  const { refresh, view = 'SIMPLE' } = useOutletContext() ?? {};
-  const listPath = invoicePath(view);
-  const typeOptions = INVOICE_TYPE_OPTIONS.filter((o) => INVOICE_VIEWS[view].types.includes(o.value));
-  // La vista de simples tiene un solo tipo: no se elige.
+  const { refresh, pvtId, menu } = useOutletContext() ?? {};
+  const listPath = invoicePath(pvtId);
+  const typeOptions = INVOICE_TYPE_OPTIONS.filter((o) => (INVOICE_MODE_TYPES[menu?.mode] ?? []).includes(o.value));
+  // Un menú de forma simple tiene un solo tipo: no se elige.
   const fixedType = typeOptions.length === 1 ? typeOptions[0].value : '';
   const { permissionsCatalog, hasPermission } = useAuth();
   const adjustPermission = permissionsCatalog.billing?.invoices?.adjustAmortization;
@@ -267,31 +269,31 @@ export default function InvoiceFormPage() {
     name: ['type', 'ctrId', 'prvId', 'wrkId', 'value', 'amortization', 'retention']
   });
   const simple = isSimple(type);
-  // Vistas de contrato: proveedor, contrato y tipo, en ese orden; el tipo no filtra los anteriores.
+  // Menús de contrato: proveedor, contrato y tipo, en ese orden; el tipo no filtra los anteriores.
   const contractView = !fixedType;
   // Proveedor del contrato que llega desde su expediente: vuelve en el selector aunque el tope lo deje fuera.
   const presetContractPrvId = presetCtrId && contractView ? prvId : '';
 
-  // Proveedores con contratos de la clase de la vista que hoy admiten algún tipo (solo al registrar).
+  // Proveedores con contratos del tipo del menú que hoy admiten algún tipo de factura (solo al registrar).
   const fetchProviders = useCallback(
     (search) =>
       getInvoiceProvidersSelectAPI({
-        view,
+        pvtId,
         ...(search ? { search } : {}),
         ...(presetContractPrvId ? { includePrvId: presetContractPrvId } : {})
       }).then((res) => res.data),
-    [view, presetContractPrvId]
+    [pvtId, presetContractPrvId]
   );
   // Contratos del proveedor elegido; el que llega desde su expediente, antes de saber su proveedor.
   const fetchContracts = useCallback(
     (search) =>
       getInvoiceContractsSelectAPI({
-        view,
+        pvtId,
         ...(prvId ? { prvId } : {}),
         ...(search ? { search } : {}),
         ...(presetCtrId ? { includeCtrId: presetCtrId } : {})
       }).then((res) => res.data),
-    [view, prvId, presetCtrId]
+    [pvtId, prvId, presetCtrId]
   );
   // Obras activas del alcance (simple); desde el proveedor, solo las suyas.
   const fetchWorks = useCallback(
@@ -380,10 +382,10 @@ export default function InvoiceFormPage() {
     setSaving(true);
     try {
       const sendAmounts = !isEdit || loaded.allowedActions.includes('edit');
-      const { data } = await invoicesApi.save(toPayload(invId, form, sendAmounts), isEdit ? undefined : idempotencyKey);
+      const { data } = await invoicesApi.save(toPayload(invId, form, sendAmounts, pvtId), isEdit ? undefined : idempotencyKey);
       showSuccess(data.message || 'Guardado correctamente.');
       refresh?.();
-      navigate(invoicePath(view, data.invId ?? invId));
+      navigate(invoicePath(pvtId, data.invId ?? invId));
     } catch (err) {
       showError(err.response?.data?.message || 'Error al guardar la factura');
     } finally {
@@ -401,13 +403,16 @@ export default function InvoiceFormPage() {
   const contract =
     contractOptions.items.find((c) => Number(c.value) === Number(ctrId)) ??
     (pickedContract && Number(pickedContract.value) === Number(ctrId) ? pickedContract : undefined);
-  // Tipos de la vista que admite hoy el estado del contrato elegido.
+  // Tipos del menú que admite hoy el estado del contrato elegido.
   const contractTypeOptions = contract ? typeOptions.filter((o) => (contract.types ?? []).includes(o.value)) : [];
   const noOptions = wrkId && !loadingOptions;
   // La etapa solo es obligatoria si la obra tiene etapas (DEC-069); el servidor lo vuelve a verificar.
   const withoutStages = Boolean(noOptions) && options.stages.length === 0;
   const stageRequired = !withoutStages;
   const inactiveWork = !isEdit && simple && headerWork != null && headerWork.active === false;
+  // Proveedores de la obra que trabajan en ella con el tipo de la factura (DEC-074); al editar, también el actual.
+  const menuPvtId = Number(loaded?.pvtId ?? pvtId);
+  const simpleProviders = options.providers.filter((p) => (p.simpleTypes ?? []).includes(menuPvtId) || p.value === loaded?.prvId);
 
   return (
     <RouteDialog
@@ -660,7 +665,7 @@ export default function InvoiceFormPage() {
                             <SearchSelect
                               value={field.value}
                               onChange={field.onChange}
-                              options={options.providers}
+                              options={simpleProviders}
                               loading={loadingOptions}
                               disabled={!wrkId || lockDocument || blocked}
                               label="Proveedor"
@@ -669,9 +674,9 @@ export default function InvoiceFormPage() {
                               helperText={
                                 !wrkId
                                   ? 'Elige primero la obra'
-                                  : noOptions && options.providers.length === 0
-                                    ? 'Asigna antes un proveedor a la obra'
-                                    : 'Proveedores activos asignados a la obra'
+                                  : noOptions && simpleProviders.length === 0
+                                    ? `Ningún proveedor trabaja en esta obra como ${menu?.name ?? 'este tipo'}: asígnalo antes`
+                                    : `Proveedores activos que trabajan en la obra como ${menu?.name ?? 'este tipo'}`
                               }
                             />
                           )}

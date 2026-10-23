@@ -12,7 +12,8 @@ const contract = {
   workName: "Torre 1",
   providerName: "Aceros SAS",
   providerIdentification: "NIT 900",
-  invoiceView: "MAJOR",
+  providerTypeName: "Contrato mayor",
+  invoiceMode: "CONTRACT",
   stateName: "En ejecución",
   term: 6,
   termUnit: "MES",
@@ -75,7 +76,7 @@ beforeEach(() => jest.clearAllMocks());
 
 describe("exportContractSummary", () => {
   it("con todos los permisos: resumen y una hoja por cada parte del expediente", async () => {
-    const file = await exportContractSummary({ ctrId: 1, format: "xlsx", scope: SCOPE, views: ["MAJOR"], canViewPolicies: true });
+    const file = await exportContractSummary({ ctrId: 1, format: "xlsx", scope: SCOPE, seesInvoices: true, canViewPolicies: true });
     const workbook = await workbookOf(file);
 
     expect(workbook.worksheets.map((s) => s.name)).toEqual(["Resumen", "Conceptos", "Pólizas", "Facturas", "Suspensiones", "Historial de estado"]);
@@ -84,11 +85,11 @@ describe("exportContractSummary", () => {
     // El alcance llega a cada lectura.
     expect(getContract).toHaveBeenCalledWith({ ctrId: 1, scope: SCOPE });
     expect(getContractPolicies).toHaveBeenCalledWith({ ctrId: 1, scope: SCOPE });
-    expect(contractInvoicesForReport).toHaveBeenCalledWith({ ctrId: 1, views: ["MAJOR"] });
+    expect(contractInvoicesForReport).toHaveBeenCalledWith({ ctrId: 1 });
   });
 
   it("los conceptos eliminados no salen y las facturas cierran con el total aprobado", async () => {
-    const workbook = await workbookOf(await exportContractSummary({ ctrId: 1, format: "xlsx", scope: SCOPE, views: ["MAJOR"], canViewPolicies: true }));
+    const workbook = await workbookOf(await exportContractSummary({ ctrId: 1, format: "xlsx", scope: SCOPE, seesInvoices: true, canViewPolicies: true }));
     const concepts = columnA(workbook.getWorksheet("Conceptos"));
     expect(concepts).toContain("Otrosí N.º 1");
     expect(concepts).not.toContain("Otrosí N.º 2");
@@ -99,8 +100,8 @@ describe("exportContractSummary", () => {
     expect(last.getCell(6).value).toBe(150000);
   });
 
-  it("sin permiso de pólizas ni la vista de facturas del contrato, esas partes no se leen y el encabezado lo dice", async () => {
-    const file = await exportContractSummary({ ctrId: 1, format: "xlsx", scope: SCOPE, views: ["SIMPLE"], canViewPolicies: false });
+  it("sin permiso de pólizas ni de ver facturas, esas partes no se leen y el encabezado lo dice", async () => {
+    const file = await exportContractSummary({ ctrId: 1, format: "xlsx", scope: SCOPE, seesInvoices: false, canViewPolicies: false });
     const workbook = await workbookOf(file);
 
     expect(workbook.worksheets.map((s) => s.name)).toEqual(["Resumen", "Conceptos", "Suspensiones", "Historial de estado"]);
@@ -113,14 +114,14 @@ describe("exportContractSummary", () => {
   });
 
   it("en PDF también genera el documento", async () => {
-    const file = await exportContractSummary({ ctrId: 1, format: "pdf", scope: SCOPE, views: ["MAJOR"], canViewPolicies: true });
+    const file = await exportContractSummary({ ctrId: 1, format: "pdf", scope: SCOPE, seesInvoices: true, canViewPolicies: true });
     expect(file.contentType).toBe("application/pdf");
     expect(file.buffer.subarray(0, 4).toString()).toBe("%PDF");
   });
 
   it("fuera del alcance, el 404 de getContract y no se arma nada", async () => {
     getContract.mockRejectedValueOnce(Object.assign(new Error("No se encontró el contrato."), { statusCode: 404 }));
-    await expect(exportContractSummary({ ctrId: 1, format: "pdf", scope: SCOPE, views: ["MAJOR"], canViewPolicies: true })).rejects.toMatchObject({
+    await expect(exportContractSummary({ ctrId: 1, format: "pdf", scope: SCOPE, seesInvoices: true, canViewPolicies: true })).rejects.toMatchObject({
       statusCode: 404,
     });
     expect(contractInvoicesForReport).not.toHaveBeenCalled();

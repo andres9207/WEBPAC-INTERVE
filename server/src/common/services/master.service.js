@@ -48,7 +48,8 @@ const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
  * @param {{ entity: string, plural: string }} config.routes  Nombres snake_case de las acciones.
  * @param {object} config.permissions  `{ view, create, edit, delete, changeStatus }` (per_id).
  * @param {Array<object>} config.fields Columnas del dominio (ver FIELD_DEFAULTS). Un campo con
- *   `options` (lista cerrada de valores) se valida contra ella y se filtra por igualdad.
+ *   `options` (lista cerrada de valores) se valida contra ella y se filtra por igualdad. Uno
+ *   `boolean` es una casilla: se guarda true o false y sin valor es false (DEC-074).
  * @param {string} [config.scopeField] Campo con `options` que divide el catálogo en ámbitos
  *   (el acto al que aplica un motivo, DEC-039): la unicidad se verifica dentro del ámbito y el
  *   selector filtra por él. Debe ser no editable.
@@ -64,6 +65,8 @@ const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
  *   propia al editar, con el registro ya bloqueado (`before`) y los valores pedidos: lanza para
  *   rechazar, o aplica efectos en la misma transacción (el menú de facturas de un tipo de
  *   proveedor, DEC-056).
+ * @param {(values) => void} [config.assertValues] Regla entre campos del registro (columnas ya
+ *   normalizadas), al crear y al editar, antes de abrir la transacción: lanza para rechazar.
  * @param {Array<{ name: string, values: string[] }>} [config.updateOptions] Decisiones opcionales
  *   que acompañan una edición sin ser columnas (qué hacer con las facturas si cambia el menú,
  *   DEC-056): se validan contra `values` y llegan a `beforeUpdate` en `options`.
@@ -153,7 +156,9 @@ export const createMasterService = (config) => {
 
   // Texto: sin espacios de borde y, si el campo lo pide, en mayúsculas. Una
   // lista cerrada opcional sin valor se guarda como NULL: su CHECK no admite "".
+  // Una casilla es true o false.
   const normalize = (field, value) => {
+    if (field.boolean) return value === true || value === "true" || value === 1 || value === "1";
     if (value == null) return null;
     const text = String(value).trim();
     if (field.options && !field.required && text === "") return null;
@@ -322,9 +327,10 @@ export const createMasterService = (config) => {
    * Crear (id vacío o 0) o editar. En la edición se ignoran los campos no
    * editables. El estado no se toca: ver changeStatus.
    */
-  const save = ({ id, input, options, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
+  const save = async ({ id, input, options, useBy, ctx = { useId: useBy }, idempotencyKey }) => {
     const isEdit = Number(id) > 0;
     const values = valuesOf(input, { isEdit });
+    config.assertValues?.(values);
     if (isEdit) return update({ id, values, options, useBy, ctx });
 
     // La clave se busca antes que el duplicado: el reintento de una creación

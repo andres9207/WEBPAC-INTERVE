@@ -39,7 +39,6 @@ const contract = (overrides = {}) => ({
   ctr_number: "C-001",
   ctr_name: "Suministro de acero",
   ctr_state: "IN_PROGRESS",
-  ctr_invoice_view: "MAJOR",
   tbl_works: { wrk_code: "OB-1" },
   tbl_providers: { prv_name: "Aceros SAS" },
   tbl_contract_concepts: [concept(2, "AMENDMENT", 1, "500000"), concept(1, "INITIAL", null, "1000000"), concept(3, "AMENDMENT", 2, "9", 3)],
@@ -78,7 +77,7 @@ beforeEach(() => {
 
 describe("exportContractReport — control de contratos", () => {
   it("una fila por concepto vigente, en orden, con el total, lo pagado y su porcentaje agrupados por contrato", async () => {
-    const file = await exportContractReport({ report: "control", format: "xlsx", views: ["MAJOR"], scope: { all: true } });
+    const file = await exportContractReport({ report: "control", format: "xlsx", seesInvoices: true, scope: { all: true } });
     const sheet = await sheetOf(file);
     const { header, rows } = tableOf(sheet, "Nro. contrato");
 
@@ -98,7 +97,7 @@ describe("exportContractReport — control de contratos", () => {
   });
 
   it("toma los contratos del listado: sus filtros y el alcance, sin paginar", async () => {
-    await exportContractReport({ report: "control", format: "pdf", views: ["MAJOR"], scope: { wrkId: 8 }, prvId: 77, state: "IN_PROGRESS" });
+    await exportContractReport({ report: "control", format: "pdf", seesInvoices: true, scope: { wrkId: 8 }, prvId: 77, state: "IN_PROGRESS" });
     const args = prismaMock.tbl_contracts.findMany.mock.calls[0][0];
     expect(args.where).toMatchObject({ wrk_id: { in: [8] }, ctr_state: "IN_PROGRESS" });
     expect(JSON.stringify(args.where)).toContain('"prv_id":77');
@@ -106,13 +105,13 @@ describe("exportContractReport — control de contratos", () => {
   });
 
   it("solo suma facturas aprobadas y no eliminadas de esos contratos", async () => {
-    await exportContractReport({ report: "control", format: "pdf", views: ["MAJOR"], scope: { all: true } });
+    await exportContractReport({ report: "control", format: "pdf", seesInvoices: true, scope: { all: true } });
     const where = prismaMock.tbl_invoice_liquidation_details.findMany.mock.calls[0][0].where;
     expect(where.tbl_invoices).toEqual({ ctr_id: { in: [1] }, inv_type: { in: ["NORMAL", "LIQUIDATION"] }, inv_state: "APPROVED", sta_id: { not: 3 } });
   });
 
-  it("sin la vista de facturas del contrato, sus cifras de facturación van vacías y el encabezado lo dice", async () => {
-    const file = await exportContractReport({ report: "control", format: "xlsx", views: ["SIMPLE"], scope: { all: true } });
+  it("sin el permiso de ver facturas, las cifras de facturación van vacías y el encabezado lo dice (DEC-074)", async () => {
+    const file = await exportContractReport({ report: "control", format: "xlsx", seesInvoices: false, scope: { all: true } });
     const sheet = await sheetOf(file);
     const { rows } = tableOf(sheet, "Nro. contrato");
     expect(rows[0][6]).toBe(1785000);
@@ -125,12 +124,12 @@ describe("exportContractReport — control de contratos", () => {
 
   it("más filas que el tope: 422 sin leerlas", async () => {
     prismaMock.tbl_contracts.count.mockResolvedValue(5001);
-    await expect(exportContractReport({ report: "control", format: "pdf", views: [], scope: { all: true } })).rejects.toMatchObject({ statusCode: 422 });
+    await expect(exportContractReport({ report: "control", format: "pdf", seesInvoices: false, scope: { all: true } })).rejects.toMatchObject({ statusCode: 422 });
     expect(prismaMock.tbl_contracts.findMany).not.toHaveBeenCalled();
   });
 
   it("un reporte desconocido responde 400", async () => {
-    await expect(exportContractReport({ report: "otro", format: "pdf", views: [], scope: { all: true } })).rejects.toMatchObject({ statusCode: 400 });
+    await expect(exportContractReport({ report: "otro", format: "pdf", seesInvoices: false, scope: { all: true } })).rejects.toMatchObject({ statusCode: 400 });
   });
 });
 
@@ -138,7 +137,7 @@ describe("exportContractReport — anticipos y retenidos", () => {
   it("una fila por contrato con los saldos de anticipo y de retenido, y sus totales", async () => {
     prismaMock.tbl_contracts.count.mockResolvedValue(2);
     prismaMock.tbl_contracts.findMany.mockResolvedValue([contract(), contract({ ctr_id: 2, ctr_number: "C-002", tbl_contract_concepts: [] })]);
-    const file = await exportContractReport({ report: "advances", format: "xlsx", views: ["MAJOR"], scope: { all: true } });
+    const file = await exportContractReport({ report: "advances", format: "xlsx", seesInvoices: true, scope: { all: true } });
     const { rows } = tableOf(await sheetOf(file), "Nro. contrato");
 
     // Pactado 225.000 (15 % de 1.500.000), facturado 150.000, amortizado 90.000;

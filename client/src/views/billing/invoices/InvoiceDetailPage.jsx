@@ -30,8 +30,8 @@ import InvoiceDetailPanel from './components/InvoiceDetailPanel';
 
 /**
  * Expediente de una factura (DEC-042), en un modal sobre el listado de su
- * vista con dirección propia `/billing/invoices/<vista>/:invId` (DEC-034,
- * DEC-054). Abierta desde otra vista, se lleva a la suya. Identidad, estado,
+ * menú con dirección propia `/billing/invoices/:pvtId/:invId` (DEC-034,
+ * DEC-074). Abierta desde otro menú, se lleva al suyo. Identidad, estado,
  * datos del documento e historial de estado. El estado no se edita: lo
  * cambian Aprobar y Anular, cada una con su diálogo y su permiso, ofrecidas
  * según `allowedActions` del servidor. Importes: los del anticipo, la
@@ -216,10 +216,10 @@ export default function InvoiceDetailPage() {
   const { invId } = useParams();
   const navigate = useNavigate();
   const socket = useSocket();
-  // `returnTo`: abierto sobre otra pantalla (el tablero), sin vista propia;
-  // cerrar vuelve a ella. Sin él, la factura vive en el listado de su vista.
-  const { refresh, view = 'SIMPLE', returnTo } = useOutletContext() ?? {};
-  const listPath = returnTo ?? invoicePath(view);
+  // `returnTo`: abierto sobre otra pantalla (el tablero), sin menú propio;
+  // cerrar vuelve a ella. Sin él, la factura vive en el listado de su menú.
+  const { refresh, pvtId, returnTo } = useOutletContext() ?? {};
+  const listPath = returnTo ?? invoicePath(pvtId);
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
   const perms = permissionsCatalog.billing?.invoices;
@@ -233,9 +233,9 @@ export default function InvoiceDetailPage() {
     setLoading(true);
     try {
       const { data } = await invoicesApi.getById({ invId });
-      // Cada factura vive en su vista (DEC-054): una dirección de otra vista se corrige.
-      if (!returnTo && data.view && data.view !== view) {
-        navigate(invoicePath(data.view, data.invId), { replace: true });
+      // Cada factura vive en su menú (DEC-074): una dirección de otro menú se corrige.
+      if (!returnTo && data.pvtId && String(data.pvtId) !== String(pvtId)) {
+        navigate(invoicePath(data.pvtId, data.invId), { replace: true });
         return;
       }
       setInvoice(data);
@@ -245,7 +245,7 @@ export default function InvoiceDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [invId, navigate, view, returnTo, listPath]);
+  }, [invId, navigate, pvtId, returnTo, listPath]);
 
   useEffect(() => {
     load();
@@ -350,7 +350,7 @@ export default function InvoiceDetailPage() {
             Cerrar
           </Button>
           {canEdit && (
-            <Button variant="outlined" color="secondary" onClick={() => navigate(invoicePath(view, invoice.invId, 'edit'))}>
+            <Button variant="outlined" color="secondary" onClick={() => navigate(invoicePath(invoice.pvtId, invoice.invId, 'edit'))}>
               {allows('edit') ? 'Editar factura' : 'Editar extracto y descripción'}
             </Button>
           )}

@@ -41,12 +41,11 @@ const PAGES = [
   { pag_id: 16, pag_description: "Contratos", pag_parent: 13, pag_url: "work/contracts", pag_icon: "file-description", pag_order: 3, pag_name: "Contratos", pag_type: 2 },
   // database/migrations/0062_seed_reasons_suspensions_permissions.sql
   { pag_id: 17, pag_description: "Motivos", pag_parent: 5, pag_url: "admin/reasons", pag_icon: "message-report", pag_order: 8, pag_name: "Motivos", pag_type: 2 },
-  // database/migrations/0069_seed_invoices_pages_permissions.sql; nombre y
-  // vistas de 0091 (DEC-054). La página 19 (todas juntas) se retiró en 0091.
+  // database/migrations/0069_seed_invoices_pages_permissions.sql; nombre de
+  // 0091. Sus entradas no son páginas: una por tipo de proveedor con la
+  // casilla del menú, que arma app.service.js (DEC-074). Las páginas 19 y 21
+  // a 23 se retiraron (0091, 0109).
   { pag_id: 18, pag_description: "Facturas", pag_parent: 0, pag_url: null, pag_icon: "receipt", pag_order: 3, pag_name: "Facturas", pag_type: 3 },
-  { pag_id: 21, pag_description: "Facturas simples", pag_parent: 18, pag_url: "billing/invoices/simple", pag_icon: "invoice", pag_order: 1, pag_name: "Simples", pag_type: 2 },
-  { pag_id: 22, pag_description: "Facturas contrato mayor", pag_parent: 18, pag_url: "billing/invoices/major", pag_icon: "invoice", pag_order: 2, pag_name: "Contrato mayor", pag_type: 2 },
-  { pag_id: 23, pag_description: "Facturas subcontratistas", pag_parent: 18, pag_url: "billing/invoices/subcontractors", pag_icon: "invoice", pag_order: 3, pag_name: "Subcontratistas", pag_type: 2 },
   // database/migrations/0082_seed_policies_pages_permissions.sql
   { pag_id: 20, pag_description: "Tipos de póliza", pag_parent: 5, pag_url: "admin/policyTypes", pag_icon: "shield-check", pag_order: 9, pag_name: "Tipos de póliza", pag_type: 2 },
 ];
@@ -203,10 +202,9 @@ const VIEW_PERMISSIONS = [
   { per_id: 60, per_name: "Ver proveedores", pag_id: 15, per_order: 8 },
   { per_id: 68, per_name: "Ver contratos", pag_id: 16, per_order: 8 },
   { per_id: 78, per_name: "Ver motivos", pag_id: 17, per_order: 5 },
-  // database/migrations/0091_seed_invoice_views_pages_permissions.sql (DEC-054): uno por vista; el 83 se retiró.
-  { per_id: 105, per_name: "Ver facturas simples", pag_id: 21, per_order: 1 },
-  { per_id: 106, per_name: "Ver facturas de contrato mayor", pag_id: 22, per_order: 1 },
-  { per_id: 107, per_name: "Ver facturas de subcontratistas", pag_id: 23, per_order: 1 },
+  // database/migrations/0109_dynamic_invoice_menus.sql (DEC-074): uno para todos los
+  // menús de facturas; reemplaza a 105, 106 y 107 (DEC-054), y estos al 83.
+  { per_id: 115, per_name: "Ver facturas", pag_id: 18, per_order: 0 },
   { per_id: 93, per_name: "Ver tipos de póliza", pag_id: 20, per_order: 5 },
   { per_id: 99, per_name: "Ver pólizas", pag_id: 16, per_order: 12 },
 ];
@@ -239,11 +237,11 @@ const IDENTITY_DOCUMENTS = [
 ];
 
 // Tipos de proveedor iniciales (database/migrations/0023_seed_provider_types.sql),
-// con su menú de facturas (0092 y 0099, DEC-066): Simple habilita la factura simple.
+// con su forma de facturar y en el menú de facturas (0109, DEC-074).
 const PROVIDER_TYPES = [
-  { pvt_id: 1, pvt_name: "Simple", pvt_invoice_view: "SIMPLE", sta_id: 1 },
-  { pvt_id: 2, pvt_name: "Subcontratista", pvt_invoice_view: "SUBCONTRACTOR", sta_id: 1 },
-  { pvt_id: 3, pvt_name: "Contrato mayor", pvt_invoice_view: "MAJOR", sta_id: 1 },
+  { pvt_id: 1, pvt_name: "Simple", pvt_invoice_mode: "SIMPLE", pvt_invoice_menu: true, sta_id: 1 },
+  { pvt_id: 2, pvt_name: "Subcontratista", pvt_invoice_mode: "CONTRACT", pvt_invoice_menu: true, sta_id: 1 },
+  { pvt_id: 3, pvt_name: "Contrato mayor", pvt_invoice_mode: "CONTRACT", pvt_invoice_menu: true, sta_id: 1 },
 ];
 
 // Tipos de dirección iniciales (database/migrations/0026_seed_address_types.sql).

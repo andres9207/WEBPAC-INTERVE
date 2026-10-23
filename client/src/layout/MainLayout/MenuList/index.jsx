@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
@@ -9,12 +9,18 @@ import NavGroup from './NavGroup';
 import { useGetMenuMaster } from 'api/menu';
 import { useAuth } from 'contexts/AuthContext';
 import { getMenuAPI } from 'api/requests/appApi';
+import { setBillingMenus } from 'menu-items/billing';
+import { useSocket } from 'socket/SocketProvider';
 import * as TablerIcons from '@tabler/icons-react';
 
 // ==============================|| SIDEBAR MENU LIST ||============================== //
 
 let cachedMenu = null;
 let cachedUserId = null;
+
+// Entradas del grupo Facturas (DEC-074): una por tipo de proveedor con la
+// casilla del menú, con dirección `billing/invoices/:pvtId`.
+const INVOICE_MENU_URL = /^\/?billing\/invoices\/(\d+)$/;
 
 const getIconByName = (iconName) => {
   if (!iconName) return null;
@@ -70,11 +76,90 @@ const getIconByName = (iconName) => {
 function MenuList() {
   const { menuMaster } = useGetMenuMaster();
   const { user } = useAuth();
+  const socket = useSocket();
   const drawerOpen = menuMaster.isDashboardDrawerOpened;
 
   const [menuList, setMenuList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedID, setSelectedID] = useState('');
+
+  const fetchMenu = useCallback(async () => {
+    try {
+      const { data } = await getMenuAPI();
+      // Las migas de pan de Facturas siguen a las entradas del servidor.
+      setBillingMenus(
+        (data.hijos || [])
+          .map((hijo) => ({ match: INVOICE_MENU_URL.exec(hijo.toa ?? ''), name: hijo.label || hijo.pag_description }))
+          .filter((entry) => entry.match)
+          .map((entry) => ({ pvtId: entry.match[1], name: entry.name }))
+      );
+      // Transform data to Berry group items format
+      const transformMenu = (padres, hijos) => {
+        const mapped = padres.map((padre) => {
+          const childrenOfPadre = hijos.filter((hijo) => hijo.padre === padre.id);
+          
+          if (childrenOfPadre.length > 0) {
+            const items = childrenOfPadre.map((hijo) => ({
+              id: hijo.toa || `item-${hijo.id}`,
+              title: hijo.label || hijo.pag_description,
+              type: 'item',
+              url: hijo.toa?.startsWith('/') ? hijo.toa : hijo.toa ? `/${hijo.toa}` : '#',
+              icon: getIconByName(hijo.icon)
+            }));
+            // Grupo plegable (pag_type 3, migración 0093): sin título fijo,
+            // un desplegable con el nombre del grupo y sus páginas dentro.
+            if (padre.collapsible) {
+              return {
+                id: `group-${padre.id}`,
+                type: 'group',
+                children: [
+                  {
+                    id: `collapse-${padre.id}`,
+                    title: padre.label || padre.pag_description,
+                    type: 'collapse',
+                    icon: getIconByName(padre.icon),
+                    children: items
+                  }
+                ]
+              };
+            }
+            return {
+              id: `group-${padre.id}`,
+              title: padre.label || padre.pag_description,
+              type: 'group',
+              children: items
+            };
+          } else {
+            return {
+              id: `group-${padre.id}`,
+              title: padre.label || padre.pag_description,
+              type: 'group',
+              children: [
+                {
+                id: padre.toa || `item-${padre.id}`,
+                title: padre.label || padre.pag_description,
+                type: 'item',
+                url: padre.toa?.startsWith('/') ? padre.toa : padre.toa ? `/${padre.toa}` : '#',
+                icon: getIconByName(padre.icon)
+                }
+              ]
+            };
+          }
+        });
+
+        return mapped;
+      };
+
+      const transformed = transformMenu(data.padres || [], data.hijos || []);
+      cachedMenu = transformed;
+      cachedUserId = user?.useId;
+      setMenuList(transformed);
+    } catch (err) {
+      console.error("Error loading menu:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.useId]);
 
   useEffect(() => {
     if (!user?.proId || !user?.useId) return;
@@ -83,80 +168,16 @@ function MenuList() {
       setLoading(false);
       return;
     }
-
-    const fetchMenu = async () => {
-      try {
-        const { data } = await getMenuAPI();
-        // Transform data to Berry group items format
-        const transformMenu = (padres, hijos) => {
-          const mapped = padres.map((padre) => {
-            const childrenOfPadre = hijos.filter((hijo) => hijo.padre === padre.id);
-            
-            if (childrenOfPadre.length > 0) {
-              const items = childrenOfPadre.map((hijo) => ({
-                id: hijo.toa || `item-${hijo.id}`,
-                title: hijo.label || hijo.pag_description,
-                type: 'item',
-                url: hijo.toa?.startsWith('/') ? hijo.toa : hijo.toa ? `/${hijo.toa}` : '#',
-                icon: getIconByName(hijo.icon)
-              }));
-              // Grupo plegable (pag_type 3, migración 0093): sin título fijo,
-              // un desplegable con el nombre del grupo y sus páginas dentro.
-              if (padre.collapsible) {
-                return {
-                  id: `group-${padre.id}`,
-                  type: 'group',
-                  children: [
-                    {
-                      id: `collapse-${padre.id}`,
-                      title: padre.label || padre.pag_description,
-                      type: 'collapse',
-                      icon: getIconByName(padre.icon),
-                      children: items
-                    }
-                  ]
-                };
-              }
-              return {
-                id: `group-${padre.id}`,
-                title: padre.label || padre.pag_description,
-                type: 'group',
-                children: items
-              };
-            } else {
-              return {
-                id: `group-${padre.id}`,
-                title: padre.label || padre.pag_description,
-                type: 'group',
-                children: [
-                  {
-                  id: padre.toa || `item-${padre.id}`,
-                  title: padre.label || padre.pag_description,
-                  type: 'item',
-                  url: padre.toa?.startsWith('/') ? padre.toa : padre.toa ? `/${padre.toa}` : '#',
-                  icon: getIconByName(padre.icon)
-                  }
-                ]
-              };
-            }
-          });
-
-          return mapped;
-        };
-
-        const transformed = transformMenu(data.padres || [], data.hijos || []);
-        cachedMenu = transformed;
-        cachedUserId = user.useId;
-        setMenuList(transformed);
-      } catch (err) {
-        console.error("Error loading menu:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchMenu();
-  }, [user]);
+  }, [user, fetchMenu]);
+
+  // Un tipo de proveedor que entra o sale del menú de facturas, o cambia de
+  // nombre, cambia el sidebar de todos (DEC-074): se vuelve a pedir.
+  useEffect(() => {
+    if (!socket || !user?.useId) return undefined;
+    socket.on('refresh-provider-types', fetchMenu);
+    return () => socket.off('refresh-provider-types', fetchMenu);
+  }, [socket, user?.useId, fetchMenu]);
 
   if (loading) {
     return (

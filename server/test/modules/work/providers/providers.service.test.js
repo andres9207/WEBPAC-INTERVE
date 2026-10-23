@@ -10,7 +10,7 @@ const state = { provider: null, assignment: null };
 
 // Menú de facturas de cada tipo de proveedor (DEC-066): 1 Simple, 2
 // Subcontratista, 3 Contrato mayor.
-const TYPE_MENUS = { 1: "SIMPLE", 2: "SUBCONTRACTOR", 3: "MAJOR" };
+const TYPE_MODES = { 1: "SIMPLE", 2: "CONTRACT", 3: "CONTRACT" };
 const TYPE_NAMES = { 1: "Simple", 2: "Subcontratista", 3: "Contrato mayor" };
 
 const prismaMock = {
@@ -123,7 +123,7 @@ beforeEach(() => {
   prismaMock.tbl_invoices.count.mockResolvedValue(0);
   prismaMock.tbl_invoices.findMany.mockResolvedValue([]);
   prismaMock.tbl_provider_types.findMany.mockImplementation(async ({ where }) =>
-    where.pvt_id.in.map((id) => ({ pvt_id: id, pvt_name: TYPE_NAMES[id] ?? `Tipo ${id}`, pvt_invoice_view: TYPE_MENUS[id] ?? null }))
+    where.pvt_id.in.map((id) => ({ pvt_id: id, pvt_name: TYPE_NAMES[id] ?? `Tipo ${id}`, pvt_invoice_mode: TYPE_MODES[id] ?? null }))
   );
   prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
   prismaMock.tbl_work_provider_types.findMany.mockResolvedValue([]);
@@ -508,13 +508,13 @@ describe("tipos del proveedor en la obra (DEC-066)", () => {
       expect(prismaMock.tbl_work_provider_types.deleteMany).not.toHaveBeenCalled();
     });
 
-    it("no quita el último tipo de facturas simples si tiene simples en la obra (409); dejando otro, sí", async () => {
-      prismaMock.tbl_invoices.count.mockResolvedValue(2);
+    it("no quita un tipo con facturas de su menú en la obra (409, DEC-074); sin ellas, sí", async () => {
+      prismaMock.tbl_invoices.findMany.mockResolvedValue([{ pvt_id: 1 }, { pvt_id: 1 }]);
 
-      await expect(update([3])).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("2 factura(s) simple(s)") });
-      expect(prismaMock.tbl_invoices.count).toHaveBeenCalledWith({ where: { wrk_id: 8, prv_id: 77, ctr_id: null } });
+      await expect(update([3])).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("Simple de la obra: el proveedor tiene 2 factura(s)") });
+      expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where).toEqual({ wrk_id: 8, prv_id: 77, pvt_id: { in: [1] } });
 
-      prismaMock.tbl_invoices.count.mockResolvedValue(0);
+      prismaMock.tbl_invoices.findMany.mockResolvedValue([]);
       await expect(update([3])).resolves.toMatchObject({ wkpId: 300 });
       expect(prismaMock.tbl_work_provider_types.deleteMany).toHaveBeenCalled();
     });

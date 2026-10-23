@@ -13,7 +13,6 @@ import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import { IconPlus } from '@tabler/icons-react';
 
 import SubCard from 'ui-component/cards/SubCard';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
@@ -31,16 +30,16 @@ import { EMPTY_FORM, FIELD_TAB, rowKey, toForm, toPayload, validateManagers, val
 import WorkProvidersTab from 'views/work/providers/components/WorkProvidersTab';
 import WorkContractsTab from 'views/work/contracts/components/WorkContractsTab';
 import InvoicesTab from 'views/billing/invoices/components/InvoicesTab';
+import NewSimpleInvoiceButton from 'views/billing/invoices/components/NewSimpleInvoiceButton';
 import { getWorkManagersSelectAPI, previewWorkEndDateAPI, worksApi } from 'api/requests/worksApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkScope } from 'contexts/WorkScopeContext';
 import useEndDatePreview from 'hooks/useEndDatePreview';
-import useInvoiceViews from 'hooks/useInvoiceViews';
 import { showError, showInfo, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
-import { STATUS, STATUS_OPTIONS, fTerm, invoicePath } from 'utils/constants';
+import { STATUS, STATUS_OPTIONS, fTerm } from 'utils/constants';
 
 /**
  * Una obra en un solo modal (DEC-057), sobre el listado y con dirección propia
@@ -106,8 +105,6 @@ function WorkView() {
   const canDo = (perId) => perId != null && hasPermission(perId);
   const perms = permissionsCatalog.work?.works;
   // La factura simple se imputa a una etapa de la obra (DEC-058): se registra desde aquí.
-  const invoiceViews = useInvoiceViews();
-  const canCreateSimple = canDo(permissionsCatalog.billing?.invoices?.create) && invoiceViews.includes('SIMPLE');
   const canEdit = isNew || canDo(perms?.edit);
   const canAssign = canDo(perms?.assignManager);
   const canRemoveManager = canDo(perms?.removeManager);
@@ -633,19 +630,7 @@ function WorkView() {
       {tab === 'invoices' && work && (
         <InvoicesTab
           filter={{ wrkId: work.wrkId }}
-          actions={
-            active && canCreateSimple ? (
-              <Button
-                size="small"
-                variant="outlined"
-                color="secondary"
-                startIcon={<IconPlus size={16} />}
-                onClick={() => navigate(`${invoicePath('SIMPLE', 'new')}?wrkId=${work.wrkId}`)}
-              >
-                Factura simple
-              </Button>
-            ) : null
-          }
+          actions={active ? <NewSimpleInvoiceButton query={{ wrkId: work.wrkId }} /> : null}
           emptyTitle="Todavía no hay facturas en esta obra."
           emptyText="Aquí se ven las facturas simples, imputadas a una etapa de la obra, y las de sus contratos, que se registran desde el contrato. Una obra con facturas no se puede eliminar."
         />

@@ -13,7 +13,6 @@ import { suspendContract } from "../src/modules/work/contracts/contractSuspensio
 import { createPolicy } from "../src/modules/work/contracts/contractPolicies.service.js";
 import { CONCEPT_TYPES } from "../src/modules/work/contracts/contractTerms.js";
 import { saveInvoice, approveInvoice, cancelInvoice } from "../src/modules/billing/invoices/invoices.service.js";
-import { grantedViews } from "../src/modules/billing/invoices/invoiceViews.js";
 import { INVOICE_TYPES } from "../src/modules/billing/invoices/invoiceTerms.js";
 
 // Volumen de prueba del tablero (PRO-BD-24, criterio 4; DEC-052): 10 obras
@@ -101,7 +100,6 @@ async function main() {
   const useBy = actor.use_id;
   const ctx = { useId: useBy };
   const granted = new Set(await getEffectivePermissionIds({ useId: actor.use_id, proId: actor.pro_id }));
-  const views = grantedViews(granted);
   const scope = { all: true, wrkId: null };
 
   const companies = await firstActive("tbl_construction_companies", "cnc_id", 10);
@@ -198,9 +196,9 @@ async function main() {
       });
     }
 
-    const invoice = async (name, input) => (await saveInvoice({ input, useBy, granted, scope, views, ctx, idempotencyKey: volumeKey(`invoice:${name}`) })).invId;
+    const invoice = async (name, input) => (await saveInvoice({ input, useBy, granted, scope, ctx, idempotencyKey: volumeKey(`invoice:${name}`) })).invId;
     const approve = (name, invId, approvalDate) =>
-      approveInvoice({ invId, input: { approvalDate }, useBy, scope, views, ctx, idempotencyKey: volumeKey(`approve:${name}`) });
+      approveInvoice({ invId, input: { approvalDate }, useBy, scope, ctx, idempotencyKey: volumeKey(`approve:${name}`) });
 
     for (let j = 0; j < CONTRACTS_PER_WORK; j++) {
       const plan = PLAN[j];
@@ -258,7 +256,6 @@ async function main() {
           useBy,
           granted,
           scope,
-          views,
           ctx,
           idempotencyKey: volumeKey(`cancel:${advanceName}`),
         });

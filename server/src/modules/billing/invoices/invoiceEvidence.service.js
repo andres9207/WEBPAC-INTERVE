@@ -89,8 +89,8 @@ const snapshotOf = (op) => {
   return { amounts, balances };
 };
 
-export const getInvoiceEvidence = async ({ invId, scope, views }) => {
-  await assertInvoiceVisible({ scope, views }, invId);
+export const getInvoiceEvidence = async ({ invId, scope }) => {
+  await assertInvoiceVisible({ scope }, invId);
   const invoice = await prisma.tbl_invoices.findFirst({
     where: { inv_id: Number(invId), sta_id: { not: DELETED_STATUS } },
     select: { inv_id: true, inv_type: true, inv_number: true, inv_state: true, ctr_id: true, tbl_contracts: { select: { ctr_number: true } } },

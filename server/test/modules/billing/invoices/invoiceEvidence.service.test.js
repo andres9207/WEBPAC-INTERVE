@@ -7,7 +7,8 @@ const state = { invoice: null, visible: true, own: [], rows: [] };
 const prismaMock = {
   tbl_invoices: {
     // Con `AND` es la verificación de alcance y vista; sin él, la lectura de la factura.
-    findFirst: jest.fn(async ({ where }) => (where.AND ? (state.visible ? { inv_id: 70 } : null) : state.invoice)),
+    // Con alcance (wrk_id), la verificación de visibilidad; sin él, la lectura.
+    findFirst: jest.fn(async ({ where }) => (where.wrk_id ? (state.visible ? { inv_id: 70 } : null) : state.invoice)),
   },
   tbl_audit_log: {
     findMany: jest.fn(async ({ distinct }) => (distinct ? state.own : state.rows)),
@@ -98,9 +99,9 @@ describe("getInvoiceEvidence", () => {
     await expect(getInvoiceEvidence({ invId: 70 })).resolves.toMatchObject({ approval: null, operations: [] });
   });
 
-  it("fuera del alcance o de las vistas del usuario, o inexistente, responde 404", async () => {
+  it("fuera del alcance por obra, o inexistente, responde 404", async () => {
     state.visible = false;
-    await expect(getInvoiceEvidence({ invId: 70, views: new Set(["MAJOR"]) })).rejects.toMatchObject({ statusCode: 404 });
+    await expect(getInvoiceEvidence({ invId: 70, scope: { all: false, wrkId: 9 } })).rejects.toMatchObject({ statusCode: 404 });
     expect(prismaMock.tbl_audit_log.findMany).not.toHaveBeenCalled();
 
     state.visible = true;

@@ -115,34 +115,25 @@ const CONTRACT_INVOICE_TYPES = ['ADVANCE', 'NORMAL', 'LIQUIDATION', 'RETENTION_R
 // del anticipo y retenido. La normal, en ejecución; la liquidación, al final.
 export const isBillingInvoiceType = (type) => type === 'NORMAL' || type === 'LIQUIDATION';
 
-// Vistas de facturas (DEC-054): una por menú, cada una con su permiso de ver
-// (clave en permissionsCatalog.billing.invoices), su dirección y sus tipos.
-// La factura dice a cuál pertenece (`view`, del servidor).
-export const INVOICE_VIEWS = {
-  SIMPLE: { path: 'simple', title: 'Facturas simples', permission: 'viewSimple', types: ['SIMPLE'] },
-  MAJOR: { path: 'major', title: 'Facturas contrato mayor', permission: 'viewMajor', types: CONTRACT_INVOICE_TYPES },
-  SUBCONTRACTOR: {
-    path: 'subcontractors',
-    title: 'Facturas subcontratistas',
-    permission: 'viewSubcontractor',
-    types: CONTRACT_INVOICE_TYPES
-  }
-};
+// Menús de facturas (DEC-074): uno por tipo de proveedor con la casilla del
+// menú, que da el servidor; ninguno está escrito aquí. Cada tipo factura de
+// una de dos formas, que deciden la pantalla y los tipos de factura. La
+// factura dice a qué menú pertenece (`pvtId`, del servidor).
+export const INVOICE_MODES = { SIMPLE: 'SIMPLE', CONTRACT: 'CONTRACT' };
 
-/** Dirección del listado de una vista, o de una factura en él: `invoicePath('MAJOR', 70, 'edit')`. */
-export const invoicePath = (view, invId, suffix) =>
-  ['/billing/invoices', INVOICE_VIEWS[view]?.path ?? INVOICE_VIEWS.SIMPLE.path, invId, suffix].filter(Boolean).join('/');
-
-// Menú de facturas de un tipo de proveedor (DEC-066): contrato mayor y
-// subcontratistas admiten contratos, que guardan su menú al crearse; simples
-// habilita la factura simple en la obra. Sin valor, el tipo no da menú.
-export const PROVIDER_INVOICE_VIEW_OPTIONS = [
-  { value: 'MAJOR', label: INVOICE_VIEWS.MAJOR.title },
-  { value: 'SUBCONTRACTOR', label: INVOICE_VIEWS.SUBCONTRACTOR.title },
-  { value: 'SIMPLE', label: INVOICE_VIEWS.SIMPLE.title }
+export const INVOICE_MODE_OPTIONS = [
+  { value: INVOICE_MODES.SIMPLE, label: 'Simple (sin contrato)' },
+  { value: INVOICE_MODES.CONTRACT, label: 'Con contrato' }
 ];
 
-export const providerInvoiceViewName = (view) => PROVIDER_INVOICE_VIEW_OPTIONS.find((o) => o.value === view)?.label ?? 'Sin menú';
+export const invoiceModeName = (mode) => INVOICE_MODE_OPTIONS.find((o) => o.value === mode)?.label ?? 'No factura';
+
+/** Tipos de factura de cada forma de facturar. */
+export const INVOICE_MODE_TYPES = { [INVOICE_MODES.SIMPLE]: ['SIMPLE'], [INVOICE_MODES.CONTRACT]: CONTRACT_INVOICE_TYPES };
+
+/** Dirección del listado de un menú (su tipo de proveedor), o de una factura en él: `invoicePath(3, 70, 'edit')`. */
+export const invoicePath = (pvtId, invId, suffix) =>
+  ['/billing/invoices', pvtId, invId, suffix].filter((part) => part !== undefined && part !== null && part !== '').join('/');
 export const reasonScopeName = (scope) => REASON_SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? scope;
 
 const TERM_UNIT_NAMES = { DIA: ['día', 'días'], MES: ['mes', 'meses'], ANIO: ['año', 'años'] };

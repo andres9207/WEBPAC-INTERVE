@@ -3,11 +3,12 @@ import { verifyToken } from "../../../common/middlewares/authjwt.middleware.js";
 import { requirePermission } from "../../../common/middlewares/requirePermission.middleware.js";
 import { validate } from "../../../common/middlewares/validate.middleware.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
-import { ANY_CONTRACT_VIEW_PERMISSION, ANY_VIEW_PERMISSION, INVOICE_VIEWS, VIEW_PERMISSIONS } from "./invoiceViews.js";
 import {
   paginationInvoicesSchema,
   exportInvoicesSchema,
   getInvoiceSchema,
+  getInvoiceMenuSchema,
+  selectInvoiceMenusSchema,
   selectInvoiceWorksSchema,
   getInvoiceFormOptionsSchema,
   selectInvoiceProvidersSchema,
@@ -24,6 +25,8 @@ import {
   paginationInvoicesController,
   exportInvoicesController,
   getInvoiceController,
+  getInvoiceMenuController,
+  selectInvoiceMenusController,
   selectInvoiceWorksController,
   getInvoiceFormOptionsController,
   selectInvoiceProvidersController,
@@ -43,104 +46,65 @@ import {
 // controller. Cada transición tiene su endpoint y su permiso
 // (WORKFLOW_STANDARD, regla 3). Eliminar es lógico y con permiso propio (DEC-068).
 //
-// Vistas (DEC-054): el listado de una vista exige su permiso de ver; los
-// endpoints comunes, cualquiera de los tres, y el service responde 404 a una
-// factura de una vista que el usuario no ve.
+// Menús (DEC-074): uno por tipo de proveedor, todos con el mismo permiso de
+// ver. Toda ruta lo exige, también las acciones: operar sobre una factura
+// exige además verla.
 const can = PERMISSIONS.billing.invoices;
 const invoicesRoutes = express.Router();
+const canView = requirePermission(can.view);
 
-// Una vista desconocida pide los tres permisos: la validación la rechaza después.
-const viewPermission = (view) => VIEW_PERMISSIONS[view] ?? ANY_VIEW_PERMISSION;
-
-invoicesRoutes.post(
-  "/pagination_invoices",
+invoicesRoutes.post("/pagination_invoices", verifyToken, canView, paginationInvoicesSchema, validate, paginationInvoicesController);
+// Reporte del listado de un menú en Excel o PDF (DEC-070).
+invoicesRoutes.post("/export_invoices", verifyToken, canView, requirePermission(can.export), exportInvoicesSchema, validate, exportInvoicesController);
+// Nombre y forma de facturar de un menú, también oculto (DEC-074): la pantalla se arma con ellos.
+invoicesRoutes.get("/get_invoice_menu", verifyToken, canView, getInvoiceMenuSchema, validate, getInvoiceMenuController);
+// Los menús visibles (tipos activos con la casilla), por nombre: los expedientes y el tablero eligen en cuál registrar.
+invoicesRoutes.get("/select_invoice_menus", verifyToken, canView, selectInvoiceMenusSchema, validate, selectInvoiceMenusController);
+invoicesRoutes.get("/get_invoice", verifyToken, canView, getInvoiceSchema, validate, getInvoiceController);
+// Evidencia desde la bitácora (PRO-BE-39): permiso propio, además de ver facturas.
+invoicesRoutes.get(
+  "/get_invoice_evidence",
   verifyToken,
-  requirePermission((req) => (req.body.view ? viewPermission(req.body.view) : ANY_VIEW_PERMISSION)),
-  paginationInvoicesSchema,
+  canView,
+  requirePermission(can.viewEvidence),
+  getInvoiceSchema,
   validate,
-  paginationInvoicesController
+  getInvoiceEvidenceController
 );
-// Reporte del listado de una vista en Excel o PDF (DEC-070): el permiso de
-// exportar aquí; ver la vista, en el service.
-invoicesRoutes.post("/export_invoices", verifyToken, requirePermission(can.export), exportInvoicesSchema, validate, exportInvoicesController);
-invoicesRoutes.get("/get_invoice", verifyToken, requirePermission(ANY_VIEW_PERMISSION), getInvoiceSchema, validate, getInvoiceController);
-// Evidencia desde la bitácora (PRO-BE-39): permiso propio; además, ver la vista de la factura (service).
-invoicesRoutes.get("/get_invoice_evidence", verifyToken, requirePermission(can.viewEvidence), getInvoiceSchema, validate, getInvoiceEvidenceController);
 // Obras activas del alcance, y etapas y proveedores asignados de una obra, para la factura simple (DEC-058).
-invoicesRoutes.get(
-  "/select_invoice_works",
-  verifyToken,
-  requirePermission(VIEW_PERMISSIONS[INVOICE_VIEWS.SIMPLE]),
-  selectInvoiceWorksSchema,
-  validate,
-  selectInvoiceWorksController
-);
-invoicesRoutes.get(
-  "/get_invoice_form_options",
-  verifyToken,
-  requirePermission(VIEW_PERMISSIONS[INVOICE_VIEWS.SIMPLE]),
-  getInvoiceFormOptionsSchema,
-  validate,
-  getInvoiceFormOptionsController
-);
-// Filtro Proveedor del listado de una vista: proveedores con facturas de ella.
+invoicesRoutes.get("/select_invoice_works", verifyToken, canView, selectInvoiceWorksSchema, validate, selectInvoiceWorksController);
+invoicesRoutes.get("/get_invoice_form_options", verifyToken, canView, getInvoiceFormOptionsSchema, validate, getInvoiceFormOptionsController);
+// Filtro Proveedor del listado de un menú: proveedores con facturas de él.
 invoicesRoutes.get(
   "/select_invoice_filter_providers",
   verifyToken,
-  requirePermission((req) => viewPermission(req.query.view)),
+  canView,
   selectInvoiceFilterProvidersSchema,
   validate,
   selectInvoiceFilterProvidersController
 );
-// Contratos cuyo tipo va al menú de la vista y cuyo estado admite el tipo de factura (ADR-0017),
+// Contratos firmados bajo el tipo del menú cuyo estado admite el tipo de factura (ADR-0017),
 // y sus proveedores, que se eligen antes que el contrato.
-invoicesRoutes.get(
-  "/select_invoice_providers",
-  verifyToken,
-  requirePermission((req) => viewPermission(req.query.view)),
-  selectInvoiceProvidersSchema,
-  validate,
-  selectInvoiceProvidersController
-);
-invoicesRoutes.get(
-  "/select_invoice_contracts",
-  verifyToken,
-  requirePermission((req) => viewPermission(req.query.view)),
-  selectInvoiceContractsSchema,
-  validate,
-  selectInvoiceContractsController
-);
+invoicesRoutes.get("/select_invoice_providers", verifyToken, canView, selectInvoiceProvidersSchema, validate, selectInvoiceProvidersController);
+invoicesRoutes.get("/select_invoice_contracts", verifyToken, canView, selectInvoiceContractsSchema, validate, selectInvoiceContractsController);
 // Saldos de anticipo del contrato y amortización por defecto (DEC-044).
-invoicesRoutes.get(
-  "/get_contract_advance",
-  verifyToken,
-  requirePermission(ANY_CONTRACT_VIEW_PERMISSION),
-  getContractAdvanceSchema,
-  validate,
-  getContractAdvanceController
-);
+invoicesRoutes.get("/get_contract_advance", verifyToken, canView, getContractAdvanceSchema, validate, getContractAdvanceController);
 // Panel Detalle de la factura simple (DEC-065): la composición del servidor mientras se escribe.
-invoicesRoutes.post(
-  "/preview_simple_invoice",
-  verifyToken,
-  requirePermission(VIEW_PERMISSIONS[INVOICE_VIEWS.SIMPLE]),
-  previewSimpleInvoiceSchema,
-  validate,
-  previewSimpleInvoiceController
-);
+invoicesRoutes.post("/preview_simple_invoice", verifyToken, canView, previewSimpleInvoiceSchema, validate, previewSimpleInvoiceController);
 // save_invoice sirve registrar (invId 0) y editar.
 invoicesRoutes.post(
   "/save_invoice",
   verifyToken,
+  canView,
   requirePermission((req) => (Number(req.body.invId) > 0 ? can.edit : can.create)),
   saveInvoiceSchema,
   validate,
   saveInvoiceController
 );
-invoicesRoutes.post("/approve_invoice", verifyToken, requirePermission(can.approve), approveInvoiceSchema, validate, approveInvoiceController);
+invoicesRoutes.post("/approve_invoice", verifyToken, canView, requirePermission(can.approve), approveInvoiceSchema, validate, approveInvoiceController);
 // Anular: el permiso base aquí; el reforzado para una aprobada, en el service.
-invoicesRoutes.post("/cancel_invoice", verifyToken, requirePermission(can.cancel), cancelInvoiceSchema, validate, cancelInvoiceController);
+invoicesRoutes.post("/cancel_invoice", verifyToken, canView, requirePermission(can.cancel), cancelInvoiceSchema, validate, cancelInvoiceController);
 // Eliminar: el permiso base aquí; el reforzado para una aprobada, en el service.
-invoicesRoutes.post("/delete_invoice", verifyToken, requirePermission(can.delete), deleteInvoiceSchema, validate, deleteInvoiceController);
+invoicesRoutes.post("/delete_invoice", verifyToken, canView, requirePermission(can.delete), deleteInvoiceSchema, validate, deleteInvoiceController);
 
 export default invoicesRoutes;

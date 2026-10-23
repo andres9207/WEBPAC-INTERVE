@@ -5,19 +5,21 @@ import MasterPage from 'ui-component/extended/MasterPage';
 import ProviderTypeFieldsDialog from './components/ProviderTypeFieldsDialog';
 import { providerTypesApi } from 'api/requests/providerTypesApi';
 import { useAuth } from 'contexts/AuthContext';
-import { PROVIDER_INVOICE_VIEW_OPTIONS, providerInvoiceViewName } from 'utils/constants';
+import { INVOICE_MODE_OPTIONS, invoiceModeName } from 'utils/constants';
 
 // Maestro de tipos de proveedor (ADR-0010) sobre la vista reutilizable de
-// maestro (MAE-FE-01): el nombre, el menú de facturas (DEC-066) y, desde cada
-// fila, la configuración de los campos de los contratos firmados bajo el tipo
-// (DEC-053). Configurarla exige su permiso propio; sin él, la matriz se ve en
-// solo lectura. El menú decide si el tipo admite contratos (contrato mayor,
-// subcontratistas) o facturas simples; cambiarlo no mueve contratos ni
-// facturas: cada contrato guardó el suyo.
+// maestro (MAE-FE-01): el nombre, la forma de facturar y la casilla del menú
+// de facturas (DEC-074) y, desde cada fila, la configuración de los campos de
+// los contratos firmados bajo el tipo (DEC-053). Configurarla exige su
+// permiso propio; sin él, la matriz se ve en solo lectura. La forma decide si
+// el tipo admite contratos o facturas simples, y no cambia si el tipo ya
+// tiene contratos o facturas (409). Con la casilla, el tipo es una entrada
+// del menú "Facturas"; quitarla solo oculta la entrada.
 
 const COLUMNS = [
   { id: 'name', label: 'Nombre', sortable: true },
-  { id: 'invoiceView', label: 'Menú de facturas', sortable: true, render: (row) => providerInvoiceViewName(row.invoiceView) }
+  { id: 'invoiceMode', label: 'Forma de facturar', sortable: true, render: (row) => invoiceModeName(row.invoiceMode) },
+  { id: 'invoiceMenu', label: 'Menú de facturas', sortable: true, render: (row) => (row.invoiceMenu ? 'Sí' : 'No') }
 ];
 
 const FORM_FIELDS = [
@@ -30,13 +32,22 @@ const FORM_FIELDS = [
     grid: { xs: 12, sm: 7 }
   },
   {
-    name: 'invoiceView',
+    name: 'invoiceMode',
     type: 'dropdown',
-    label: 'Menú de facturas',
-    // El selector no se vacía: "sin menú" es una opción más (se guarda como NULL).
-    options: [{ value: '', label: 'Sin menú' }, ...PROVIDER_INVOICE_VIEW_OPTIONS],
+    label: 'Forma de facturar',
+    // El selector no se vacía: "No factura" es una opción más (se guarda como NULL).
+    options: [{ value: '', label: 'No factura' }, ...INVOICE_MODE_OPTIONS],
     defaultValue: '',
     grid: { xs: 12, sm: 5 }
+  },
+  {
+    name: 'invoiceMenu',
+    type: 'checkbox',
+    label: 'Va al menú de facturas',
+    defaultValue: false,
+    // El servidor lo vuelve a verificar (y la BD, con su CHECK).
+    validation: { validate: (value, form) => !value || Boolean(form.invoiceMode) || 'Elige la forma de facturar para que vaya al menú' },
+    grid: { xs: 12 }
   }
 ];
 
@@ -44,10 +55,10 @@ const FORM_FIELDS = [
 const FILTER_FIELDS = [
   { key: 'name', type: 'input', label: 'Nombre', props: { maxLength: 100 }, grid: { xs: 12, sm: 7 } },
   {
-    key: 'invoiceView',
+    key: 'invoiceMode',
     type: 'dropdown',
-    label: 'Menú de facturas',
-    props: { options: PROVIDER_INVOICE_VIEW_OPTIONS },
+    label: 'Forma de facturar',
+    props: { options: INVOICE_MODE_OPTIONS },
     grid: { xs: 12, sm: 5 }
   }
 ];

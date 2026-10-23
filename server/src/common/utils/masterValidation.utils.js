@@ -14,6 +14,8 @@ export const createMasterSchemas = (config) => {
   const fieldRule = (field) => {
     // Un campo no editable solo se valida al crear; al editar se ignora.
     let chain = field.editable ? body(field.name) : body(field.name).if((_value, { req }) => isCreate(req));
+    // Casilla (DEC-074): sin valor es false.
+    if (field.boolean) return chain.optional({ values: "null" }).isBoolean().withMessage(`El campo ${field.label} debe ser sí o no.`);
     chain = field.required
       ? chain.trim().notEmpty().withMessage(`El ${field.label} es requerido.`)
       : chain.optional({ values: "falsy" }).trim();

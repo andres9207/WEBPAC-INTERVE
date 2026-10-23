@@ -10,7 +10,6 @@ import * as conceptsService from "./contractConcepts.service.js";
 import * as suspensionsService from "./contractSuspensions.service.js";
 import * as policiesService from "./contractPolicies.service.js";
 import { exportContractReport, exportContractSummary } from "./contractReports.service.js";
-import { grantedViews } from "../../billing/invoices/invoiceViews.js";
 
 // Solo leen la petición y delegan. El autor sale de req.user (DEC-005); la
 // clave de idempotencia, del encabezado (DEC-016). Nada más del body llega al
@@ -73,13 +72,13 @@ export const paginationContractsController = handle(async (req) =>
 
 // Reporte del listado (DEC-070): responde el archivo, no JSON.
 // `report`: sin él, el listado; "control" o "advances", los reportes de
-// control, con las cifras de facturas de las vistas que ve el usuario.
+// control, con las cifras de facturas si el usuario puede verlas (DEC-074).
 export const exportContractsController = handleExport(async (req) => {
   const { format, report } = req.body;
   const filters = { ...(await listFiltersOf(req)), scope: await workScopeOf(req), format };
   if (!report || report === "list") return contractsService.exportContracts(filters);
-  const views = grantedViews(new Set(await getEffectivePermissionIds(req.user)));
-  return exportContractReport({ ...filters, report, views });
+  const granted = new Set(await getEffectivePermissionIds(req.user));
+  return exportContractReport({ ...filters, report, seesInvoices: granted.has(PERMISSIONS.billing.invoices.view) });
 });
 
 // Reporte de un contrato (DEC-070): el expediente, con las partes que el usuario puede ver.
@@ -89,7 +88,7 @@ export const exportContractController = handleExport(async (req) => {
     ctrId: req.body.ctrId,
     format: req.body.format,
     scope: await workScopeOf(req),
-    views: grantedViews(granted),
+    seesInvoices: granted.has(PERMISSIONS.billing.invoices.view),
     canViewPolicies: granted.has(PERMISSIONS.work.policies.view),
   });
 });

@@ -1,25 +1,30 @@
 import { useMemo, useState } from 'react';
-import PropTypes from 'prop-types';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useParams } from 'react-router-dom';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
 
 import MasterPage from 'ui-component/extended/MasterPage';
 import LinkedFilterNotice from 'ui-component/extended/LinkedFilterNotice';
 import useLinkedFilters from 'hooks/useLinkedFilters';
+import { useInvoiceMenu } from 'hooks/useInvoiceMenus';
 import { exportInvoicesAPI, getInvoiceFilterProvidersAPI, invoicesApi } from 'api/requests/invoicesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField } from 'contexts/WorkScopeContext';
 import { fDateOnly } from 'utils/formatTime';
-import { INVOICE_STATE_COLORS, INVOICE_STATE_TABS, INVOICE_TYPE_OPTIONS, INVOICE_VIEWS, invoicePath } from 'utils/constants';
+import { INVOICE_MODES, INVOICE_MODE_TYPES, INVOICE_STATE_COLORS, INVOICE_STATE_TABS, INVOICE_TYPE_OPTIONS, invoicePath } from 'utils/constants';
 
-// Facturas (ADR-0020, DEC-042), en tres vistas con su menú y su permiso de
-// ver (DEC-054): simples, de contrato mayor y de subcontratistas. Cada ruta
-// monta esta página con su `view`, que viaja en cada petición del listado.
-// Reutiliza el listado de MasterPage con pestañas por el estado del ciclo de
-// vida (registrada, aprobada, anulada). Detalle, alta y edición son rutas
-// hijas que se abren en un modal sobre el listado (DEC-034) y reciben la
-// vista por el contexto del Outlet. El tipo de factura es uno de los filtros
-// en las vistas de contrato (DEC-048): las pestañas cuentan dentro de él.
+// Facturas (ADR-0020, DEC-042), en menús dinámicos (DEC-074): uno por tipo de
+// proveedor con la casilla del menú. La ruta lleva el tipo (`:pvtId`), que
+// viaja en cada petición del listado: cada menú muestra solo sus facturas.
+// El nombre y la forma de facturar del menú los da el servidor; la forma
+// decide columnas, filtros y formulario. Reutiliza el listado de MasterPage
+// con pestañas por el estado del ciclo de vida (registrada, aprobada,
+// anulada). Detalle, alta y edición son rutas hijas que se abren en un modal
+// sobre el listado (DEC-034) y reciben el menú por el contexto del Outlet. El
+// tipo de factura es uno de los filtros en los menús de contrato (DEC-048):
+// las pestañas cuentan dentro de él.
 
 export const INVOICE_COLUMNS = [
   { id: 'number', label: 'Número', sortable: true },
@@ -66,11 +71,11 @@ export const INVOICE_STATE_FILTER = { param: 'state', tabs: INVOICE_STATE_TABS, 
 // La simple no tiene tipo que elegir; sí obra y etapa, sin contrato (DEC-058).
 const SIMPLE_COLUMNS = INVOICE_COLUMNS.filter((column) => column.id !== 'type');
 
-const CONTRACT_TYPE_OPTIONS = INVOICE_TYPE_OPTIONS.filter((o) => INVOICE_VIEWS.MAJOR.types.includes(o.value));
+const CONTRACT_TYPE_OPTIONS = INVOICE_TYPE_OPTIONS.filter((o) => INVOICE_MODE_TYPES[INVOICE_MODES.CONTRACT].includes(o.value));
 
 // Filtros del listado (DEC-048). El de obra solo con "Ver todo" (useWorkFilterField).
-// Proveedor: los que tienen facturas de la vista, buscados en el servidor (tienen tope, DEC-018).
-const commonFilters = (view) => [
+// Proveedor: los que tienen facturas del menú, buscados en el servidor (tienen tope, DEC-018).
+const commonFilters = (pvtId) => [
   { key: 'number', type: 'input', label: 'Número', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
   { key: 'voucherNumber', type: 'input', label: 'Comprobante', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
   { key: 'statement', type: 'input', label: 'Extracto', props: { maxLength: 100 } },
@@ -79,17 +84,17 @@ const commonFilters = (view) => [
     type: 'remoteDropdown',
     label: 'Proveedor',
     fetchOptions: ({ search, includeId }) =>
-      getInvoiceFilterProvidersAPI({ view, ...(search ? { search } : {}), ...(includeId ? { includePrvId: includeId } : {}) }).then(
+      getInvoiceFilterProvidersAPI({ pvtId, ...(search ? { search } : {}), ...(includeId ? { includePrvId: includeId } : {}) }).then(
         (res) => res.data
       )
   },
   { key: 'date', type: 'calendar-range', label: 'Fecha', grid: { xs: 12, sm: 6 } },
   { key: 'approvalDate', type: 'calendar-range', label: 'Aprobada el', grid: { xs: 12, sm: 6 } }
 ];
-const contractFilters = (view) => [
+const contractFilters = (pvtId) => [
   { key: 'type', type: 'dropdown', label: 'Tipo de factura', props: { options: CONTRACT_TYPE_OPTIONS }, grid: { xs: 12, sm: 6 } },
   { key: 'contractNumber', type: 'input', label: 'Número de contrato', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
-  ...commonFilters(view)
+  ...commonFilters(pvtId)
 ];
 
 const rowLabel = (row) => `${row.typeName} ${row.number} — ${row.providerName ?? ''}`;
@@ -99,44 +104,56 @@ const rowLabel = (row) => `${row.typeName} ${row.number} — ${row.providerName 
 const LINKED_KEYS = ['wrkId'];
 const describeLinked = (filters) => `facturas de la obra ${filters.label ?? filters.wrkId}`;
 
-export default function InvoicesPage({ view }) {
+export default function InvoicesPage() {
+  const { pvtId } = useParams();
+  const { menu, error } = useInvoiceMenu(pvtId);
   const { permissionsCatalog } = useAuth();
   const navigate = useNavigate();
   const [reloadKey, setReloadKey] = useState(0);
-  const simple = view === 'SIMPLE';
-  const outletContext = useMemo(() => ({ view, refresh: () => setReloadKey((k) => k + 1) }), [view]);
+  const simple = menu?.mode === INVOICE_MODES.SIMPLE;
+  const outletContext = useMemo(() => ({ pvtId, menu, refresh: () => setReloadKey((k) => k + 1) }), [pvtId, menu]);
   const workFilter = useWorkFilterField();
   const filterFields = useMemo(() => {
-    const fields = simple ? commonFilters(view) : contractFilters(view);
+    const fields = simple ? commonFilters(pvtId) : contractFilters(pvtId);
     return workFilter ? [...fields, workFilter] : fields;
-  }, [simple, view, workFilter]);
+  }, [simple, pvtId, workFilter]);
   const linked = useLinkedFilters(LINKED_KEYS, describeLinked);
-  const filters = useMemo(() => ({ view, ...linked.filters }), [view, linked.filters]);
-  // Reporte de lo que muestra la tabla de la vista, sin paginar (DEC-070).
+  const filters = useMemo(() => ({ pvtId, ...linked.filters }), [pvtId, linked.filters]);
+  // Reporte de lo que muestra la tabla del menú, sin paginar (DEC-070).
   const exportOptions = useMemo(
     () => ({
       permission: permissionsCatalog.billing?.invoices?.export,
       request: exportInvoicesAPI,
-      fileName: `facturas_${view.toLowerCase()}`
+      fileName: `facturas_${pvtId}`
     }),
-    [permissionsCatalog, view]
+    [permissionsCatalog, pvtId]
   );
 
   const navigation = useMemo(
     () => ({
-      create: () => navigate(invoicePath(view, 'new')),
-      view: (row) => navigate(invoicePath(view, row.invId)),
-      edit: (row) => navigate(invoicePath(view, row.invId, 'edit'))
+      create: () => navigate(invoicePath(pvtId, 'new')),
+      view: (row) => navigate(invoicePath(pvtId, row.invId)),
+      edit: (row) => navigate(invoicePath(pvtId, row.invId, 'edit'))
     }),
-    [navigate, view]
+    [navigate, pvtId]
   );
+
+  if (error) return <Alert severity="warning">{error}</Alert>;
+  // Hasta saber el menú, su forma decide columnas, filtros y formulario.
+  if (!menu || String(menu.pvtId) !== String(pvtId)) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+        <CircularProgress size={28} />
+      </Box>
+    );
+  }
 
   return (
     <>
       <MasterPage
-        key={view}
+        key={pvtId}
         title={simple ? 'Factura simple' : 'Factura'}
-        pluralTitle={INVOICE_VIEWS[view].title}
+        pluralTitle={`Facturas ${menu.name}`}
         feminine
         idField="invId"
         api={invoicesApi}
@@ -157,8 +174,3 @@ export default function InvoicesPage({ view }) {
     </>
   );
 }
-
-InvoicesPage.propTypes = {
-  /** Vista del menú (DEC-054): SIMPLE, MAJOR o SUBCONTRACTOR. */
-  view: PropTypes.oneOf(Object.keys(INVOICE_VIEWS)).isRequired
-};

@@ -53,7 +53,7 @@ beforeEach(() => jest.clearAllMocks());
 
 describe("contracts.controller", () => {
   // Reportes (DEC-070): sin `report`, el listado; con "control" o "advances",
-  // los de control, con las vistas de facturas de los permisos del usuario.
+  // los de control, con las cifras de facturas si el usuario puede verlas (DEC-074).
   describe("exportContracts", () => {
     const FILE = { buffer: Buffer.from("x"), contentType: "application/pdf", extension: "pdf" };
     const fileRes = () => ({ setHeader: jest.fn(), send: jest.fn() });
@@ -67,19 +67,19 @@ describe("contracts.controller", () => {
       expect(res.send).toHaveBeenCalledWith(FILE.buffer);
     });
 
-    it("con report, el reporte de control con las vistas que ve el usuario", async () => {
-      getEffectivePermissionIds.mockResolvedValueOnce([106]);
+    it("con report, el reporte de control, con facturas si el usuario puede verlas", async () => {
+      getEffectivePermissionIds.mockResolvedValueOnce([115]);
       exportContractReport.mockResolvedValue(FILE);
       await exportContractsController(mockReq({ user: { useId: 7, proId: 2 }, body: { format: "xlsx", report: "control" } }), fileRes(), jest.fn());
-      expect(exportContractReport).toHaveBeenCalledWith(expect.objectContaining({ report: "control", format: "xlsx", scope: SCOPE, views: ["MAJOR"] }));
+      expect(exportContractReport).toHaveBeenCalledWith(expect.objectContaining({ report: "control", format: "xlsx", scope: SCOPE, seesInvoices: true }));
       expect(contractsServiceMock.exportContracts).not.toHaveBeenCalled();
     });
 
-    it("el de un contrato, con el alcance, sus vistas de facturas y si puede ver pólizas", async () => {
-      getEffectivePermissionIds.mockResolvedValueOnce([106, 99]);
+    it("el de un contrato, con el alcance, si puede ver facturas y si puede ver pólizas", async () => {
+      getEffectivePermissionIds.mockResolvedValueOnce([115, 99]);
       exportContractSummary.mockResolvedValue(FILE);
       await exportContractController(mockReq({ user: { useId: 7, proId: 2 }, body: { ctrId: 30, format: "pdf" } }), fileRes(), jest.fn());
-      expect(exportContractSummary).toHaveBeenCalledWith({ ctrId: 30, format: "pdf", scope: SCOPE, views: ["MAJOR"], canViewPolicies: true });
+      expect(exportContractSummary).toHaveBeenCalledWith({ ctrId: 30, format: "pdf", scope: SCOPE, seesInvoices: true, canViewPolicies: true });
     });
   });
 

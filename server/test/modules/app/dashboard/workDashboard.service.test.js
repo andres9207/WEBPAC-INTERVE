@@ -63,11 +63,9 @@ const WORKS = 52;
 const PROVIDERS = 60;
 const CONTRACTS = 68;
 const POLICIES = 99;
-const SIMPLE_INVOICES = 105;
-const MAJOR_INVOICES = 106;
-const SUBCONTRACTOR_INVOICES = 107;
-const INVOICES = [SIMPLE_INVOICES, MAJOR_INVOICES, SUBCONTRACTOR_INVOICES];
-const ALL = new Set([WORKS, PROVIDERS, CONTRACTS, POLICIES, ...INVOICES]);
+// Un solo permiso de ver para todos los menús de facturas (DEC-074).
+const INVOICES = 115;
+const ALL = new Set([WORKS, PROVIDERS, CONTRACTS, POLICIES, INVOICES]);
 const OWN = Object.freeze({ all: false, wrkId: 8 });
 
 // Consultas de datos de la obra. El umbral de "a vencer" (regla de negocio,
@@ -81,7 +79,8 @@ const allCalls = () =>
 const invoice = (overrides = {}) => ({
   inv_id: 1,
   inv_type: "ADVANCE",
-  inv_view: "MAJOR",
+  pvt_id: 3,
+  tbl_provider_types: { pvt_name: "Contrato mayor" },
   ctr_id: 20,
   inv_number: "F-1",
   inv_date: new Date("2026-02-20T00:00:00Z"),
@@ -224,13 +223,13 @@ describe("getWorkDashboard", () => {
     expect(prismaMock.tbl_policies.findMany).not.toHaveBeenCalled();
   });
 
-  it("facturas: sin anuladas, de las vistas que ve; la simple cuenta sin importe", async () => {
+  it("facturas: sin anuladas, de todos los menús; la simple cuenta sin importe", async () => {
     prismaMock.tbl_invoices.findMany.mockImplementation(async ({ take }) =>
       take
         ? []
         : [
             invoice(),
-            invoice({ inv_id: 2, inv_state: "REGISTERED", inv_view: "SIMPLE", inv_type: "SIMPLE", ctr_id: null, tbl_contracts: null, tbl_invoice_advance_details: null }),
+            invoice({ inv_id: 2, inv_state: "REGISTERED", pvt_id: 1, tbl_provider_types: { pvt_name: "Simple" }, inv_type: "SIMPLE", ctr_id: null, tbl_contracts: null, tbl_invoice_advance_details: null }),
             invoice({
               inv_id: 3,
               inv_state: "REGISTERED",
@@ -240,11 +239,11 @@ describe("getWorkDashboard", () => {
             }),
           ]
     );
-    const { invoices } = await getWorkDashboard({ granted: new Set([CONTRACTS, SIMPLE_INVOICES, MAJOR_INVOICES]), scope: OWN });
+    const { invoices } = await getWorkDashboard({ granted: new Set([CONTRACTS, INVOICES]), scope: OWN });
 
     const [aggregated] = prismaMock.tbl_invoices.findMany.mock.calls.find(([args]) => !args.take);
     expect(aggregated.where.inv_state).toEqual({ in: ["REGISTERED", "APPROVED"] });
-    expect(aggregated.where.inv_view).toEqual({ in: ["SIMPLE", "MAJOR"] });
+    expect(aggregated.where).toEqual({ wrk_id: 8, sta_id: { not: 3 }, inv_state: { in: ["REGISTERED", "APPROVED"] } });
 
     expect(invoices).toMatchObject({ approvedCount: 1, approvedValue: "40.00", pendingCount: 2, pendingValue: "60.00", total: "100.00", count: 3 });
     // Lo aprobado frente a lo contratado (1500).
@@ -257,9 +256,10 @@ describe("getWorkDashboard", () => {
     expect(invoices.byContract).toEqual([
       expect.objectContaining({ ctrId: 20, total: "100.00", pending: "60.00" }),
     ]);
-    expect(invoices.pendingByView).toEqual([
-      { view: "SIMPLE", count: 1 },
-      { view: "MAJOR", count: 1 },
+    // Por aprobar por menú, por nombre (DEC-074).
+    expect(invoices.pendingByMenu).toEqual([
+      { pvtId: 3, name: "Contrato mayor", count: 1 },
+      { pvtId: 1, name: "Simple", count: 1 },
     ]);
     expect(invoices.byMonth).toHaveLength(12);
     // Las filas de las cifras, con el valor con que entran en ellas: el detalle
@@ -272,7 +272,7 @@ describe("getWorkDashboard", () => {
   });
 
   it("sin ver contratos, lo facturado no se compara con lo contratado", async () => {
-    const { contracts, invoices } = await getWorkDashboard({ granted: new Set([MAJOR_INVOICES]), scope: OWN });
+    const { contracts, invoices } = await getWorkDashboard({ granted: new Set([INVOICES]), scope: OWN });
     expect(contracts).toBeNull();
     expect(invoices.approvedPct).toBeNull();
     expect(prismaMock.tbl_contracts.findMany).not.toHaveBeenCalled();

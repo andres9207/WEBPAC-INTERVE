@@ -24,7 +24,6 @@ import {
   uncoveredConcepts,
 } from "../../work/contracts/policyTerms.js";
 import { INVOICE_STATES, INVOICE_TYPES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
-import { grantedViews, viewsWhere } from "../../billing/invoices/invoiceViews.js";
 import { policyExpiringDays } from "../../admin/businessRules/businessRules.service.js";
 import { contractBalances } from "../../billing/invoices/invoices.service.js";
 import { composeSimpleInvoice } from "../../billing/invoices/simpleInvoiceTerms.js";
@@ -304,7 +303,8 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
 const INVOICE_SELECT = {
   inv_id: true,
   inv_type: true,
-  inv_view: true,
+  pvt_id: true,
+  tbl_provider_types: { select: { pvt_name: true } },
   ctr_id: true,
   inv_number: true,
   inv_date: true,
@@ -330,7 +330,8 @@ const invoiceValue = (row) =>
 
 const invoiceDto = (row) => ({
   invId: row.inv_id,
-  view: row.inv_view,
+  // Menú de la factura (DEC-074): el cliente arma con él su dirección.
+  pvtId: row.pvt_id,
   ctrId: row.ctr_id,
   contractNumber: row.tbl_contracts?.ctr_number ?? null,
   type: row.inv_type,
@@ -353,12 +354,12 @@ const monthKeys = (today) =>
 const TYPE_ORDER = [INVOICE_TYPES.ADVANCE, INVOICE_TYPES.NORMAL, INVOICE_TYPES.LIQUIDATION, INVOICE_TYPES.RETENTION_REFUND, INVOICE_TYPES.SIMPLE];
 
 /**
- * Facturas de la obra en las vistas que ve el usuario: aprobadas y por
- * aprobar, últimas registradas y, sin las anuladas, por mes, por tipo y por
- * contrato. Los valores son los que se capturan por tipo (DEC-044, DEC-051).
+ * Facturas de la obra, de todos los menús: aprobadas y por aprobar, últimas
+ * registradas y, sin las anuladas, por mes, por tipo y por contrato. Los
+ * valores son los que se capturan por tipo (DEC-044, DEC-051).
  */
-const invoicesBlock = async (wrkId, views, today) => {
-  const where = { wrk_id: wrkId, ...notDeleted, ...viewsWhere(views) };
+const invoicesBlock = async (wrkId, today) => {
+  const where = { wrk_id: wrkId, ...notDeleted };
   const [rows, latest] = await Promise.all([
     prisma.tbl_invoices.findMany({
       where: { ...where, inv_state: { in: [INVOICE_STATES.REGISTERED, INVOICE_STATES.APPROVED] } },
@@ -406,13 +407,20 @@ const invoicesBlock = async (wrkId, views, today) => {
     }).filter((t) => t.count > 0),
   }));
 
-  const pendingByView = views.map((view) => ({ view, count: pending.filter((r) => r.inv_view === view).length }));
+  // Por aprobar por menú (DEC-074), por nombre, para el enlace a su listado.
+  const menus = new Map();
+  for (const row of pending) {
+    const entry = menus.get(row.pvt_id) ?? { pvtId: row.pvt_id, name: row.tbl_provider_types?.pvt_name ?? null, count: 0 };
+    entry.count += 1;
+    menus.set(row.pvt_id, entry);
+  }
+  const pendingByMenu = [...menus.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), "es"));
   return {
     approvedCount: approved.length,
     approvedValue: moneyText(sum(approved)),
     pendingCount: pending.length,
     pendingValue: moneyText(sum(pending)),
-    pendingByView,
+    pendingByMenu,
     pending: pending.slice(-LATEST_ROWS).reverse().map(invoiceDto),
     total: moneyText(total),
     count: rows.length,
@@ -465,14 +473,13 @@ export const getWorkDashboard = async ({ granted, scope }) => {
   if (!wrkId) return { ...base, wrkId: null, work: null, contracts: null, invoices: null, providers: null };
 
   const has = (perId) => granted.has(perId);
-  const invoiceViews = grantedViews(granted);
   const see = {
     works: has(can.work.works.view),
     providers: has(can.work.providers.view),
     contracts: has(can.work.contracts.view),
     // El estado de pólizas es de contratos: exige ver los dos (DEC-052).
     policies: has(can.work.contracts.view) && has(can.work.policies.view),
-    invoices: invoiceViews.length > 0,
+    invoices: has(can.billing.invoices.view),
   };
 
   const work = see.works ? await workBlock(wrkId, today) : null;
@@ -480,7 +487,7 @@ export const getWorkDashboard = async ({ granted, scope }) => {
     see.contracts
       ? contractsBlock(wrkId, { withPolicies: see.policies, policyOptions: { today, days }, workValue: work ? decimal(work.currentValue) : null })
       : null,
-    see.invoices ? invoicesBlock(wrkId, invoiceViews, today) : null,
+    see.invoices ? invoicesBlock(wrkId, today) : null,
     see.providers ? providersBlock(wrkId) : null,
   ]);
 

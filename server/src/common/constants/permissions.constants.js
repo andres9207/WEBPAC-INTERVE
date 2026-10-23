@@ -177,13 +177,11 @@ export const PERMISSIONS = {
   // efectos sobre saldos (ADR-0020, "Autorización").
   billing: {
     invoices: {
-      // Un permiso de ver por vista (DEC-054): facturas simples, de contrato
-      // mayor y de subcontratistas. Reemplazan al 83, retirado. Las acciones
-      // de abajo son comunes, y operar sobre una factura exige además ver su
-      // vista (invoiceViews.js).
-      viewSimple: 105,
-      viewMajor: 106,
-      viewSubcontractor: 107,
+      // Un solo permiso de ver para todos los menús de facturas (DEC-074),
+      // que son dinámicos: uno por tipo de proveedor (invoiceMenus.js).
+      // Reemplaza a 105, 106 y 107 (DEC-054), retirados. Operar sobre una
+      // factura exige además este.
+      view: 115,
       create: 84,
       edit: 85,
       approve: 86,
@@ -205,7 +203,7 @@ export const PERMISSIONS = {
       // revierte sus efectos sobre saldos (DEC-068). La anulada no se elimina.
       delete: 110,
       deleteApproved: 111,
-      // Reporte del listado en Excel o PDF; exige además ver la vista (DEC-070).
+      // Reporte del listado en Excel o PDF; exige además ver facturas (DEC-070).
       export: 113,
     },
   },

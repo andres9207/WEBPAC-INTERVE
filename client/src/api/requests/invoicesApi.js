@@ -5,16 +5,26 @@ import { idempotencyConfig } from 'utils/idempotency';
 /**
  * Facturas (DEC-042). Listado, detalle y guardado tienen la forma de un
  * maestro: se reutiliza createMasterApi. No hay eliminar ni cambiar estado:
- * una factura se aprueba o se anula con su propia llamada. El listado de una
- * vista lleva `view` (DEC-054); sin ella, el servidor devuelve todas las que
- * el usuario ve (pestañas de los expedientes).
+ * una factura se aprueba o se anula con su propia llamada. El listado de un
+ * menú lleva `pvtId`, su tipo de proveedor (DEC-074); sin él, el servidor
+ * devuelve todas (pestañas de los expedientes).
  */
 export const invoicesApi = createMasterApi('billing/invoices', { entity: 'invoice', plural: 'invoices' });
 
 /**
- * Reporte del listado de una vista en Excel o PDF (DEC-070): los mismos
+ * Un menú de facturas (DEC-074): `{ pvtId, name, mode, menu }`. También uno
+ * oculto o inactivo; 404 si el tipo no factura.
+ * @param {number|string} pvtId
+ */
+export const getInvoiceMenuAPI = (pvtId) => httpCliente.get('billing/invoices/get_invoice_menu', { pvtId });
+
+/** Los menús visibles (tipos activos con la casilla), por nombre: `[{ pvtId, name, mode, menu }]`. */
+export const getInvoiceMenusAPI = () => httpCliente.get('billing/invoices/select_invoice_menus');
+
+/**
+ * Reporte del listado de un menú en Excel o PDF (DEC-070): los mismos
  * filtros que la tabla, sin paginar. Responde el archivo como blob.
- * @param {object} params  filtros, pestaña, orden y `view` del listado
+ * @param {object} params  filtros, pestaña, orden y `pvtId` del listado
  * @param {'xlsx'|'pdf'} format
  */
 export const exportInvoicesAPI = (params, format) =>
@@ -35,26 +45,26 @@ export const getInvoiceWorksSelectAPI = (params = {}) => httpCliente.get('billin
 export const getInvoiceFormOptionsAPI = (params) => httpCliente.get('billing/invoices/get_invoice_form_options', params);
 
 /**
- * Proveedores con facturas de la vista, en el alcance por obra: el filtro
+ * Proveedores con facturas del menú, en el alcance por obra: el filtro
  * Proveedor del listado. Busca por razón social o identificación.
- * @param {{ view: string, search?: string, includePrvId?: number }} params  el ya elegido vuelve aunque la búsqueda lo deje fuera
+ * @param {{ pvtId: number, search?: string, includePrvId?: number }} params  el ya elegido vuelve aunque la búsqueda lo deje fuera
  */
 export const getInvoiceFilterProvidersAPI = (params) => httpCliente.get('billing/invoices/select_invoice_filter_providers', params);
 
 /**
- * Proveedores con algún contrato de la vista cuyo estado admite el tipo de
+ * Proveedores con algún contrato del menú cuyo estado admite el tipo de
  * factura: se eligen antes que el contrato. Busca por razón social o
  * identificación.
- * @param {{ type?: string, view: 'MAJOR'|'SUBCONTRACTOR', search?: string, includePrvId?: number }} params  el ya elegido vuelve aunque la búsqueda lo deje fuera
+ * @param {{ type?: string, pvtId: number, search?: string, includePrvId?: number }} params  el ya elegido vuelve aunque la búsqueda lo deje fuera
  */
 export const getInvoiceProvidersSelectAPI = (params) => httpCliente.get('billing/invoices/select_invoice_providers', params);
 
 /**
- * Contratos de la clase de la vista (DEC-054) cuyo estado admite el tipo de
+ * Contratos firmados bajo el tipo del menú (DEC-074) cuyo estado admite el tipo de
  * factura (ADR-0017): el anticipo, en ejecución; liquidación y devolución de
  * retenido, en liquidación. Busca por número, nombre, proveedor y obra; con
  * `prvId`, solo los de ese proveedor.
- * @param {{ type?: string, view: 'MAJOR'|'SUBCONTRACTOR', prvId?: number, search?: string, includeCtrId?: number }} params  el contrato ya elegido vuelve aunque la búsqueda lo deje fuera
+ * @param {{ type?: string, pvtId: number, prvId?: number, search?: string, includeCtrId?: number }} params  el contrato ya elegido vuelve aunque la búsqueda lo deje fuera
  */
 export const getInvoiceContractsSelectAPI = (params) => httpCliente.get('billing/invoices/select_invoice_contracts', params);
 

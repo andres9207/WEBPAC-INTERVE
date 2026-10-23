@@ -37,7 +37,7 @@ import { showError, showSuccess } from 'services/ToastService';
 import { newIdempotencyKey } from 'utils/idempotency';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
-import { CONTRACT_STATE_COLORS, fTerm, providerInvoiceViewName } from 'utils/constants';
+import { CONTRACT_STATE_COLORS, INVOICE_MODES, fTerm } from 'utils/constants';
 
 /**
  * Un contrato en un solo modal (DEC-057), sobre el listado y con dirección
@@ -508,8 +508,13 @@ function ContractSummary({ contract }) {
                 ['Proveedor', `${contract.providerName} · ${contract.providerIdentification}`],
                 ['Tipo de contrato', contract.contractType],
                 ['Tipo de proveedor', contract.providerTypeName],
-                // El menú que el contrato guardó al crearse (DEC-066).
-                ['Menú de facturas', providerInvoiceViewName(contract.invoiceView)],
+                // El menú de sus facturas es su tipo de proveedor (DEC-074).
+                [
+                  'Menú de facturas',
+                  contract.invoiceMode === INVOICE_MODES.CONTRACT
+                    ? `${contract.providerTypeName}${contract.invoiceMenu ? '' : ' (oculto en el menú)'}`
+                    : 'No admite facturas'
+                ],
                 ['AIU', contract.aiuRequested === false ? 'No solicitado' : 'Solicitado'],
                 ['Observaciones', contract.observation]
               ]}

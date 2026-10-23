@@ -14,8 +14,8 @@ const prismaMock = {
   },
   tbl_provider_classifications: { count: jest.fn(), findMany: jest.fn() },
   tbl_work_provider_types: { count: jest.fn() },
-  tbl_invoices: { findMany: jest.fn(), updateMany: jest.fn() },
-  tbl_contracts: { updateMany: jest.fn() },
+  tbl_invoices: { findMany: jest.fn(), updateMany: jest.fn(), count: jest.fn() },
+  tbl_contracts: { updateMany: jest.fn(), count: jest.fn() },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
@@ -95,41 +95,65 @@ describe("tipos de proveedor", () => {
     expect(types.update).not.toHaveBeenCalled();
   });
 
-  it("el selector devuelve el nombre y el menú, ordenado por nombre", async () => {
-    types.findMany.mockResolvedValue([{ pvt_id: 1, pvt_name: "Simple", pvt_invoice_view: "SIMPLE", sta_id: 1 }]);
+  it("el selector devuelve el nombre y la forma de facturar, ordenado por nombre", async () => {
+    types.findMany.mockResolvedValue([{ pvt_id: 1, pvt_name: "Simple", pvt_invoice_mode: "SIMPLE", pvt_invoice_menu: true, sta_id: 1 }]);
 
-    await expect(service.select({})).resolves.toEqual([{ value: 1, label: "Simple", staId: 1, invoiceView: "SIMPLE" }]);
+    await expect(service.select({})).resolves.toEqual([{ value: 1, label: "Simple", staId: 1, invoiceMode: "SIMPLE" }]);
     expect(types.findMany.mock.calls[0][0].orderBy).toEqual({ pvt_name: "asc" });
   });
 });
 
-describe("menú de facturas del tipo (DEC-066)", () => {
-  const edit = (invoiceView) => service.save({ id: 2, input: { name: "Subcontratista", invoiceView }, useBy: 9 });
+describe("forma de facturar y menú de facturas (DEC-074)", () => {
+  const edit = (input) => service.save({ id: 2, input: { name: "Subcontratista", ...input }, useBy: 9 });
+  const create = (input) => service.save({ id: 0, input: { name: "Orden de servicio", ...input }, useBy: 9, idempotencyKey: KEY });
 
   beforeEach(() => {
-    types.findUnique.mockResolvedValue({ pvt_name: "Subcontratista", pvt_invoice_view: "SUBCONTRACTOR", sta_id: 1 });
+    types.findUnique.mockResolvedValue({ pvt_name: "Subcontratista", pvt_invoice_mode: "CONTRACT", pvt_invoice_menu: true, sta_id: 1 });
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_invoices.count.mockResolvedValue(0);
   });
 
-  it("es MAJOR, SUBCONTRACTOR, SIMPLE o sin menú (NULL)", async () => {
+  it("la forma es SIMPLE, CONTRACT o ninguna (NULL); la casilla es true o false, sin valor false", async () => {
     types.findUnique.mockResolvedValue(null);
     types.create.mockResolvedValue({ pvt_id: 4 });
-    await service.save({ id: 0, input: { name: "Mayor", invoiceView: "MAJOR" }, useBy: 9, idempotencyKey: KEY });
-    expect(types.create.mock.calls[0][0].data).toMatchObject({ pvt_invoice_view: "MAJOR" });
+    await create({ invoiceMode: "SIMPLE", invoiceMenu: true });
+    expect(types.create.mock.calls[0][0].data).toMatchObject({ pvt_invoice_mode: "SIMPLE", pvt_invoice_menu: true });
 
-    await service.save({ id: 0, input: { name: "Simple 2", invoiceView: "SIMPLE" }, useBy: 9, idempotencyKey: KEY });
-    expect(types.create.mock.calls[1][0].data).toMatchObject({ pvt_invoice_view: "SIMPLE" });
-
-    await service.save({ id: 0, input: { name: "Otro", invoiceView: "" }, useBy: 9, idempotencyKey: KEY });
-    expect(types.create.mock.calls[2][0].data.pvt_invoice_view).toBeNull();
+    await create({ name: "Consultor", invoiceMode: "", invoiceMenu: undefined });
+    expect(types.create.mock.calls[1][0].data).toMatchObject({ pvt_invoice_mode: null, pvt_invoice_menu: false });
   });
 
-  it("cambiarlo no mueve proveedores, contratos ni facturas: cada contrato guardó el suyo", async () => {
-    await edit("MAJOR");
+  it("ir al menú exige una forma de facturar (400), al crear y al editar", async () => {
+    await expect(create({ invoiceMode: "", invoiceMenu: true })).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("elige su forma de facturar") });
+    await expect(edit({ invoiceMode: "", invoiceMenu: true })).rejects.toMatchObject({ statusCode: 400 });
+    expect(types.create).not.toHaveBeenCalled();
+    expect(types.update).not.toHaveBeenCalled();
+  });
 
-    expect(types.update.mock.calls[0][0].data).toMatchObject({ pvt_invoice_view: "MAJOR" });
-    expect(prismaMock.tbl_provider_classifications.findMany).not.toHaveBeenCalled();
-    expect(prismaMock.tbl_invoices.findMany).not.toHaveBeenCalled();
+  it("la casilla se marca y se desmarca libremente: ocultar el menú no toca contratos ni facturas", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(4);
+    prismaMock.tbl_invoices.count.mockResolvedValue(9);
+    await edit({ invoiceMode: "CONTRACT", invoiceMenu: false });
+
+    expect(types.update.mock.calls[0][0].data).toMatchObject({ pvt_invoice_mode: "CONTRACT", pvt_invoice_menu: false });
     expect(prismaMock.tbl_invoices.updateMany).not.toHaveBeenCalled();
     expect(prismaMock.tbl_contracts.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("la forma no cambia si el tipo tiene contratos o facturas (409), con el tipo bloqueado", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(2);
+    await expect(edit({ invoiceMode: "SIMPLE", invoiceMenu: true })).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("2 contrato(s)") });
+    expect(prismaMock.tbl_contracts.count).toHaveBeenCalledWith({ where: { pvt_id: 2 } });
+    expect(prismaMock.tbl_invoices.count).toHaveBeenCalledWith({ where: { pvt_id: 2 } });
+    expect(types.update).not.toHaveBeenCalled();
+
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_invoices.count.mockResolvedValue(1);
+    await expect(edit({ invoiceMode: "", invoiceMenu: false })).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining("1 factura(s)") });
+  });
+
+  it("sin contratos ni facturas, la forma cambia", async () => {
+    await edit({ invoiceMode: "SIMPLE", invoiceMenu: true });
+    expect(types.update.mock.calls[0][0].data).toMatchObject({ pvt_invoice_mode: "SIMPLE" });
   });
 });

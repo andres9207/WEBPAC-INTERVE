@@ -100,6 +100,8 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   // Un otrosí levanta a lo sumo una suspensión; lo garantiza el service
   "uq_contract_suspensions_concept",
   "uq_contracts_id_work_provider",
+  // Apoyo de la FK compuesta factura → contrato con su tipo de proveedor (DEC-074)
+  "uq_contracts_id_work_provider_type",
   "uq_invoices_idempotency_key",
   "uq_invoice_status_history_idempotency_key",
   "uq_policy_types_idempotency_key",

@@ -11,7 +11,7 @@ import { Pending } from 'ui-component/extended/DetailBlocks';
 import StatusChip from 'ui-component/extended/StatusChip';
 import { INVOICE_COLUMNS } from '../InvoicesPage';
 import { invoicesApi } from 'api/requests/invoicesApi';
-import useInvoiceViews from 'hooks/useInvoiceViews';
+import { useCanViewInvoices } from 'hooks/useInvoiceMenus';
 import { useSocket } from 'socket/SocketProvider';
 import { showError } from 'services/ToastService';
 import { INVOICE_STATE_COLORS, invoicePath } from 'utils/constants';
@@ -20,12 +20,15 @@ import { INVOICE_STATE_COLORS, invoicePath } from 'utils/constants';
  * Facturas dentro del expediente de otro agregado (DEC-042): el mismo
  * listado de facturas, paginado en el servidor y filtrado por el contrato,
  * la obra o el proveedor (`filter`). Abrir una lleva a su expediente, en su
- * vista. Muestra las de las vistas que el usuario ve (DEC-054: el servidor
- * filtra); sin ninguna, la pestaña lo dice en vez de cargar.
+ * menú (DEC-074), que la tabla muestra. Sin el permiso de ver facturas, la
+ * pestaña lo dice en vez de cargar.
  *
  * Las columnas que repetirían el expediente se ocultan (`hideColumns`). Lo
  * que se puede registrar desde aquí lo decide quien la usa (`actions`).
  */
+
+// Menú de la factura (DEC-074): el nombre de su tipo de proveedor.
+const MENU_COLUMN = { id: 'menu', label: 'Menú', render: (row) => row.menuName ?? '—' };
 
 const STATE_COLUMN = {
   id: 'state',
@@ -36,7 +39,7 @@ const STATE_COLUMN = {
 export default function InvoicesTab({ filter, hideColumns = [], actions = null, emptyTitle, emptyText }) {
   const navigate = useNavigate();
   const socket = useSocket();
-  const canView = useInvoiceViews().length > 0;
+  const canView = useCanViewInvoices();
 
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -78,7 +81,7 @@ export default function InvoicesTab({ filter, hideColumns = [], actions = null, 
     return () => socket.off('refresh-invoices', load);
   }, [socket, load]);
 
-  if (!canView) return <Pending title="Sin acceso a facturas." text="Tu perfil no tiene permiso para ver ninguna vista de facturas." />;
+  if (!canView) return <Pending title="Sin acceso a facturas." text="Tu perfil no tiene permiso para ver facturas." />;
 
   if (!loading && total === 0) {
     return (
@@ -89,7 +92,7 @@ export default function InvoicesTab({ filter, hideColumns = [], actions = null, 
     );
   }
 
-  const columns = [...INVOICE_COLUMNS.filter((column) => !hideColumns.includes(column.id)), STATE_COLUMN];
+  const columns = [MENU_COLUMN, ...INVOICE_COLUMNS, STATE_COLUMN].filter((column) => !hideColumns.includes(column.id));
 
   return (
     <Stack spacing={1}>
@@ -114,7 +117,7 @@ export default function InvoicesTab({ filter, hideColumns = [], actions = null, 
         keyExtractor={(row) => row.invId}
         cardTitleRender={(row) => `${row.typeName} ${row.number}`}
         actions={(row) => [
-          { label: 'Ver factura', icon: <IconEye size={16} />, command: () => navigate(invoicePath(row.view, row.invId)), tone: 'info' }
+          { label: 'Ver factura', icon: <IconEye size={16} />, command: () => navigate(invoicePath(row.pvtId, row.invId)), tone: 'info' }
         ]}
         emptyMessage="Sin facturas."
       />

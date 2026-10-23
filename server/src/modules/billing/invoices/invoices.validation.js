@@ -11,7 +11,6 @@ import {
   exportFormatRule,
 } from "../../../common/utils/validation.utils.js";
 import { INVOICE_STATES, INVOICE_TYPES, hasContract } from "./invoiceTerms.js";
-import { CONTRACT_VIEWS, INVOICE_VIEWS } from "./invoiceViews.js";
 import { SIMPLE_PAIRS } from "./simpleInvoiceTerms.js";
 import { decimal } from "../../../common/utils/money.utils.js";
 
@@ -34,8 +33,8 @@ export const paginationInvoicesSchema = [
   ...paginationRules(),
   optionalText("search", 100),
   body("state").optional({ values: "falsy" }).isIn(Object.values(INVOICE_STATES)).withMessage("El estado no es válido."),
-  // Vista del listado (DEC-054); sin ella, todas las que el usuario ve (pestañas de los expedientes).
-  body("view").optional({ values: "falsy" }).isIn(Object.values(INVOICE_VIEWS)).withMessage("La vista de facturas no es válida."),
+  // Menú del listado: el tipo de proveedor (DEC-074); sin él, todos (pestañas de los expedientes).
+  optionalId("pvtId"),
   body("type").optional({ values: "falsy" }).isIn(Object.values(INVOICE_TYPES)).withMessage("El tipo de factura no es válido."),
   optionalId("wrkId"),
   optionalId("prvId"),
@@ -52,14 +51,21 @@ export const paginationInvoicesSchema = [
   optionalDate("approvalDateTo"),
 ];
 
-// Reporte del listado de una vista (DEC-070): los mismos filtros, la vista y el formato.
+const menuQuery = () => query("pvtId").isInt({ min: 1 }).withMessage("pvtId es obligatorio: el menú de facturas.");
+
+// Reporte del listado de un menú (DEC-070): los mismos filtros, el menú y el formato.
 export const exportInvoicesSchema = [
   ...paginationInvoicesSchema,
-  body("view").isIn(Object.values(INVOICE_VIEWS)).withMessage("La vista de facturas no es válida."),
+  body("pvtId").isInt({ min: 1 }).withMessage("pvtId es obligatorio: el menú de facturas."),
   exportFormatRule(),
 ];
 
 export const getInvoiceSchema = [query("invId").isInt({ min: 1 }).withMessage("invId es obligatorio y debe ser un entero positivo.")];
+
+export const getInvoiceMenuSchema = [menuQuery()];
+
+// Sin parámetros: los menús visibles (DEC-074).
+export const selectInvoiceMenusSchema = [];
 
 export const selectInvoiceWorksSchema = [
   query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
@@ -79,7 +85,7 @@ const contractSelectRules = [
     .optional({ values: "falsy" })
     .isIn(Object.values(INVOICE_TYPES).filter(hasContract))
     .withMessage("El tipo debe ser uno de factura de contrato."),
-  query("view").isIn(CONTRACT_VIEWS).withMessage("La vista debe ser contrato mayor o subcontratista."),
+  menuQuery(),
   query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
 ];
 
@@ -88,9 +94,9 @@ export const selectInvoiceProvidersSchema = [
   query("includePrvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePrvId debe ser un entero positivo."),
 ];
 
-// Filtro Proveedor del listado: la vista es obligatoria (cada listado es de una).
+// Filtro Proveedor del listado: el menú es obligatorio (cada listado es de uno).
 export const selectInvoiceFilterProvidersSchema = [
-  query("view").isIn(Object.values(INVOICE_VIEWS)).withMessage("La vista de facturas no es válida."),
+  menuQuery(),
   query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
   query("includePrvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePrvId debe ser un entero positivo."),
 ];
@@ -134,6 +140,9 @@ export const saveInvoiceSchema = [
   body("ctrId").if((_value, { req }) => isContractCreate(req)).isInt({ min: 1 }).withMessage("Selecciona el contrato."),
   body("wrkId").if((_value, { req }) => isSimpleCreate(req)).isInt({ min: 1 }).withMessage("Selecciona la obra."),
   body("prvId").if((_value, { req }) => isSimpleCreate(req)).isInt({ min: 1 }).withMessage("Selecciona el proveedor."),
+  // Menú desde el que se registra (DEC-074): el tipo de la simple, o el del
+  // contrato (debe coincidir). Sin él (expedientes), lo resuelve el service.
+  optionalId("pvtId"),
   // Proveedor y etapa: de la factura simple (DEC-058), al crear y al editar.
   // Si aplican lo decide el service con el tipo guardado; la etapa, además,
   // solo es obligatoria si la obra tiene etapas (DEC-069).

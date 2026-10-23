@@ -6,7 +6,7 @@ import { workScopeOf } from "../../../common/services/workScope.service.js";
 import { sendExport } from "../../../common/services/export.service.js";
 import * as invoicesService from "./invoices.service.js";
 import { getInvoiceEvidence } from "./invoiceEvidence.service.js";
-import { grantedViews } from "./invoiceViews.js";
+import { getInvoiceMenu, listInvoiceMenus } from "./invoiceMenus.js";
 import { SIMPLE_FIELDS, SIMPLE_PAIRS } from "./simpleInvoiceTerms.js";
 
 // Importes capturados de la simple, salvo el valor (que comparte con las de contrato).
@@ -16,8 +16,8 @@ const SIMPLE_AMOUNT_FIELDS = Object.keys(SIMPLE_FIELDS).filter((field) => field 
 // clave de idempotencia, del encabezado (DEC-016). Nada más del body llega al
 // service: estado, fecha de aprobación y saldos nunca. Los importes
 // capturados (valor, amortización, retenido) sí, y el service los valida
-// (DEC-044, DEC-051). Las vistas que ve el usuario (DEC-054) salen de sus
-// permisos efectivos, nunca del cliente.
+// (DEC-044, DEC-051). Ver facturas lo verifica la ruta (DEC-074): el menú
+// (`pvtId`) solo filtra.
 
 const notify = () => getIO().emit("refresh-invoices", {});
 
@@ -42,6 +42,7 @@ const pick = (source, fields) => Object.fromEntries(fields.map((field) => [field
 
 const INVOICE_FIELDS = [
   "type",
+  "pvtId",
   "ctrId",
   "wrkId",
   "wksId",
@@ -62,22 +63,14 @@ const INVOICE_FIELDS = [
 
 const grantedOf = async ({ useId, proId }) => new Set(await getEffectivePermissionIds({ useId, proId }));
 
-/** Permisos efectivos y vistas de facturas que ve el usuario. */
-const accessOf = async (user) => {
-  const granted = await grantedOf(user);
-  return { granted, views: grantedViews(granted) };
-};
-
 // Filtros del listado, también los del reporte (DEC-070).
-const listFiltersOf = async (req) => {
-  const { search, state, view, type, wrkId, prvId, ctrId, sortField, sortOrder } = req.body;
+const listFiltersOf = (req) => {
+  const { search, state, pvtId, type, wrkId, prvId, ctrId, sortField, sortOrder } = req.body;
   const { number, voucherNumber, statement, contractNumber, providerName, dateFrom, dateTo, approvalDateFrom, approvalDateTo } = req.body;
-  const { views } = await accessOf(req.user);
   return {
     search,
     state,
-    view,
-    views,
+    pvtId,
     type,
     wrkId,
     prvId,
@@ -97,21 +90,21 @@ const listFiltersOf = async (req) => {
 };
 
 export const paginationInvoicesController = handle(async (req) =>
-  invoicesService.paginationInvoices({ ...(await listFiltersOf(req)), scope: await workScopeOf(req), rows: req.body.rows, first: req.body.first })
+  invoicesService.paginationInvoices({ ...listFiltersOf(req), scope: await workScopeOf(req), rows: req.body.rows, first: req.body.first })
 );
 
-// Reporte del listado de una vista (DEC-070): responde el archivo, no JSON.
+// Reporte del listado de un menú (DEC-070): responde el archivo, no JSON.
 export const exportInvoicesController = handleExport(async (req) =>
-  invoicesService.exportInvoices({ ...(await listFiltersOf(req)), scope: await workScopeOf(req), format: req.body.format })
+  invoicesService.exportInvoices({ ...listFiltersOf(req), scope: await workScopeOf(req), format: req.body.format })
 );
 
-export const getInvoiceController = handle(async (req) =>
-  invoicesService.getInvoice({ invId: req.query.invId, scope: await workScopeOf(req), views: (await accessOf(req.user)).views })
-);
+export const getInvoiceMenuController = handle(async (req) => getInvoiceMenu({ pvtId: req.query.pvtId }));
 
-export const getInvoiceEvidenceController = handle(async (req) =>
-  getInvoiceEvidence({ invId: req.query.invId, scope: await workScopeOf(req), views: (await accessOf(req.user)).views })
-);
+export const selectInvoiceMenusController = handle(async () => listInvoiceMenus());
+
+export const getInvoiceController = handle(async (req) => invoicesService.getInvoice({ invId: req.query.invId, scope: await workScopeOf(req) }));
+
+export const getInvoiceEvidenceController = handle(async (req) => getInvoiceEvidence({ invId: req.query.invId, scope: await workScopeOf(req) }));
 
 export const selectInvoiceWorksController = handle(async (req) =>
   invoicesService.selectInvoiceWorks({
@@ -134,7 +127,7 @@ export const getInvoiceFormOptionsController = handle(async (req) =>
 export const selectInvoiceProvidersController = handle(async (req) =>
   invoicesService.selectInvoiceProviders({
     type: req.query.type,
-    view: req.query.view,
+    pvtId: req.query.pvtId,
     search: req.query.search,
     includePrvId: req.query.includePrvId,
     scope: await workScopeOf(req),
@@ -143,8 +136,7 @@ export const selectInvoiceProvidersController = handle(async (req) =>
 
 export const selectInvoiceFilterProvidersController = handle(async (req) =>
   invoicesService.selectInvoiceFilterProviders({
-    view: req.query.view,
-    views: (await accessOf(req.user)).views,
+    pvtId: req.query.pvtId,
     search: req.query.search,
     includePrvId: req.query.includePrvId,
     scope: await workScopeOf(req),
@@ -154,7 +146,7 @@ export const selectInvoiceFilterProvidersController = handle(async (req) =>
 export const selectInvoiceContractsController = handle(async (req) =>
   invoicesService.selectInvoiceContracts({
     type: req.query.type,
-    view: req.query.view,
+    pvtId: req.query.pvtId,
     prvId: req.query.prvId,
     search: req.query.search,
     includeCtrId: req.query.includeCtrId,
@@ -171,7 +163,6 @@ export const getContractAdvanceController = handle(async (req) =>
     retention: req.query.retention,
     retentionPct: req.query.retentionPct,
     scope: await workScopeOf(req),
-    views: (await accessOf(req.user)).views,
   })
 );
 
@@ -183,13 +174,11 @@ export const previewSimpleInvoiceController = handle(async (req) =>
 export const saveInvoiceController = handle(async (req) => {
   // Ajustar la amortización o el retenido exige además su permiso: el
   // service decide con los valores por defecto calculados bajo bloqueo.
-  const { granted, views } = await accessOf(req.user);
   const result = await invoicesService.saveInvoice({
     invId: req.body.invId,
     input: pick(req.body, INVOICE_FIELDS),
     useBy: req.user.useId,
-    granted,
-    views,
+    granted: await grantedOf(req.user),
     scope: await workScopeOf(req),
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
@@ -204,7 +193,6 @@ export const approveInvoiceController = handle(async (req) => {
     input: pick(req.body, ["approvalDate", "observation"]),
     useBy: req.user.useId,
     scope: await workScopeOf(req),
-    views: (await accessOf(req.user)).views,
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
@@ -216,13 +204,12 @@ export const cancelInvoiceController = handle(async (req) => {
   const { useId, proId } = req.user;
   // Anular una aprobada exige además el permiso reforzado: el service decide
   // con el estado bajo bloqueo.
-  const { granted, views } = await accessOf({ useId, proId });
+  const granted = await grantedOf({ useId, proId });
   const result = await invoicesService.cancelInvoice({
     invId: req.body.invId,
     input: pick(req.body, ["reaId", "observation"]),
     useBy: useId,
     granted,
-    views,
     scope: await workScopeOf(req),
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
@@ -235,13 +222,12 @@ export const deleteInvoiceController = handle(async (req) => {
   const { useId, proId } = req.user;
   // Eliminar una aprobada exige además el permiso reforzado: el service decide
   // con el estado bajo bloqueo (DEC-068).
-  const { granted, views } = await accessOf({ useId, proId });
+  const granted = await grantedOf({ useId, proId });
   const result = await invoicesService.deleteInvoice({
     invId: req.body.invId,
     input: pick(req.body, ["observation"]),
     useBy: useId,
     granted,
-    views,
     scope: await workScopeOf(req),
     ctx: auditContext(req),
   });

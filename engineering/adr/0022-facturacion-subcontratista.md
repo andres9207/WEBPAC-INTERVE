@@ -67,6 +67,8 @@ Es una regla de **configuración del contrato**, que vive en el tipo de contrato
 
    **Actualización 2026-10-13 ([DEC-056](../decisiones/DEC-056-menu-facturas-tipo-proveedor.md)):** el menú pasa al **tipo de proveedor** (`pvt_invoice_view`), como la configuración del contrato (DEC-053). La ambigüedad de varios tipos se resuelve prohibiendo que un proveedor tenga tipos de menús distintos. La factura guarda su vista al registrarse (`inv_view`, la alternativa C): si después cambia el menú de su proveedor, el usuario decide moverlas todas o dejarlas como histórico. H7 queda así: la distinción es del tipo de proveedor.
 
+   **Actualización 2026-10-23 ([DEC-074](../decisiones/DEC-074-menus-facturas-dinamicos.md)):** los menús dejan de ser una lista fija. Cada tipo de proveedor declara su forma de facturar (simple o con contrato) y si va al menú de facturas; cada tipo con la casilla es una entrada propia ("Contrato mayor", "Subcontratista", "Orden de servicio"…). La factura guarda el tipo de su menú (`pvt_id`), el de su contrato en las de contrato, y ver facturas es un solo permiso. "Contrato mayor" o "subcontratista" sigue sin reglas propias: son dos tipos con la misma forma.
+
    **Actualización 2026-10-19 ([DEC-066](../decisiones/DEC-066-tipo-proveedor-por-obra-y-contrato.md)):** un proveedor puede ser contrato mayor y subcontratista a la vez. El menú ya no es del proveedor sino de cada **contrato**: se firma bajo uno de los tipos con que el proveedor trabaja en la obra y guarda su menú al crearse (`ctr_invoice_view`). La factura de contrato toma el de su contrato; cambiar tipos o menús en los maestros no mueve nada, y desaparece la decisión de mover o dejar como histórico.
 
 3. **No se implementa ninguna regla diferenciada sin validación previa.**

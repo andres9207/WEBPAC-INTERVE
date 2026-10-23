@@ -149,11 +149,12 @@ const CHECKS = [
     constraint: "ck_invoices_type_links",
     prepare: async (tx) => {
       // La simple puede no tener etapa si su obra no tiene etapas (DEC-069): eso lo verifica el service.
+      // Toma también el tipo del contrato, para que la FK al contrato (0109) no la rechace antes que el CHECK.
       const i = await one(
         tx,
-        `SELECT i.inv_id, c.ctr_id FROM tbl_invoices i JOIN tbl_contracts c ON c.wrk_id = i.wrk_id AND c.prv_id = i.prv_id WHERE i.inv_type = 'SIMPLE' LIMIT 1`
+        `SELECT i.inv_id, c.ctr_id, c.pvt_id FROM tbl_invoices i JOIN tbl_contracts c ON c.wrk_id = i.wrk_id AND c.prv_id = i.prv_id WHERE i.inv_type = 'SIMPLE' LIMIT 1`
       );
-      return i && [`UPDATE tbl_invoices SET ctr_id = ${i.ctr_id} WHERE inv_id = ${i.inv_id}`];
+      return i && [`UPDATE tbl_invoices SET ctr_id = ${i.ctr_id}, pvt_id = ${i.pvt_id} WHERE inv_id = ${i.inv_id}`];
     },
   },
   {

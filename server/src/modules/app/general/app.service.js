@@ -1,5 +1,7 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
-import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
+import { getEffectivePermissionIds, hasEffectivePermission } from "../../../common/services/effectivePermissions.service.js";
+import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
+import { listInvoiceMenus } from "../../billing/invoices/invoiceMenus.js";
 import { userFullName } from "../../../common/utils/user.utils.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
@@ -35,7 +37,35 @@ const toChild = (p) => ({
   label: p.pag_name,
 });
 
-export const getMenu = async ({ per, idu }) => {
+// Grupo "Facturas" (migración 0069). Sus entradas no son páginas: una por
+// tipo de proveedor con la casilla del menú (DEC-074).
+const BILLING_PAGE_ID = 18;
+
+/**
+ * Entradas del grupo Facturas: los menús de los tipos de proveedor, por
+ * nombre, si el usuario puede ver facturas. Sin ninguna, el grupo no se
+ * muestra (vacío, el sidebar lo dibujaría como una página sin dirección).
+ */
+const withInvoiceMenus = async (datos, { per, idu }) => {
+  if (!datos.padres.some((p) => p.id === BILLING_PAGE_ID)) return datos;
+  const seesInvoices = await hasEffectivePermission({ useId: idu, proId: per, perId: PERMISSIONS.billing.invoices.view });
+  const menus = seesInvoices ? await listInvoiceMenus() : [];
+  if (menus.length === 0) return { ...datos, padres: datos.padres.filter((p) => p.id !== BILLING_PAGE_ID) };
+  const entries = menus.map((menu, index) => ({
+    pag_id: `invoices-${menu.pvtId}`,
+    pag_description: menu.name,
+    padre: BILLING_PAGE_ID,
+    toa: `billing/invoices/${menu.pvtId}`,
+    icon: "invoice",
+    pag_order: index + 1,
+    label: menu.name,
+  }));
+  return { ...datos, hijos: [...datos.hijos.filter((h) => h.padre !== BILLING_PAGE_ID), ...entries] };
+};
+
+export const getMenu = async (args) => withInvoiceMenus(await getPagesMenu(args), args);
+
+const getPagesMenu = async ({ per, idu }) => {
   const datos = { padres: [], hijos: [] };
 
   // tbl_user_pages reemplaza el viejo CSV tbl_users.use_pages (ver

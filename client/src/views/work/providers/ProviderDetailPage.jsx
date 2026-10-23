@@ -27,15 +27,15 @@ import ProviderDataForm from './components/ProviderDataForm';
 import useIdentityCheck from './components/useIdentityCheck';
 import { EMPTY_FORM, FIELD_TAB, text, toForm, toPayload } from './components/providerForm';
 import InvoicesTab from 'views/billing/invoices/components/InvoicesTab';
+import NewSimpleInvoiceButton from 'views/billing/invoices/components/NewSimpleInvoiceButton';
 import { providersApi, workProvidersApi } from 'api/requests/providersApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkScope } from 'contexts/WorkScopeContext';
-import useInvoiceViews from 'hooks/useInvoiceViews';
 import { showError, showSuccess } from 'services/ToastService';
 import { fDateOnly, fDateTime } from 'utils/formatTime';
 import { newIdempotencyKey } from 'utils/idempotency';
 import { ALL_WORKS } from 'utils/workScope';
-import { STATUS, invoicePath } from 'utils/constants';
+import { STATUS } from 'utils/constants';
 
 /**
  * Un proveedor en un solo modal (ADR-0012, DEC-031, DEC-057), sobre el
@@ -97,8 +97,6 @@ function ProviderView() {
   const { activeWork } = useWorkScope();
   const canAssignNew = canAssign && activeWork === ALL_WORKS;
   const canUnassign = canDo(perms?.unassignWork);
-  const invoiceViews = useInvoiceViews();
-  const canCreateSimple = canDo(permissionsCatalog.billing?.invoices?.create) && invoiceViews.includes('SIMPLE');
 
   const [idempotencyKey] = useState(() => (isNew ? newIdempotencyKey() : null));
   const [provider, setProvider] = useState(null);
@@ -588,19 +586,7 @@ function ProviderView() {
       {tab === 'invoices' && provider && (
         <InvoicesTab
           filter={{ prvId: provider.prvId }}
-          actions={
-            active && canCreateSimple ? (
-              <Button
-                size="small"
-                variant="outlined"
-                color="secondary"
-                startIcon={<IconPlus size={16} />}
-                onClick={() => navigate(`${invoicePath('SIMPLE', 'new')}?prvId=${provider.prvId}`)}
-              >
-                Factura simple
-              </Button>
-            ) : null
-          }
+          actions={active ? <NewSimpleInvoiceButton query={{ prvId: provider.prvId }} /> : null}
           emptyTitle="Todavía no hay facturas de este proveedor."
           emptyText="La factura simple se registra aquí o desde la pestaña Facturas de la obra, en una obra a la que esté asignado; las de anticipo, liquidación y devolución de retenido, desde la pestaña Facturas del contrato. Un proveedor con facturas no se puede desasignar de esa obra ni eliminar."
         />

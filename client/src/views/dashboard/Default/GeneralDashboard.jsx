@@ -25,8 +25,8 @@ import { ACTION_TONES } from 'ui-component/extended/ActionButton';
 import { showError } from 'services/ToastService';
 import { gridSpacing } from 'store/constant';
 import { fDateOnly } from 'utils/formatTime';
-import { INVOICE_VIEWS, STATUS, invoicePath } from 'utils/constants';
-import useInvoiceViews from 'hooks/useInvoiceViews';
+import { STATUS, invoicePath } from 'utils/constants';
+import { useInvoiceMenus } from 'hooks/useInvoiceMenus';
 
 import DashboardCards from './components/DashboardCards';
 import PolicyStatusCard from './components/PolicyStatusCard';
@@ -71,9 +71,9 @@ export default function GeneralDashboard() {
     activeWork === ALL_WORKS ? 'Todas las obras' : (works.find((w) => w.value === activeWork)?.label ?? 'Sin obra seleccionada');
 
   const s = summary ?? {};
-  // Vistas de facturas que el usuario ve (DEC-054): los enlaces van a la primera que aplique.
-  const invoiceViews = useInvoiceViews();
-  const firstInvoiceView = invoiceViews[0];
+  // Menús de facturas visibles (DEC-074): los enlaces generales van al primero.
+  const invoiceMenus = useInvoiceMenus();
+  const firstMenu = invoiceMenus[0]?.pvtId;
   const cards = useMemo(() => {
     if (!summary) return [];
     const items = [];
@@ -154,19 +154,20 @@ export default function GeneralDashboard() {
       );
     }
     if (s.invoices) {
-      // Una alerta por vista con pendientes: cada vista es un listado propio, y
-      // la cifra tiene que ser la del listado al que lleva (PRO-FE-15, criterio 3).
-      const pending = (s.invoices.pendingByView ?? []).filter((p) => p.count > 0);
-      const views = pending.length > 0 ? pending : [{ view: firstInvoiceView, count: 0 }];
-      for (const p of views) {
+      // Una alerta por menú con pendientes (DEC-074): cada menú es un listado
+      // propio, y la cifra tiene que ser la del listado al que lleva
+      // (PRO-FE-15, criterio 3).
+      const pending = (s.invoices.pendingByMenu ?? []).filter((p) => p.count > 0);
+      const menus = pending.length > 0 ? pending : firstMenu ? [{ pvtId: firstMenu, count: 0 }] : [];
+      for (const p of menus) {
         list.push({
-          key: `pending-${p.view}`,
+          key: `pending-${p.pvtId}`,
           count: p.count,
           label: 'factura(s) por aprobar',
-          hint: views.length > 1 ? INVOICE_VIEWS[p.view]?.title : 'Registradas, pendientes de aprobación',
+          hint: menus.length > 1 ? p.name : 'Registradas, pendientes de aprobación',
           icon: IconReceipt,
           tone: ACTION_TONES.edit,
-          to: `${invoicePath(p.view)}?status=REGISTERED`
+          to: `${invoicePath(p.pvtId)}?status=REGISTERED`
         });
       }
     }
@@ -182,15 +183,15 @@ export default function GeneralDashboard() {
       });
     }
     return list;
-  }, [summary, s.policies, s.invoices, s.contracts, s.expiringDays, firstInvoiceView]);
+  }, [summary, s.policies, s.invoices, s.contracts, s.expiringDays, firstMenu]);
 
   // Accesos rápidos según permisos (experiencia de uso: el servidor vuelve a verificar).
   const canDo = (perId) => perId != null && hasPermission(perId);
   const quickLinks = [
     {
       label: 'Registrar factura',
-      to: invoicePath(firstInvoiceView, 'new'),
-      perId: firstInvoiceView ? permissionsCatalog.billing?.invoices?.create : null,
+      to: invoicePath(firstMenu, 'new'),
+      perId: firstMenu ? permissionsCatalog.billing?.invoices?.create : null,
       icon: IconFilePlus,
       tone: ACTION_TONES.edit
     },
@@ -282,7 +283,7 @@ export default function GeneralDashboard() {
               )}
               {s.invoices && (
                 <Grid size={{ xs: 12, lg: s.worksActivity ? 7 : 12 }}>
-                  <InvoicesByWorkCard byWork={s.invoices.byWork} view={firstInvoiceView} />
+                  <InvoicesByWorkCard byWork={s.invoices.byWork} pvtId={firstMenu} />
                 </Grid>
               )}
             </Grid>
@@ -291,7 +292,7 @@ export default function GeneralDashboard() {
           <Grid container spacing={gridSpacing}>
             {s.invoices && (
               <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-                <LatestInvoicesCard invoices={s.invoices.latest} allPath={invoicePath(firstInvoiceView)} />
+                <LatestInvoicesCard invoices={s.invoices.latest} allPath={invoiceMenus.length === 1 ? invoicePath(firstMenu) : undefined} />
               </Grid>
             )}
             {s.policies && (

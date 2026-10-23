@@ -7,7 +7,7 @@ import { CONCEPT_SELECT, contractListQuery, exportFilterLines, getContract } fro
 import { getContractPolicies } from "./contractPolicies.service.js";
 import { contractBalances, contractInvoicesForReport, contractsBalances } from "../../billing/invoices/invoices.service.js";
 import { INVOICE_STATES } from "../../billing/invoices/invoiceTerms.js";
-import { INVOICE_VIEWS, seesView } from "../../billing/invoices/invoiceViews.js";
+import { isContractMode } from "../../billing/invoices/invoiceMenus.js";
 
 /**
  * Reportes de control de contratos (DEC-070), los del sistema que se migra
@@ -20,9 +20,8 @@ import { INVOICE_VIEWS, seesView } from "../../billing/invoices/invoiceViews.js"
  * de contractBalances (DEC-044, DEC-051). "Pagado" es la suma de las facturas
  * aprobadas del contrato, también las normales (el avance, DEC-071).
  *
- * Las cifras de facturas de un contrato salen solo si el usuario ve la vista
- * de facturas de su contrato (DEC-054, DEC-066); si no, van vacías y el
- * encabezado lo dice.
+ * Las cifras de facturas salen solo si el usuario puede ver facturas
+ * (DEC-074); si no, van vacías y el encabezado lo dice.
  */
 
 export const CONTRACT_REPORTS = Object.freeze({ CONTROL: "control", ADVANCES: "advances" });
@@ -32,7 +31,6 @@ const REPORT_SELECT = {
   ctr_number: true,
   ctr_name: true,
   ctr_state: true,
-  ctr_invoice_view: true,
   tbl_works: { select: { wrk_code: true } },
   tbl_providers: { select: { prv_name: true } },
   tbl_contract_concepts: { select: CONCEPT_SELECT },
@@ -138,19 +136,16 @@ const REPORTS = Object.freeze({
 });
 
 /**
- * Reporte de control en Excel o PDF. `views`: vistas de facturas que ve el
- * usuario; un contrato sin menú (anterior a DEC-066) no tiene facturas.
+ * Reporte de control en Excel o PDF. `seesInvoices`: el usuario puede ver
+ * facturas (DEC-074).
  */
-export const exportContractReport = async ({ report, format, views, ...filters }) => {
+export const exportContractReport = async ({ report, format, seesInvoices, ...filters }) => {
   const spec = REPORTS[report];
   if (!spec) throw Object.assign(new Error("El reporte no existe."), { statusCode: 400 });
   const { where, orderBy } = await contractListQuery(filters);
   const rows = await findExportRows(prisma.tbl_contracts, { where, select: REPORT_SELECT, orderBy });
   const balances = await contractsBalances(rows);
-  const contracts = rows.map((row) => {
-    const visible = !row.ctr_invoice_view || seesView(views, row.ctr_invoice_view);
-    return { ...contractOf(row, balances.get(row.ctr_id), visible), concepts: row.tbl_contract_concepts };
-  });
+  const contracts = rows.map((row) => ({ ...contractOf(row, balances.get(row.ctr_id), seesInvoices), concepts: row.tbl_contract_concepts }));
   const hidden = contracts.filter((c) => !c.balances).length;
   const notes = [spec.note, hidden ? `Sin acceso a las facturas de ${hidden} contrato(s): sus cifras de facturación van vacías.` : null];
   return renderExport({
@@ -168,7 +163,6 @@ export const exportContractReport = async ({ report, format, views, ...filters }
 
 const TERM_UNIT_NAMES = Object.freeze({ DIA: "día(s)", MES: "mes(es)", ANIO: "año(s)" });
 const ORIGIN_NAMES = Object.freeze({ AUTOMATIC: "Automática", MANUAL: "Manual" });
-const VIEW_NAMES = Object.freeze({ [INVOICE_VIEWS.MAJOR]: "Contrato mayor", [INVOICE_VIEWS.SUBCONTRACTOR]: "Subcontratistas" });
 
 // Fecha y hora de un registro, en la zona del negocio.
 const dateTime = (value) =>
@@ -184,7 +178,8 @@ const contractFields = (c) => [
   field("Proveedor", [c.providerName, c.providerIdentification].filter(Boolean).join(" · ")),
   field("Tipo de proveedor", c.providerTypeName),
   field("Tipo de contrato", c.contractType),
-  field("Menú de facturas", VIEW_NAMES[c.invoiceView] ?? "Sin menú"),
+  // El menú de sus facturas es su tipo de proveedor (DEC-074).
+  field("Menú de facturas", isContractMode(c.invoiceMode) ? c.providerTypeName : "No admite facturas"),
   field("Estado", c.stateName),
   field("Fecha de inicio", c.startDate),
   field("Plazo", c.term !== null && c.term !== undefined ? `${c.term} ${TERM_UNIT_NAMES[c.termUnit] ?? c.termUnit}` : null),
@@ -286,18 +281,17 @@ const HISTORY_COLUMNS = [
 /**
  * Reporte de un contrato en Excel o PDF: el expediente completo. Datos,
  * valor y conceptos; saldos de anticipo y retenido y sus facturas, si el
- * usuario ve la vista de facturas del contrato (DEC-054, DEC-066); pólizas,
+ * usuario puede ver facturas (`seesInvoices`, DEC-074); pólizas,
  * si puede verlas (`canViewPolicies`); suspensiones e historial de estado.
  * Cada parte sale de la misma función que la pantalla, con el alcance por
  * obra (404 fuera, DEC-047).
  */
-export const exportContractSummary = async ({ ctrId, format, scope, views, canViewPolicies }) => {
+export const exportContractSummary = async ({ ctrId, format, scope, seesInvoices, canViewPolicies }) => {
   const contract = await getContract({ ctrId, scope });
-  const seesInvoices = !contract.invoiceView || seesView(views, contract.invoiceView);
   const [policies, balances, invoices] = await Promise.all([
     canViewPolicies ? getContractPolicies({ ctrId, scope }) : null,
     seesInvoices ? contractBalances(prisma, contract.ctrId) : null,
-    seesInvoices ? contractInvoicesForReport({ ctrId: contract.ctrId, views }) : null,
+    seesInvoices ? contractInvoicesForReport({ ctrId: contract.ctrId }) : null,
   ]);
   const approvedTotal = moneyText(sumMoney((invoices ?? []).filter((i) => i.state === INVOICE_STATES.APPROVED).map((i) => i.value)));
   const concepts = contract.concepts.filter((c) => c.staId !== DELETED_STATUS);

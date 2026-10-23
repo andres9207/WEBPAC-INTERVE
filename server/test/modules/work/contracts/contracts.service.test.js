@@ -83,7 +83,6 @@ const storedContract = {
   wrk_id: 8,
   prv_id: 77,
   pvt_id: 3,
-  ctr_invoice_view: "MAJOR",
   wks_id: 11,
   ctt_id: 2,
   ctr_number: "C-001",
@@ -116,7 +115,7 @@ beforeEach(() => {
   prismaMock.tbl_providers.findUnique.mockResolvedValue({ prv_id: 77, sta_id: 1 });
   // El proveedor trabaja en la obra como contrato mayor (DEC-066).
   prismaMock.tbl_work_provider_types.findUnique.mockResolvedValue({
-    tbl_provider_types: { pvt_name: "Contrato mayor", pvt_invoice_view: "MAJOR", sta_id: 1 },
+    tbl_provider_types: { pvt_name: "Contrato mayor", pvt_invoice_mode: "CONTRACT", sta_id: 1 },
   });
   prismaMock.tbl_provider_types.findUnique.mockResolvedValue({ pvt_id: 3, sta_id: 1 });
   prismaMock.tbl_providers.findFirst.mockResolvedValue({ prv_id: 77 });
@@ -136,7 +135,6 @@ describe("saveContract — crear", () => {
       wrk_id: 8,
       prv_id: 77,
       pvt_id: 3,
-      ctr_invoice_view: "MAJOR",
       wks_id: 11,
       ctr_number: "C-001",
       ctr_state: "IN_PROGRESS",
@@ -373,10 +371,10 @@ describe("saveContract — editar", () => {
     await expect(service.saveContract({ ctrId: 30, input: input({ term: 8 }), useBy: 9, ctx })).resolves.toMatchObject({ ctrId: 30 });
   });
 
-  it("con facturas el tipo de contrato sí cambia: el menú de sus facturas es el del contrato (DEC-066)", async () => {
+  it("con facturas el tipo de contrato sí cambia: el menú de sus facturas es su tipo de proveedor (DEC-074)", async () => {
     prismaMock.tbl_invoices.count.mockResolvedValue(1);
     await service.saveContract({ ctrId: 30, input: input({ cttId: 3 }), useBy: 9, ctx });
-    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ ctt_id: 3, ctr_invoice_view: "MAJOR" });
+    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ ctt_id: 3 });
   });
 });
 
@@ -628,12 +626,12 @@ describe("campos configurables del tipo de proveedor del contrato (DEC-053, DEC-
     state.contract = { ...storedContract };
     state.typeFields = typeFieldRows({ VAT_PCT: { ptf_applies: null } });
     prismaMock.tbl_work_provider_types.findUnique.mockResolvedValue({
-      tbl_provider_types: { pvt_name: "Subcontratista", pvt_invoice_view: "SUBCONTRACTOR", sta_id: 1 },
+      tbl_provider_types: { pvt_name: "Subcontratista", pvt_invoice_mode: "CONTRACT", sta_id: 1 },
     });
     await service.saveContract({ ctrId: 30, input: input({ pvtId: 2, initialConcept: undefined }), useBy: 9, ctx });
 
     expect(prismaMock.tbl_provider_type_fields.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { pvt_id: { in: [2] } } }));
-    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ pvt_id: 2, ctr_invoice_view: "SUBCONTRACTOR" });
+    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ pvt_id: 2 });
     expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).not.toHaveProperty("ctr_config_version");
   });
 
@@ -696,13 +694,13 @@ describe("tipo de proveedor del contrato (DEC-066)", () => {
     expect(prismaMock.tbl_contracts.create).not.toHaveBeenCalled();
   });
 
-  it("solo un tipo de menú contrato mayor o subcontratistas, y activo (400)", async () => {
-    mockType({ pvt_name: "Simple", pvt_invoice_view: "SIMPLE", sta_id: 1 });
+  it("solo un tipo que factura con contrato, y activo (400, DEC-074)", async () => {
+    mockType({ pvt_name: "Simple", pvt_invoice_mode: "SIMPLE", sta_id: 1 });
     await expect(service.saveContract({ ctrId: 0, input: input(), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
       statusCode: 400,
       message: expect.stringContaining("no admite contratos"),
     });
-    mockType({ pvt_name: "Contrato mayor", pvt_invoice_view: "MAJOR", sta_id: 2 });
+    mockType({ pvt_name: "Contrato mayor", pvt_invoice_mode: "CONTRACT", sta_id: 2 });
     await expect(service.saveContract({ ctrId: 0, input: input(), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
       statusCode: 400,
       message: expect.stringContaining("inactivo"),
@@ -710,28 +708,28 @@ describe("tipo de proveedor del contrato (DEC-066)", () => {
     expect(prismaMock.tbl_contracts.create).not.toHaveBeenCalled();
   });
 
-  it("guarda el menú de su tipo al crearlo, y lo audita", async () => {
-    mockType({ pvt_name: "Subcontratista", pvt_invoice_view: "SUBCONTRACTOR", sta_id: 1 });
+  it("guarda su tipo de proveedor, que es el menú de sus facturas, y lo audita (DEC-074)", async () => {
+    mockType({ pvt_name: "Subcontratista", pvt_invoice_mode: "CONTRACT", sta_id: 1 });
     await service.saveContract({ ctrId: 0, input: input({ pvtId: 2 }), useBy: 9, ctx, idempotencyKey: KEY });
 
-    expect(prismaMock.tbl_contracts.create.mock.calls[0][0].data).toMatchObject({ pvt_id: 2, ctr_invoice_view: "SUBCONTRACTOR" });
-    expect(auditRows().find((r) => r.aud_field === "ctr_invoice_view")).toMatchObject({ aud_new_value: "SUBCONTRACTOR" });
+    expect(prismaMock.tbl_contracts.create.mock.calls[0][0].data).toMatchObject({ pvt_id: 2 });
+    expect(auditRows().find((r) => r.aud_field === "pvt_id")).toMatchObject({ aud_new_value: "2" });
   });
 
-  it("al editar sin cambiar el tipo conserva el menú guardado, aunque el del tipo haya cambiado en el maestro", async () => {
+  it("al editar sin cambiar el tipo no lo revalida, aunque ya esté inactivo", async () => {
     state.contract = { ...storedContract };
-    mockType({ pvt_name: "Contrato mayor", pvt_invoice_view: "SUBCONTRACTOR", sta_id: 2 });
+    mockType({ pvt_name: "Contrato mayor", pvt_invoice_mode: "CONTRACT", sta_id: 2 });
 
     await service.saveContract({ ctrId: 30, input: input({ term: 8 }), useBy: 9, ctx });
 
     expect(prismaMock.tbl_work_provider_types.findUnique).not.toHaveBeenCalled();
-    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ pvt_id: 3, ctr_invoice_view: "MAJOR" });
+    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ pvt_id: 3 });
   });
 
   it("con facturas no cambia el tipo de proveedor (409)", async () => {
     state.contract = { ...storedContract };
     prismaMock.tbl_invoices.count.mockResolvedValue(1);
-    mockType({ pvt_name: "Subcontratista", pvt_invoice_view: "SUBCONTRACTOR", sta_id: 1 });
+    mockType({ pvt_name: "Subcontratista", pvt_invoice_mode: "CONTRACT", sta_id: 1 });
 
     await expect(service.saveContract({ ctrId: 30, input: input({ pvtId: 2 }), useBy: 9, ctx })).rejects.toMatchObject({
       statusCode: 409,
@@ -740,23 +738,23 @@ describe("tipo de proveedor del contrato (DEC-066)", () => {
     expect(prismaMock.tbl_contracts.update).not.toHaveBeenCalled();
   });
 
-  it("el formulario ofrece por proveedor sus tipos de contrato en la obra y si admite facturas simples", async () => {
+  it("el formulario ofrece por proveedor sus tipos de contrato en la obra y sus tipos simples (DEC-074)", async () => {
     prismaMock.tbl_work_stages.findMany = jest.fn(async () => []);
     prismaMock.tbl_work_providers.findMany = jest.fn(async () => [
       {
         prv_id: 77,
         tbl_providers: { prv_name: "Aceros SA", prv_identification: "900" },
         tbl_work_provider_types: [
-          { pvt_id: 3, tbl_provider_types: { pvt_name: "Contrato mayor", pvt_invoice_view: "MAJOR", sta_id: 1 } },
-          { pvt_id: 1, tbl_provider_types: { pvt_name: "Simple", pvt_invoice_view: "SIMPLE", sta_id: 1 } },
-          { pvt_id: 2, tbl_provider_types: { pvt_name: "Subcontratista", pvt_invoice_view: "SUBCONTRACTOR", sta_id: 2 } },
+          { pvt_id: 3, tbl_provider_types: { pvt_name: "Contrato mayor", pvt_invoice_mode: "CONTRACT", sta_id: 1 } },
+          { pvt_id: 1, tbl_provider_types: { pvt_name: "Simple", pvt_invoice_mode: "SIMPLE", sta_id: 1 } },
+          { pvt_id: 2, tbl_provider_types: { pvt_name: "Subcontratista", pvt_invoice_mode: "CONTRACT", sta_id: 2 } },
         ],
       },
     ]);
 
     const { providers } = await service.getContractFormOptions({ wrkId: 8 });
     expect(providers).toEqual([
-      { value: 77, label: "Aceros SA · 900", types: [{ value: 3, label: "Contrato mayor", invoiceView: "MAJOR" }], simpleInvoices: true },
+      { value: 77, label: "Aceros SA · 900", types: [{ value: 3, label: "Contrato mayor", invoiceMode: "CONTRACT" }], simpleTypes: [1] },
     ]);
 
     // El del contrato que se edita vuelve aunque esté inactivo.

@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-10-19 · **Tipo:** Obligatoria · **ADR:** [0010](../adr/0010-tipos-proveedor.md), [0012](../adr/0012-proveedores.md), [0022](../adr/0022-facturacion-subcontratista.md), [0006](../adr/0006-tipos-contrato.md), [0027](../adr/0027-integridad-transaccional.md)
 
+> **Reemplazada en parte por [DEC-074](DEC-074-menus-facturas-dinamicos.md) (2026-10-23):** el menú de facturas del tipo (`pvt_invoice_view`) pasa a ser la forma de facturar y la casilla del menú; el contrato ya no guarda su menú (`ctr_invoice_view` se retira: su menú es su tipo de proveedor) y la simple guarda el tipo simple de la asignación. Siguen vigentes los tipos por obra y el tipo del contrato.
+
 Decidido por el usuario el 2026-10-19. Reemplaza lo que [DEC-056](DEC-056-menu-facturas-tipo-proveedor.md) decía del **menú del proveedor**: la prohibición de mezclar menús, el menú calculado con los tipos del proveedor y la decisión de mover las facturas o dejarlas como histórico. De DEC-056 siguen vigentes el menú en el tipo de proveedor (`pvt_invoice_view`) y la vista guardada en la factura (`inv_view`). Cambia [DEC-053](DEC-053-campos-contrato-por-tipo-proveedor.md) (los campos ya no son la unión de los tipos del proveedor) y [DEC-058](DEC-058-factura-simple-obra-etapa.md) (la simple exige además un tipo de facturas simples en la obra).
 
 ## Contexto

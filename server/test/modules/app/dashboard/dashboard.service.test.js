@@ -13,6 +13,8 @@ const prismaMock = {
   tbl_contracts: { groupBy: jest.fn(async () => []), count: jest.fn(async () => 0), findMany: jest.fn(async () => []) },
   tbl_policies: { count: jest.fn(async () => 0), findMany: jest.fn(async () => []) },
   tbl_invoices: { count: jest.fn(async () => 0), groupBy: jest.fn(async () => []), findMany: jest.fn(async () => []) },
+  // Nombres de los menús de las pendientes (DEC-074).
+  tbl_provider_types: { findMany: jest.fn(async () => []) },
 };
 
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
@@ -23,12 +25,9 @@ const WORKS = 52;
 const PROVIDERS = 60;
 const CONTRACTS = 68;
 const POLICIES = 99;
-// Un permiso de ver por vista de facturas (DEC-054).
-const SIMPLE_INVOICES = 105;
-const MAJOR_INVOICES = 106;
-const SUBCONTRACTOR_INVOICES = 107;
-const INVOICES = [SIMPLE_INVOICES, MAJOR_INVOICES, SUBCONTRACTOR_INVOICES];
-const ALL = new Set([WORKS, PROVIDERS, CONTRACTS, POLICIES, ...INVOICES]);
+// Un solo permiso de ver para todos los menús de facturas (DEC-074).
+const INVOICES = 115;
+const ALL = new Set([WORKS, PROVIDERS, CONTRACTS, POLICIES, INVOICES]);
 const OWN = Object.freeze({ all: false, wrkId: 8 });
 
 const allWheres = () =>
@@ -100,11 +99,11 @@ describe("getDashboardSummary", () => {
       { wrk_id: 8, wrk_code: "OB-8", wrk_name: "Vía" },
       { wrk_id: 3, wrk_code: "OB-3", wrk_name: "Puente" },
     ]);
-    const { invoices } = await getDashboardSummary({ granted: new Set(INVOICES), scope: OWN });
+    const { invoices } = await getDashboardSummary({ granted: new Set([INVOICES]), scope: OWN });
 
-    const { where } = prismaMock.tbl_invoices.groupBy.mock.calls[0][0];
+    const { where } = prismaMock.tbl_invoices.groupBy.mock.calls.find(([args]) => args.by[0] === "wrk_id")[0];
     expect(where.inv_state).toEqual({ in: ["REGISTERED", "APPROVED"] });
-    // Todas tienen obra, también la simple (DEC-058): cuentan las de las vistas que ve.
+    // Todas tienen obra, también la simple (DEC-058): cuentan las de todos los menús.
     expect(where).not.toHaveProperty("wrk_id");
     expect(JSON.stringify(where.AND)).toContain('"wrk_id":{"in":[8]}');
     expect(invoices.byWork).toEqual([
@@ -113,16 +112,28 @@ describe("getDashboardSummary", () => {
     ]);
   });
 
-  it("facturas: solo las vistas que el usuario ve, con las pendientes por vista (DEC-054)", async () => {
-    prismaMock.tbl_invoices.count.mockResolvedValue(4);
-    const { invoices } = await getDashboardSummary({ granted: new Set([SIMPLE_INVOICES]), scope: OWN });
+  it("facturas: de todos los menús con un solo permiso, y las pendientes por menú, por nombre (DEC-074)", async () => {
+    prismaMock.tbl_invoices.groupBy.mockImplementation(async ({ by }) =>
+      by[0] === "pvt_id"
+        ? [
+            { pvt_id: 3, _count: { _all: 4 } },
+            { pvt_id: 1, _count: { _all: 2 } },
+          ]
+        : []
+    );
+    prismaMock.tbl_provider_types.findMany.mockResolvedValue([
+      { pvt_id: 1, pvt_name: "Simple" },
+      { pvt_id: 3, pvt_name: "Contrato mayor" },
+    ]);
+    const { invoices } = await getDashboardSummary({ granted: new Set([INVOICES]), scope: OWN });
 
-    expect(invoices.pendingByView).toEqual([{ view: "SIMPLE", count: 4 }]);
-    expect(invoices.pendingApproval).toBe(4);
-    const latestWhere = JSON.stringify(prismaMock.tbl_invoices.findMany.mock.calls[0][0].where);
-    expect(latestWhere).toContain('"inv_view":{"in":["SIMPLE"]}');
-    // Las simples también cuentan en el ranking por obra (DEC-058).
-    expect(JSON.stringify(prismaMock.tbl_invoices.groupBy.mock.calls[0][0].where)).toContain('"inv_view":{"in":["SIMPLE"]}');
+    expect(invoices.pendingByMenu).toEqual([
+      { pvtId: 3, name: "Contrato mayor", count: 4 },
+      { pvtId: 1, name: "Simple", count: 2 },
+    ]);
+    expect(invoices.pendingApproval).toBe(6);
+    const pendingCall = prismaMock.tbl_invoices.groupBy.mock.calls.find(([args]) => args.by[0] === "pvt_id")[0];
+    expect(pendingCall.where).toEqual({ sta_id: { not: 3 }, AND: [{ wrk_id: { in: [8] } }], inv_state: "REGISTERED" });
 
     jest.clearAllMocks();
     expect((await getDashboardSummary({ granted: new Set([WORKS]), scope: OWN })).invoices).toBeNull();

@@ -6,7 +6,6 @@ import MainLayout from 'layout/MainLayout';
 import Loadable from 'ui-component/Loadable';
 import PrivateRoute from './PrivateRoute';
 import ErrorBoundary from './ErrorBoundary';
-import { INVOICE_VIEWS } from 'utils/constants';
 
 // dashboard routing
 const DashboardDefault = Loadable(lazy(() => import('views/dashboard/Default')));
@@ -124,17 +123,20 @@ const MainRoutes = {
         {
           path: 'billing',
           // Facturación (DEC-042), con el mismo patrón: alta, detalle y
-          // edición en un modal con dirección propia sobre el listado. Una
-          // ruta por vista de facturas (DEC-054), con su listado.
-          children: Object.entries(INVOICE_VIEWS).map(([view, { path }]) => ({
-            path: `invoices/${path}`,
-            element: <InvoicesPage view={view} />,
-            children: [
-              { path: 'new', element: <InvoiceFormPage /> },
-              { path: ':invId', element: <InvoiceDetailPage /> },
-              { path: ':invId/edit', element: <InvoiceFormPage /> }
-            ]
-          }))
+          // edición en un modal con dirección propia sobre el listado. Los
+          // menús son dinámicos (DEC-074): una sola ruta, con el tipo de
+          // proveedor del menú.
+          children: [
+            {
+              path: 'invoices/:pvtId',
+              element: <InvoicesPage />,
+              children: [
+                { path: 'new', element: <InvoiceFormPage /> },
+                { path: ':invId', element: <InvoiceDetailPage /> },
+                { path: ':invId/edit', element: <InvoiceFormPage /> }
+              ]
+            }
+          ]
         }
       ]
     }

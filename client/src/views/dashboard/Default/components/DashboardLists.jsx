@@ -123,15 +123,20 @@ export function AlertsCard({ alerts }) {
 
 AlertsCard.propTypes = { alerts: PropTypes.arrayOf(PropTypes.object).isRequired };
 
-/** Últimas facturas registradas, de cualquier estado y de las vistas que el usuario ve (DEC-054). */
+/**
+ * Últimas facturas registradas, de cualquier estado y de todos los menús
+ * (DEC-074). `allPath`: el listado al que lleva "Ver todas", si hay uno solo.
+ */
 export function LatestInvoicesCard({ invoices, allPath }) {
   return (
     <MainCard
       title="Últimas facturas registradas"
       secondary={
-        <Link component={RouterLink} to={allPath} underline="hover" variant="body2">
-          Ver todas
-        </Link>
+        allPath ? (
+          <Link component={RouterLink} to={allPath} underline="hover" variant="body2">
+            Ver todas
+          </Link>
+        ) : null
       }
       sx={{ height: '100%' }}
       contentSX={{ px: 1.5 }}
@@ -143,7 +148,7 @@ export function LatestInvoicesCard({ invoices, allPath }) {
       ) : (
         <List disablePadding aria-label="Últimas facturas registradas">
           {invoices.map((inv) => (
-            <ListItemButton key={inv.invId} component={RouterLink} to={invoicePath(inv.view, inv.invId)} sx={{ borderRadius: 1, gap: 1 }}>
+            <ListItemButton key={inv.invId} component={RouterLink} to={invoicePath(inv.pvtId, inv.invId)} sx={{ borderRadius: 1, gap: 1 }}>
               <ListItemText
                 primary={`${inv.typeName} ${inv.number}`}
                 secondary={[inv.providerName, inv.workCode, fDateOnly(inv.date)].filter(Boolean).join(' · ')}
@@ -161,7 +166,7 @@ export function LatestInvoicesCard({ invoices, allPath }) {
 LatestInvoicesCard.propTypes = {
   invoices: PropTypes.arrayOf(PropTypes.object).isRequired,
   /** Listado al que lleva "Ver todas": la primera vista que el usuario ve. */
-  allPath: PropTypes.string.isRequired
+  allPath: PropTypes.string
 };
 
 /** Pólizas vigentes vencidas o por vencer, las más próximas primero. */

@@ -14,7 +14,6 @@ import {
 import { contractPolicyStatuses } from "../../work/contracts/contractPolicies.service.js";
 import { policyExpiringDays } from "../../admin/businessRules/businessRules.service.js";
 import { INVOICE_STATES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
-import { grantedViews, viewsWhere } from "../../billing/invoices/invoiceViews.js";
 import { invoiceScopeWhere } from "../../billing/invoices/invoices.service.js";
 
 /**
@@ -113,21 +112,34 @@ const policiesBlock = async (scope, { today, days }) => {
   };
 };
 
-/** Facturas no eliminadas del alcance (DEC-047) y de las vistas que ve el usuario (DEC-054). */
-const invoicesWhere = (scope, views) => ({ ...notDeleted, AND: [invoiceScopeWhere(scope), viewsWhere(views)] });
+/** Facturas no eliminadas del alcance (DEC-047). */
+const invoicesWhere = (scope) => ({ ...notDeleted, AND: [invoiceScopeWhere(scope)] });
 
 /**
- * Facturas: pendientes de aprobar (en total y por vista, para el enlace),
- * por obra (registradas y aprobadas; las anuladas no cuentan, DEC-052) y las
- * últimas registradas. El ranking por obra es por cantidad, de todas las
- * vistas que ve el usuario: la simple también tiene obra (DEC-058).
+ * Pendientes de aprobar por menú (DEC-074): uno por tipo de proveedor con
+ * pendientes, por nombre, para el enlace a su listado.
  */
-const invoicesBlock = async (scope, views) => {
-  const where = invoicesWhere(scope, views);
+export const pendingByMenuOf = async (where) => {
+  const grouped = await prisma.tbl_invoices.groupBy({ by: ["pvt_id"], where: { ...where, inv_state: INVOICE_STATES.REGISTERED }, _count: { _all: true } });
+  if (grouped.length === 0) return [];
+  const types = await prisma.tbl_provider_types.findMany({ where: { pvt_id: { in: grouped.map((g) => g.pvt_id) } }, select: { pvt_id: true, pvt_name: true } });
+  const names = new Map(types.map((t) => [t.pvt_id, t.pvt_name]));
+  return grouped
+    .map((g) => ({ pvtId: g.pvt_id, name: names.get(g.pvt_id) ?? null, count: g._count._all }))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name), "es"));
+};
+
+/**
+ * Facturas: pendientes de aprobar (en total y por menú, para el enlace),
+ * por obra (registradas y aprobadas; las anuladas no cuentan, DEC-052) y las
+ * últimas registradas. El ranking por obra es por cantidad, de todos los
+ * menús: la simple también tiene obra (DEC-058).
+ */
+const invoicesBlock = async (scope) => {
+  const where = invoicesWhere(scope);
   const counted = [INVOICE_STATES.REGISTERED, INVOICE_STATES.APPROVED];
-  const pending = (view) => prisma.tbl_invoices.count({ where: { ...invoicesWhere(scope, [view]), inv_state: INVOICE_STATES.REGISTERED } });
-  const [pendingCounts, grouped, latest] = await Promise.all([
-    Promise.all(views.map(pending)),
+  const [pendingByMenu, grouped, latest] = await Promise.all([
+    pendingByMenuOf(where),
     prisma.tbl_invoices.groupBy({
       by: ["wrk_id", "inv_state"],
       where: { ...where, inv_state: { in: counted } },
@@ -143,7 +155,7 @@ const invoicesBlock = async (scope, views) => {
         inv_state: true,
         tbl_providers: { select: { prv_name: true } },
         tbl_works: { select: { wrk_code: true } },
-        inv_view: true,
+        pvt_id: true,
       },
       orderBy: [{ inv_create_at: "desc" }, { inv_id: "desc" }],
       take: LATEST_ROWS,
@@ -165,14 +177,14 @@ const invoicesBlock = async (scope, views) => {
   });
   const names = new Map(works.map((w) => [w.wrk_id, w]));
 
-  const pendingByView = views.map((view, i) => ({ view, count: pendingCounts[i] }));
   return {
-    pendingApproval: pendingByView.reduce((sum, p) => sum + p.count, 0),
-    pendingByView,
+    pendingApproval: pendingByMenu.reduce((sum, p) => sum + p.count, 0),
+    pendingByMenu,
     byWork: ranked.map((r) => ({ ...r, workCode: names.get(r.wrkId)?.wrk_code ?? null, workName: names.get(r.wrkId)?.wrk_name ?? null })),
     latest: latest.map((row) => ({
       invId: row.inv_id,
-      view: row.inv_view,
+      // Menú de la factura (DEC-074): el cliente arma con él su dirección.
+      pvtId: row.pvt_id,
       number: row.inv_number,
       typeName: INVOICE_TYPE_NAMES[row.inv_type] ?? row.inv_type,
       providerName: row.tbl_providers?.prv_name ?? null,
@@ -186,11 +198,10 @@ const invoicesBlock = async (scope, views) => {
 
 /**
  * Obras en seguimiento: las activas del alcance con más movimiento
- * (contratos no eliminados y facturas no anuladas de las vistas que ve el
- * usuario), con sus cifras. Cada cifra sale solo si el usuario
- * puede ver su módulo.
+ * (contratos no eliminados y facturas no anuladas), con sus cifras. Cada
+ * cifra sale solo si el usuario puede ver su módulo.
  */
-const worksActivityBlock = async (scope, { contracts, invoices }, views) => {
+const worksActivityBlock = async (scope, { contracts, invoices }) => {
   const where = { ...notDeleted, ...scopeWhere(scope) };
   const [contractCounts, invoiceCounts] = await Promise.all([
     contracts ? prisma.tbl_contracts.groupBy({ by: ["wrk_id"], where, _count: { _all: true } }) : [],
@@ -198,7 +209,7 @@ const worksActivityBlock = async (scope, { contracts, invoices }, views) => {
       ? prisma.tbl_invoices.groupBy({
           by: ["wrk_id"],
           where: {
-            ...invoicesWhere(scope, views),
+            ...invoicesWhere(scope),
             inv_state: { in: [INVOICE_STATES.REGISTERED, INVOICE_STATES.APPROVED] },
           },
           _count: { _all: true },
@@ -231,15 +242,14 @@ export const getDashboardSummary = async ({ granted, scope }) => {
   const has = (perId) => granted.has(perId);
   const today = todayDateOnly();
   const days = await policyExpiringDays();
-  const invoiceViews = grantedViews(granted);
   const see = {
     works: has(can.work.works.view),
     providers: has(can.work.providers.view),
     contracts: has(can.work.contracts.view),
     // El estado de pólizas es de contratos: exige ver los dos.
     policies: has(can.work.contracts.view) && has(can.work.policies.view),
-    // Alguna de las vistas de facturas (DEC-054).
-    invoices: invoiceViews.length > 0,
+    // Un solo permiso para todos los menús de facturas (DEC-074).
+    invoices: has(can.billing.invoices.view),
   };
 
   const [works, providers, contracts, policies, invoices, worksActivity] = await Promise.all([
@@ -247,8 +257,8 @@ export const getDashboardSummary = async ({ granted, scope }) => {
     see.providers ? providersBlock(scope) : null,
     see.contracts ? contractsBlock(scope) : null,
     see.policies ? policiesBlock(scope, { today, days }) : null,
-    see.invoices ? invoicesBlock(scope, invoiceViews) : null,
-    see.works && (see.contracts || see.invoices) ? worksActivityBlock(scope, see, invoiceViews) : null,
+    see.invoices ? invoicesBlock(scope) : null,
+    see.works && (see.contracts || see.invoices) ? worksActivityBlock(scope, see) : null,
   ]);
 
   return { referenceDate: dateOnlyText(today), expiringDays: days, works, providers, contracts, policies, invoices, worksActivity };

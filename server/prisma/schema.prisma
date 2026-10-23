@@ -416,12 +416,15 @@ model tbl_identity_documents {
 
 /// Maestro de tipos de proveedor (database/migrations/0022_create_provider_types.sql).
 /// pvt_config_version: versión vigente de la configuración de campos del contrato del tipo (DEC-053).
+/// pvt_invoice_mode: forma de facturar, SIMPLE o CONTRACT (NULL: no factura); pvt_invoice_menu: el tipo es una
+/// entrada del menú "Facturas", exige forma (CHECK). Migración 0109, DEC-074.
 /// pvt_name_active es una columna GENERADA por MySQL (respalda la unicidad entre no eliminados):
 /// nunca se escribe desde el código.
 model tbl_provider_types {
   pvt_id                           Int                                @id @default(autoincrement())
   pvt_name                         String                             @db.VarChar(100)
-  pvt_invoice_view                 String?                            @db.VarChar(20)
+  pvt_invoice_mode                 String?                            @db.VarChar(20)
+  pvt_invoice_menu                 Boolean                            @default(false)
   pvt_config_version               Int                                @default(1)
   sta_id                           Int                                @default(1)
   pvt_create_by                    Int?
@@ -433,6 +436,7 @@ model tbl_provider_types {
   pvt_idempotency_key              String?                            @unique(map: "uq_provider_types_idempotency_key") @db.Char(36)
   pvt_idempotency_hash             String?                            @db.Char(64)
   pvt_name_active                  String?                            @unique(map: "uq_provider_types_name_active") @db.VarChar(100)
+  tbl_invoices                     tbl_invoices[]
   tbl_provider_classifications     tbl_provider_classifications[]
   tbl_provider_type_field_versions tbl_provider_type_field_versions[]
   tbl_provider_type_fields         tbl_provider_type_fields[]
@@ -819,7 +823,6 @@ model tbl_contracts {
   wrk_id                      Int
   prv_id                      Int
   pvt_id                      Int
-  ctr_invoice_view            String?                       @db.VarChar(20)
   wks_id                      Int?
   ctt_id                      Int
   ctr_number                  String                        @db.VarChar(50)
@@ -860,6 +863,7 @@ model tbl_contracts {
 
   @@unique([ctr_id, wrk_id, prv_id], map: "uq_contracts_id_work_provider")
   @@unique([wrk_id, ctr_number_active], map: "uq_contracts_work_number_active")
+  @@unique([ctr_id, wrk_id, prv_id, pvt_id], map: "uq_contracts_id_work_provider_type")
   @@index([ctr_state], map: "idx_contracts_state")
   @@index([ctt_id], map: "tbl_contracts_contract_type")
   @@index([ctr_create_by], map: "tbl_contracts_create_by")
@@ -867,7 +871,6 @@ model tbl_contracts {
   @@index([prv_id], map: "tbl_contracts_provider")
   @@index([sta_id], map: "tbl_contracts_status")
   @@index([ctr_update_by], map: "tbl_contracts_update_by")
-  @@index([ctr_invoice_view], map: "idx_contracts_invoice_view")
   @@index([wrk_id, prv_id, pvt_id], map: "tbl_contracts_work_provider_type")
   @@index([wks_id, wrk_id], map: "tbl_contracts_work_stage")
 }
@@ -1019,11 +1022,13 @@ model tbl_contract_suspensions {
 /// Facturas (database/migrations/0066_create_invoices.sql, DEC-042).
 /// inv_number_active es una columna GENERADA por MySQL (número único por proveedor entre no
 /// eliminadas, 0101, DEC-068): nunca se escribe desde el código.
+/// pvt_id: tipo de proveedor de su menú (0109, DEC-074); las FK compuestas lo atan al de su contrato y a los
+/// de la asignación del proveedor a la obra.
 model tbl_invoices {
   inv_id                               Int                                   @id @default(autoincrement())
   inv_type                             String                                @db.VarChar(20)
-  inv_view                             String                                @db.VarChar(20)
   prv_id                               Int
+  pvt_id                               Int
   wrk_id                               Int
   wks_id                               Int?
   ctr_id                               Int?
@@ -1050,14 +1055,16 @@ model tbl_invoices {
   liquidation_detail_by_contract       tbl_invoice_liquidation_details[]     @relation("InvoiceLiquidationDetailContract")
   tbl_invoice_retention_refund_details tbl_invoice_retention_refund_details?
   tbl_invoice_status_history           tbl_invoice_status_history[]
-  tbl_contracts                        tbl_contracts?                        @relation(fields: [ctr_id, wrk_id, prv_id], references: [ctr_id, wrk_id, prv_id], onUpdate: NoAction, map: "tbl_invoices_contract")
+  tbl_contracts                        tbl_contracts?                        @relation(fields: [ctr_id, wrk_id, prv_id, pvt_id], references: [ctr_id, wrk_id, prv_id, pvt_id], onUpdate: NoAction, map: "tbl_invoices_contract")
   created_by_user                      tbl_users?                            @relation("InvoiceCreatedBy", fields: [inv_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_create_by")
   deleted_by_user                      tbl_users?                            @relation("InvoiceDeletedBy", fields: [inv_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_delete_by")
   tbl_providers                        tbl_providers                         @relation(fields: [prv_id], references: [prv_id], onUpdate: NoAction, map: "tbl_invoices_provider")
+  tbl_provider_types                   tbl_provider_types                    @relation(fields: [pvt_id], references: [pvt_id], onUpdate: NoAction, map: "tbl_invoices_provider_type")
   tbl_status                           tbl_status                            @relation(fields: [sta_id], references: [sta_id], onUpdate: NoAction, map: "tbl_invoices_status")
   updated_by_user                      tbl_users?                            @relation("InvoiceUpdatedBy", fields: [inv_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_update_by")
   tbl_works                            tbl_works                             @relation(fields: [wrk_id], references: [wrk_id], onUpdate: NoAction, map: "tbl_invoices_work")
   tbl_work_providers                   tbl_work_providers                    @relation(fields: [wrk_id, prv_id], references: [wrk_id, prv_id], onUpdate: NoAction, map: "tbl_invoices_work_provider")
+  tbl_work_provider_types              tbl_work_provider_types               @relation(fields: [wrk_id, prv_id, pvt_id], references: [wrk_id, prv_id, pvt_id], onUpdate: NoAction, map: "tbl_invoices_work_provider_type")
   tbl_work_stages                      tbl_work_stages?                      @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: NoAction, map: "tbl_invoices_work_stage")
 
   @@unique([prv_id, inv_number_active], map: "uq_invoices_provider_number_active")
@@ -1065,15 +1072,15 @@ model tbl_invoices {
   @@index([inv_date], map: "idx_invoices_date")
   @@index([inv_state], map: "idx_invoices_state")
   @@index([inv_type], map: "idx_invoices_type")
-  @@index([inv_view], map: "idx_invoices_view")
   @@index([ctr_id, inv_type, inv_state], map: "idx_invoices_contract_type_state")
-  @@index([ctr_id, wrk_id, prv_id], map: "tbl_invoices_contract")
+  @@index([ctr_id, wrk_id, prv_id, pvt_id], map: "tbl_invoices_contract")
   @@index([inv_create_by], map: "tbl_invoices_create_by")
   @@index([inv_delete_by], map: "tbl_invoices_delete_by")
   @@index([sta_id], map: "tbl_invoices_status")
   @@index([inv_update_by], map: "tbl_invoices_update_by")
   @@index([wks_id, wrk_id], map: "tbl_invoices_work_stage")
-  @@index([wrk_id, prv_id], map: "tbl_invoices_work_provider")
+  @@index([pvt_id], map: "idx_invoices_provider_type")
+  @@index([wrk_id, prv_id, pvt_id], map: "tbl_invoices_work_provider_type")
 }
 
 model tbl_invoice_status_history {
@@ -1350,6 +1357,7 @@ model tbl_work_provider_types {
   prv_id             Int
   pvt_id             Int
   tbl_contracts      tbl_contracts[]
+  tbl_invoices       tbl_invoices[]
   tbl_provider_types tbl_provider_types @relation(fields: [pvt_id], references: [pvt_id], onUpdate: NoAction, map: "tbl_work_provider_types_provider_type")
   tbl_work_providers tbl_work_providers @relation(fields: [wrk_id, prv_id], references: [wrk_id, prv_id], onDelete: Cascade, onUpdate: NoAction, map: "tbl_work_provider_types_work_provider")
 

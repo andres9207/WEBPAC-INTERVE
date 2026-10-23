@@ -14,17 +14,17 @@ import useSchemePalette from 'hooks/useSchemePalette';
  * anuladas, apiladas por obra. Por cantidad: la factura simple todavía no
  * tiene importes. Dos series con leyenda; colores validados contra el fondo
  * claro (orange.dark y primary.800, contraste ≥ 3:1 y separables con
- * daltonismo). Cuentan todas las vistas que el usuario ve: la simple también
- * tiene obra (DEC-058). El clic en una barra lleva a las facturas de esa obra
- * en `view`, la primera vista que el usuario ve.
+ * daltonismo). Cuentan todos los menús: la simple también tiene obra
+ * (DEC-058). El clic en una barra lleva a las facturas de esa obra en
+ * `pvtId`, el primer menú visible (DEC-074).
  */
-export default function InvoicesByWorkCard({ byWork, view }) {
+export default function InvoicesByWorkCard({ byWork, pvtId }) {
   const theme = useTheme();
   const palette = useSchemePalette();
   const navigate = useNavigate();
   const open = (index) => {
     const work = byWork[index];
-    if (work && view) navigate(`${invoicePath(view)}?wrkId=${work.wrkId}&label=${encodeURIComponent(work.workCode ?? '')}`);
+    if (work && pvtId) navigate(`${invoicePath(pvtId)}?wrkId=${work.wrkId}&label=${encodeURIComponent(work.workCode ?? '')}`);
   };
 
   const options = {
@@ -85,6 +85,6 @@ export default function InvoicesByWorkCard({ byWork, view }) {
 
 InvoicesByWorkCard.propTypes = {
   byWork: PropTypes.arrayOf(PropTypes.object).isRequired,
-  /** Vista a la que lleva el clic (DEC-054); sin ella, no navega. */
-  view: PropTypes.oneOf(['SIMPLE', 'MAJOR', 'SUBCONTRACTOR'])
+  /** Menú (tipo de proveedor) al que lleva el clic (DEC-074); sin él, no navega. */
+  pvtId: PropTypes.oneOfType([PropTypes.number, PropTypes.string])
 };
