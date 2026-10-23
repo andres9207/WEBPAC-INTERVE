@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/DataTable.jsx": {
-    "mtime": 1790863393.31433,
-    "seen": 1790877373.105082,
-    "ast_hash": "0c92543d437352ee3c291f8b051a95da",
+    "mtime": 1792789665.168627,
+    "seen": 1792789809.1114206,
+    "ast_hash": "f5751cdac8b034ef7ea656a7d95543cd",
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/DebouncedInput.jsx": {
@@ -2688,15 +2688,15 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/InvoiceDetailPage.jsx": {
-    "mtime": 1792775862.8833869,
-    "seen": 1792776302.3437397,
-    "ast_hash": "84506393e3127fc619863c80eb99de81",
+    "mtime": 1792789583.9341164,
+    "seen": 1792789809.1114905,
+    "ast_hash": "59b177f0eee480cc7d7270d0a257d357",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/InvoiceFormPage.jsx": {
-    "mtime": 1792764164.9909327,
-    "seen": 1792764934.6325157,
-    "ast_hash": "a6f1bbf7ed8e7629f0f6475d72b7c3e7",
+    "mtime": 1792789583.9029367,
+    "seen": 1792789809.1114917,
+    "ast_hash": "eb301aa3328b006b1ed83b25f36f0ee0",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/InvoicesPage.jsx": {
@@ -3408,9 +3408,9 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/WorkChartsTab.jsx": {
-    "mtime": 1792789200.9102564,
-    "seen": 1792789497.146923,
-    "ast_hash": "5dcc76d6bec4f3708332bb96b81892d5",
+    "mtime": 1792789613.9644704,
+    "seen": 1792789809.1115208,
+    "ast_hash": "5fc1c197483dcdb37e601a0acdac8cd8",
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/WorkDashboard.jsx": {
@@ -3420,27 +3420,27 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx": {
-    "mtime": 1792775826.0273576,
-    "seen": 1792776302.343768,
-    "ast_hash": "1785a33f7bd5453d5eb88361b37e21c4",
+    "mtime": 1792789613.9654746,
+    "seen": 1792789809.1115246,
+    "ast_hash": "c15a863180386c34a8558475d7118ee2",
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/workDashboard.utils.js": {
-    "mtime": 1792702319.9570947,
-    "seen": 1792702569.3838398,
+    "mtime": 1792789655.1818676,
+    "seen": 1792789809.1115255,
     "ast_hash": "9f173956e5bd4e24a3182f8a61203f7b",
     "semantic_hash": ""
   },
   "server/src/modules/app/dashboard/workDashboard.service.js": {
-    "mtime": 1792788879.1911528,
-    "seen": 1792789497.1473505,
-    "ast_hash": "e7079e1cb2c2447c5bbbf436098cbecc",
+    "mtime": 1792789552.8099597,
+    "seen": 1792789809.1118317,
+    "ast_hash": "e9b894adbd668d4f3e494ed95c4229da",
     "semantic_hash": ""
   },
   "server/test/modules/app/dashboard/workDashboard.service.test.js": {
-    "mtime": 1792788906.5190685,
-    "seen": 1792789497.147507,
-    "ast_hash": "2a1d03bb1f36a25db7f3a8addbc43353",
+    "mtime": 1792789552.8099597,
+    "seen": 1792789809.1119547,
+    "ast_hash": "da03e214b1eb877536bbae5c31b0699e",
     "semantic_hash": ""
   },
   "server/prisma/dashboard.measure.js": {
@@ -3867,6 +3867,12 @@
     "mtime": 1792789078.5857174,
     "seen": 1792789497.1475172,
     "ast_hash": "8f107c7226cf3dc9a8db06cae541849b",
+    "semantic_hash": ""
+  },
+  "client/src/views/dashboard/Default/work/AdvanceBars.jsx": {
+    "mtime": 1792789590.6556427,
+    "seen": 1792789809.1115177,
+    "ast_hash": "f4c882a221a319423f371d68037755db",
     "semantic_hash": ""
   }
 }
