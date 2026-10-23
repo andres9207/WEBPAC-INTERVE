@@ -44,6 +44,7 @@ export const UNIQUE_CONSTRAINT_MESSAGES = Object.freeze({
   uq_contract_concepts_initial: "El contrato ya tiene su valor inicial.",
   uq_contract_concepts_liquidation: "El contrato ya tiene un otrosí de liquidación.",
   uq_contract_suspensions_open: "El contrato ya tiene una suspensión abierta.",
+  uq_invoice_follow_ups_open: "La factura ya tiene un seguimiento abierto: ciérralo antes de abrir otro.",
   uq_invoices_provider_number_active: "Ya existe una factura con ese número para el proveedor.",
 
   // Pólizas
@@ -104,6 +105,7 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   "uq_contracts_id_work_provider_type",
   "uq_invoices_idempotency_key",
   "uq_invoice_status_history_idempotency_key",
+  "uq_invoice_follow_ups_idempotency_key",
   "uq_policy_types_idempotency_key",
   "uq_policies_idempotency_key",
   // Apoyo de la FK compuesta póliza → concepto del contrato (0079)

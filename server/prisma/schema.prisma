@@ -197,6 +197,7 @@ model tbl_status {
   tbl_identity_documents     tbl_identity_documents[]
   tbl_insurers               tbl_insurers[]
   tbl_invoices               tbl_invoices[]
+  tbl_invoice_follow_ups     tbl_invoice_follow_ups[]
   tbl_policy_types           tbl_policy_types[]
   tbl_profiles               tbl_profiles[]
   tbl_provider_types         tbl_provider_types[]
@@ -291,6 +292,10 @@ model tbl_users {
   password_resets_created                  tbl_password_resets[]                  @relation("PasswordResetCreatedBy")
   password_resets_updated                  tbl_password_resets[]                  @relation("PasswordResetUpdatedBy")
   tbl_password_resets                      tbl_password_resets?                   @relation("PasswordResetUser")
+  invoice_follow_ups_closed                tbl_invoice_follow_ups[]               @relation("InvoiceFollowUpClosedBy")
+  invoice_follow_ups_created               tbl_invoice_follow_ups[]               @relation("InvoiceFollowUpCreatedBy")
+  invoice_follow_ups_deleted               tbl_invoice_follow_ups[]               @relation("InvoiceFollowUpDeletedBy")
+  invoice_follow_ups_updated               tbl_invoice_follow_ups[]               @relation("InvoiceFollowUpUpdatedBy")
   policies_closed                          tbl_policies[]                         @relation("PolicyClosedBy")
   policies_created                         tbl_policies[]                         @relation("PolicyCreatedBy")
   policies_updated                         tbl_policies[]                         @relation("PolicyUpdatedBy")
@@ -1055,6 +1060,7 @@ model tbl_invoices {
   liquidation_detail_by_contract       tbl_invoice_liquidation_details[]     @relation("InvoiceLiquidationDetailContract")
   tbl_invoice_retention_refund_details tbl_invoice_retention_refund_details?
   tbl_invoice_status_history           tbl_invoice_status_history[]
+  tbl_invoice_follow_ups               tbl_invoice_follow_ups[]
   tbl_contracts                        tbl_contracts?                        @relation(fields: [ctr_id, wrk_id, prv_id, pvt_id], references: [ctr_id, wrk_id, prv_id, pvt_id], onUpdate: NoAction, map: "tbl_invoices_contract")
   created_by_user                      tbl_users?                            @relation("InvoiceCreatedBy", fields: [inv_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_create_by")
   deleted_by_user                      tbl_users?                            @relation("InvoiceDeletedBy", fields: [inv_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_delete_by")
@@ -1081,6 +1087,41 @@ model tbl_invoices {
   @@index([wks_id, wrk_id], map: "tbl_invoices_work_stage")
   @@index([pvt_id], map: "idx_invoices_provider_type")
   @@index([wrk_id, prv_id, pvt_id], map: "tbl_invoices_work_provider_type")
+}
+
+/// Seguimiento de facturas (database/migrations/0112_create_invoice_follow_ups.sql, DEC-076). ifu_open_invoice es una
+/// columna GENERADA por MySQL (un solo seguimiento abierto por factura): nunca se escribe desde el código.
+model tbl_invoice_follow_ups {
+  ifu_id                Int          @id @default(autoincrement())
+  inv_id                Int
+  ifu_open_date         DateTime     @db.Date
+  ifu_description       String       @db.VarChar(1000)
+  ifu_close_date        DateTime?    @db.Date
+  ifu_close_observation String?      @db.VarChar(1000)
+  ifu_close_by          Int?
+  sta_id                Int          @default(1)
+  ifu_create_by         Int?
+  ifu_create_at         DateTime?    @default(now()) @db.Timestamp(0)
+  ifu_update_by         Int?
+  ifu_update_at         DateTime?    @default(now()) @db.Timestamp(0)
+  ifu_delete_by         Int?
+  ifu_delete_at         DateTime?    @db.Timestamp(0)
+  ifu_idempotency_key   String?      @unique(map: "uq_invoice_follow_ups_idempotency_key") @db.Char(36)
+  ifu_idempotency_hash  String?      @db.Char(64)
+  ifu_open_invoice      Int?         @unique(map: "uq_invoice_follow_ups_open")
+  closed_by_user        tbl_users?   @relation("InvoiceFollowUpClosedBy", fields: [ifu_close_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_follow_ups_close_by")
+  created_by_user       tbl_users?   @relation("InvoiceFollowUpCreatedBy", fields: [ifu_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_follow_ups_create_by")
+  deleted_by_user       tbl_users?   @relation("InvoiceFollowUpDeletedBy", fields: [ifu_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_follow_ups_delete_by")
+  tbl_invoices          tbl_invoices @relation(fields: [inv_id], references: [inv_id], onUpdate: NoAction, map: "tbl_invoice_follow_ups_invoice")
+  tbl_status            tbl_status   @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_follow_ups_status")
+  updated_by_user       tbl_users?   @relation("InvoiceFollowUpUpdatedBy", fields: [ifu_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_follow_ups_update_by")
+
+  @@index([inv_id, ifu_open_date], map: "idx_invoice_follow_ups_invoice")
+  @@index([ifu_close_by], map: "tbl_invoice_follow_ups_close_by")
+  @@index([ifu_create_by], map: "tbl_invoice_follow_ups_create_by")
+  @@index([ifu_delete_by], map: "tbl_invoice_follow_ups_delete_by")
+  @@index([sta_id], map: "tbl_invoice_follow_ups_status")
+  @@index([ifu_update_by], map: "tbl_invoice_follow_ups_update_by")
 }
 
 model tbl_invoice_status_history {

@@ -6,6 +6,7 @@ import { workScopeOf } from "../../../common/services/workScope.service.js";
 import { sendExport } from "../../../common/services/export.service.js";
 import * as invoicesService from "./invoices.service.js";
 import { getInvoiceEvidence } from "./invoiceEvidence.service.js";
+import * as followUpsService from "./invoiceFollowUps.service.js";
 import { getInvoiceMenu, listInvoiceMenus } from "./invoiceMenus.js";
 import { SIMPLE_FIELDS, SIMPLE_PAIRS } from "./simpleInvoiceTerms.js";
 import { CONTRACT_PAIRS, CONTRACT_TAX_FIELDS } from "./contractInvoiceTerms.js";
@@ -254,3 +255,40 @@ export const deleteInvoiceController = handle(async (req) => {
   notify();
   return result;
 });
+
+// ─── Seguimiento (DEC-076) ───────────────────────────────────────────────────
+// Ver lo protege la ruta con ver facturas; operar, además con gestionar seguimientos.
+
+export const listInvoiceFollowUpsController = handle(async (req) =>
+  followUpsService.listFollowUps({ invId: req.query.invId, scope: await workScopeOf(req) })
+);
+
+const followUpAction = (fn, fields) =>
+  handle(async (req) => {
+    const result = await fn({
+      ifuId: req.body.ifuId,
+      input: pick(req.body, fields),
+      useBy: req.user.useId,
+      scope: await workScopeOf(req),
+      ctx: auditContext(req),
+    });
+    notify();
+    return result;
+  });
+
+export const openInvoiceFollowUpController = handle(async (req) => {
+  const result = await followUpsService.openFollowUp({
+    invId: req.body.invId,
+    input: pick(req.body, ["openDate", "description"]),
+    useBy: req.user.useId,
+    scope: await workScopeOf(req),
+    ctx: auditContext(req),
+    idempotencyKey: req.get(IDEMPOTENCY_HEADER),
+  });
+  notify();
+  return result;
+});
+
+export const updateInvoiceFollowUpController = followUpAction(followUpsService.updateFollowUp, ["openDate", "description"]);
+export const closeInvoiceFollowUpController = followUpAction(followUpsService.closeFollowUp, ["observation"]);
+export const deleteInvoiceFollowUpController = followUpAction(followUpsService.deleteFollowUp, []);

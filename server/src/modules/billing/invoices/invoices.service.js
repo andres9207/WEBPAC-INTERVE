@@ -864,6 +864,8 @@ const LIST_SELECT = {
   tbl_works: { select: { wrk_code: true, wrk_name: true } },
   tbl_work_stages: { select: { wks_name: true } },
   tbl_contracts: { select: { ctr_number: true, ctr_name: true, tbl_work_stages: { select: { wks_name: true } } } },
+  // ¿Tiene un seguimiento abierto? (DEC-076): el indicador del listado.
+  tbl_invoice_follow_ups: { where: { ifu_close_date: null, sta_id: { not: DELETED_STATUS } }, select: { ifu_id: true }, take: 1 },
   // Importes de cada tipo: lo capturado, para mostrarlo y componer IVA y total (DEC-065, DEC-075).
   tbl_invoice_advance_details: { select: { iad_value: true } },
   tbl_invoice_retention_refund_details: { select: { irr_value: true } },
@@ -950,6 +952,7 @@ const toListDto = (row) => ({
   // La simple guarda su etapa; la de una factura de contrato es la del contrato (no se copia).
   stageName: row.tbl_work_stages?.wks_name ?? row.tbl_contracts?.tbl_work_stages?.wks_name ?? null,
   ...listAmounts(row),
+  hasOpenFollowUp: (row.tbl_invoice_follow_ups?.length ?? 0) > 0,
   state: row.inv_state,
   stateName: STATE_NAMES[row.inv_state] ?? row.inv_state,
   updatedAt: row.inv_update_at,

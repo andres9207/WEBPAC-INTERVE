@@ -103,3 +103,18 @@ export const invoiceTransitionsApi = {
   /** Eliminación lógica (DEC-068); una aprobada exige además el permiso reforzado. @param {{ invId, observation }} params */
   remove: (params) => httpCliente.post('billing/invoices/delete_invoice', params)
 };
+
+/**
+ * Seguimiento de una factura (DEC-076): verlo con ver facturas; abrir, editar, cerrar y eliminar, además con
+ * gestionar seguimientos. La fecha de cierre la pone el servidor.
+ */
+export const invoiceFollowUpsApi = {
+  list: (invId) => httpCliente.get('billing/invoices/list_invoice_follow_ups', { invId }),
+  /** @param {{ invId, openDate, description }} params */
+  open: (params, idempotencyKey) => httpCliente.post('billing/invoices/open_invoice_follow_up', params, idempotencyConfig(idempotencyKey)),
+  /** @param {{ ifuId, openDate, description }} params */
+  update: (params) => httpCliente.post('billing/invoices/update_invoice_follow_up', params),
+  /** @param {{ ifuId, observation }} params */
+  close: (params) => httpCliente.post('billing/invoices/close_invoice_follow_up', params),
+  remove: (ifuId) => httpCliente.post('billing/invoices/delete_invoice_follow_up', { ifuId })
+};

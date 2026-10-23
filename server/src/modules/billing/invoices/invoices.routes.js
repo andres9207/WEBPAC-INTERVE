@@ -21,6 +21,11 @@ import {
   approveInvoiceSchema,
   cancelInvoiceSchema,
   deleteInvoiceSchema,
+  listInvoiceFollowUpsSchema,
+  openInvoiceFollowUpSchema,
+  updateInvoiceFollowUpSchema,
+  closeInvoiceFollowUpSchema,
+  deleteInvoiceFollowUpSchema,
 } from "./invoices.validation.js";
 import {
   paginationInvoicesController,
@@ -41,6 +46,11 @@ import {
   cancelInvoiceController,
   deleteInvoiceController,
   getInvoiceEvidenceController,
+  listInvoiceFollowUpsController,
+  openInvoiceFollowUpController,
+  updateInvoiceFollowUpController,
+  closeInvoiceFollowUpController,
+  deleteInvoiceFollowUpController,
 } from "./invoices.controller.js";
 
 // Facturas (DEC-042), montadas en /api/billing/invoices. Pipeline de
@@ -110,5 +120,13 @@ invoicesRoutes.post("/approve_invoice", verifyToken, canView, requirePermission(
 invoicesRoutes.post("/cancel_invoice", verifyToken, canView, requirePermission(can.cancel), cancelInvoiceSchema, validate, cancelInvoiceController);
 // Eliminar: el permiso base aquí; el reforzado para una aprobada, en el service.
 invoicesRoutes.post("/delete_invoice", verifyToken, canView, requirePermission(can.delete), deleteInvoiceSchema, validate, deleteInvoiceController);
+
+// Seguimiento (DEC-076): verlo con ver facturas; abrir, editar, cerrar y eliminar, además con gestionar seguimientos.
+const canManageFollowUps = requirePermission(can.manageFollowUps);
+invoicesRoutes.get("/list_invoice_follow_ups", verifyToken, canView, listInvoiceFollowUpsSchema, validate, listInvoiceFollowUpsController);
+invoicesRoutes.post("/open_invoice_follow_up", verifyToken, canView, canManageFollowUps, openInvoiceFollowUpSchema, validate, openInvoiceFollowUpController);
+invoicesRoutes.post("/update_invoice_follow_up", verifyToken, canView, canManageFollowUps, updateInvoiceFollowUpSchema, validate, updateInvoiceFollowUpController);
+invoicesRoutes.post("/close_invoice_follow_up", verifyToken, canView, canManageFollowUps, closeInvoiceFollowUpSchema, validate, closeInvoiceFollowUpController);
+invoicesRoutes.post("/delete_invoice_follow_up", verifyToken, canView, canManageFollowUps, deleteInvoiceFollowUpSchema, validate, deleteInvoiceFollowUpController);
 
 export default invoicesRoutes;

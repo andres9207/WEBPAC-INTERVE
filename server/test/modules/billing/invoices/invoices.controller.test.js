@@ -12,6 +12,8 @@ const emit = jest.fn();
 
 jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.service.js", () => invoicesServiceMock);
 jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoiceEvidence.service.js", () => ({ getInvoiceEvidence: jest.fn() }));
+const followUpsMock = { listFollowUps: jest.fn(), openFollowUp: jest.fn(), updateFollowUp: jest.fn(), closeFollowUp: jest.fn(), deleteFollowUp: jest.fn() };
+jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoiceFollowUps.service.js", () => followUpsMock);
 jest.unstable_mockModule("../../../../src/common/services/effectivePermissions.service.js", () => ({ getEffectivePermissionIds }));
 // Alcance por obra (DEC-047): el controller lo resuelve y lo pasa al service.
 const SCOPE = Object.freeze({ all: false, wrkId: 8 });
@@ -20,7 +22,7 @@ jest.unstable_mockModule("../../../../src/common/services/workScope.service.js",
 jest.unstable_mockModule("../../../../src/common/configs/socket.manager.js", () => ({ getIO: () => ({ emit }) }));
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: {} }));
 
-const { saveInvoiceController, approveInvoiceController, cancelInvoiceController } = await import(
+const { saveInvoiceController, approveInvoiceController, cancelInvoiceController, openInvoiceFollowUpController, closeInvoiceFollowUpController } = await import(
   "../../../../src/modules/billing/invoices/invoices.controller.js"
 );
 
@@ -36,6 +38,32 @@ const KEY = "3f2b8c1e-5d4a-4e6b-9a7c-1b2d3e4f5a6b";
 beforeEach(() => jest.clearAllMocks());
 
 describe("invoices.controller", () => {
+  it("seguimiento (DEC-076): autor de la sesión, clave del encabezado al abrir y solo los campos del acto; la fecha de cierre no viaja", async () => {
+    followUpsMock.openFollowUp.mockResolvedValue({ ifuId: 5 });
+    const openReq = mockReq(
+      { user: { useId: 7, proId: 2 }, ip: "10.0.0.1", body: { invId: 70, openDate: "2026-10-20", description: "Falta soporte", useBy: 999, sta_id: 3 } },
+      { "Idempotency-Key": KEY }
+    );
+    await openInvoiceFollowUpController(openReq, buildRes(), jest.fn());
+    expect(followUpsMock.openFollowUp.mock.calls[0][0]).toEqual({
+      invId: 70,
+      input: { openDate: "2026-10-20", description: "Falta soporte" },
+      useBy: 7,
+      scope: SCOPE,
+      ctx: { useId: 7, ip: "10.0.0.1" },
+      idempotencyKey: KEY,
+    });
+
+    followUpsMock.closeFollowUp.mockResolvedValue({ ifuId: 5 });
+    await closeInvoiceFollowUpController(
+      mockReq({ user: { useId: 7, proId: 2 }, body: { ifuId: 5, observation: "Listo", closeDate: "2020-01-01" } }),
+      buildRes(),
+      jest.fn()
+    );
+    expect(followUpsMock.closeFollowUp.mock.calls[0][0]).toMatchObject({ ifuId: 5, input: { observation: "Listo" }, useBy: 7, scope: SCOPE });
+    expect(emit).toHaveBeenCalledWith("refresh-invoices", {});
+  });
+
   it("saveInvoice toma el autor de la sesión, pasa los importes capturados y descarta estado, fecha de aprobación y saldos", async () => {
     invoicesServiceMock.saveInvoice.mockResolvedValue({ invId: 70 });
     const req = mockReq(

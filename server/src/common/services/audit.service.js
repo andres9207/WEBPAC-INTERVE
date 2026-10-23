@@ -29,6 +29,8 @@ export const AUDIT_ENTITIES = Object.freeze({
   // Configuración de campos del contrato por tipo de proveedor (DEC-053).
   PROVIDER_TYPE: "TIPO_PROVEEDOR",
   INVOICE: "FACTURA",
+  // Seguimiento manual de una factura (DEC-076).
+  INVOICE_FOLLOW_UP: "SEGUIMIENTO_FACTURA",
   POLICY_TYPE: "TIPO_POLIZA",
   POLICY: "POLIZA",
   // Días de aviso de vencimiento (DEC-072).

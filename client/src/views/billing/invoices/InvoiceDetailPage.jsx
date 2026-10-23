@@ -27,6 +27,7 @@ import { fDateOnly, fDateTime } from 'utils/formatTime';
 import { fMoneyText, fPercentText } from 'utils/formatNumber';
 import { INVOICE_STATE_COLORS, invoicePath, isBillingInvoiceType } from 'utils/constants';
 import InvoiceDetailPanel from './components/InvoiceDetailPanel';
+import InvoiceFollowUpsTab from './components/InvoiceFollowUpsTab';
 
 /**
  * Expediente de una factura (DEC-042), en un modal sobre el listado de su
@@ -245,7 +246,9 @@ InvoiceAmounts.propTypes = { invoice: PropTypes.object.isRequired };
 const TABS = [
   { key: 'summary', label: 'Resumen' },
   { key: 'history', label: 'Historial de estado' },
-  { key: 'amounts', label: 'Importes' }
+  { key: 'amounts', label: 'Importes' },
+  // Lo que se está trabajando sobre la factura (DEC-076).
+  { key: 'followUps', label: 'Seguimiento' }
 ];
 
 export default function InvoiceDetailPage() {
@@ -264,6 +267,8 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('summary');
   const [dialog, setDialog] = useState(null);
+  // Cuántos seguimientos tiene: lo cuenta la pestaña al cargarlos (antes, sin número).
+  const [followUpCount, setFollowUpCount] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -363,6 +368,7 @@ export default function InvoiceDetailPage() {
                 <Stack direction="row" spacing={1} alignItems="center">
                   <span>{t.label}</span>
                   {t.key === 'history' && <Chip label={invoice.history.length} size="small" color="default" />}
+                  {t.key === 'followUps' && followUpCount !== null && <Chip label={followUpCount} size="small" color="default" />}
                 </Stack>
               }
             />
@@ -508,6 +514,15 @@ export default function InvoiceDetailPage() {
       )}
 
       {tab === 'amounts' && <InvoiceAmounts invoice={invoice} />}
+
+      {tab === 'followUps' && (
+        <InvoiceFollowUpsTab
+          invId={invoice.invId}
+          cancelled={invoice.state === 'CANCELLED'}
+          canManage={canDo(perms?.manageFollowUps)}
+          onCount={setFollowUpCount}
+        />
+      )}
 
       <ApproveInvoiceDialog
         open={dialog === 'approve'}

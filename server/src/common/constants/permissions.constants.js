@@ -205,6 +205,9 @@ export const PERMISSIONS = {
       deleteApproved: 111,
       // Reporte del listado en Excel o PDF; exige además ver facturas (DEC-070).
       export: 113,
+      // Abrir, editar, cerrar y eliminar el seguimiento de una factura; verlo
+      // solo exige ver facturas (DEC-076).
+      manageFollowUps: 116,
     },
   },
 };

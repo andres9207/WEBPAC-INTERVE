@@ -3,7 +3,10 @@ import { Outlet, useNavigate, useParams } from 'react-router-dom';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
+import Stack from '@mui/material/Stack';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { IconFlag } from '@tabler/icons-react';
 
 import MasterPage from 'ui-component/extended/MasterPage';
 import LinkedFilterNotice from 'ui-component/extended/LinkedFilterNotice';
@@ -35,7 +38,25 @@ import {
 // las pestañas cuentan dentro de él.
 
 export const INVOICE_COLUMNS = [
-  { id: 'number', label: 'Número', sortable: true },
+  {
+    id: 'number',
+    label: 'Número',
+    sortable: true,
+    // Con un seguimiento abierto (DEC-076): se está trabajando sobre ella.
+    render: (row) => (
+      <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+        <span>{row.number}</span>
+        {row.hasOpenFollowUp && (
+          <Tooltip title="Tiene un seguimiento abierto">
+            <Box component="span" sx={{ display: 'inline-flex', color: 'warning.main' }} aria-label="Tiene un seguimiento abierto">
+              <IconFlag size={16} />
+            </Box>
+          </Tooltip>
+        )}
+      </Stack>
+    ),
+    cardRender: (row) => (row.hasOpenFollowUp ? `${row.number} · seguimiento abierto` : row.number)
+  },
   { id: 'statement', label: 'Extracto', sortable: true, render: (row) => row.statement ?? '—' },
   { id: 'type', label: 'Tipo', sortable: true, render: (row) => row.typeName },
   {

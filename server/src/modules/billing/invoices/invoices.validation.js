@@ -252,3 +252,21 @@ export const deleteInvoiceSchema = [
     .isLength({ max: 1000 })
     .withMessage("La observación admite hasta 1000 caracteres."),
 ];
+
+// Seguimiento de facturas (DEC-076). La fecha de cierre la pone el servidor: no se acepta.
+const followUpDescription = () =>
+  body("description").trim().notEmpty().withMessage("La descripción del seguimiento es requerida.").isLength({ max: 1000 }).withMessage("La descripción admite hasta 1000 caracteres.");
+const followUpOpenDate = () => body("openDate").matches(/^\d{4}-\d{2}-\d{2}$/).withMessage("La fecha de apertura es requerida (AAAA-MM-DD).");
+
+export const listInvoiceFollowUpsSchema = [query("invId").isInt({ min: 1 }).withMessage("invId es obligatorio y debe ser un entero positivo.")];
+
+export const openInvoiceFollowUpSchema = [idempotencyKeyRule(), requiredId("invId"), followUpOpenDate(), followUpDescription()];
+
+export const updateInvoiceFollowUpSchema = [requiredId("ifuId"), followUpOpenDate(), followUpDescription()];
+
+export const closeInvoiceFollowUpSchema = [
+  requiredId("ifuId"),
+  body("observation").trim().notEmpty().withMessage("La observación de cierre es requerida.").isLength({ max: 1000 }).withMessage("La observación admite hasta 1000 caracteres."),
+];
+
+export const deleteInvoiceFollowUpSchema = [requiredId("ifuId")];

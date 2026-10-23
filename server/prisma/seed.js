@@ -164,6 +164,8 @@ const PERMISSIONS = [
   // database/migrations/0107_seed_business_rules_permission.sql (DEC-072).
   // Cuelga de Administración: no tiene página propia en el sidebar.
   { per_id: 114, per_name: "Configurar reglas de negocio", pag_id: 5, per_order: 1 },
+  // database/migrations/0113_seed_invoice_follow_ups_permission.sql (DEC-076)
+  { per_id: 116, per_name: "Gestionar seguimiento de facturas", pag_id: 18, per_order: 14 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
