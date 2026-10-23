@@ -228,9 +228,9 @@
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/MenuList/index.jsx": {
-    "mtime": 1792759777.332839,
-    "seen": 1792764934.632059,
-    "ast_hash": "d7ea8db6e33c943e81aad768a2ac67e8",
+    "mtime": 1792771302.6111603,
+    "seen": 1792771885.4996502,
+    "ast_hash": "6d24e7a03cbefa9dcce1d9c27a1ec999",
     "semantic_hash": ""
   },
   "client/src/layout/MainLayout/Sidebar/MiniDrawerStyled.jsx": {
@@ -954,9 +954,9 @@
     "semantic_hash": ""
   },
   "server/prisma/seed.js": {
-    "mtime": 1792759777.3830855,
-    "seen": 1792764934.6333404,
-    "ast_hash": "7bb10f68e844e0855b6c0e7f6058c4df",
+    "mtime": 1792771262.2087853,
+    "seen": 1792771885.4999986,
+    "ast_hash": "812b46f5c623ee7984449200471da827",
     "semantic_hash": ""
   },
   "server/server.js": {
@@ -1212,9 +1212,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/app/general/app.service.js": {
-    "mtime": 1792759777.3902164,
-    "seen": 1792764934.6335964,
-    "ast_hash": "0f9f0352a234457350419ff62b703a30",
+    "mtime": 1792771274.6783483,
+    "seen": 1792771885.5000958,
+    "ast_hash": "8b7504dae1204d0ae0f3396f73845643",
     "semantic_hash": ""
   },
   "server/src/modules/app/general/app.validation.js": {
@@ -2028,9 +2028,9 @@
     "semantic_hash": ""
   },
   "client/src/menu-items/work.js": {
-    "mtime": 1790966818.2967799,
-    "seen": 1790969118.9598267,
-    "ast_hash": "f1ca7114eb023a34205a4a636ddac458",
+    "mtime": 1792771310.8924901,
+    "seen": 1792771885.4996655,
+    "ast_hash": "0e85f0636593e9381e19c3e1c46844e7",
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/EditableList.jsx": {
@@ -3786,9 +3786,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/app/general/app.service.test.js": {
-    "mtime": 1792759777.432804,
-    "seen": 1792764934.6338148,
-    "ast_hash": "456f866f6c2923d487e7f9cbf51d8659",
+    "mtime": 1792771288.7699523,
+    "seen": 1792771885.5002034,
+    "ast_hash": "9955eb4e7a23d44b1f2f59c91055404f",
     "semantic_hash": ""
   },
   "server/test/modules/billing/invoices/contractInvoiceTerms.test.js": {
@@ -3801,6 +3801,12 @@
     "mtime": 1792759777.445915,
     "seen": 1792764934.633826,
     "ast_hash": "37c80b1cd234393b93873da366f2f035",
+    "semantic_hash": ""
+  },
+  "database/migrations/0111_menu_home_group.sql": {
+    "mtime": 1792771236.0579245,
+    "seen": 1792771885.499987,
+    "ast_hash": "9bacd950e65b37bce545ee4c5f9c3804",
     "semantic_hash": ""
   }
 }
