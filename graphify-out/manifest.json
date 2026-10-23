@@ -798,9 +798,9 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/index.jsx": {
-    "mtime": 1792695198.2402,
-    "seen": 1792696886.1228025,
-    "ast_hash": "b0aa580221e36d2b45391955ad2dc572",
+    "mtime": 1792775862.8812099,
+    "seen": 1792776302.3437624,
+    "ast_hash": "854732c57e2bfccd102d5ed532bfa357",
     "semantic_hash": ""
   },
   "client/src/views/pages/auth-forms/AuthForgotPassword.jsx": {
@@ -2688,9 +2688,9 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/InvoiceDetailPage.jsx": {
-    "mtime": 1792775259.8463664,
-    "seen": 1792775614.738785,
-    "ast_hash": "1fb707d8242b9f8c7d00856b95280177",
+    "mtime": 1792775862.8833869,
+    "seen": 1792776302.3437397,
+    "ast_hash": "84506393e3127fc619863c80eb99de81",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/InvoiceFormPage.jsx": {
@@ -3168,9 +3168,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/app/dashboard/dashboard.service.js": {
-    "mtime": 1792759777.3902164,
-    "seen": 1792764934.6335738,
-    "ast_hash": "f4e188351f25c60de1188969e745c7d2",
+    "mtime": 1792775751.7269366,
+    "seen": 1792776302.3440354,
+    "ast_hash": "450d304475dea901099569cfd1a457be",
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/retentionTerms.js": {
@@ -3180,9 +3180,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/app/dashboard/dashboard.service.test.js": {
-    "mtime": 1792759777.4005919,
-    "seen": 1792764934.6338096,
-    "ast_hash": "8ca3ed5b8b2d4a9cca7e69db43c792ab",
+    "mtime": 1792775784.7358365,
+    "seen": 1792776302.3441448,
+    "ast_hash": "121162c752ecdce66be80549870d2d4c",
     "semantic_hash": ""
   },
   "server/test/modules/billing/invoices/retentionTerms.test.js": {
@@ -3402,9 +3402,9 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/GeneralDashboard.jsx": {
-    "mtime": 1792759777.34972,
-    "seen": 1792764934.6325703,
-    "ast_hash": "9b8094ff446494b60575aa0d013c32b4",
+    "mtime": 1792775879.1969082,
+    "seen": 1792776302.3437576,
+    "ast_hash": "356e5a9d0b6abf70a35ed97002c8c0bc",
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/WorkChartsTab.jsx": {
@@ -3420,9 +3420,9 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx": {
-    "mtime": 1792699062.273122,
-    "seen": 1792700675.0691736,
-    "ast_hash": "44bd626c82cf8bc4f52d177721c66b60",
+    "mtime": 1792775826.0273576,
+    "seen": 1792776302.343768,
+    "ast_hash": "1785a33f7bd5453d5eb88361b37e21c4",
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/workDashboard.utils.js": {
@@ -3432,15 +3432,15 @@
     "semantic_hash": ""
   },
   "server/src/modules/app/dashboard/workDashboard.service.js": {
-    "mtime": 1792759777.3902164,
-    "seen": 1792764934.6335766,
-    "ast_hash": "9ec1ae9fb5f2ee53c325b40573e3986a",
+    "mtime": 1792775751.7274463,
+    "seen": 1792776302.3440363,
+    "ast_hash": "69f397231b43e587fcde5e9ef8747a14",
     "semantic_hash": ""
   },
   "server/test/modules/app/dashboard/workDashboard.service.test.js": {
-    "mtime": 1792759777.4005919,
-    "seen": 1792764934.6338112,
-    "ast_hash": "58659f94dfaefb1ae7871a7646613b33",
+    "mtime": 1792775784.7358365,
+    "seen": 1792776302.344146,
+    "ast_hash": "bb466ab734b47012ed6d32ba5e6325bb",
     "semantic_hash": ""
   },
   "server/prisma/dashboard.measure.js": {
@@ -3600,9 +3600,9 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/DrillDownDialog.jsx": {
-    "mtime": 1792695263.2806418,
-    "seen": 1792696886.1228032,
-    "ast_hash": "b6064c4647d6831414ed2d26cbe9206c",
+    "mtime": 1792775825.932249,
+    "seen": 1792776302.3437638,
+    "ast_hash": "96b322f56816028edbcbf2bd3d667370",
     "semantic_hash": ""
   },
   "database/migrations/0105_create_business_rules.sql": {
@@ -3810,9 +3810,9 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/InvoiceFollowUpsTab.jsx": {
-    "mtime": 1792775261.0214124,
-    "seen": 1792775614.738798,
-    "ast_hash": "69f5070906e62fe29e15f74977228bbe",
+    "mtime": 1792775862.882213,
+    "seen": 1792776302.3437524,
+    "ast_hash": "4f3facceb31f5f751f9588ed6b1480f7",
     "semantic_hash": ""
   },
   "database/migrations/0112_create_invoice_follow_ups.sql": {
@@ -3828,9 +3828,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/invoiceFollowUps.service.js": {
-    "mtime": 1792774985.652196,
-    "seen": 1792775614.7391112,
-    "ast_hash": "553457e652aaaa75659df0b668dbd3ce",
+    "mtime": 1792775751.725938,
+    "seen": 1792776302.3440583,
+    "ast_hash": "da69c1f85d058207a6aefbc7c24d00b2",
     "semantic_hash": ""
   },
   "server/test/modules/billing/invoices/invoiceFollowUps.service.test.js": {
