@@ -507,14 +507,16 @@ const positiveMoney = (value, label) => {
 /**
  * Importe con valor por defecto que el usuario puede ajustar (amortización y
  * retenido de la normal y la liquidación): sin importe en la petición se usa
- * el de por defecto; uno distinto exige `permission` en los permisos
- * efectivos (`granted`). La observación es opcional (DEC-044, DEC-051): la
- * bitácora y el detalle ya guardan el valor por defecto y el aplicado.
+ * el de por defecto; uno distinto exige `permission`, si se da, en los
+ * permisos efectivos (`granted`). La amortización no lo da: la ajusta quien
+ * registra (DEC-044, cambio del 2026-10-23). La observación es opcional
+ * (DEC-044, DEC-051): la bitácora y el detalle ya guardan el valor por
+ * defecto y el aplicado.
  */
 const adjustableAmount = ({ requested, byDefault, observation, granted, permission, forbidden }) => {
   const amount = toMoney(requested) ?? byDefault;
   const adjusted = !amount.eq(byDefault);
-  if (adjusted && !granted?.has(permission)) throw httpError(403, forbidden);
+  if (adjusted && permission != null && !granted?.has(permission)) throw httpError(403, forbidden);
   return { amount, observation: adjusted ? optionalText(observation) : null };
 };
 
@@ -541,8 +543,8 @@ const liquidationConceptOf = async (tx, ctrId) => {
  * - Anticipo: valor ≤ anticipo por facturar (I1).
  * - Normal y liquidación: VALOR ≤ por facturar del contrato (I5, DEC-071),
  *   amortización ≤ mín(pendiente por amortizar, VALOR) (I2) y
- *   retenido ≤ mín(por retener, VALOR) (I4). Cada uno se aparta del valor
- *   por defecto solo con su permiso de ajuste. La
+ *   retenido ≤ mín(por retener, VALOR) (I4). La amortización se aparta del
+ *   valor por defecto sin permiso propio; el retenido, solo con el suyo. La
  *   liquidación se asocia al otrosí de liquidación del contrato (DEC-059);
  *   la normal, a ninguno.
  * - Devolución de retenido: valor ≤ saldo de retenido (I3).
@@ -568,9 +570,6 @@ const resolveDetail = async (tx, { type, ctrId, input, granted }) => {
     requested: input.amortization,
     byDefault: amortizationDefault,
     observation: input.amortizationObservation,
-    granted,
-    permission: can.adjustAmortization,
-    forbidden: `La amortización por defecto es ${moneyText(amortizationDefault)}. Cambiarla exige el permiso de ajustar la amortización.`,
   });
   const retentionDefault = defaultRetention(value, balances.retention);
   const retention = adjustableAmount({

@@ -22,8 +22,10 @@ import { isBillingInvoiceType } from 'utils/constants';
  * - Liquidación: VALOR (base antes de IVA, con AIU), amortización del
  *   anticipo (DEC-044) y retenido contractual (DEC-051). Cada uno tiene un
  *   valor por defecto, mín(VALOR × % efectivo, pendiente), que calcula el
- *   servidor. El campo está abierto para quien tiene su permiso de ajuste
- *   (`canAdjust`, `canAdjustRetention`), sin casilla ni observación. Si el
+ *   servidor. La amortización está abierta para quien registra (DEC-044,
+ *   cambio del 2026-10-23), con el % efectivo del contrato escrito desde el
+ *   inicio, antes del VALOR; el retenido, para quien tiene su permiso de
+ *   ajuste (`canAdjustRetention`). Sin casilla ni observación. Si el
  *   usuario no lo cambia, el formulario no lo envía y el servidor usa el de
  *   por defecto. Al ajustarlo se escribe su
  *   valor o su % sobre el VALOR (DEC-065, "Valor y porcentaje"): el
@@ -47,21 +49,65 @@ const TAXES_AFTER_RETENTION = ['materialsDiscount'];
 
 export const MONEY = /^\d{1,16}(\.\d{0,2})?$/;
 
+// Importe en centavos, para comparar sobre el texto sin pasar por Number (DEC-045). null si no es un importe.
+const cents = (amount) => {
+  const match = /^(-?)(\d+)(?:\.(\d{0,2}))?$/.exec(amount ?? '');
+  if (!match) return null;
+  const value = BigInt(match[2]) * 100n + BigInt((match[3] ?? '').padEnd(2, '0'));
+  return match[1] ? -value : value;
+};
+const exceeds = (amount, limit) => {
+  const [a, l] = [cents(amount), cents(limit)];
+  return a !== null && l !== null && a > l;
+};
+const isEmpty = (limit) => cents(limit) !== null && cents(limit) <= 0n;
+// Un saldo negativo (amortizado por encima del facturado) se muestra como 0, igual que lo acota el servidor.
+const shownLimit = (limit) => fMoneyText(isEmpty(limit) ? '0' : limit) || '—';
+const isPositive = (amount) => cents(amount) !== null && cents(amount) > 0n;
+// Razón del servidor (seis decimales, "15.000000") a % de dos decimales, medio hacia arriba como money.utils.js.
+const pctText = (ratio) => {
+  const match = /^(\d+)(?:\.(\d*))?$/.exec(ratio ?? '');
+  if (!match) return undefined;
+  const hundredths = (BigInt(match[1] + (match[2] ?? '').padEnd(6, '0').slice(0, 6)) + 5000n) / 10000n;
+  return `${hundredths / 100n}.${String(hundredths % 100n).padStart(2, '0')}`;
+};
+
+/**
+ * Límite de un importe con los saldos del servidor, para validarlo mientras
+ * se escribe con las mismas reglas que aplica al guardar (I1 a I5): `empty`
+ * deshabilita el campo cuando no queda nada; `check(amount)` da el error o
+ * ''. Es una guía: al guardar y al aprobar el servidor vuelve a verificar
+ * bajo bloqueo.
+ */
+const amountLimit = (limit, emptyMessage, exceededMessage, valueCap) => ({
+  empty: isEmpty(limit) ? emptyMessage : '',
+  check: (amount) =>
+    valueCap !== undefined && exceeds(amount, valueCap)
+      ? 'No puede superar el VALOR de la factura.'
+      : exceeds(amount, limit)
+        ? `${exceededMessage} (${shownLimit(limit)}).`
+        : ''
+});
+
 /**
  * Importe con valor por defecto, abierto para quien tiene su permiso de
  * ajuste, como en la pantalla del sistema que se migra. Llega con el de por
  * defecto y lo sigue hasta que el usuario escribe en él (`adjustName`); desde
  * ahí se envía lo escrito. Sin permiso, se ve bloqueado con el de por
- * defecto. Ajustar no pide observación (DEC-044, DEC-051).
+ * defecto. Ajustar no pide observación (DEC-044, DEC-051). Con `limit`, se
+ * valida al escribir y se deshabilita si no queda saldo.
  */
-function AdjustableAmount({ control, setValue, name, adjustName, label, canAdjust, readOnly, pair, onAltChange }) {
+function AdjustableAmount({ control, setValue, name, adjustName, label, canAdjust, readOnly, pair, defaultPct, onAltChange, limit }) {
   const markAdjusted = () => setValue(adjustName, true, { shouldDirty: true });
   return (
     <Grid size={{ xs: 12, md: 6 }}>
       <Controller
         name={name}
         control={control}
-        rules={{ pattern: { value: MONEY, message: 'Importe no válido.' } }}
+        rules={{
+          pattern: { value: MONEY, message: 'Importe no válido.' },
+          validate: (v) => !limit || limit.check(v) || true
+        }}
         render={({ field, fieldState }) => (
           <AmountPercentField
             storedAs="money"
@@ -71,14 +117,15 @@ function AdjustableAmount({ control, setValue, name, adjustName, label, canAdjus
               field.onChange(text);
             }}
             onBlur={field.onBlur}
-            derived={pair?.pct}
+            derived={pair?.pct ?? defaultPct}
             onAltChange={(text) => {
               if (text !== null) markAdjusted();
               onAltChange(text);
             }}
             label={label}
-            disabled={readOnly || !canAdjust}
-            error={fieldState.error?.message}
+            disabled={readOnly || !canAdjust || Boolean(limit?.empty)}
+            error={fieldState.error?.message || limit?.check(field.value) || undefined}
+            helperText={limit?.empty || undefined}
           />
         )}
       />
@@ -96,7 +143,11 @@ AdjustableAmount.propTypes = {
   readOnly: PropTypes.bool,
   /** Valor y % sobre el VALOR, calculados por el servidor. */
   pair: PropTypes.shape({ amount: PropTypes.string, pct: PropTypes.string }),
-  onAltChange: PropTypes.func.isRequired
+  /** % que se muestra mientras no hay VALOR (y por tanto `pair`): el del contrato o el que se escribió. */
+  defaultPct: PropTypes.string,
+  onAltChange: PropTypes.func.isRequired,
+  /** De `amountLimit`: sin saldo, deshabilitado con el motivo; si no, valida al escribir. */
+  limit: PropTypes.shape({ empty: PropTypes.string, check: PropTypes.func })
 };
 
 const SUBTITLES = {
@@ -115,7 +166,6 @@ export default function AdvanceAmountsSection({
   ctrId,
   invId,
   readOnly,
-  canAdjust,
   canAdjustRetention,
   onBalances,
   onError,
@@ -221,6 +271,45 @@ export default function AdvanceAmountsSection({
         RETENTION_REFUND: `Saldo de retenido: ${fMoneyText(retention?.balance) || '—'}`
       }[type];
 
+  // Límites de cada importe con los saldos del contrato (los del servidor al guardar), para validar mientras se
+  // escribe. Una factura aprobada no se valida: sus importes no cambian.
+  const limits =
+    !balances || readOnly
+      ? {}
+      : {
+          value: {
+            ADVANCE: amountLimit(balances.toInvoice, 'Ya se facturó todo el anticipo pactado.', 'Supera el anticipo por facturar'),
+            NORMAL: amountLimit(
+              balances.billing?.toBill,
+              'No queda nada por facturar del contrato. Si el contrato creció, registra antes el otrosí.',
+              'Supera lo que queda por facturar del contrato'
+            ),
+            LIQUIDATION: amountLimit(
+              balances.billing?.toBill,
+              'No queda nada por facturar del contrato. Si el contrato creció, registra antes el otrosí.',
+              'Supera lo que queda por facturar del contrato'
+            ),
+            RETENTION_REFUND: amountLimit(retention?.balance, 'El contrato no tiene retenido por devolver.', 'Supera el saldo de retenido')
+          }[type],
+          amortization: amountLimit(
+            balances.toAmortize,
+            isPositive(balances.agreed)
+              ? `Sin anticipo por amortizar: facturado ${shownLimit(balances.invoiced)}, amortizado ${shownLimit(balances.amortized)}.`
+              : 'El contrato no tiene anticipo pactado.',
+            'Supera el pendiente por amortizar',
+            value
+          ),
+          retention: amountLimit(
+            retention?.toRetain,
+            isPositive(retention?.agreed)
+              ? `Ya se retuvo todo el retenido pactado (${shownLimit(retention.agreed)}).`
+              : 'El contrato no tiene retenido pactado.',
+            'Supera lo que queda por retener',
+            value
+          )
+        };
+  const valueLimit = limits.value;
+
   return (
     <FormSection title="Importes" subtitle={SUBTITLES[type]}>
       <Grid container spacing={2}>
@@ -239,7 +328,7 @@ export default function AdvanceAmountsSection({
             rules={{
               required: 'El valor es requerido.',
               pattern: { value: MONEY, message: 'Importe no válido.' },
-              validate: (v) => !/^0*(\.0*)?$/.test(v ?? '') || 'Debe ser mayor que cero.'
+              validate: (v) => (/^0*(\.0*)?$/.test(v ?? '') ? 'Debe ser mayor que cero.' : valueLimit?.check(v) || true)
             }}
             render={({ field, fieldState }) => (
               <MoneyField
@@ -248,9 +337,9 @@ export default function AdvanceAmountsSection({
                 onBlur={field.onBlur}
                 label={{ ADVANCE: 'Valor del anticipo', NORMAL: 'VALOR', LIQUIDATION: 'VALOR', RETENTION_REFUND: 'Valor devuelto' }[type]}
                 required
-                disabled={readOnly}
-                error={fieldState.error?.message}
-                helperText={valueHint}
+                disabled={readOnly || Boolean(valueLimit?.empty)}
+                error={fieldState.error?.message || valueLimit?.check(field.value) || undefined}
+                helperText={valueLimit?.empty || valueHint}
               />
             )}
           />
@@ -272,10 +361,13 @@ export default function AdvanceAmountsSection({
             name="amortization"
             adjustName="adjustAmortization"
             label="Amortización del anticipo"
-            canAdjust={canAdjust}
+            canAdjust
             readOnly={readOnly}
             pair={balances?.amortizationPair}
+            // Antes del VALOR, el % efectivo del contrato (15 % por defecto, DEC-036): la amortización será VALOR × %.
+            defaultPct={alts.amortizationPct ?? pctText(balances?.effectivePct)}
             onAltChange={(text) => setAlt('amortizationPct', text)}
+            limit={limits.amortization}
           />
         )}
 
@@ -302,6 +394,7 @@ export default function AdvanceAmountsSection({
             readOnly={readOnly}
             pair={balances?.retentionPair}
             onAltChange={(text) => setAlt('retentionPct', text)}
+            limit={limits.retention}
           />
         )}
 
@@ -325,7 +418,6 @@ AdvanceAmountsSection.propTypes = {
   type: PropTypes.oneOf(['ADVANCE', 'NORMAL', 'LIQUIDATION', 'RETENTION_REFUND']).isRequired,
   ctrId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   readOnly: PropTypes.bool,
-  canAdjust: PropTypes.bool,
   canAdjustRetention: PropTypes.bool,
   /** Recibe los saldos del contrato (o null sin contrato) para las tarjetas de la página. */
   /** Factura que se edita: su anticipo no cuenta como por aprobar. */

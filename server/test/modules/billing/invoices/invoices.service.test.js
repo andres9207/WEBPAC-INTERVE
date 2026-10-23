@@ -1200,16 +1200,10 @@ describe("anticipo y amortización (DEC-044)", () => {
     expect(liquidationUpsert().create.ild_amortization.toFixed(2)).toBe("10000000.00");
   });
 
-  it("ajustar la amortización exige el permiso (403), sin observación", async () => {
+  it("ajustar la amortización no exige permiso ni observación (DEC-044, 2026-10-23)", async () => {
     state.contract = contract({ ctr_state: "IN_LIQUIDATION" });
     state.advanceSum = D("32000000");
-    await expect(save(liquidationInput({ amortization: "20000000" }))).rejects.toMatchObject({
-      statusCode: 403,
-      message: expect.stringContaining("24000000.00"),
-    });
-    expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
-
-    await expect(save(liquidationInput({ amortization: "20000000" }), 0, [CAN_ADJUST])).resolves.toMatchObject({ invId: 70 });
+    await expect(save(liquidationInput({ amortization: "20000000" }))).resolves.toMatchObject({ invId: 70 });
     expect(liquidationUpsert().create).toMatchObject({ ild_adjustment_observation: null });
     expect(liquidationUpsert().create.ild_applied_pct.toFixed(6)).toBe("22.222222");
     expect(liquidationUpsert().create.ild_default_amortization.toFixed(2)).toBe("24000000.00");

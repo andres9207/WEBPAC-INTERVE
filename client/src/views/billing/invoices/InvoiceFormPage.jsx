@@ -251,8 +251,6 @@ export default function InvoiceFormPage() {
   // Un menú de forma simple tiene un solo tipo: no se elige.
   const fixedType = typeOptions.length === 1 ? typeOptions[0].value : '';
   const { permissionsCatalog, hasPermission } = useAuth();
-  const adjustPermission = permissionsCatalog.billing?.invoices?.adjustAmortization;
-  const canAdjust = adjustPermission != null && hasPermission(adjustPermission);
   const adjustRetentionPermission = permissionsCatalog.billing?.invoices?.adjustRetention;
   const canAdjustRetention = adjustRetentionPermission != null && hasPermission(adjustRetentionPermission);
   const [searchParams] = useSearchParams();
@@ -898,7 +896,6 @@ export default function InvoiceFormPage() {
                   ctrId={ctrId}
                   invId={isEdit ? invId : undefined}
                   readOnly={lockDocument || blocked}
-                  canAdjust={canAdjust}
                   canAdjustRetention={canAdjustRetention}
                   onBalances={setBalances}
                   onError={showError}
