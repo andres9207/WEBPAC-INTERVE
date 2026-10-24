@@ -6,7 +6,19 @@ import { withLockedTransaction } from "../../../common/services/transaction.serv
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { resolveContractTypeFields } from "../../admin/providerTypes/providerTypeFields.service.js";
 import { FIELD_GROUPS, enforceFields, withContractAiu } from "../../admin/providerTypes/contractFields.js";
-import { CONCEPT_TYPES, assertStateAllows, assertTransition, chronologyError, contractTotals, historyRow, sortConcepts } from "./contractTerms.js";
+import {
+  CONCEPT_TYPES,
+  CONTRACT_STATES,
+  STATE_NAMES,
+  assertStateAllows,
+  assertTransition,
+  chronologyError,
+  contractTotals,
+  historyRow,
+  sortConcepts,
+} from "./contractTerms.js";
+import { evaluateLiquidation, liquidationFacts, notifyLiquidated } from "./contractLiquidation.service.js";
+import { LIQUIDATION_TOLERANCE_PCT, liquidationConditions, unmetConditions } from "./liquidationTerms.js";
 import {
   CONCEPT_AUDITED,
   CONCEPT_SELECT,
@@ -345,7 +357,7 @@ export const updateConcept = async ({ ccpId, input, useBy, scope, ctx = { useId:
   if (!known) throw httpError(404, "No se encontró el concepto.");
   await assertContractInScope(scope, known.ctr_id);
 
-  return withLockedTransaction(
+  const result = await withLockedTransaction(
     { CONTRATO: known.ctr_id, CONCEPTO: ccpId },
     async (tx) => {
       const contract = await findLockedContract(tx, known.ctr_id);
@@ -413,8 +425,64 @@ export const updateConcept = async ({ ccpId, input, useBy, scope, ctx = { useId:
           contractChanges: endChange ? [endChange] : [],
         });
       }
-      return { message: "Concepto modificado correctamente", ccpId: before.ccp_id };
+      // El otrosí de liquidación cambia el valor contratado (C9): puede completar las condiciones (DEC-081).
+      const liquidation = await evaluateLiquidation(tx, { ctrId: contract.ctr_id, useBy, ctx, contractBalances });
+      return { message: "Concepto modificado correctamente", ccpId: before.ccp_id, ...(liquidation?.liquidated && { contractLiquidated: true }) };
     },
     { idempotent: true }
   );
+  if (result.contractLiquidated) await notifyLiquidated({ ctrId: known.ctr_id, actorId: useBy });
+  return result;
+};
+
+// ─── Liquidación (ADR-0017, DEC-081) ─────────────────────────────────────────
+
+/**
+ * Condiciones de liquidación del contrato, para la pestaña Liquidación del
+ * expediente: las mismas que exige la transición automática, calculadas al
+ * consultar (no se guardan). Solo para un contrato en liquidación o liquidado.
+ */
+export const getContractLiquidation = async ({ ctrId, scope }) => {
+  await assertContractInScope(scope, ctrId);
+  const contract = await prisma.tbl_contracts.findFirst({
+    where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS } },
+    select: { ctr_id: true, ctr_state: true },
+  });
+  if (!contract) throw httpError(404, "No se encontró el contrato.");
+  if (![CONTRACT_STATES.IN_LIQUIDATION, CONTRACT_STATES.LIQUIDATED].includes(contract.ctr_state)) {
+    throw httpError(409, "Las condiciones de liquidación aplican a un contrato en liquidación o liquidado.");
+  }
+  const conditions = liquidationConditions(await liquidationFacts(prisma, contract.ctr_id, contractBalances));
+  return {
+    state: contract.ctr_state,
+    tolerancePct: LIQUIDATION_TOLERANCE_PCT,
+    conditions,
+    pending: unmetConditions(conditions).length,
+  };
+};
+
+/**
+ * Volver a evaluar (DEC-081): para un contrato en liquidación que ya cumple
+ * todo sin que haya ocurrido un hecho después (registrado antes de DEC-081).
+ * Mismo evaluador y mismo bloqueo que tras una factura; si falta algo, no
+ * cambia nada y lo dice.
+ */
+export const evaluateContractLiquidation = async ({ ctrId, useBy, scope, ctx = { useId: useBy } }) => {
+  await assertContractInScope(scope, ctrId);
+  const result = await withLockedTransaction({ CONTRATO: ctrId }, async (tx) => {
+    const contract = await findLockedContract(tx, ctrId);
+    if (contract.ctr_state !== CONTRACT_STATES.IN_LIQUIDATION) {
+      throw httpError(409, `Solo se evalúa la liquidación de un contrato en liquidación. Estado actual: ${STATE_NAMES[contract.ctr_state] ?? contract.ctr_state}.`);
+    }
+    return evaluateLiquidation(tx, { ctrId: contract.ctr_id, useBy, ctx, contractBalances });
+  });
+  if (result.liquidated) {
+    await notifyLiquidated({ ctrId, actorId: useBy });
+    return { message: "El contrato cumplió las condiciones y quedó liquidado.", contractLiquidated: true };
+  }
+  const pending = unmetConditions(result.conditions);
+  return {
+    message: `El contrato sigue en liquidación: ${pending.length === 1 ? "falta una condición" : `faltan ${pending.length} condiciones`} (${pending.map((c) => c.label.toLowerCase()).join("; ")}).`,
+    contractLiquidated: false,
+  };
 };

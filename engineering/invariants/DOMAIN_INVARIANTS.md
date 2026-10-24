@@ -66,7 +66,7 @@ Se validan bajo bloqueo del contrato al registrar **y** al aprobar; nunca se gua
 | ID | Invariante | Fuente |
 | --- | --- | --- |
 | DOM-01 | Un contrato tiene exactamente un estado vigente, y solo cambia por una transición declarada | ADR-0017, reglas 2 y 11 |
-| DOM-02 | `LIQUIDADO` exige C1–C8 a la vez, y solo se sale por reapertura con permiso propio | ADR-0017, reglas 4 y 10 |
+| DOM-02 | `LIQUIDADO` exige las condiciones que bloquean (C1–C6, C8 y C9; C7 informa) a la vez, y solo se sale por reapertura con permiso propio. **Aplicada** la entrada ([DEC-081](../decisiones/DEC-081-liquidacion-automatica-contrato.md), `liquidationTerms.js`): la única transición a liquidado es la automática, que las evalúa bajo el bloqueo del contrato; la reapertura no existe todavía | ADR-0017, reglas 4 y 10 |
 | DOM-03 | Un contrato suspendido no admite otrosí, facturas ni edición contractual, salvo el otrosí que lo reanuda ([DEC-039](../decisiones/DEC-039-suspension-contratos.md)) | ADR-0017, regla 13 |
 | DOM-04 | Solo las facturas `APROBADA` afectan saldos, condiciones de liquidación e indicadores | ADR-0020, regla 9 |
 | DOM-05 | Una factura aprobada es inmutable en lo financiero; se corrige anulando y registrando de nuevo | ADR-0020, reglas 10–12 |

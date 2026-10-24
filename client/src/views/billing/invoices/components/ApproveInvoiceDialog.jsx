@@ -42,7 +42,8 @@ export default function ApproveInvoiceDialog({ open, invoice, onClose, onSaved }
         { invId: invoice.invId, approvalDate: form.approvalDate, observation: form.observation.trim() },
         idempotencyKey
       );
-      showSuccess(data.message);
+      // El acto pudo completar las condiciones de liquidación del contrato (DEC-081).
+      showSuccess(data.contractLiquidated ? `${data.message}. El contrato cumplió las condiciones y quedó liquidado.` : data.message);
       onSaved();
     } catch (err) {
       showError(err.response?.data?.message || 'No se pudo aprobar la factura');

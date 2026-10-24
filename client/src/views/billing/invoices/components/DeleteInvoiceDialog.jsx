@@ -32,7 +32,8 @@ export default function DeleteInvoiceDialog({ open, invoice, onClose, onDeleted 
     setSaving(true);
     try {
       const { data } = await invoiceTransitionsApi.remove({ invId: invoice.invId, observation: form.observation.trim() });
-      showSuccess(data.message);
+      // El acto pudo completar las condiciones de liquidación del contrato (DEC-081).
+      showSuccess(data.contractLiquidated ? `${data.message}. El contrato cumplió las condiciones y quedó liquidado.` : data.message);
       onDeleted();
     } catch (err) {
       showError(err.response?.data?.message || 'No se pudo eliminar la factura');

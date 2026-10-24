@@ -224,6 +224,23 @@ export const suspendContractController = handle(async (req) => {
   return result;
 });
 
+// Liquidación (DEC-081): la transición es automática; aquí se consultan sus
+// condiciones y se vuelven a evaluar a pedido.
+export const getContractLiquidationController = handle(async (req) =>
+  conceptsService.getContractLiquidation({ ctrId: req.query.ctrId, scope: await workScopeOf(req) })
+);
+
+export const evaluateContractLiquidationController = handle(async (req) => {
+  const result = await conceptsService.evaluateContractLiquidation({
+    ctrId: req.body.ctrId,
+    useBy: req.user.useId,
+    scope: await workScopeOf(req),
+    ctx: auditContext(req),
+  });
+  if (result.contractLiquidated) notify();
+  return result;
+});
+
 export const updateConceptController = handle(async (req) => {
   const result = await conceptsService.updateConcept({
     ccpId: req.body.ccpId,

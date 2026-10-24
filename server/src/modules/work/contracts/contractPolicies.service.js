@@ -14,6 +14,21 @@ import { CONCEPT_TYPES, CONCEPT_TYPE_NAMES, CONTRACT_STATES, assertStateAllows, 
 import { POLICY_VALIDITY_NAMES, contractPolicyStatus, policyValidity, uncoveredConcepts } from "./policyTerms.js";
 import { policyExpiringDays } from "../../admin/businessRules/businessRules.service.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, httpError } from "./contracts.service.js";
+import { evaluateLiquidation, notifyLiquidated } from "./contractLiquidation.service.js";
+
+// C8 (DEC-081): amparar el concepto que faltaba puede completar las condiciones de liquidación.
+// Los saldos se cargan al evaluar y no al importar: el service de facturas importa el de
+// contratos, que importa este, y un import estático cerraría el ciclo.
+const liquidateIfComplete = async (tx, ctrId, useBy, ctx) => {
+  const { contractBalances } = await import("../../billing/invoices/invoices.service.js");
+  const result = await evaluateLiquidation(tx, { ctrId, useBy, ctx, contractBalances });
+  return result?.liquidated ? { contractLiquidated: true } : {};
+};
+
+const notifyIfLiquidated = async (result, ctrId, useBy) => {
+  if (result.contractLiquidated) await notifyLiquidated({ ctrId, actorId: useBy });
+  return result;
+};
 
 /**
  * Pólizas del contrato (ADR-0018, ADR-0019; DEC-050). Submódulo de contratos.
@@ -161,8 +176,8 @@ export const createPolicy = async ({ ctrId, input, useBy, scope, ctx = { useId: 
     key: idempotencyKey,
     ownerId: useBy,
     payload: { ctrId: Number(ctrId), ccpId, ...auditable(values) },
-    execute: (idempotencyData) =>
-      withLockedTransaction({ CONTRATO: ctrId, ASEGURADORA: values.ins_id, TIPO_POLIZA: values.plt_id }, async (tx) => {
+    execute: async (idempotencyData) => {
+      const result = await withLockedTransaction({ CONTRATO: ctrId, ASEGURADORA: values.ins_id, TIPO_POLIZA: values.plt_id }, async (tx) => {
         const contract = await findLockedContract(tx, ctrId);
         const concept = await tx.tbl_contract_concepts.findUnique({
           where: { ccp_id: ccpId },
@@ -176,8 +191,10 @@ export const createPolicy = async ({ ctrId, input, useBy, scope, ctx = { useId: 
         assertStateAllows(contract.ctr_state, liquidation ? "createLiquidationPolicy" : "createPolicy");
 
         const polId = await insertPolicy(tx, { ctrId: contract.ctr_id, ccpId, values, useBy, ctx, idempotencyData });
-        return { message: "Póliza registrada correctamente", polId, rootId: polId };
-      }),
+        return { message: "Póliza registrada correctamente", polId, rootId: polId, ...(await liquidateIfComplete(tx, contract.ctr_id, useBy, ctx)) };
+      });
+      return notifyIfLiquidated(result, ctrId, useBy);
+    },
   });
 };
 
@@ -229,8 +246,8 @@ export const createPolicyVersion = async ({ polId, input, useBy, scope, ctx = { 
     key: idempotencyKey,
     ownerId: useBy,
     payload: { polId: Number(polId), ...auditable(values) },
-    execute: (idempotencyData) =>
-      withLockedTransaction(
+    execute: async (idempotencyData) => {
+      const result = await withLockedTransaction(
         { CONTRATO: known.ctr_id, POLIZA: polId, ASEGURADORA: values.ins_id, TIPO_POLIZA: values.plt_id },
         async (tx) => {
           const contract = await findLockedContract(tx, known.ctr_id);
@@ -272,9 +289,16 @@ export const createPolicyVersion = async ({ polId, input, useBy, scope, ctx = { 
             ctx,
             changes: [...changes, { field: "pol_version", oldValue: before.pol_version, newValue: before.pol_version + 1 }],
           });
-          return { message: "Póliza modificada correctamente", polId: created.pol_id, rootId: before.pol_root_id };
+          return {
+            message: "Póliza modificada correctamente",
+            polId: created.pol_id,
+            rootId: before.pol_root_id,
+            ...(await liquidateIfComplete(tx, contract.ctr_id, useBy, ctx)),
+          };
         }
-      ),
+      );
+      return notifyIfLiquidated(result, known.ctr_id, useBy);
+    },
   });
 };
 

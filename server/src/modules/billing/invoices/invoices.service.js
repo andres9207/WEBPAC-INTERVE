@@ -12,6 +12,7 @@ import { PERMISSIONS } from "../../../common/constants/permissions.constants.js"
 import { decimal, moneyText, percentFor, percentOf, percentText, ratioText, sumMoney, toMoney, toPercent } from "../../../common/utils/money.utils.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, getContractFormOptions } from "../../work/contracts/contracts.service.js";
+import { evaluateLiquidation, notifyLiquidated } from "../../work/contracts/contractLiquidation.service.js";
 import { providerSelectOptions } from "../../work/providers/providers.service.js";
 import {
   CONCEPT_TYPES,
@@ -241,6 +242,23 @@ const findImmutable = async (invId) => {
  * Bloqueos de una factura existente: contrato → factura, u obra → proveedor
  * → factura (la simple; si cambia de proveedor, el anterior y el nuevo).
  */
+/**
+ * Liquidación automática (DEC-081): aprobar, anular o eliminar una factura de
+ * contrato puede completar las condiciones de liquidación. Se evalúa al final
+ * del hecho, en su transacción y con el contrato ya bloqueado. La respuesta
+ * lo dice (`contractLiquidated`) y el aviso sale después del COMMIT.
+ */
+const liquidateIfComplete = async (tx, invoice, useBy, ctx) => {
+  if (!invoice.ctr_id) return {};
+  const result = await evaluateLiquidation(tx, { ctrId: invoice.ctr_id, useBy, ctx, contractBalances });
+  return result?.liquidated ? { contractLiquidated: true } : {};
+};
+
+const notifyIfLiquidated = async (result, known, useBy) => {
+  if (result.contractLiquidated) await notifyLiquidated({ ctrId: known.ctr_id, actorId: useBy });
+  return result;
+};
+
 const locksOf = (known, invId, prvId = known.prv_id) =>
   known.ctr_id
     ? { CONTRATO: known.ctr_id, FACTURA: Number(invId) }
@@ -1960,7 +1978,7 @@ export const approveInvoice = async ({ invId, input, useBy, scope, ctx = { useId
     payload: { invId: Number(invId), approvalDate: dateOnlyText(approvalDate), observation },
     execute: async (idempotencyData) => {
       const known = await findImmutable(invId);
-      return withLockedTransaction(locksOf(known, invId), async (tx) => {
+      const result = await withLockedTransaction(locksOf(known, invId), async (tx) => {
         const before = await findLockedInvoice(tx, invId);
         const { to: nextState } = assertTransition("approve", before.inv_state);
         await assertContractStillAdmits(tx, before);
@@ -1993,8 +2011,9 @@ export const approveInvoice = async ({ invId, input, useBy, scope, ctx = { useId
             ...approvalSnapshot({ invoice: before, before: balancesBefore, after: balancesAfter }),
           ],
         });
-        return { message, invId: before.inv_id };
+        return { message, invId: before.inv_id, ...(await liquidateIfComplete(tx, before, useBy, ctx)) };
       });
+      return notifyIfLiquidated(result, known, useBy);
     },
   });
 };
@@ -2022,7 +2041,7 @@ export const cancelInvoice = async ({ invId, input, useBy, granted, scope, ctx =
     payload: { invId: Number(invId), reaId, observation },
     execute: async (idempotencyData) => {
       const known = await findImmutable(invId);
-      return withLockedTransaction({ ...locksOf(known, invId), MOTIVO: reaId }, async (tx) => {
+      const result = await withLockedTransaction({ ...locksOf(known, invId), MOTIVO: reaId }, async (tx) => {
         const before = await findLockedInvoice(tx, invId);
         const transition = cancelTransitionFor(before.inv_state);
         const rule = assertTransition(transition, before.inv_state);
@@ -2052,8 +2071,9 @@ export const cancelInvoice = async ({ invId, input, useBy, granted, scope, ctx =
             ...balanceChanges,
           ],
         });
-        return { message, invId: before.inv_id };
+        return { message, invId: before.inv_id, ...(await liquidateIfComplete(tx, before, useBy, ctx)) };
       });
+      return notifyIfLiquidated(result, known, useBy);
     },
   });
 };
@@ -2075,7 +2095,7 @@ export const deleteInvoice = async ({ invId, input, useBy, granted, scope, ctx =
   if (!observation) throw httpError(400, "La observación de la eliminación es requerida.");
 
   const known = await findImmutable(invId);
-  return withLockedTransaction(locksOf(known, invId), async (tx) => {
+  const result = await withLockedTransaction(locksOf(known, invId), async (tx) => {
     const before = await findLockedInvoice(tx, invId);
     const approved = stateAllows(before.inv_state, "deleteApproved");
     if (!approved && !stateAllows(before.inv_state, "delete")) {
@@ -2102,6 +2122,7 @@ export const deleteInvoice = async ({ invId, input, useBy, granted, scope, ctx =
         ...balanceChanges,
       ],
     });
-    return { message: "Factura eliminada correctamente", invId: before.inv_id };
+    return { message: "Factura eliminada correctamente", invId: before.inv_id, ...(await liquidateIfComplete(tx, before, useBy, ctx)) };
   });
+  return notifyIfLiquidated(result, known, useBy);
 };

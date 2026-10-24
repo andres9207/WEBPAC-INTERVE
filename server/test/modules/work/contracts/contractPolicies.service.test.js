@@ -27,6 +27,10 @@ const prismaMock = {
 };
 
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
+// La liquidación automática (DEC-081) se prueba en contractLiquidation.service.test.js; aquí, que se invoca.
+const evaluateLiquidation = jest.fn(async () => null);
+const notifyLiquidated = jest.fn(async () => 0);
+jest.unstable_mockModule("../../../../src/modules/work/contracts/contractLiquidation.service.js", () => ({ evaluateLiquidation, notifyLiquidated }));
 
 const service = await import("../../../../src/modules/work/contracts/contractPolicies.service.js");
 

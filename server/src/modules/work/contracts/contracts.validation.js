@@ -201,6 +201,11 @@ export const createAmendmentSchema = [
   ...policyRules("policies.*."),
 ];
 
+// Liquidación (DEC-081): consultar sus condiciones y volver a evaluarlas.
+export const getContractLiquidationSchema = [query("ctrId").isInt({ min: 1 }).withMessage("ctrId es obligatorio y debe ser un entero positivo.")];
+
+export const evaluateContractLiquidationSchema = [requiredId("ctrId")];
+
 export const suspendContractSchema = [
   idempotencyKeyRule(),
   requiredId("ctrId"),

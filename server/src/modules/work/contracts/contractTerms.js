@@ -41,15 +41,18 @@ export const EXPIRING_TAB = "EXPIRING";
  */
 export const POLICIES_EXPIRING_TAB = "POLICIES_EXPIRING";
 
-const { IN_PROGRESS, SUSPENDED, IN_LIQUIDATION } = CONTRACT_STATES;
+const { IN_PROGRESS, SUSPENDED, IN_LIQUIDATION, LIQUIDATED } = CONTRACT_STATES;
 
 /** Destino de una transición que devuelve el contrato al estado que tenía (suspensión superpuesta). */
 export const PREVIOUS_STATE = "PREVIOUS_STATE";
 
 /**
  * Transiciones declaradas (WORKFLOW_STANDARD, regla 1). Una que no está aquí
- * no existe. Liquidar y reabrir llegan con la facturación.
+ * no existe. Reabrir un contrato liquidado todavía no existe.
  *
+ * - `liquidate`: automática, cuando se cumplen todas las condiciones de
+ *   liquidación (DEC-081, liquidationTerms.js), en la transacción del hecho
+ *   que las completa.
  * - `suspend`: manual, con permiso propio. Solo desde ejecución (DEC-039).
  * - `resume`: la dispara el otrosí que reanuda el contrato, con el permiso
  *   de levantar (DEC-039). Vuelve al estado que el contrato tenía al
@@ -58,6 +61,7 @@ export const PREVIOUS_STATE = "PREVIOUS_STATE";
 export const CONTRACT_TRANSITIONS = Object.freeze({
   create: { label: "Registrar el contrato", from: [null], to: IN_PROGRESS, origin: TRANSITION_ORIGINS.AUTOMATIC },
   startLiquidation: { label: "Pasar a liquidación", from: [IN_PROGRESS], to: IN_LIQUIDATION, origin: TRANSITION_ORIGINS.AUTOMATIC },
+  liquidate: { label: "Liquidar", from: [IN_LIQUIDATION], to: LIQUIDATED, origin: TRANSITION_ORIGINS.AUTOMATIC },
   suspend: { label: "Suspender", from: [IN_PROGRESS], to: SUSPENDED, origin: TRANSITION_ORIGINS.MANUAL },
   resume: { label: "Reanudar con otrosí", from: [SUSPENDED], to: PREVIOUS_STATE, origin: TRANSITION_ORIGINS.MANUAL },
 });

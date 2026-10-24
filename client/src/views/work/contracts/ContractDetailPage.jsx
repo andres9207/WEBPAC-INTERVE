@@ -24,6 +24,7 @@ import ConceptFields from './components/ConceptFields';
 import ConceptsTab from './components/ConceptsTab';
 import ContractDataForm, { AiuRequestField } from './components/ContractDataForm';
 import PoliciesDraftEditor from './components/PoliciesDraftEditor';
+import LiquidationTab from './components/LiquidationTab';
 import PoliciesTab from './components/PoliciesTab';
 import SuspendDialog from './components/SuspendDialog';
 import { FIELD_TAB, toForm, toPayload } from './components/contractForm';
@@ -80,8 +81,12 @@ const TABS = [
   { key: 'invoices', label: 'Facturas' },
   { key: 'documents', label: 'Documentos' },
   { key: 'suspensions', label: 'Suspensiones' },
+  { key: 'liquidation', label: 'Liquidación' },
   { key: 'history', label: 'Historial de estado' }
 ];
+
+// Pestaña Liquidación (DEC-081): solo en liquidación o liquidado; sus condiciones revelan saldos de facturas.
+const LIQUIDATION_STATES = ['IN_LIQUIDATION', 'LIQUIDATED'];
 
 // Cambiar de contrato (o pasar de "nuevo" al creado) vuelve a montar la vista.
 export default function ContractDetailPage() {
@@ -230,7 +235,10 @@ function ContractView() {
     }
   };
 
-  const visibleTabs = TABS.filter((t) => (t.key !== 'data' || canEdit) && (t.key !== 'summary' || !asideMode));
+  const showLiquidation = !isNew && LIQUIDATION_STATES.includes(contract.state) && canDo(permissionsCatalog.billing?.invoices?.view);
+  const visibleTabs = TABS.filter(
+    (t) => (t.key !== 'data' || canEdit) && (t.key !== 'summary' || !asideMode) && (t.key !== 'liquidation' || showLiquidation)
+  );
   // Al crear, solo las pestañas del formulario: el resto necesita el contrato guardado.
   const enabled = (t) => !isNew || (t.form && (t.key !== 'policies' || canCreatePolicies));
 
@@ -408,6 +416,8 @@ function ContractView() {
               </Box>
             )
           : tab === 'policies' && <PoliciesTab contract={contract} onChanged={changed} />}
+
+        {tab === 'liquidation' && showLiquidation && <LiquidationTab contract={contract} onChanged={changed} />}
 
         {tab === 'history' && contract && <StateHistory history={contract.history} />}
 

@@ -21,7 +21,11 @@ const SIMPLE_AMOUNT_FIELDS = Object.keys(SIMPLE_FIELDS).filter((field) => field 
 // (DEC-044, DEC-051). Ver facturas lo verifica la ruta (DEC-074): el menú
 // (`pvtId`) solo filtra.
 
-const notify = () => getIO().emit("refresh-invoices", {});
+// Un hecho de facturación puede liquidar el contrato (DEC-081): entonces también se recargan los contratos.
+const notify = (result) => {
+  getIO().emit("refresh-invoices", {});
+  if (result?.contractLiquidated) getIO().emit("refresh-contracts", {});
+};
 
 const handle = (fn) => async (req, res, next) => {
   try {
@@ -216,7 +220,7 @@ export const saveInvoiceController = handle(async (req) => {
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
-  notify();
+  notify(result);
   return result;
 });
 
@@ -229,7 +233,7 @@ export const approveInvoiceController = handle(async (req) => {
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
-  notify();
+  notify(result);
   return result;
 });
 
@@ -247,7 +251,7 @@ export const cancelInvoiceController = handle(async (req) => {
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
-  notify();
+  notify(result);
   return result;
 });
 
@@ -264,7 +268,7 @@ export const deleteInvoiceController = handle(async (req) => {
     scope: await workScopeOf(req),
     ctx: auditContext(req),
   });
-  notify();
+  notify(result);
   return result;
 });
 
@@ -297,7 +301,7 @@ export const openInvoiceFollowUpController = handle(async (req) => {
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
-  notify();
+  notify(result);
   return result;
 });
 

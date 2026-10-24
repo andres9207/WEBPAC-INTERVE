@@ -1,6 +1,7 @@
 import { jest } from "@jest/globals";
 import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
 import { CONTRACT_FIELDS_CATALOG, typeFieldRows } from "../../../helpers/contractFields.fixtures.js";
+import { contractTotals } from "../../../../src/modules/work/contracts/contractTerms.js";
 
 // Conceptos contractuales (ADR-0016, DEC-036): numeración del otrosí bajo
 // bloqueo, prórroga y fecha fin, otrosí de liquidación con su transición, y
@@ -9,7 +10,7 @@ import { CONTRACT_FIELDS_CATALOG, typeFieldRows } from "../../../helpers/contrac
 const state = { contract: null, concepts: [], typeFields: [], approvedInvoices: 0, sums: {} };
 
 const prismaMock = {
-  tbl_contracts: { findUnique: jest.fn(async () => state.contract), update: jest.fn() },
+  tbl_contracts: { findUnique: jest.fn(async () => state.contract), findFirst: jest.fn(async () => state.contract), update: jest.fn() },
   tbl_contract_concepts: {
     findUnique: jest.fn(async ({ where }) => (where.ccp_idempotency_key ? null : { ctr_id: 30 })),
     findMany: jest.fn(async () => state.concepts),
@@ -29,11 +30,13 @@ const prismaMock = {
   tbl_provider_type_fields: { findMany: jest.fn(async () => state.typeFields) },
   tbl_policies: {
     findFirst: jest.fn(async () => null),
+    findMany: jest.fn(async () => state.policies ?? []),
     create: jest.fn(async () => ({ pol_id: 500 + prismaMock.tbl_policies.create.mock.calls.length })),
     update: jest.fn(),
   },
   tbl_policy_types: { findUnique: jest.fn(async ({ where }) => ({ plt_name: `Tipo ${where.plt_id}`, plt_base: "TOTAL_VALUE", sta_id: 1 })) },
   tbl_insurers: { findUnique: jest.fn(async () => ({ ins_description: "Seguros SA", sta_id: 1 })) },
+  tbl_contract_suspensions: { count: jest.fn(async () => 0) },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
@@ -416,5 +419,87 @@ describe("alcance por obra (DEC-047)", () => {
       service.createAmendment({ ctrId: 30, input: act(), useBy: 9, scope: { all: false, wrkId: 9 }, ctx, idempotencyKey: KEY })
     ).rejects.toMatchObject({ statusCode: 404 });
     expect(prismaMock.tbl_contract_concepts.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("liquidación (DEC-081)", () => {
+  const liquidationConcept = () => concept({ ccp_id: 302, ccp_type: "LIQUIDATION", ccp_number: null, ccp_start_date: new Date("2026-03-01T00:00:00Z") });
+  // Un contrato en liquidación con todo cumplido salvo lo que cada caso cambie: facturado = base vigente.
+  const settle = () => {
+    state.contract = contract({ ctr_state: "IN_LIQUIDATION" });
+    state.concepts = [concept(), liquidationConcept()];
+    state.policies = [{ ccp_id: 300 }, { ccp_id: 302 }];
+    state.sums = { billed: contractTotals(state.concepts).base };
+    // Una liquidación aprobada (C4) y ninguna registrada (C5).
+    prismaMock.tbl_invoices.count.mockImplementation(async ({ where }) => (where.inv_state === "APPROVED" ? 1 : 0));
+  };
+
+  afterEach(() => {
+    state.sums = {};
+    state.policies = [];
+    prismaMock.tbl_invoices.count.mockImplementation(async () => state.approvedInvoices);
+  });
+
+  it("las condiciones solo se consultan con el contrato en liquidación o liquidado (409)", async () => {
+    await expect(service.getContractLiquidation({ ctrId: 30 })).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it("consultar devuelve las nueve condiciones y cuántas faltan, sin escribir", async () => {
+    settle();
+    state.policies = [{ ccp_id: 300 }];
+
+    const result = await service.getContractLiquidation({ ctrId: 30 });
+    expect(result).toMatchObject({ state: "IN_LIQUIDATION", tolerancePct: "0.01", pending: 1 });
+    expect(result.conditions).toHaveLength(9);
+    expect(result.conditions.find((c) => c.key === "C8")).toMatchObject({ met: false, detail: "Sin póliza vigente: Otrosí de liquidación." });
+    expect(prismaMock.tbl_contracts.update).not.toHaveBeenCalled();
+  });
+
+  it("volver a evaluar solo con el contrato en liquidación (409)", async () => {
+    await expect(service.evaluateContractLiquidation({ ctrId: 30, useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: "Solo se evalúa la liquidación de un contrato en liquidación. Estado actual: En ejecución.",
+    });
+  });
+
+  it("volver a evaluar con una condición pendiente no cambia nada y dice cuál falta", async () => {
+    settle();
+    state.sums = { billed: "0.00" };
+
+    await expect(service.evaluateContractLiquidation({ ctrId: 30, useBy: 9, ctx })).resolves.toEqual({
+      message: "El contrato sigue en liquidación: falta una condición (valor contratado igual al facturado).",
+      contractLiquidated: false,
+    });
+    expect(prismaMock.tbl_contracts.update).not.toHaveBeenCalled();
+    expect(notifyWorkManagers).not.toHaveBeenCalled();
+  });
+
+  it("volver a evaluar con todo cumplido liquida bajo el bloqueo del contrato y avisa", async () => {
+    settle();
+
+    await expect(service.evaluateContractLiquidation({ ctrId: 30, useBy: 9, ctx })).resolves.toMatchObject({ contractLiquidated: true });
+    expect(lockedTables()).toEqual([expect.stringMatching(/tbl_contracts/)]);
+    expect(prismaMock.tbl_contracts.update).toHaveBeenCalledWith({ where: { ctr_id: 30 }, data: { ctr_state: "LIQUIDATED", ctr_update_by: 9 } });
+    expect(notifyWorkManagers).toHaveBeenCalledWith(expect.objectContaining({ ctrId: 30, action: "liquidate" }));
+  });
+
+  it("modificar el otrosí de liquidación evalúa en su transacción: si con el valor nuevo cuadra lo facturado, se liquida", async () => {
+    settle();
+    // El otrosí se guarda y lo facturado es la base que resulta (C9): se leen después de modificar.
+    prismaMock.tbl_contract_concepts.update.mockImplementationOnce(async ({ where, data }) => {
+      state.concepts = state.concepts.map((c) => (c.ccp_id === where.ccp_id ? { ...c, ...data } : c));
+    });
+    prismaMock.tbl_invoice_liquidation_details.aggregate.mockImplementation(async () => ({
+      _sum: { ild_value: contractTotals(state.concepts).base, ild_amortization: null, ild_retention: null },
+    }));
+
+    const result = await service.updateConcept({ ccpId: 302, input: act({ observation: "Ajuste de cantidades finales" }), useBy: 9, ctx });
+
+    expect(result).toEqual({ message: "Concepto modificado correctamente", ccpId: 302, contractLiquidated: true });
+    expect(prismaMock.tbl_contract_status_history.create).toHaveBeenCalledWith({ data: expect.objectContaining({ csh_to_state: "LIQUIDATED" }) });
+    expect(notifyWorkManagers).toHaveBeenCalledWith(expect.objectContaining({ action: "liquidate" }));
+    prismaMock.tbl_invoice_liquidation_details.aggregate.mockImplementation(async () => ({
+      _sum: { ild_value: state.sums.billed ?? null, ild_amortization: null, ild_retention: null },
+    }));
   });
 });

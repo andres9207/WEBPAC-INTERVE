@@ -65,7 +65,8 @@ export default function CancelInvoiceDialog({ open, invoice, onClose, onSaved })
         { invId: invoice.invId, reaId: form.reaId, observation: form.observation.trim() },
         idempotencyKey
       );
-      showSuccess(data.message);
+      // El acto pudo completar las condiciones de liquidación del contrato (DEC-081).
+      showSuccess(data.contractLiquidated ? `${data.message}. El contrato cumplió las condiciones y quedó liquidado.` : data.message);
       onSaved();
     } catch (err) {
       showError(err.response?.data?.message || 'No se pudo anular la factura');

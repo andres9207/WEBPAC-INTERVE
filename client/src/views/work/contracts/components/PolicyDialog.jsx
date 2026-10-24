@@ -95,7 +95,8 @@ export default function PolicyDialog({ open, contract, concepts = [], policy, dr
       const { data } = isVersion
         ? await contractPoliciesApi.createVersion({ polId: policy.polId, ...params }, idempotencyKey)
         : await contractPoliciesApi.create({ ctrId: contract.ctrId, ccpId: form.ccpId, ...params }, idempotencyKey);
-      showSuccess(data.message);
+      // El acto pudo completar las condiciones de liquidación del contrato (DEC-081).
+      showSuccess(data.contractLiquidated ? `${data.message}. El contrato cumplió las condiciones y quedó liquidado.` : data.message);
       onSaved();
     } catch (err) {
       showError(err.response?.data?.message || 'No se pudo guardar la póliza');

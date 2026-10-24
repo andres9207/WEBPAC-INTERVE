@@ -169,7 +169,8 @@ export default function ConceptDialog({ open, mode, contract, concept, onClose, 
         : mode === 'liquidation'
           ? await contractConceptsApi.createLiquidation({ ctrId: contract.ctrId, ...payload }, idempotencyKey)
           : await contractConceptsApi.createAmendment({ ctrId: contract.ctrId, ...payload }, idempotencyKey);
-      showSuccess(data.message);
+      // El acto pudo completar las condiciones de liquidación del contrato (DEC-081).
+      showSuccess(data.contractLiquidated ? `${data.message}. El contrato cumplió las condiciones y quedó liquidado.` : data.message);
       onSaved();
     } catch (err) {
       showError(err.response?.data?.message || 'No se pudo guardar el concepto');

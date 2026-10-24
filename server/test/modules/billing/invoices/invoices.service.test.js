@@ -106,6 +106,10 @@ const prismaMock = {
 };
 
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
+// La liquidación automática (DEC-081) se prueba en contractLiquidation.service.test.js; aquí, que se invoca.
+const evaluateLiquidation = jest.fn(async () => null);
+const notifyLiquidated = jest.fn(async () => 0);
+jest.unstable_mockModule("../../../../src/modules/work/contracts/contractLiquidation.service.js", () => ({ evaluateLiquidation, notifyLiquidated }));
 
 const service = await import("../../../../src/modules/billing/invoices/invoices.service.js");
 
@@ -1836,5 +1840,45 @@ describe("menús de facturas (DEC-074)", () => {
     prismaMock.tbl_contracts.findUnique.mockResolvedValueOnce({ prv_id: 12 });
     await expect(save(contractInput())).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/cambió/) });
     expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("liquidación automática (DEC-081)", () => {
+  const remove = (input = { observation: "Registrada dos veces" }) => service.deleteInvoice({ invId: 70, input, useBy: 9, granted: new Set(), ctx });
+
+  it("aprobar una factura de contrato evalúa la liquidación en su transacción, con los saldos de facturas", async () => {
+    state.invoice = storedInvoice();
+    await approve();
+
+    expect(evaluateLiquidation).toHaveBeenCalledWith(expect.anything(), { ctrId: 30, useBy: 9, ctx, contractBalances: service.contractBalances });
+    expect(notifyLiquidated).not.toHaveBeenCalled();
+  });
+
+  it("si la evaluación liquida, la respuesta lo dice y se avisa después del COMMIT", async () => {
+    state.invoice = storedInvoice();
+    evaluateLiquidation.mockResolvedValueOnce({ liquidated: true, conditions: [] });
+
+    await expect(approve()).resolves.toEqual({ message: "Factura aprobada correctamente", invId: 70, contractLiquidated: true });
+    expect(notifyLiquidated).toHaveBeenCalledWith({ ctrId: 30, actorId: 9 });
+  });
+
+  it("anular y eliminar también evalúan: la factura por aprobar que faltaba (C5) pudo ser esta", async () => {
+    state.invoice = storedInvoice();
+    evaluateLiquidation.mockResolvedValueOnce({ liquidated: true, conditions: [] });
+    await expect(cancel()).resolves.toMatchObject({ contractLiquidated: true });
+
+    state.invoice = storedInvoice();
+    evaluateLiquidation.mockResolvedValueOnce({ liquidated: false, conditions: [] });
+    await expect(remove()).resolves.toEqual({ message: "Factura eliminada correctamente", invId: 70 });
+    expect(evaluateLiquidation).toHaveBeenCalledTimes(2);
+    expect(notifyLiquidated).toHaveBeenCalledTimes(1);
+  });
+
+  it("una factura simple no tiene contrato: no se evalúa", async () => {
+    state.invoice = storedSimple();
+    state.assignment = { sta_id: 1, tbl_work_provider_types: [{ pvt_id: 1 }] };
+    await remove();
+
+    expect(evaluateLiquidation).not.toHaveBeenCalled();
   });
 });

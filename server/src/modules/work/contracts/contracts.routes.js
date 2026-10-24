@@ -22,6 +22,8 @@ import {
   createLiquidationSchema,
   updateConceptSchema,
   suspendContractSchema,
+  getContractLiquidationSchema,
+  evaluateContractLiquidationSchema,
   getContractPoliciesSchema,
   createPolicySchema,
   createPolicyVersionSchema,
@@ -46,6 +48,8 @@ import {
   createLiquidationController,
   updateConceptController,
   suspendContractController,
+  getContractLiquidationController,
+  evaluateContractLiquidationController,
   getContractPoliciesController,
   createPolicyController,
   createPolicyVersionController,
@@ -140,6 +144,27 @@ contractsRoutes.put("/update_concept", verifyToken, requirePermission(can.editCo
 // Suspender (ADR-0017, DEC-039). No hay ruta de levantar: lo hace
 // create_amendment sobre un contrato suspendido, con el permiso liftSuspension.
 contractsRoutes.post("/suspend_contract", verifyToken, requirePermission(can.suspend), suspendContractSchema, validate, suspendContractController);
+
+// Liquidación (ADR-0017, DEC-081): la transición es automática. Las condiciones
+// revelan saldos de facturas: ver exige además ver facturas. Volver a evaluar,
+// el permiso del otrosí de liquidación (quien lleva la liquidación).
+contractsRoutes.get(
+  "/get_contract_liquidation",
+  verifyToken,
+  requirePermission(can.view),
+  requirePermission(PERMISSIONS.billing.invoices.view),
+  getContractLiquidationSchema,
+  validate,
+  getContractLiquidationController
+);
+contractsRoutes.post(
+  "/evaluate_contract_liquidation",
+  verifyToken,
+  requirePermission(can.createLiquidation),
+  evaluateContractLiquidationSchema,
+  validate,
+  evaluateContractLiquidationController
+);
 
 // Pólizas (ADR-0018, DEC-050): submódulo del contrato, con sus permisos.
 // Modificar emite una versión nueva; anular reemplaza a eliminar.

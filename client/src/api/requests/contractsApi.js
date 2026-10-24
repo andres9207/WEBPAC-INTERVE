@@ -87,6 +87,17 @@ export const contractConceptsApi = {
 };
 
 /**
+ * Liquidación (ADR-0017, DEC-081). El contrato pasa solo a liquidado cuando
+ * cumple las condiciones; aquí se consultan y se vuelven a evaluar.
+ */
+export const contractLiquidationApi = {
+  /** Condiciones calculadas por el servidor: `{ state, tolerancePct, conditions, pending }`. @param {number} ctrId */
+  get: (ctrId) => httpCliente.get('work/contracts/get_contract_liquidation', { ctrId }),
+  /** Evalúa bajo bloqueo; liquida si se cumple todo. Responde `{ message, contractLiquidated }`. @param {number} ctrId */
+  evaluate: (ctrId) => httpCliente.post('work/contracts/evaluate_contract_liquidation', { ctrId })
+};
+
+/**
  * Suspender un contrato en ejecución (ADR-0017, DEC-039). No hay llamada de
  * levantar: lo hace el otrosí que reanuda el contrato (`createAmendment` con
  * `liftDate`), con el permiso de levantar.
