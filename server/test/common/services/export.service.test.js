@@ -27,19 +27,21 @@ describe("reportes de listados (DEC-070)", () => {
     expect(model.findMany).toHaveBeenCalledWith({ where: { a: 1 }, select: { x: true }, orderBy: { y: "asc" } });
   });
 
-  it("Excel: título, filtros, encabezado y filas; el importe como número con dos decimales", async () => {
+  it("Excel: logo, título, filtros, encabezado y filas; el importe como número con dos decimales", async () => {
     const file = await renderExport({ format: "xlsx", title: "Contratos", filters: ["Filtros: Estado: Todos"], columns: COLUMNS, rows: ROWS });
     expect(file).toMatchObject({ extension: "xlsx", contentType: expect.stringContaining("spreadsheetml") });
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(file.buffer);
     const sheet = workbook.worksheets[0];
-    expect(sheet.getCell("A1").value).toBe("Contratos");
-    expect(sheet.getCell("A3").value).toBe("Filtros: Estado: Todos");
-    expect(sheet.getRow(5).values.slice(1)).toEqual(["Número", "Valor", "Fecha"]);
-    expect(sheet.getCell("B6").value).toBe(1234567.5);
+    // La primera fila es del logo de INTERVE.
+    expect(sheet.getImages().map((image) => image.range.tl.nativeRow)).toEqual([0]);
+    expect(sheet.getCell("A2").value).toBe("Contratos");
+    expect(sheet.getCell("A4").value).toBe("Filtros: Estado: Todos");
+    expect(sheet.getRow(6).values.slice(1)).toEqual(["Número", "Valor", "Fecha"]);
+    expect(sheet.getCell("B7").value).toBe(1234567.5);
     expect(sheet.getColumn(2).numFmt).toBe("#,##0.00");
-    expect(sheet.getCell("B7").value).toBe("");
+    expect(sheet.getCell("B8").value).toBe("");
   });
 
   it("PDF: un documento válido", async () => {

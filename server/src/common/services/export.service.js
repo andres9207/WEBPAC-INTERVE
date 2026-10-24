@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
 
@@ -21,7 +22,14 @@ import PDFDocument from "pdfkit";
  * Dos formas: `renderExport`, una tabla (el reporte de un listado), y
  * `renderDocument`, un documento con secciones (el de un registro, como el
  * resumen de un contrato).
+ *
+ * Todos llevan el logo de INTERVE: en Excel, en la primera fila de cada hoja;
+ * en el PDF, a la derecha del encabezado de la primera página.
  */
+
+// Logo de INTERVE (src/images), leído una vez al cargar el módulo. Proporción 2359 × 1005.
+const LOGO = readFileSync(new URL("../../images/logo-interve.png", import.meta.url));
+const LOGO_RATIO = 1005 / 2359;
 
 /** Máximo de filas de un reporte (DEC-070). Más que eso responde 422: hay que afinar los filtros. */
 export const EXPORT_MAX_ROWS = 5000;
@@ -91,7 +99,19 @@ const sheetName = (workbook, title) => {
 // Título, "Generado: …" (con `count` filas, si se da) y las líneas que siguen.
 const generatedLine = (count) => `Generado: ${generatedAt()}${count === undefined ? "" : ` · ${count} fila(s)`}`;
 
+// El logo se agrega una vez por libro y se dibuja en cada hoja.
+const EXCEL_LOGO_WIDTH = 170;
+const logoIds = new WeakMap();
+const logoId = (workbook) => {
+  if (!logoIds.has(workbook)) logoIds.set(workbook, workbook.addImage({ buffer: LOGO, extension: "png" }));
+  return logoIds.get(workbook);
+};
+
 const addSheetHeading = (sheet, title, lines, count) => {
+  // Primera fila, solo para el logo: alto en puntos (los píxeles del logo × 0,75) y un margen.
+  const logoHeight = Math.round(EXCEL_LOGO_WIDTH * LOGO_RATIO);
+  sheet.addRow([]).height = logoHeight * 0.75 + 6;
+  sheet.addImage(logoId(sheet.workbook), { tl: { col: 0, row: 0 }, ext: { width: EXCEL_LOGO_WIDTH, height: logoHeight }, editAs: "oneCell" });
   sheet.addRow([title]).font = { bold: true, size: 14 };
   sheet.addRow([generatedLine(count)]).font = { italic: true, size: 9, color: { argb: "FF666666" } };
   for (const line of lines) sheet.addRow([line]).font = { size: 9 };
@@ -222,11 +242,20 @@ const ensureRoom = (doc, height) => {
   return true;
 };
 
+const PDF_LOGO_WIDTH = 120;
+
+// Título y líneas a la izquierda; el logo a la derecha, sin que el texto lo pise.
 const pdfHeading = (doc, title, lines, count) => {
-  doc.font("Helvetica-Bold").fontSize(13).fillColor("black").text(title, MARGIN, MARGIN);
-  doc.font("Helvetica").fontSize(8).fillColor("#666666").text(generatedLine(count));
-  for (const line of lines) doc.text(line);
+  const logoX = doc.page.width - MARGIN - PDF_LOGO_WIDTH;
+  const logoBottom = MARGIN + PDF_LOGO_WIDTH * LOGO_RATIO;
+  doc.image(LOGO, logoX, MARGIN, { width: PDF_LOGO_WIDTH });
+  const textWidth = logoX - MARGIN - 12;
+  doc.font("Helvetica-Bold").fontSize(13).fillColor("black").text(title, MARGIN, MARGIN, { width: textWidth });
+  doc.font("Helvetica").fontSize(8).fillColor("#666666").text(generatedLine(count), { width: textWidth });
+  for (const line of lines) doc.text(line, { width: textWidth });
   doc.fillColor("black").moveDown(0.6);
+  doc.x = MARGIN;
+  doc.y = Math.max(doc.y, logoBottom + 8);
 };
 
 // Una tabla desde la posición actual, con encabezado repetido en cada página.
