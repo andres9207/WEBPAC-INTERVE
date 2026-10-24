@@ -32,7 +32,7 @@ import {
   plural
 } from './workDashboard.utils';
 import useSchemePalette from 'hooks/useSchemePalette';
-import { AdvanceBar, AdvanceFilter, AdvanceLegend, matchesAdvanceFilter } from './AdvanceBars';
+import { AdvanceBar, AdvanceFilter, AdvanceLegend, matchesAdvanceFilter, matchesAdvanceLegend } from './AdvanceBars';
 
 // Contratos y facturas de la obra en gráficos (DEC-063). Los importes y
 // porcentajes llegan del servidor; aquí solo se dibujan. Cada gráfico lleva
@@ -669,8 +669,9 @@ const advanceDrill = (items, contract, kind) => {
 
 function Advances({ contracts, invoices, onDrill }) {
   const [filter, setFilter] = useState('');
+  const [legend, setLegend] = useState('');
   const withAdvance = contracts.filter((c) => c.advance.agreed !== '0.00');
-  const list = withAdvance.filter(matchesAdvanceFilter(filter));
+  const list = withAdvance.filter(matchesAdvanceFilter(filter)).filter(matchesAdvanceLegend(legend));
   // Sin el permiso de ver facturas no hay filas para el detalle: las barras no se abren.
   const drill = (c, kind) => invoices && (() => onDrill(advanceDrill(invoices.items, c, kind)));
   return (
@@ -688,7 +689,7 @@ function Advances({ contracts, invoices, onDrill }) {
         <Empty>Ningún contrato de la obra pacta anticipo.</Empty>
       ) : (
         <Stack spacing={2.5}>
-          <AdvanceLegend />
+          <AdvanceLegend value={legend} onChange={setLegend} />
           {list.length === 0 && <Empty>Ningún contrato cumple el filtro.</Empty>}
           {list.map((c) => (
             <Stack key={c.ctrId} spacing={1}>

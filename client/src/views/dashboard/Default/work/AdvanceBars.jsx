@@ -108,31 +108,71 @@ AdvanceBar.propTypes = { label: PropTypes.string.isRequired, bar: PropTypes.obje
 
 const swatchSx = { display: 'inline-block', width: 12, height: 12, borderRadius: 0.75, flexShrink: 0 };
 
-/** Leyenda de los niveles y de lo por aprobar. */
-export function AdvanceLegend() {
+// Filtro de la leyenda para lo por aprobar (los niveles usan su clave).
+const PENDING_LEGEND = 'PENDING';
+
+/** Leyenda de los niveles y de lo por aprobar. Cada entrada filtra: un clic la elige y otro la quita. */
+export function AdvanceLegend({ value, onChange }) {
   const palette = useSchemePalette();
+  const entries = [
+    ...Object.entries(ADVANCE_LEVELS).map(([key, level]) => ({
+      key,
+      name: level.name,
+      swatch: { bgcolor: paletteColor(palette, level.color) }
+    })),
+    { key: PENDING_LEGEND, name: 'Por aprobar', swatch: { backgroundImage: pendingStripes(paletteColor(palette, 'grey.600')) } }
+  ];
   return (
-    <Stack direction="row" useFlexGap flexWrap="wrap" columnGap={2} rowGap={0.5}>
-      {Object.values(ADVANCE_LEVELS).map((level) => (
-        <Stack key={level.name} direction="row" spacing={0.75} alignItems="center">
-          <Box component="span" aria-hidden sx={{ ...swatchSx, bgcolor: paletteColor(palette, level.color) }} />
-          <Typography variant="caption" color="text.secondary">
-            {level.name}
-          </Typography>
-        </Stack>
-      ))}
-      <Stack direction="row" spacing={0.75} alignItems="center">
-        <Box component="span" aria-hidden sx={{ ...swatchSx, backgroundImage: pendingStripes(paletteColor(palette, 'grey.600')) }} />
-        <Typography variant="caption" color="text.secondary">
-          Por aprobar
-        </Typography>
-      </Stack>
+    <Stack direction="row" useFlexGap flexWrap="wrap" columnGap={1} rowGap={0.5} role="group" aria-label="Filtrar por nivel de anticipo">
+      {entries.map((entry) => {
+        const selected = value === entry.key;
+        return (
+          <ButtonBase
+            key={entry.key}
+            aria-pressed={selected}
+            onClick={() => onChange(selected ? '' : entry.key)}
+            sx={{
+              gap: 0.75,
+              px: 1,
+              py: 0.5,
+              borderRadius: 1,
+              border: 1,
+              borderColor: selected ? 'primary.main' : 'transparent',
+              bgcolor: selected ? 'primary.light' : 'transparent',
+              '&:hover, &.Mui-focusVisible': { bgcolor: 'action.hover' }
+            }}
+          >
+            <Box component="span" aria-hidden sx={{ ...swatchSx, ...entry.swatch }} />
+            <Typography
+              component="span"
+              variant="caption"
+              color={selected ? 'text.primary' : 'text.secondary'}
+              sx={{ fontWeight: selected ? 500 : 400 }}
+            >
+              {entry.name}
+            </Typography>
+          </ButtonBase>
+        );
+      })}
     </Stack>
   );
 }
 
+AdvanceLegend.propTypes = { value: PropTypes.string.isRequired, onChange: PropTypes.func.isRequired };
+
 /** Si un contrato cumple el filtro "Anticipo" (vacío: todos). Los filtros que cumple los manda el servidor. */
 export const matchesAdvanceFilter = (filter) => (contract) => !filter || contract.advance.filters.includes(filter);
+
+/**
+ * Si un contrato cumple el filtro de la leyenda (vacío: todos): alguna de sus dos barras está en ese nivel o, con
+ * "Por aprobar", tiene algo por aprobar. Nivel e importes los manda el servidor; un contrato sin anticipo no cumple ninguno.
+ */
+export const matchesAdvanceLegend = (legend) => (contract) => {
+  if (!legend) return true;
+  if (contract.advance.agreed === '0.00') return false;
+  const bars = Object.values(contract.advance.bars);
+  return legend === PENDING_LEGEND ? bars.some((bar) => bar.pending !== '0.00') : bars.some((bar) => bar.level === legend);
+};
 
 /** Selector del filtro "Anticipo", con las opciones del listado de contratos. */
 export function AdvanceFilter({ value, onChange }) {

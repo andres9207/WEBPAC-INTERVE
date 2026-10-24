@@ -191,6 +191,13 @@ const GenericFormSection = memo(
                     <TextField
                       {...controllerField}
                       {...field.props}
+                      // Máscara (p. ej. el guion del NIT): `transform` recibe lo escrito y devuelve lo que se guarda.
+                      {...(field.transform && {
+                        onChange: (e) =>
+                          controllerField.onChange(
+                            field.transform(e.target.value),
+                          ),
+                      })}
                       value={controllerField.value ?? ""}
                       label={
                         <RequiredLabel

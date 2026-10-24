@@ -545,12 +545,14 @@ model tbl_supervision_types {
 }
 
 /// Maestro de constructoras (database/migrations/0033_create_construction_companies.sql).
-/// cnc_description_active es una columna GENERADA por MySQL (respalda la unicidad entre no eliminadas):
-/// nunca se escribe desde el código.
+/// cnc_description_active y cnc_nit_active son columnas GENERADAS por MySQL (respaldan la unicidad entre no
+/// eliminadas): nunca se escriben desde el código. cnc_nit es NULL en la BD por las constructoras anteriores a la
+/// migración 0115; el servidor lo exige al guardar.
 model tbl_construction_companies {
   cnc_id                 Int         @id @default(autoincrement())
   cnc_description        String      @db.VarChar(150)
-  sta_id                 Int         @default(1)
+  cnc_nit                String?     @db.VarChar(17)
+  sta_id                Int         @default(1)
   cnc_create_by          Int?
   cnc_create_at          DateTime?   @default(now()) @db.Timestamp(0)
   cnc_update_by          Int?
@@ -560,6 +562,7 @@ model tbl_construction_companies {
   cnc_idempotency_key    String?     @unique(map: "uq_construction_companies_idempotency_key") @db.Char(36)
   cnc_idempotency_hash   String?     @db.Char(64)
   cnc_description_active String?     @unique(map: "uq_construction_companies_description_active") @db.VarChar(150)
+  cnc_nit_active         String?     @unique(map: "uq_construction_companies_nit_active") @db.VarChar(17)
   created_by_user        tbl_users?  @relation("ConstructionCompanyCreatedBy", fields: [cnc_create_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_construction_companies_create_by")
   deleted_by_user        tbl_users?  @relation("ConstructionCompanyDeletedBy", fields: [cnc_delete_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_construction_companies_delete_by")
   tbl_status             tbl_status  @relation(fields: [sta_id], references: [sta_id], onUpdate: Restrict, map: "tbl_construction_companies_status")

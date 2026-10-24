@@ -22,6 +22,7 @@ export const UNIQUE_CONSTRAINT_MESSAGES = Object.freeze({
   uq_insurers_description_active: "Ya existe una aseguradora con esa descripción.",
   uq_supervision_types_name_active: "Ya existe un tipo de interventoría con ese nombre.",
   uq_construction_companies_description_active: "Ya existe una constructora con esa descripción.",
+  uq_construction_companies_nit_active: "Ya existe una constructora con ese NIT.",
   uq_contract_types_name_active: "Ya existe un tipo de contrato con ese nombre.",
   uq_reasons_name_active: "Ya existe un motivo con ese nombre para ese acto.",
   uq_policy_types_key: "Ya existe un tipo de póliza con esa clave.",

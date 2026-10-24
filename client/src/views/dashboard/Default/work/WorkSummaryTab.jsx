@@ -37,7 +37,7 @@ import { fDateOnly } from 'utils/formatTime';
 import { CONTRACT_STATE_COLORS, INVOICE_STATE_COLORS, STATUS, fTerm } from 'utils/constants';
 
 import DashboardCards from '../components/DashboardCards';
-import { AdvanceBar, AdvanceFilter, AdvanceLegend, matchesAdvanceFilter } from './AdvanceBars';
+import { AdvanceBar, AdvanceFilter, AdvanceLegend, matchesAdvanceFilter, matchesAdvanceLegend } from './AdvanceBars';
 import { contractRows, daysOpenText, followUpsDrill, invoiceRows, useDrillDown } from './DrillDownDialog';
 import { MANAGER_ROLE_NAMES, POLICY_STATUS_COLORS, barPercent, dashboardTo, initialsOf, plural } from './workDashboard.utils';
 
@@ -581,7 +581,8 @@ export default function WorkSummaryTab({ data, workLabel }) {
   const { work, contracts, invoices, providers } = data;
   const { openDrill, dialog } = useDrillDown();
   const [advanceFilter, setAdvanceFilter] = useState('');
-  const shownContracts = contracts?.items.filter(matchesAdvanceFilter(advanceFilter)) ?? [];
+  const [advanceLegend, setAdvanceLegend] = useState('');
+  const shownContracts = contracts?.items.filter(matchesAdvanceFilter(advanceFilter)).filter(matchesAdvanceLegend(advanceLegend)) ?? [];
 
   const kpis = [];
   if (work) {
@@ -682,7 +683,9 @@ export default function WorkSummaryTab({ data, workLabel }) {
                   <Empty>La obra todavía no tiene contratos.</Empty>
                 ) : (
                   <Stack spacing={2}>
-                    {contracts.items.some((c) => c.advance.agreed !== '0.00') && <AdvanceLegend />}
+                    {contracts.items.some((c) => c.advance.agreed !== '0.00') && (
+                      <AdvanceLegend value={advanceLegend} onChange={setAdvanceLegend} />
+                    )}
                     {shownContracts.length === 0 && <Empty>Ningún contrato cumple el filtro.</Empty>}
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
                       {shownContracts.map((c) => (

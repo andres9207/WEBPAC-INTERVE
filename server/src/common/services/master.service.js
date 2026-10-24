@@ -49,7 +49,8 @@ const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
  * @param {object} config.permissions  `{ view, create, edit, delete, changeStatus }` (per_id).
  * @param {Array<object>} config.fields Columnas del dominio (ver FIELD_DEFAULTS). Un campo con
  *   `options` (lista cerrada de valores) se valida contra ella y se filtra por igualdad. Uno
- *   `boolean` es una casilla: se guarda true o false y sin valor es false (DEC-074).
+ *   `boolean` es una casilla: se guarda true o false y sin valor es false (DEC-074). Uno con
+ *   `filterTerms(texto) => string[]` se filtra por cualquiera de esos textos (`contains`).
  * @param {string} [config.scopeField] Campo con `options` que divide el catálogo en ámbitos
  *   (el acto al que aplica un motivo, DEC-039): la unicidad se verifica dentro del ámbito y el
  *   selector filtra por él. Debe ser no editable.
@@ -181,16 +182,22 @@ export const createMasterService = (config) => {
     const order = Number(sortOrder) === 1 ? "asc" : "desc";
     const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS[config.defaultSort])(order);
 
+    // Un campo con `filterTerms` se busca por cualquiera de los textos que devuelve (el NIT con
+    // y sin guion de la máscara, constructoras).
+    const variantFilters = fields
+      .filter((f) => f.filter && f.filterTerms && filters[f.name])
+      .map((f) => ({ OR: f.filterTerms(String(filters[f.name])).map((term) => ({ [f.column]: { contains: term } })) }));
     const baseWhere = {
       sta_id: { not: DELETED_STATUS },
       ...Object.fromEntries(
         fields
-          .filter((f) => f.filter && filters[f.name])
+          .filter((f) => f.filter && !f.filterTerms && filters[f.name])
           .map((f) => [f.column, f.options ? String(filters[f.name]) : { contains: String(filters[f.name]) }])
       ),
       ...searchWhere(searchColumns, search),
+      ...(variantFilters.length > 0 ? { AND: variantFilters } : {}),
     };
-    const where = { ...baseWhere, ...(staId ? { AND: [{ sta_id: Number(staId) }] } : {}) };
+    const where = { ...baseWhere, ...(staId ? { AND: [...(baseWhere.AND ?? []), { sta_id: Number(staId) }] } : {}) };
 
     // statusCounts: cuántos hay por estado con los mismos filtros de texto,
     // para las pestañas por estado de la vista (sin el filtro de estado, o

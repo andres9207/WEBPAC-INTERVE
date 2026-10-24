@@ -25,7 +25,7 @@ import { showError } from 'services/ToastService';
  * pedir al servidor (MasterPage espera a que se deje de escribir).
  *
  * Tipos de campo (`type`):
- * - `input`: texto.
+ * - `input`: texto. Con `transform`, una máscara: recibe lo escrito y devuelve el filtro.
  * - `dropdown`: lista cerrada (`props.options`), con buscador (SearchSelect).
  * - `socketDropdown`: maestro que se carga con `fetchApi` y se recarga con
  *   `socketEvent` (SelectSocket).
@@ -145,8 +145,8 @@ const FilterPopper = ({ anchorEl, open, onClose, filters, setFilters, initialFil
             size="small"
             label={filter.label}
             value={value}
-            onChange={(event) => updateFilter(filter.key, event.target.value)}
-            slotProps={{ htmlInput: { maxLength: filter.props?.maxLength } }}
+            onChange={(event) => updateFilter(filter.key, filter.transform ? filter.transform(event.target.value) : event.target.value)}
+            slotProps={{ htmlInput: { maxLength: filter.props?.maxLength, inputMode: filter.props?.inputMode } }}
           />
         );
       case 'calendar':
