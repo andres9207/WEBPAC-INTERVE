@@ -171,7 +171,7 @@ export default function ProviderDataForm({ control, loaded, identityLocked, iden
                   size="small"
                   fullWidth
                   helperText="Qué suministra o qué servicio presta"
-                  slotProps={{ htmlInput: { maxLength: 150 } }}
+                  slotProps={{ htmlInput: { maxLength: 255 } }}
                 />
               )}
             />

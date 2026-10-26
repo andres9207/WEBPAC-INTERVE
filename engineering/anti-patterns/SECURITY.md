@@ -252,7 +252,7 @@ Migraciones `0011_fk_audit_columns.sql`, `0012_add_delete_columns.sql`, `0013_cr
 
 - **El navegador rellenaba el campo "Contraseña" del formulario de usuario** con la contraseña guardada de quien estaba conectado: el campo no declaraba `autoComplete` y estaba junto al de usuario. Cada edición, aunque solo tocara la identificación, le asignaba al usuario editado la contraseña del administrador y cerraba su sesión. Confirmado en la bitácora de desarrollo (2026-10-05: usuario 10, y el propio administrador dos veces). Ahora los campos de contraseña de `GenericFormSection` usan `autoComplete="new-password"`, y solo "Contraseña actual" de `ChangePassword` permite `current-password`.
 - **Un administrador podía cambiar su propia contraseña desde la edición de usuarios sin dar la actual**, saltándose la regla 11: quien encontrara abierta su sesión se quedaba con la cuenta. Ahora `saveUser` responde 400 si el autor edita su propio usuario con contraseña, y `UserDialog` no ofrece el campo en ese caso. La propia se cambia solo con "Cambiar contraseña"; la de otro usuario se sigue cambiando desde la edición, con cierre de su sesión. Tests en `users.service.test.js`.
-- **La redirección al login armaba `/interve360pages/login`**: Vite entrega `BASE_URL` sin la barra final. `httpCliente.js` la agrega si falta.
+- **La redirección al login armaba `/interadminpro/pages/login`**: Vite entrega `BASE_URL` sin la barra final. `httpCliente.js` la agrega si falta.
 
 ## El filtro de obra saltaba el alcance por obra (DEC-047, DEC-048)
 

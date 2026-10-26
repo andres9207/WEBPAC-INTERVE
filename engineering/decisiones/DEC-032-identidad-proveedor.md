@@ -15,7 +15,7 @@ ADR-0012 pide que el par (tipo de identificación, número) sea único con un `U
 - **Verificación reactiva** (`check_provider_identification`): coincidencia exacta del par, nunca parcial, con el permiso de ver proveedores (que ya da el listado, así que no revela nada nuevo).
 - **El número se valida con el formato de su tipo** ([DEC-021](DEC-021-formato-numero-documento.md)), igual que en usuarios.
 - **Cambiar la identificación** de un proveedor existente exige el permiso 65 y se audita (ADR-0012, regla 5). Sin él, el formulario muestra el documento de solo lectura.
-- **Tipo de servicio: texto libre** (`prv_service_type`, hasta 150), mientras el negocio no defina un catálogo (ADR-0012, "Pendiente de validación").
+- **Tipo de servicio: texto libre** (`prv_service_type`, hasta 255), mientras el negocio no defina un catálogo (ADR-0012, "Pendiente de validación"). Se amplió de 150 a 255 caracteres en la migración 0122 para conservar sin truncar un valor legado de 176 caracteres.
 - **Contactos** en `tbl_provider_contacts`, con la estructura de ADR-0009 más persona de contacto y cargo (opcionales). A lo sumo un principal por proveedor, garantizado por una columna generada con `UNIQUE`, y al menos un medio de contacto, por `CHECK`. Se guardan con el proveedor, por diferencial; quitar uno borra la fila (auditoría técnica).
 - **Bitácora funcional** (entidad `PROVEEDOR`): tipo y número de documento, nombre, tipo de proveedor, estado, y la asignación y desasignación a obras (también en la entidad `OBRA`). El número de documento se guarda completo: es el de una empresa o persona que contrata con la organización; si se clasifica como dato sensible, se oculta con `SENSITIVE_FIELDS`.
 

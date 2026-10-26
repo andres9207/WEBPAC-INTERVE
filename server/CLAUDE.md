@@ -24,11 +24,11 @@ yarn db:measure-dashboard [archivo.json]  # mide los tableros: tiempos, consulta
 `prisma/seed.volume.js` siembra el volumen acordado para medir el tablero (PRO-BD-24, [DEC-052](../engineering/decisiones/DEC-052-tablero.md), "Rendimiento"): 10 obras con 10 contratos cada una, con sus pólizas y facturas. Lo hace por los services reales, como `seed.demo.js`, y es idempotente gracias a las claves fijas. **Solo corre contra una BD cuyo nombre termina en `_volume`**, porque deja Subcontratista y Contrato mayor con todos los campos del contrato. Necesita los maestros de `yarn db:seed:demo`. Para preparar la copia, con el `bin` de MySQL Server:
 
 ```
-mysqldump -uroot -p --routines --triggers --single-transaction bdinterve360 > dev.sql
-mysql -uroot -p -e "CREATE DATABASE bdinterve360_volume"
-mysql -uroot -p bdinterve360_volume < dev.sql
-DATABASE_URL="mysql://root:…@localhost:3306/bdinterve360_volume" yarn db:seed:volume
-DATABASE_URL="mysql://root:…@localhost:3306/bdinterve360_volume" yarn db:measure-dashboard medicion.json
+mysqldump -uroot -p --routines --triggers --single-transaction bdinteradminpro > dev.sql
+mysql -uroot -p -e "CREATE DATABASE bdinteradminpro_volume"
+mysql -uroot -p bdinteradminpro_volume < dev.sql
+DATABASE_URL="mysql://root:…@localhost:3306/bdinteradminpro_volume" yarn db:seed:volume
+DATABASE_URL="mysql://root:…@localhost:3306/bdinteradminpro_volume" yarn db:measure-dashboard medicion.json
 ```
 
 `dashboard.measure.js` captura el SQL con `PRISMA_QUERY_EVENTS=1`, que `prismaClient.js` solo respeta para esto. El servidor nunca lo enciende.
