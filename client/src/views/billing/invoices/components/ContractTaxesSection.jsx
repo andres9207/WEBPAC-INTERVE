@@ -45,8 +45,7 @@ const FIELDS = [
     name: 'utilityPct',
     label: 'Utilidad',
     kind: 'percent',
-    alt: 'utilityAmount',
-    helper: '% sobre el VALOR; se guarda, no entra en el cálculo'
+    alt: 'utilityAmount'
   },
   { name: 'vatPct', label: 'IVA', kind: 'percent', alt: 'vatAmount', required: true, helper: '% sobre el VALOR' },
   { name: 'withholdingPct', label: 'Rte fuente', kind: 'percent', alt: 'withholdingAmount', helper: '% sobre el VALOR' },

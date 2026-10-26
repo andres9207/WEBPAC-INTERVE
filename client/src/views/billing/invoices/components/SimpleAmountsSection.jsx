@@ -46,9 +46,9 @@ const moneyRules = (required) => ({
 
 // `alt`: el nombre del otro lado en la vista previa (SIMPLE_PAIRS del servidor).
 const FIELDS = [
-  { name: 'withholdingPct', label: 'Rte fuente', kind: 'percent', alt: 'withholdingAmount', helper: '% sobre el valor' },
+  { name: 'withholdingPct', label: 'Rte fuente', kind: 'percent', alt: 'withholdingAmount' },
   { name: 'discount', label: 'Descuento AI', kind: 'money', alt: 'discountPct', helper: 'Descuento comercial; % sobre el valor' },
-  { name: 'vatPct', label: 'IVA', kind: 'percent', alt: 'vatAmount', required: true, helper: '% sobre el valor menos el descuento AI' },
+  { name: 'vatPct', label: 'IVA', kind: 'percent', alt: 'vatAmount', required: true },
   { name: 'vatWithholdingPct', label: 'Rte IVA', kind: 'percent', alt: 'vatWithholdingAmount', helper: '% sobre el IVA' },
   { name: 'icaWithholding', label: 'Rte ICA', kind: 'money', alt: 'icaWithholdingPct', helper: '% sobre el valor' },
   { name: 'freight', label: 'Flete', kind: 'money', alt: 'freightPct', helper: 'Sin IVA; % sobre el valor' },
