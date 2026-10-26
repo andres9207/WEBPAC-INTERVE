@@ -954,9 +954,9 @@
     "semantic_hash": ""
   },
   "server/prisma/seed.js": {
-    "mtime": 1793021666.3073986,
-    "seen": 1793023448.698017,
-    "ast_hash": "be018f0d56ef1d8e534cc501ca623e04",
+    "mtime": 1793040182.7275612,
+    "seen": 1793040686.4478197,
+    "ast_hash": "12f334d94e2e5f585f72a6bf399da5a4",
     "semantic_hash": ""
   },
   "server/server.js": {
@@ -1008,9 +1008,9 @@
     "semantic_hash": ""
   },
   "server/src/common/constants/permissions.constants.js": {
-    "mtime": 1793021666.3063934,
-    "seen": 1793023448.6980267,
-    "ast_hash": "b524d1cbff2ce0ed04e194e57f4eddc8",
+    "mtime": 1793040182.7255714,
+    "seen": 1793040686.44783,
+    "ast_hash": "f96de54c9d93ef194705602e729a13b0",
     "semantic_hash": ""
   },
   "server/src/common/middlewares/authjwt.middleware.js": {
@@ -2022,9 +2022,9 @@
     "semantic_hash": ""
   },
   "client/src/api/requests/worksApi.js": {
-    "mtime": 1793020469.6229,
-    "seen": 1793023448.6976159,
-    "ast_hash": "fb67bca245aa177e9631a67c4c8ccb5f",
+    "mtime": 1793040249.297743,
+    "seen": 1793040686.4473898,
+    "ast_hash": "2d13a895ffae28c7075012a21add0613",
     "semantic_hash": ""
   },
   "client/src/menu-items/work.js": {
@@ -2046,9 +2046,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/works/WorksPage.jsx": {
-    "mtime": 1793020513.371648,
-    "seen": 1793023448.6978714,
-    "ast_hash": "72223338d339621aa3712f93bba9779e",
+    "mtime": 1793040258.2997267,
+    "seen": 1793040686.4476695,
+    "ast_hash": "45c74e46eabf924ef6692c56d00017c8",
     "semantic_hash": ""
   },
   "database/migrations/0036_create_contract_types.sql": {
@@ -2106,27 +2106,27 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/works/works.controller.js": {
-    "mtime": 1793020508.1528654,
-    "seen": 1793023448.6981752,
-    "ast_hash": "2f6b9612dfa45d584c776c1046642a45",
+    "mtime": 1793040194.7683835,
+    "seen": 1793040686.4479856,
+    "ast_hash": "f849ddf0e064e3f2f457c52271c4366c",
     "semantic_hash": ""
   },
   "server/src/modules/work/works/works.routes.js": {
-    "mtime": 1793020237.4995382,
-    "seen": 1793023448.698176,
-    "ast_hash": "0778a230b19c9657c92eeaf28d7a0157",
+    "mtime": 1793040182.7245564,
+    "seen": 1793040686.4479866,
+    "ast_hash": "f77093ea414ff16399e94f377cc545cd",
     "semantic_hash": ""
   },
   "server/src/modules/work/works/works.service.js": {
-    "mtime": 1793020496.3738272,
-    "seen": 1793023448.698177,
-    "ast_hash": "6fbb35a67e0bed2977aa19a0a13f022a",
+    "mtime": 1793040182.7200277,
+    "seen": 1793040686.4479878,
+    "ast_hash": "f4cd1be9eb7ffad7b871f7061b34e203",
     "semantic_hash": ""
   },
   "server/src/modules/work/works/works.validation.js": {
-    "mtime": 1793020496.3738272,
-    "seen": 1793023448.6981778,
-    "ast_hash": "63e85d8492d0f6a791347816b1e12ee2",
+    "mtime": 1793040192.9960234,
+    "seen": 1793040686.4479887,
+    "ast_hash": "8b0b0450b140fc7d1f05d13741afce3f",
     "semantic_hash": ""
   },
   "server/test/common/utils/money.utils.test.js": {
@@ -2148,9 +2148,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/work/works/works.service.test.js": {
-    "mtime": 1793020382.8581483,
-    "seen": 1793023448.6982706,
-    "ast_hash": "bf3d5908f02c44bcaf440814ee5d9ab3",
+    "mtime": 1793040231.0152073,
+    "seen": 1793040686.4480863,
+    "ast_hash": "96aabf7cb9197ca9d466cb13e3cb5c71",
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/ActionButton.jsx": {
