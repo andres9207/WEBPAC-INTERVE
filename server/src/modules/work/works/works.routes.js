@@ -5,6 +5,7 @@ import { validate } from "../../../common/middlewares/validate.middleware.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import {
   paginationWorksSchema,
+  exportWorksSchema,
   getWorkSchema,
   previewWorkEndDateSchema,
   selectWorkManagersSchema,
@@ -15,6 +16,7 @@ import {
 } from "./works.validation.js";
 import {
   paginationWorksController,
+  exportWorksController,
   summaryWorksController,
   selectMyWorksController,
   getWorkController,
@@ -32,6 +34,8 @@ const can = PERMISSIONS.work.works;
 const worksRoutes = express.Router();
 
 worksRoutes.post("/pagination_works", verifyToken, requirePermission(can.view), paginationWorksSchema, validate, paginationWorksController);
+// Reporte del listado en Excel o PDF (DEC-070; ADR-0011, "EXPORTAR OBRAS"): exige además ver obras.
+worksRoutes.post("/export_works", verifyToken, requirePermission(can.view), requirePermission(can.export), exportWorksSchema, validate, exportWorksController);
 // Indicadores del listado (DEC-033). Sin parámetros: no hay esquema que validar.
 worksRoutes.get("/summary_works", verifyToken, requirePermission(can.view), summaryWorksController);
 // Obras del selector del encabezado (DEC-047): las del usuario, o todas con el

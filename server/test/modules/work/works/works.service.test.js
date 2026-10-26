@@ -823,3 +823,48 @@ describe("alcance por obra (DEC-047)", () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });
+
+describe("exportWorks: reporte del listado (DEC-070)", () => {
+  it("las obras del listado con sus filtros y el alcance, sin paginar, con el ciclo y el pie de INTERVE", async () => {
+    const { default: ExcelJS } = await import("exceljs");
+    prismaMock.tbl_works.count.mockResolvedValue(1);
+    prismaMock.tbl_works.findMany.mockResolvedValue([
+      {
+        wrk_id: 8,
+        wrk_code: "OB-8",
+        wrk_name: "Vía",
+        wrk_initial_value: "1000000.00",
+        wrk_extended_value: null,
+        wrk_start_date: new Date("2026-01-01T00:00:00Z"),
+        wrk_initial_term: 12,
+        wrk_term_unit: "MES",
+        wrk_state: "FINISHED",
+        wrk_finish_date: new Date("2026-10-20T00:00:00Z"),
+        sta_id: 1,
+        tbl_construction_companies: { cnc_description: "Constructora Andina" },
+        tbl_contract_types: { ctt_name: "Administración delegada" },
+        tbl_supervision_types: { spt_name: "Técnica" },
+        tbl_status: { sta_name: "Activo" },
+        tbl_work_managers: [],
+        tbl_work_stages: [],
+        _count: { tbl_work_managers: 0 },
+      },
+    ]);
+
+    const file = await service.exportWorks({ format: "xlsx", state: "FINISHED", scope: { all: false, wrkId: 8 } });
+
+    expect(prismaMock.tbl_works.findMany.mock.calls[0][0].where).toMatchObject({ wrk_id: { in: [8] }, AND: [{ wrk_state: "FINISHED" }] });
+    expect(prismaMock.tbl_works.findMany.mock.calls[0][0]).not.toHaveProperty("take");
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.buffer);
+    const sheet = workbook.worksheets[0];
+    const values = [];
+    sheet.eachRow((row) => values.push(row.values.slice(1)));
+    const data = values.find((row) => row[0] === "OB-8");
+    expect(data.slice(0, 3)).toEqual(["OB-8", "Vía", "Constructora Andina"]);
+    expect(data[6]).toBe(1000000);
+    expect(data[11]).toBe("Finalizada el 2026-10-20");
+    expect(values.some((row) => row[0] === "Filtros: Estado: Todas · Ciclo: Finalizada")).toBe(true);
+    expect(values.at(-1)).toEqual(["Medellín - Colombia"]);
+  });
+});

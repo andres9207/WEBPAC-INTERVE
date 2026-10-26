@@ -4,7 +4,7 @@
 
 **Aceptado parcial** (2026-09-30).
 
-Ciclo de vida (2026-10-26, [DEC-083](../decisiones/DEC-083-obra-finalizada.md)): obra en curso o finalizada, con fecha, aparte del estado de visibilidad; la cambia "CAMBIAR ESTADO OBRA" (permiso 56) y no bloquea nada.
+Ciclo de vida (2026-10-26, [DEC-083](../decisiones/DEC-083-obra-finalizada.md)): obra en curso o finalizada, con fecha, aparte del estado de visibilidad; la cambia "CAMBIAR ESTADO OBRA" (permiso 56) y no bloquea nada. Exportación (2026-10-26, [DEC-070](../decisiones/DEC-070-reportes-listados.md)): el listado en Excel y PDF con sus filtros, con el permiso 124 "Exportar obras".
 
 Implementado: la obra con responsables y etapas (decisiones 1 a 4 y 7 a 15). Migraciones `0038`–`0041`, módulo `work/works` y pantalla `views/work/works`. Guardado atómico con diferencial de colecciones, bloqueo `OBRA` → usuarios → maestros, permisos propios para asignar y retirar responsables y gestionar etapas, bitácora funcional (entidad `OBRA`) e importes exactos. Contactos (regla 16) implementados el 2026-10-06 ([DEC-043](../decisiones/DEC-043-contactos-comunes-obra.md), migración `0070`). El bloqueo de eliminación por contratos ya responde 409. Falta la exportación (el permiso no se sembró). Pendiente de validación con el área usuaria: el significado del valor máximo de orden de servicio. El plazo pasó a fecha de inicio + número + unidad, con fecha final calculada, y el plazo ampliado y el área se ocultaron de la interfaz ([DEC-030](../decisiones/DEC-030-obra-paginas-propias-plazo.md), migración `0042`).
 

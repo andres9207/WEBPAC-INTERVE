@@ -16,6 +16,7 @@ const contractsServiceMock = {
   exportContracts: jest.fn(),
 };
 const exportContractReport = jest.fn();
+const exportPolicyReport = jest.fn();
 const exportContractSummary = jest.fn();
 const conceptsServiceMock = { createAmendment: jest.fn(), createLiquidation: jest.fn(), updateConcept: jest.fn() };
 const suspensionsServiceMock = { suspendContract: jest.fn() };
@@ -28,7 +29,12 @@ jest.unstable_mockModule("../../../../src/modules/work/contracts/contractConcept
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractSuspensions.service.js", () => suspensionsServiceMock);
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractCancellation.service.js", () => ({ cancelContract: jest.fn() }));
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractPolicies.service.js", () => policiesServiceMock);
-jest.unstable_mockModule("../../../../src/modules/work/contracts/contractReports.service.js", () => ({ exportContractReport, exportContractSummary }));
+jest.unstable_mockModule("../../../../src/modules/work/contracts/contractReports.service.js", () => ({
+  CONTRACT_REPORTS: { CONTROL: "control", ADVANCES: "advances", POLICIES: "policies" },
+  exportContractReport,
+  exportContractSummary,
+  exportPolicyReport,
+}));
 jest.unstable_mockModule("../../../../src/common/services/effectivePermissions.service.js", () => ({ getEffectivePermissionIds }));
 // Filtro "Anticipo": los contratos que cumplen el saldo los resuelve el service de facturas.
 const contractIdsByAdvance = jest.fn(async () => null);
@@ -102,6 +108,20 @@ describe("contracts.controller", () => {
       await exportContractsController(mockReq({ user: { useId: 7, proId: 2 }, body: { format: "xlsx", report: "control" } }), fileRes(), jest.fn());
       expect(exportContractReport).toHaveBeenCalledWith(expect.objectContaining({ report: "control", format: "xlsx", scope: SCOPE, seesInvoices: true }));
       expect(contractsServiceMock.exportContracts).not.toHaveBeenCalled();
+    });
+
+    it("el control de pólizas exige ver pólizas: sin el 99, 403; con él, el reporte con los filtros y el alcance", async () => {
+      getEffectivePermissionIds.mockResolvedValueOnce([115]);
+      const next = jest.fn();
+      await exportContractsController(mockReq({ user: { useId: 7, proId: 2 }, body: { format: "pdf", report: "policies" } }), fileRes(), next);
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403 }));
+      expect(exportPolicyReport).not.toHaveBeenCalled();
+
+      getEffectivePermissionIds.mockResolvedValueOnce([99]);
+      exportPolicyReport.mockResolvedValue(FILE);
+      await exportContractsController(mockReq({ user: { useId: 7, proId: 2 }, body: { format: "xlsx", report: "policies" } }), fileRes(), jest.fn());
+      expect(exportPolicyReport).toHaveBeenCalledWith(expect.objectContaining({ format: "xlsx", scope: SCOPE }));
+      expect(exportContractReport).not.toHaveBeenCalled();
     });
 
     it("el de un contrato, con el alcance, si puede ver facturas y si puede ver pólizas", async () => {

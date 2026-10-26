@@ -16,6 +16,13 @@ export const worksApi = createMasterApi('work/works', { entity: 'work', plural: 
  */
 export const getMyWorksSelectAPI = () => httpCliente.get('work/works/select_my_works');
 
+/**
+ * Reporte del listado en Excel o PDF (DEC-070), con los mismos filtros, pestaña, búsqueda y orden.
+ * @param {object} params  los del listado, sin paginación
+ * @param {'xlsx'|'pdf'} format
+ */
+export const exportWorksAPI = (params, format) => httpCliente.post('work/works/export_works', { ...params, format }, { responseType: 'blob' });
+
 /** Indicadores del listado de obras (DEC-033): conteos, valor vigente total y avance. */
 export const getWorksSummaryAPI = () => httpCliente.get('work/works/summary_works');
 

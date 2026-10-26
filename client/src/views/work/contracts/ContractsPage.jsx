@@ -130,6 +130,8 @@ const CONTRACT_REPORTS = [
   { value: 'control', label: 'Control de contratos', fileName: 'control_contratos' },
   { value: 'advances', label: 'Anticipos y retenidos', fileName: 'control_anticipos_retenidos' }
 ];
+// Control de pólizas: solo con el permiso de verlas (el servidor lo exige).
+const POLICY_REPORT = { value: 'policies', label: 'Control de pólizas', fileName: 'control_polizas' };
 
 const LINKED_KEYS = ['policyStatus', 'uncovered'];
 const describeLinked = (filters) =>
@@ -243,9 +245,9 @@ export default function ContractsPage() {
       permission: permissionsCatalog.work?.contracts?.export,
       request: exportContractsAPI,
       fileName: pvtId ? `contratos_${pvtId}` : 'contratos',
-      reports: CONTRACT_REPORTS
+      reports: canViewPolicies ? [...CONTRACT_REPORTS, POLICY_REPORT] : CONTRACT_REPORTS
     }),
-    [permissionsCatalog, pvtId]
+    [permissionsCatalog, pvtId, canViewPolicies]
   );
 
   // Reporte de un contrato desde su fila: el expediente completo (DEC-070).

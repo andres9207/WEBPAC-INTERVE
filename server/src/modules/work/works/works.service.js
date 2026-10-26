@@ -13,6 +13,7 @@ import {
   todayDateOnly,
 } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
+import { findExportRows, renderExport } from "../../../common/services/export.service.js";
 import { assertInScope, scopeWhere } from "../../../common/services/workScope.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
@@ -175,7 +176,8 @@ const searchWhereOf = (search) => {
  * `scope`: alcance por obra de la petición (DEC-047). `code`, `name`, `cncId`
  * `sptId` y `state`: filtros por campo del listado (DEC-048), también en los conteos.
  */
-export const paginationWorks = async ({ search, staId, code, name, cncId, sptId, state, rows, first, sortField, sortOrder, scope }) => {
+// Filtros, orden y alcance del listado: los mismos para la página y para el reporte (DEC-070).
+const workListQuery = ({ search, staId, code, name, cncId, sptId, state, sortField, sortOrder, scope }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
@@ -193,13 +195,64 @@ export const paginationWorks = async ({ search, staId, code, name, cncId, sptId,
     ]),
   };
   const where = staId ? { ...baseWhere, AND: [...(baseWhere.AND ?? []), { sta_id: Number(staId) }] } : baseWhere;
+  return { baseWhere, where, orderBy };
+};
 
+export const paginationWorks = async ({ rows, first, ...filters }) => {
+  const { baseWhere, where, orderBy } = workListQuery(filters);
   const [page, statusCounts] = await Promise.all([
     paginate(prisma.tbl_works, { where, select: LIST_SELECT, orderBy }, { first, rows }),
     countByStatus(prisma.tbl_works, baseWhere),
   ]);
   const today = todayDateOnly();
   return { ...page, results: page.results.map((row) => toListDto(row, today)), statusCounts };
+};
+
+// ─── Reporte (DEC-070) ───────────────────────────────────────────────────────
+
+// Columnas del reporte: las de la tabla del listado y las del detalle que la tabla resume.
+const EXPORT_COLUMNS = [
+  { header: "Código", value: (r) => r.code },
+  { header: "Obra", value: (r) => r.name, width: 2 },
+  { header: "Constructora", value: (r) => r.constructionCompany, width: 1.6 },
+  { header: "Tipo de contrato", value: (r) => r.contractType, width: 1.2 },
+  { header: "Interventoría", value: (r) => r.supervisionType, width: 1.2 },
+  { header: "Responsable principal", value: (r) => r.mainManagerName ?? "Sin principal", width: 1.4 },
+  { header: "Valor vigente", value: (r) => r.currentValue, kind: "money", width: 1.2 },
+  { header: "Inicio", value: (r) => r.startDate, kind: "date" },
+  { header: "Plazo", value: (r) => (r.initialTerm ? `${r.initialTerm} ${TERM_UNIT_NAMES[r.termUnit] ?? r.termUnit}` : null) },
+  { header: "Fecha final", value: (r) => r.endDate, kind: "date" },
+  { header: "Avance del plazo", value: (r) => r.progressPercent, kind: "percent", width: 0.8 },
+  { header: "Ciclo", value: (r) => (r.finishDate ? `${r.stateName} el ${r.finishDate}` : r.stateName) },
+  { header: "Estado", value: (r) => r.statusName, width: 0.8 },
+];
+
+const TERM_UNIT_NAMES = Object.freeze({ DIA: "día(s)", MES: "mes(es)", ANIO: "año(s)" });
+
+/** Líneas del encabezado: los filtros aplicados, con los nombres de lo elegido. */
+const exportFilterLines = async ({ search, staId, code, name, cncId, sptId, state }) => {
+  const [company, supervision] = await Promise.all([
+    Number(cncId) > 0 ? prisma.tbl_construction_companies.findUnique({ where: { cnc_id: Number(cncId) }, select: { cnc_description: true } }) : null,
+    Number(sptId) > 0 ? prisma.tbl_supervision_types.findUnique({ where: { spt_id: Number(sptId) }, select: { spt_name: true } }) : null,
+  ]);
+  const lines = [
+    ["Estado", Number(staId) === ACTIVE_STATUS ? "Activas" : Number(staId) === INACTIVE_STATUS ? "Inactivas" : "Todas"],
+    ["Búsqueda", String(search ?? "").trim()],
+    ["Código contiene", String(code ?? "").trim()],
+    ["Nombre contiene", String(name ?? "").trim()],
+    ["Constructora", company?.cnc_description],
+    ["Interventoría", supervision?.spt_name],
+    ["Ciclo", WORK_STATE_NAMES[state]],
+  ].filter(([, value]) => value);
+  return [`Filtros: ${lines.map(([label, value]) => `${label}: ${value}`).join(" · ")}`];
+};
+
+/** Reporte del listado en Excel o PDF, con sus filtros, pestaña, búsqueda, orden y alcance, sin paginar. */
+export const exportWorks = async ({ format, ...filters }) => {
+  const { where, orderBy } = workListQuery(filters);
+  const today = todayDateOnly();
+  const rows = (await findExportRows(prisma.tbl_works, { where, select: LIST_SELECT, orderBy })).map((row) => toListDto(row, today));
+  return renderExport({ format, title: "Obras", filters: await exportFilterLines(filters), columns: EXPORT_COLUMNS, rows });
 };
 
 // ─── Resumen ─────────────────────────────────────────────────────────────────

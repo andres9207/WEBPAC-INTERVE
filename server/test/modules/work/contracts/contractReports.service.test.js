@@ -18,7 +18,7 @@ const prismaMock = {
 
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
 
-const { exportContractReport } = await import("../../../../src/modules/work/contracts/contractReports.service.js");
+const { exportContractReport, exportPolicyReport } = await import("../../../../src/modules/work/contracts/contractReports.service.js");
 const { COMPANY_FOOTER } = await import("../../../../src/common/services/export.service.js");
 
 // Sin AIU: valor = costo × 1,19; anticipo 15 % y retenido 5 % del costo.
@@ -150,5 +150,42 @@ describe("exportContractReport — anticipos y retenidos", () => {
     expect(rows[1].slice(4)).toEqual([0, 0, 0, 0, 0, 0, 0]);
     expect(rows[2][0]).toBe("TOTALES");
     expect(rows[2].slice(4)).toEqual([225000, 150000, 90000, 60000, 30000, 10000, 20000]);
+  });
+});
+
+describe("exportPolicyReport — control de pólizas", () => {
+  it("una fila por póliza vigente con su valor asegurado, vigencia y si cubre el plazo; los conceptos sin póliza también", async () => {
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([
+      contract({
+        ctr_end_date: new Date("2026-12-31T00:00:00Z"),
+        tbl_policies: [
+          {
+            ccp_id: 1,
+            pol_number: "P-1",
+            pol_base: "TOTAL_VALUE",
+            pol_percentage: "10",
+            pol_start_date: new Date("2026-01-01T00:00:00Z"),
+            pol_end_date: new Date("2026-06-30T00:00:00Z"),
+            tbl_policy_types: { plt_name: "Cumplimiento" },
+            tbl_insurers: { ins_description: "Seguros del Estado" },
+          },
+        ],
+      }),
+    ]);
+
+    const sheet = await sheetOf(await exportPolicyReport({ format: "xlsx", scope: { all: true } }));
+    const { rows } = tableOf(sheet, "Nro. contrato");
+
+    // Valor inicial con póliza; el otrosí N.º 1, sin ninguna; el eliminado no sale.
+    expect(rows).toHaveLength(3);
+    const [policy, uncovered, totals] = rows;
+    expect(policy.slice(5, 9)).toEqual(["Valor inicial", "Cumplimiento", "Seguros del Estado", "P-1"]);
+    // 10 % del valor total del concepto (1.190.000).
+    expect(policy[11]).toBe(119000);
+    // Termina antes que el contrato: no cubre el plazo.
+    expect(policy[15]).toBe("No");
+    expect(uncovered.slice(5, 7)).toEqual(["Otrosí N.º 1", "Sin póliza vigente"]);
+    expect(totals[0]).toBe("TOTAL ASEGURADO");
+    expect(totals[11]).toBe(119000);
   });
 });

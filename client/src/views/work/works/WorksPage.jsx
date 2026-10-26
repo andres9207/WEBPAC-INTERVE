@@ -5,7 +5,7 @@ import Typography from '@mui/material/Typography';
 
 import MasterPage from 'ui-component/extended/MasterPage';
 import useLinkedFilters from 'hooks/useLinkedFilters';
-import { worksApi } from 'api/requests/worksApi';
+import { exportWorksAPI, worksApi } from 'api/requests/worksApi';
 import { getConstructionCompaniesSelectAPI } from 'api/requests/constructionCompaniesApi';
 import { getSupervisionTypesSelectAPI } from 'api/requests/supervisionTypesApi';
 import { useAuth } from 'contexts/AuthContext';
@@ -104,6 +104,12 @@ export default function WorksPage() {
     [navigate]
   );
 
+  // Reporte de lo que muestra la tabla, sin paginar (DEC-070).
+  const exportOptions = useMemo(
+    () => ({ permission: permissionsCatalog.work?.works?.export, request: exportWorksAPI, fileName: 'obras' }),
+    [permissionsCatalog]
+  );
+
   const renderCard = useCallback(
     (row, actions) => <WorkCard row={row} actions={actions} onOpen={() => navigation.view(row)} />,
     [navigation]
@@ -126,6 +132,7 @@ export default function WorksPage() {
         renderCard={renderCard}
         initialStatus={linked.initialStatus}
         reloadKey={reloadKey}
+        exportOptions={exportOptions}
       />
       <Outlet context={outletContext} />
     </>

@@ -3,6 +3,7 @@ import { auditContext } from "../../../common/services/audit.service.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
 import { selectMyWorks, workScopeOf } from "../../../common/services/workScope.service.js";
+import { sendExport } from "../../../common/services/export.service.js";
 import * as worksService from "./works.service.js";
 
 // Solo leen la petición y delegan. El autor y sus permisos salen de req.user
@@ -14,6 +15,15 @@ const notify = () => getIO().emit("refresh-works", {});
 const handle = (fn) => async (req, res, next) => {
   try {
     return res.status(200).json(await fn(req));
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Como `handle`, pero responde el archivo del reporte (DEC-070) en vez de JSON.
+const handleExport = (fn) => async (req, res, next) => {
+  try {
+    sendExport(res, await fn(req));
   } catch (err) {
     next(err);
   }
@@ -54,6 +64,23 @@ export const paginationWorksController = handle(async (req) => {
     first,
     sortField,
     sortOrder,
+    scope: await workScopeOf(req),
+  });
+});
+
+export const exportWorksController = handleExport(async (req) => {
+  const { search, staId, code, name, cncId, sptId, state, sortField, sortOrder, format } = req.body;
+  return worksService.exportWorks({
+    search,
+    staId,
+    code,
+    name,
+    cncId,
+    sptId,
+    state,
+    sortField,
+    sortOrder,
+    format,
     scope: await workScopeOf(req),
   });
 });

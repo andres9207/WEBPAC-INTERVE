@@ -7,6 +7,7 @@ import {
   idempotencyKeyRule,
   moneyRule,
   contactsRules,
+  exportFormatRule,
 } from "../../../common/utils/validation.utils.js";
 import { MANAGER_ROLES } from "./works.service.js";
 import { TERM_UNITS } from "../../../common/utils/term.utils.js";
@@ -38,6 +39,9 @@ export const paginationWorksSchema = [
   optionalId("sptId"),
   body("state").optional({ values: "falsy" }).isIn(["IN_PROGRESS", "FINISHED"]).withMessage("El estado debe ser en curso o finalizada."),
 ];
+
+// Reporte del listado (DEC-070): los mismos filtros, sin paginar, y el formato.
+export const exportWorksSchema = [...paginationWorksSchema, exportFormatRule()];
 
 export const getWorkSchema = [query("wrkId").isInt({ min: 1 }).withMessage("wrkId es obligatorio y debe ser un entero positivo.")];
 

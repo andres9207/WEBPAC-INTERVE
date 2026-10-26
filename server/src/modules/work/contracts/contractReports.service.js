@@ -8,6 +8,10 @@ import { getContractPolicies } from "./contractPolicies.service.js";
 import { contractBalances, contractInvoicesForReport, contractsBalances } from "../../billing/invoices/invoices.service.js";
 import { INVOICE_STATES } from "../../billing/invoices/invoiceTerms.js";
 import { isContractMode } from "../../billing/invoices/invoiceMenus.js";
+import { insuredValue, POLICY_BASE_NAMES } from "../../admin/policyTypes/policyBases.js";
+import { policyExpiringDays } from "../../admin/businessRules/businessRules.service.js";
+import { dateOnlyText, todayDateOnly } from "../../../common/utils/term.utils.js";
+import { POLICY_VALIDITY_NAMES, policyCoversTerm, policyValidity } from "./policyTerms.js";
 
 /**
  * Reportes de control de contratos (DEC-070), los del sistema que se migra
@@ -24,7 +28,7 @@ import { isContractMode } from "../../billing/invoices/invoiceMenus.js";
  * (DEC-074); si no, van vacías y el encabezado lo dice.
  */
 
-export const CONTRACT_REPORTS = Object.freeze({ CONTROL: "control", ADVANCES: "advances" });
+export const CONTRACT_REPORTS = Object.freeze({ CONTROL: "control", ADVANCES: "advances", POLICIES: "policies" });
 
 const REPORT_SELECT = {
   ctr_id: true,
@@ -156,6 +160,115 @@ export const exportContractReport = async ({ report, format, seesInvoices, ...fi
     rows: spec.rows(contracts),
     groupKey: (row) => row.key,
     totals: spec.totals(contracts),
+  });
+};
+
+// ─── Control de pólizas ──────────────────────────────────────────────────────
+
+const POLICY_REPORT_SELECT = {
+  ctr_id: true,
+  ctr_number: true,
+  ctr_name: true,
+  ctr_state: true,
+  ctr_end_date: true,
+  tbl_works: { select: { wrk_code: true } },
+  tbl_providers: { select: { prv_name: true } },
+  tbl_contract_concepts: { select: CONCEPT_SELECT },
+  tbl_policies: {
+    where: { pol_is_current: true },
+    select: {
+      ccp_id: true,
+      pol_number: true,
+      pol_base: true,
+      pol_percentage: true,
+      pol_start_date: true,
+      pol_end_date: true,
+      tbl_policy_types: { select: { plt_name: true } },
+      tbl_insurers: { select: { ins_description: true } },
+    },
+    orderBy: [{ ccp_id: "asc" }, { pol_id: "asc" }],
+  },
+};
+
+const POLICY_REPORT_COLUMNS = [
+  ...CONTRACT_COLUMNS,
+  { header: "Fin del contrato", value: (r) => r.contractEndDate, kind: "date", group: true },
+  { header: "Concepto", value: (r) => r.conceptLabel, width: 1.1 },
+  { header: "Tipo de póliza", value: (r) => r.typeName, width: 1.3 },
+  { header: "Aseguradora", value: (r) => r.insurerName, width: 1.3 },
+  { header: "Número", value: (r) => r.policyNumber },
+  { header: "Base", value: (r) => r.baseName },
+  { header: "%", value: (r) => r.percentage, kind: "percent", width: 0.6 },
+  { header: "Valor asegurado", value: (r) => r.insuredValue, kind: "money", width: 1.2 },
+  { header: "Inicio", value: (r) => r.startDate, kind: "date" },
+  { header: "Fin", value: (r) => r.endDate, kind: "date" },
+  { header: "Vigencia", value: (r) => r.validityName },
+  { header: "Cubre el plazo", value: (r) => r.coversTermName, width: 0.8 },
+];
+
+// policyCoversTerm: true, false o null (sin fecha de la póliza o del contrato).
+const coversTermName = (covers) => (covers === null ? "Sin fecha" : covers ? "Sí" : "No");
+
+/**
+ * Una fila por póliza vigente de cada contrato, con su valor asegurado
+ * (insuredValue sobre la composición vigente del concepto), su vigencia contra
+ * la fecha del servidor y si cubre el plazo del contrato (policyCoversTerm), y
+ * una fila "Sin póliza vigente" por concepto sin ninguna: las mismas reglas del
+ * expediente (ADR-0018, DEC-050).
+ */
+const policyRows = (row, { today, days }) => {
+  const base = {
+    key: row.ctr_id,
+    number: row.ctr_number,
+    name: row.ctr_name,
+    workCode: row.tbl_works?.wrk_code ?? null,
+    providerName: row.tbl_providers?.prv_name ?? null,
+    contractEndDate: dateOnlyText(row.ctr_end_date),
+  };
+  const concepts = sortConcepts(row.tbl_contract_concepts).filter((c) => c.sta_id !== DELETED_STATUS);
+  return concepts.flatMap((concept) => {
+    const own = row.tbl_policies.filter((p) => p.ccp_id === concept.ccp_id);
+    if (own.length === 0) return [{ ...base, conceptLabel: conceptLabel(concept), typeName: "Sin póliza vigente" }];
+    const amounts = conceptAmounts(concept);
+    return own.map((policy) => ({
+      ...base,
+      conceptLabel: conceptLabel(concept),
+      typeName: policy.tbl_policy_types?.plt_name ?? null,
+      insurerName: policy.tbl_insurers?.ins_description ?? null,
+      policyNumber: policy.pol_number,
+      baseName: POLICY_BASE_NAMES[policy.pol_base] ?? policy.pol_base,
+      percentage: percentText(policy.pol_percentage),
+      insuredValue: moneyText(insuredValue(policy.pol_base, policy.pol_percentage, amounts)),
+      startDate: dateOnlyText(policy.pol_start_date),
+      endDate: dateOnlyText(policy.pol_end_date),
+      validityName: POLICY_VALIDITY_NAMES[policyValidity(policy.pol_end_date, { today, days })],
+      coversTermName: coversTermName(policyCoversTerm(policy.pol_end_date, row.ctr_end_date)),
+    }));
+  });
+};
+
+/**
+ * Reporte de control de pólizas en Excel o PDF: los contratos del listado con
+ * sus filtros y su alcance (contractListQuery), sin paginar. Quien llama
+ * verifica el permiso de ver pólizas.
+ */
+export const exportPolicyReport = async ({ format, ...filters }) => {
+  const { where, orderBy } = await contractListQuery(filters);
+  const [rows, days] = await Promise.all([
+    findExportRows(prisma.tbl_contracts, { where, select: POLICY_REPORT_SELECT, orderBy }),
+    policyExpiringDays(),
+  ]);
+  const today = todayDateOnly();
+  const lines = rows.flatMap((row) => policyRows(row, { today, days }));
+  const note = `Pólizas vigentes de cada contrato; vigencia a la fecha del servidor, "a vencer" dentro de ${days} días. Cubre el plazo: termina el día de la fecha fin del contrato o después.`;
+  return renderExport({
+    format,
+    title: "Control de pólizas",
+    filters: [...(await exportFilterLines(filters)), note],
+    columns: POLICY_REPORT_COLUMNS,
+    rows: lines,
+    groupKey: (row) => row.key,
+    totals: { number: "TOTAL ASEGURADO", insuredValue: moneyText(sumMoney(lines.map((l) => l.insuredValue))) },
   });
 };
 

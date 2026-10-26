@@ -10,7 +10,7 @@ import * as conceptsService from "./contractConcepts.service.js";
 import * as suspensionsService from "./contractSuspensions.service.js";
 import * as cancellationService from "./contractCancellation.service.js";
 import * as policiesService from "./contractPolicies.service.js";
-import { exportContractReport, exportContractSummary } from "./contractReports.service.js";
+import { CONTRACT_REPORTS, exportContractReport, exportContractSummary, exportPolicyReport } from "./contractReports.service.js";
 import { getContractMenu } from "./contractMenus.js";
 import { contractIdsByAdvance } from "../../billing/invoices/invoices.service.js";
 import { CONCEPT_PAIRS } from "./contractTerms.js";
@@ -95,6 +95,11 @@ export const exportContractsController = handleExport(async (req) => {
   const granted = new Set(await getEffectivePermissionIds(req.user));
   const filters = { ...(await withAdvance({ ...listFiltersOf(req, granted), scope: await workScopeOf(req) })), format };
   if (!report || report === "list") return contractsService.exportContracts(filters);
+  // Control de pólizas: exige también ver pólizas (ADR-0018).
+  if (report === CONTRACT_REPORTS.POLICIES) {
+    if (!granted.has(PERMISSIONS.work.policies.view)) throw Object.assign(new Error("No tienes permiso para ver pólizas."), { statusCode: 403 });
+    return exportPolicyReport(filters);
+  }
   return exportContractReport({ ...filters, report, seesInvoices: granted.has(PERMISSIONS.billing.invoices.view) });
 });
 
