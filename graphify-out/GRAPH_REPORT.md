@@ -1,7 +1,7 @@
 # Graph Report - WEBPAC-INTERVE  (2026-10-26)
 
 ## Corpus Check
-- 668 files · ~373,282 words
+- 669 files · ~374,267 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 11 file(s) not represented in the graph (top: (none) 6, .template 1, .css 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `65e68264`
+- Built from commit: `0a1c8b94`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -180,14 +180,14 @@
 ## Surprising Connections (you probably didn't know these)
 - `ContractsPage()` --indirect_call--> `exportContractsAPI()`  [INFERRED]
   client/src/views/work/contracts/ContractsPage.jsx → client/src/api/requests/contractsApi.js
-- `InvoicesPage()` --indirect_call--> `exportInvoicesAPI()`  [INFERRED]
-  client/src/views/billing/invoices/InvoicesPage.jsx → client/src/api/requests/invoicesApi.js
-- `deleteModuleDoc()` --calls--> `withLockedTransaction()`  [EXTRACTED]
-  server/src/modules/app/documents/document.service.js → server/src/common/services/transaction.service.js
-- `percentQuery()` --calls--> `decimal()`  [EXTRACTED]
-  server/src/modules/billing/invoices/invoices.validation.js → server/src/common/utils/money.utils.js
-- `previewWorkEndDate()` --calls--> `addTerm()`  [EXTRACTED]
-  server/src/modules/work/works/works.service.js → server/src/common/utils/term.utils.js
+- `advanceTotals()` --calls--> `sumMoney()`  [EXTRACTED]
+  server/src/modules/work/contracts/contractReports.service.js → server/src/common/utils/money.utils.js
+- `controlTotals()` --calls--> `sumMoney()`  [EXTRACTED]
+  server/src/modules/work/contracts/contractReports.service.js → server/src/common/utils/money.utils.js
+- `money()` --calls--> `moneyText()`  [EXTRACTED]
+  server/src/modules/work/contracts/contractReports.service.js → server/src/common/utils/money.utils.js
+- `getUserPermissions()` --calls--> `getEffectivePermissionIds()`  [EXTRACTED]
+  server/src/modules/app/general/app.service.js → server/src/common/services/effectivePermissions.service.js
 
 ## Import Cycles
 - None detected.
@@ -723,7 +723,7 @@ Cohesion: 0.67
 Nodes (3): volta, node, yarn
 
 ## Knowledge Gaps
-- **1131 isolated node(s):** `contractLiquidationApi`, `ADR-0006`, `ADR-0016`, `ADR-0017`, `ADR-0018` (+1126 more)
+- **1131 isolated node(s):** `WATCHED`, `moneyRules`, `FIELDS`, `FIELDS_BY_NAME`, `FIELDS` (+1126 more)
   These have ≤1 connection - possible missing edges. (Counts symbols only; 1566 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **101 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -731,12 +731,12 @@ Nodes (3): volta, node, yarn
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `lodash` connect `server/package.json` to `writeAudit`?**
-  _High betweenness centrality (0.137) - this node is a cross-community bridge._
-- **Why does `ADR-0008` connect `useAuth` to `users.service.js`?**
-  _High betweenness centrality (0.116) - this node is a cross-community bridge._
+  _High betweenness centrality (0.149) - this node is a cross-community bridge._
 - **Why does `@mui/material` connect `@mui/material` to `MenuList/index.jsx`, `server/package.json`, `AuthForgotPassword.jsx`, `InvoiceFormPage.jsx`, `EasyCrop.jsx`, `ContractsPage.jsx`, `client/package.json`, `menu-items/index.js`, `WorkDetailPage.jsx`, `App.jsx`, `InputLabel.jsx`, `DocumentManagement.jsx`, `WorkDataForm.jsx`, `WorkPoliciesTab.jsx`, `GeneralDashboard.jsx`, `WorkSummaryTab.jsx`, `MainCard`, `constants.js`, `NotificationSection/index.jsx`, `WorkChartsTab.jsx`, `ContractDetailPage.jsx`, `AuthenticationRoutes.jsx`, `react-router-dom`, `SearchSection/index.jsx`, `useAuth`, `httpCliente.js`, `showError`?**
-  _High betweenness centrality (0.116) - this node is a cross-community bridge._
-- **What connects `contractLiquidationApi`, `ADR-0006`, `ADR-0016` to the rest of the system?**
+  _High betweenness centrality (0.124) - this node is a cross-community bridge._
+- **Why does `ADR-0008` connect `useAuth` to `users.service.js`?**
+  _High betweenness centrality (0.096) - this node is a cross-community bridge._
+- **What connects `WATCHED`, `moneyRules`, `FIELDS` to the rest of the system?**
   _1131 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `overrides/index.js` be split into smaller, more focused modules?**
   _Cohesion score 0.07918367346938776 - nodes in this community are weakly interconnected._

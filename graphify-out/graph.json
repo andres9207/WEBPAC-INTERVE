@@ -17833,7 +17833,7 @@
       "file_type": "code",
       "norm_label": "usecontracttaxfields()",
       "source_file": "client/src/views/billing/invoices/components/ContractTaxesSection.jsx",
-      "source_location": "L66"
+      "source_location": "L65"
     },
     {
       "id": "client_src_views_billing_invoices_components_simpleamountssection_moneyrules",
@@ -17845,7 +17845,7 @@
       "file_type": "code",
       "norm_label": "moneyrules()",
       "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L39"
+      "source_location": "L42"
     },
     {
       "id": "client_src_views_billing_invoices_components_simpleamountssection_percentrules",
@@ -17857,7 +17857,7 @@
       "file_type": "code",
       "norm_label": "percentrules()",
       "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L35"
+      "source_location": "L38"
     },
     {
       "id": "client_src_views_billing_invoices_components_simpleamountssection_simpleamountssection",
@@ -17869,7 +17869,7 @@
       "file_type": "code",
       "norm_label": "simpleamountssection()",
       "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L55"
+      "source_location": "L64"
     },
     {
       "id": "client_src_views_billing_invoices_invoiceformpage_amountspayload",
@@ -42876,7 +42876,7 @@
       "file_type": "code",
       "norm_label": "fields_by_name",
       "source_file": "client/src/views/billing/invoices/components/ContractTaxesSection.jsx",
-      "source_location": "L64"
+      "source_location": "L63"
     },
     {
       "id": "client_src_views_billing_invoices_components_contracttaxessection_moneyrules",
@@ -42920,7 +42920,7 @@
       "file_type": "code",
       "norm_label": "fields",
       "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L44"
+      "source_location": "L48"
     },
     {
       "id": "client_src_views_billing_invoices_components_simpleamountssection_simple_amount_fields",
@@ -42931,7 +42931,7 @@
       "file_type": "code",
       "norm_label": "simple_amount_fields",
       "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L23"
+      "source_location": "L26"
     },
     {
       "id": "client_src_views_billing_invoices_invoiceformpage",
@@ -46221,6 +46221,18 @@
       "type": "external"
     },
     {
+      "id": "client_src_views_dashboard_default_work_advancebars_matchesadvancelegend",
+      "label": "client_src_views_dashboard_default_work_advancebars_matchesadvancelegend",
+      "_origin": "semantic",
+      "community": 179,
+      "community_name": "WorkSummaryTab.jsx",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "client_src_views_dashboard_default_work_advancebars_matchesadvancelegend",
+      "source_file": "",
+      "type": "external"
+    },
+    {
       "id": "client_src_assets_images_interve",
       "label": "client_src_assets_images_interve",
       "_origin": "semantic",
@@ -46229,6 +46241,18 @@
       "external": true,
       "file_type": "concept",
       "norm_label": "client_src_assets_images_interve",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "client_src_views_work_contracts_components_liquidationtab",
+      "label": "client_src_views_work_contracts_components_liquidationtab",
+      "_origin": "semantic",
+      "community": 197,
+      "community_name": "ContractDetailPage.jsx",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "client_src_views_work_contracts_components_liquidationtab",
       "source_file": "",
       "type": "external"
     },
@@ -46661,28 +46685,6 @@
       "external": true,
       "file_type": "concept",
       "norm_label": "server_src_modules_billing_invoices_simpleinvoiceterms_simple_pairs",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "client_src_views_dashboard_default_work_advancebars_matchesadvancelegend",
-      "label": "client_src_views_dashboard_default_work_advancebars_matchesadvancelegend",
-      "community": 179,
-      "community_name": "WorkSummaryTab.jsx",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "client_src_views_dashboard_default_work_advancebars_matchesadvancelegend",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "client_src_views_work_contracts_components_liquidationtab",
-      "label": "client_src_views_work_contracts_components_liquidationtab",
-      "community": 197,
-      "community_name": "ContractDetailPage.jsx",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "client_src_views_work_contracts_components_liquidationtab",
       "source_file": "",
       "type": "external"
     }
@@ -50873,7 +50875,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/billing/invoices/components/ContractTaxesSection.jsx",
-      "source_location": "L124",
+      "source_location": "L123",
+      "weight": 1.0
+    },
+    {
+      "source": "client_src_views_billing_invoices_components_contracttaxessection_usecontracttaxfields",
+      "target": "client_src_api_requests_invoicesapi_previewcontractinvoiceapi",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "client/src/views/billing/invoices/components/ContractTaxesSection.jsx",
+      "source_location": "L89",
       "weight": 1.0
     },
     {
@@ -51286,18 +51300,6 @@
     },
     {
       "source": "client_src_views_billing_invoices_components_simpleamountssection_simpleamountssection",
-      "target": "client_src_api_requests_invoicesapi_previewsimpleinvoiceapi",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L65",
-      "weight": 1.0
-    },
-    {
-      "source": "client_src_views_billing_invoices_components_simpleamountssection_simpleamountssection",
       "target": "client_src_views_billing_invoices_components_simpleamountssection_moneyrules",
       "relation": "calls",
       "_origin": "ast",
@@ -51305,31 +51307,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L85",
-      "weight": 1.0
-    },
-    {
-      "source": "client_src_views_billing_invoices_components_simpleamountssection_simpleamountssection",
-      "target": "client_src_views_billing_invoices_components_simpleamountssection_percentrules",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L85",
-      "weight": 1.0
-    },
-    {
-      "source": "client_src_views_billing_invoices_components_simpleamountssection_simpleamountssection",
-      "target": "client_src_ui_component_extended_percentfield_percentfield",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L88",
+      "source_location": "L119",
       "weight": 1.0
     },
     {
@@ -51341,7 +51319,31 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L99",
+      "source_location": "L121",
+      "weight": 1.0
+    },
+    {
+      "source": "client_src_views_billing_invoices_components_simpleamountssection_simpleamountssection",
+      "target": "client_src_views_billing_invoices_components_simpleamountssection_percentrules",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
+      "source_location": "L139",
+      "weight": 1.0
+    },
+    {
+      "source": "client_src_views_billing_invoices_components_simpleamountssection_simpleamountssection",
+      "target": "client_src_api_requests_invoicesapi_previewsimpleinvoiceapi",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
+      "source_location": "L87",
       "weight": 1.0
     },
     {
@@ -122748,7 +122750,7 @@
     },
     {
       "source": "client_src_views_billing_invoices_components_simpleamountssection",
-      "target": "client_src_ui_component_extended_moneyfield",
+      "target": "client_src_ui_component_extended_amountpercentfield",
       "relation": "imports_from",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -122760,7 +122762,7 @@
     },
     {
       "source": "client_src_views_billing_invoices_components_simpleamountssection",
-      "target": "client_src_ui_component_extended_percentfield",
+      "target": "client_src_ui_component_extended_moneyfield",
       "relation": "imports_from",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -152408,7 +152410,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/billing/invoices/components/ContractTaxesSection.jsx",
-      "source_location": "L64",
+      "source_location": "L63",
       "weight": 1.0
     },
     {
@@ -152419,7 +152421,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/billing/invoices/components/ContractTaxesSection.jsx",
-      "source_location": "L66",
+      "source_location": "L65",
       "weight": 1.0
     },
     {
@@ -152540,7 +152542,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L23",
+      "source_location": "L26",
       "weight": 1.0
     },
     {
@@ -152551,7 +152553,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L35",
+      "source_location": "L38",
       "weight": 1.0
     },
     {
@@ -152562,7 +152564,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L39",
+      "source_location": "L42",
       "weight": 1.0
     },
     {
@@ -152573,7 +152575,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L44",
+      "source_location": "L48",
       "weight": 1.0
     },
     {
@@ -152584,7 +152586,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx",
-      "source_location": "L55",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -180824,5 +180826,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "65e68264c5fc9d6658b69a83fd4dfad09028a256"
+  "built_at_commit": "0a1c8b94d8e25be2e73f2d757327f1648249eff1"
 }

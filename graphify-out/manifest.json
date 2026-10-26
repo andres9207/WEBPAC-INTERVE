@@ -2370,9 +2370,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractsPage.jsx": {
-    "mtime": 1792789111.4556482,
-    "seen": 1792789497.1469774,
-    "ast_hash": "5dd469b6f5df43270565f0f0629539b3",
+    "mtime": 1793024275.1486983,
+    "seen": 1793028286.0610306,
+    "ast_hash": "376e4917155cd9dd249fd56103fd6213",
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/components/ConceptDialog.jsx": {
@@ -2442,9 +2442,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contracts.controller.js": {
-    "mtime": 1793019927.682199,
-    "seen": 1793023448.698165,
-    "ast_hash": "cdcb6205f0583c4999e449d122c3aa12",
+    "mtime": 1793024203.0528233,
+    "seen": 1793028286.0613708,
+    "ast_hash": "fbaf5b79c158e9f12418361f53f2d9c8",
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contracts.routes.js": {
@@ -2460,9 +2460,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contracts.validation.js": {
-    "mtime": 1793019944.205065,
-    "seen": 1793023448.6981676,
-    "ast_hash": "94190217a02e7bd464eec173af5c25a8",
+    "mtime": 1793024203.053827,
+    "seen": 1793028286.0613742,
+    "ast_hash": "16797a740981e1b7dd60ac032e822819",
     "semantic_hash": ""
   },
   "server/test/modules/work/contracts/contractConcepts.service.test.js": {
@@ -2478,9 +2478,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/work/contracts/contracts.controller.test.js": {
-    "mtime": 1793020011.9547331,
-    "seen": 1793023448.6982627,
-    "ast_hash": "fd017ecd8d1194bae5ca41473f608720",
+    "mtime": 1793024223.2851787,
+    "seen": 1793028286.0614743,
+    "ast_hash": "e5294fc989dc56fd5b3eba09a5245810",
     "semantic_hash": ""
   },
   "server/test/modules/work/contracts/contracts.service.test.js": {
@@ -3468,9 +3468,9 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx": {
-    "mtime": 1792759777.34972,
-    "seen": 1792764934.632563,
-    "ast_hash": "35034e23d8296d2999fbd4c899c13a85",
+    "mtime": 1793028150.4650006,
+    "seen": 1793028286.060994,
+    "ast_hash": "9a89b6c7ebdc1e88eee9b0f76a4c4b31",
     "semantic_hash": ""
   },
   "database/migrations/0098_create_invoice_simple_details.sql": {
@@ -3552,15 +3552,15 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contractReports.service.js": {
-    "mtime": 1792759777.4005919,
-    "seen": 1792764934.6337187,
-    "ast_hash": "6ba6326c8ea5d0c28679b7dbaf84c048",
+    "mtime": 1793024203.0518174,
+    "seen": 1793028286.0613678,
+    "ast_hash": "cf26e5caa03685d4e5da815bd8408bb9",
     "semantic_hash": ""
   },
   "server/test/modules/work/contracts/contractReports.service.test.js": {
-    "mtime": 1793023184.858337,
-    "seen": 1793023448.6982589,
-    "ast_hash": "94f8495966a30c8f26bc2fbc1b8605fe",
+    "mtime": 1793024252.9156392,
+    "seen": 1793028286.0614703,
+    "ast_hash": "b2926a26df6087d8fca612225411daef",
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/ExportDialog.jsx": {
@@ -3750,9 +3750,9 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/ContractTaxesSection.jsx": {
-    "mtime": 1792762300.1779082,
-    "seen": 1792764934.632538,
-    "ast_hash": "104c56556b5f1db051bb067f57019bf1",
+    "mtime": 1793027867.189597,
+    "seen": 1793028286.0609844,
+    "ast_hash": "32e36d41c0118bc38ce918a0dbadc721",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/NewSimpleInvoiceButton.jsx": {
@@ -4029,6 +4029,12 @@
     "mtime": 1793019708.3144004,
     "seen": 1793023448.6982656,
     "ast_hash": "96fcb9875b7a9024d2ef09b2477ea7fa",
+    "semantic_hash": ""
+  },
+  "database/migrations/0121_seed_works_export_permission.sql": {
+    "mtime": 1793024317.8484821,
+    "seen": 1793028286.0611944,
+    "ast_hash": "5bcc3d2bcb32c80809087053e2b16474",
     "semantic_hash": ""
   }
 }
