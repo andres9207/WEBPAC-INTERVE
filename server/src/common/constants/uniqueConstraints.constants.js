@@ -20,6 +20,7 @@ export const UNIQUE_CONSTRAINT_MESSAGES = Object.freeze({
   uq_provider_types_name_active: "Ya existe un tipo de proveedor con ese nombre.",
   uq_address_types_name_active: "Ya existe un tipo de dirección con ese nombre.",
   uq_insurers_description_active: "Ya existe una aseguradora con esa descripción.",
+  uq_insurers_nit_active: "Ya existe una aseguradora con ese NIT.",
   uq_supervision_types_name_active: "Ya existe un tipo de interventoría con ese nombre.",
   uq_construction_companies_description_active: "Ya existe una constructora con esa descripción.",
   uq_construction_companies_nit_active: "Ya existe una constructora con ese NIT.",
@@ -47,6 +48,7 @@ export const UNIQUE_CONSTRAINT_MESSAGES = Object.freeze({
   uq_contract_suspensions_open: "El contrato ya tiene una suspensión abierta.",
   uq_invoice_follow_ups_open: "La factura ya tiene un seguimiento abierto: ciérralo antes de abrir otro.",
   uq_invoices_provider_number_active: "Ya existe una factura con ese número para el proveedor.",
+  uq_statements_work_number_active: "Ya existe un extracto con ese número en esta obra.",
 
   // Pólizas
   uq_policies_current: "La póliza cambió mientras la modificabas. Actualiza la vista e intenta de nuevo.",
@@ -107,6 +109,12 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   "uq_invoices_idempotency_key",
   "uq_invoice_status_history_idempotency_key",
   "uq_invoice_follow_ups_idempotency_key",
+  "uq_statements_idempotency_key",
+  "uq_invoice_glosses_idempotency_key",
+  // Apoyo de la FK compuesta glosa → factura de la misma obra (0120)
+  "uq_invoices_id_work",
+  // Apoyo de la FK compuesta factura → extracto de la misma obra (0119)
+  "uq_statements_id_work",
   "uq_policy_types_idempotency_key",
   "uq_policies_idempotency_key",
   // Apoyo de la FK compuesta póliza → concepto del contrato (0079)

@@ -14,6 +14,13 @@ jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.serv
 jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoiceEvidence.service.js", () => ({ getInvoiceEvidence: jest.fn() }));
 const followUpsMock = { listFollowUps: jest.fn(), openFollowUp: jest.fn(), updateFollowUp: jest.fn(), closeFollowUp: jest.fn(), deleteFollowUp: jest.fn() };
 jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoiceFollowUps.service.js", () => followUpsMock);
+jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoiceGlosses.service.js", () => ({
+  listGlosses: jest.fn(),
+  createGloss: jest.fn(),
+  updateGloss: jest.fn(),
+  releaseGloss: jest.fn(),
+  deleteGloss: jest.fn(),
+}));
 jest.unstable_mockModule("../../../../src/common/services/effectivePermissions.service.js", () => ({ getEffectivePermissionIds }));
 // Alcance por obra (DEC-047): el controller lo resuelve y lo pasa al service.
 const SCOPE = Object.freeze({ all: false, wrkId: 8 });

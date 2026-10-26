@@ -21,6 +21,7 @@ Decidido por el usuario el 2026-10-24. Implementa la transición `EN LIQUIDACIÓ
   - C7: informes de interventoría. **No bloquea**: el sistema no registra los informes; se muestra cuántas suspensiones los exigían.
   - C8: todo concepto vigente con al menos una póliza vigente (`uncoveredConcepts`), sin mirar si ya venció su fecha.
   - C9: valor inicial + otrosíes antes de IVA (la base vigente B) − lo facturado aprobado (F, el VALOR de normales y liquidaciones, I5) ≤ 0,01 % de B (`LIQUIDATION_TOLERANCE_PCT`). "Pagado" es lo facturado aprobado: el sistema no registra pagos.
+  - C10 (2026-10-26, pedido del usuario): las pólizas vigentes cubren el plazo del contrato, es decir, terminan el día de su fecha fin o después (`policyCoversTerm`); una que sigue vigente después del contrato cubre. **No bloquea**: lista las que terminan antes. El expediente las marca "No cubre el plazo".
 - **Lo que falta se calcula al consultar**, no se guarda: la pestaña Liquidación del expediente (`get_contract_liquidation`, con ver contratos y ver facturas) lista cada condición, si se cumple y lo que falta. Una evaluación que no liquida no escribe nada; `csh_failed_condition` sigue sin uso.
 
 ## Descartado

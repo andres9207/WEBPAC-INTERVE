@@ -20,6 +20,8 @@ import { decimal, moneyText, percentOf } from "../../../common/utils/money.utils
  *   C9  B − F ≤ 0,01 % de B: B, valor inicial + otrosíes antes de IVA (la
  *       base vigente); F, lo facturado aprobado (VALOR de normales y
  *       liquidaciones, I5)
+ *   C10 las pólizas vigentes cubren el plazo del contrato (policyCoversTerm):
+ *       se informa y no bloquea (pedido del usuario, 2026-10-26)
  */
 
 /** Diferencia admitida entre lo contratado y lo facturado, en % de la base vigente (DEC-081). */
@@ -35,6 +37,7 @@ export const LIQUIDATION_CONDITIONS = Object.freeze({
   C7: "Informes de interventoría",
   C8: "Todos los conceptos con póliza vigente",
   C9: "Valor contratado igual al facturado",
+  C10: "Pólizas que cubren el plazo del contrato",
 });
 
 const ZERO = decimal(0);
@@ -42,13 +45,14 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const condition = (key, met, detail, blocking = true) => ({ key, label: LIQUIDATION_CONDITIONS[key], met, blocking, detail });
 
 /**
- * Las nueve condiciones a partir de los hechos del contrato:
+ * Las diez condiciones a partir de los hechos del contrato:
  * - `hasLiquidationConcept`: si tiene otrosí de liquidación.
  * - `balances`: los de contractBalances (advance, retention, billing).
  * - `approvedLiquidations`, `pendingInvoices`: cantidades de facturas.
  * - `openSuspension`: si hay una suspensión abierta.
  * - `reportSuspensions`: suspensiones que exigían informe de interventoría.
  * - `uncoveredConcepts`: rótulos de los conceptos sin póliza vigente.
+ * - `shortPolicies`: números de las pólizas vigentes que terminan antes que el contrato.
  * Devuelve `[{ key, label, met, blocking, detail }]`; `detail` dice lo que falta.
  */
 export const liquidationConditions = (facts) => {
@@ -91,6 +95,13 @@ export const liquidationConditions = (facts) => {
       difference.abs().lte(tolerance)
         ? null
         : `Contratado antes de IVA: ${moneyText(base)}; facturado: ${moneyText(billed)}. Diferencia: ${moneyText(difference)}; se admite hasta ${moneyText(tolerance)} (${LIQUIDATION_TOLERANCE_PCT} %).`
+    ),
+    // No bloquea: la vigencia corta se informa (pedido del usuario, 2026-10-26).
+    condition(
+      "C10",
+      facts.shortPolicies.length === 0,
+      facts.shortPolicies.length === 0 ? null : `Terminan antes que el contrato: ${facts.shortPolicies.map((n) => `póliza ${n}`).join(", ")}.`,
+      false
     ),
   ];
 };

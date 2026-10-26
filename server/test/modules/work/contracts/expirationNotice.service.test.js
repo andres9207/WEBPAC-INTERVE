@@ -64,7 +64,7 @@ describe("runExpirationNotice", () => {
     expect(policyWhere).toEqual({
       pol_is_current: true,
       pol_end_date: { lte: day("2026-11-01") },
-      tbl_contracts: { sta_id: { not: 3 }, ctr_state: { not: "LIQUIDATED" }, tbl_works: { sta_id: { not: 3 } } },
+      tbl_contracts: { sta_id: { not: 3 }, ctr_state: { notIn: ["LIQUIDATED", "CANCELLED"] }, tbl_works: { sta_id: { not: 3 } } },
     });
   });
 

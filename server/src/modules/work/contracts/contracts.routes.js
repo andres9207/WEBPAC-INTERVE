@@ -22,6 +22,7 @@ import {
   createLiquidationSchema,
   updateConceptSchema,
   suspendContractSchema,
+  cancelContractSchema,
   getContractLiquidationSchema,
   evaluateContractLiquidationSchema,
   getContractPoliciesSchema,
@@ -48,6 +49,7 @@ import {
   createLiquidationController,
   updateConceptController,
   suspendContractController,
+  cancelContractController,
   getContractLiquidationController,
   evaluateContractLiquidationController,
   getContractPoliciesController,
@@ -144,6 +146,9 @@ contractsRoutes.put("/update_concept", verifyToken, requirePermission(can.editCo
 // Suspender (ADR-0017, DEC-039). No hay ruta de levantar: lo hace
 // create_amendment sobre un contrato suspendido, con el permiso liftSuspension.
 contractsRoutes.post("/suspend_contract", verifyToken, requirePermission(can.suspend), suspendContractSchema, validate, suspendContractController);
+
+// Anular (DEC-082): desde cualquier estado, con permiso propio.
+contractsRoutes.post("/cancel_contract", verifyToken, requirePermission(can.cancel), cancelContractSchema, validate, cancelContractController);
 
 // Liquidación (ADR-0017, DEC-081): la transición es automática. Las condiciones
 // revelan saldos de facturas: ver exige además ver facturas. Volver a evaluar,

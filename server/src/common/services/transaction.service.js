@@ -57,6 +57,9 @@ export const LOCK_ORDER = Object.freeze([
   "PROVEEDOR",
   "CONTRATO",
   "FACTURA",
+  // El extracto de la obra (DEC-084): se bloquea después de la factura que se
+  // le asigna y de la que se glosa.
+  "EXTRACTO",
   "POLIZA",
   "CONCEPTO",
   "DOCUMENTO",
@@ -100,6 +103,7 @@ const LOCKABLE = Object.freeze({
   PROVEEDOR: { table: "tbl_providers", id: "prv_id" },
   CONTRATO: { table: "tbl_contracts", id: "ctr_id" },
   FACTURA: { table: "tbl_invoices", id: "inv_id" },
+  EXTRACTO: { table: "tbl_statements", id: "stm_id" },
   CONCEPTO: { table: "tbl_contract_concepts", id: "ccp_id" },
   POLIZA: { table: "tbl_policies", id: "pol_id" },
   REGLA_NEGOCIO: { table: "tbl_business_rules", id: "bru_id" },

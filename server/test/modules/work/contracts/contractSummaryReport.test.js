@@ -57,6 +57,7 @@ jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.serv
 }));
 
 const { exportContractSummary } = await import("../../../../src/modules/work/contracts/contractReports.service.js");
+const { COMPANY_FOOTER } = await import("../../../../src/common/services/export.service.js");
 
 const SCOPE = { all: false, wrkId: 8 };
 
@@ -95,7 +96,8 @@ describe("exportContractSummary", () => {
     expect(concepts).not.toContain("Otrosí N.º 2");
 
     const invoices = workbook.getWorksheet("Facturas");
-    const last = invoices.lastRow;
+    // La fila de totales, antes del pie de la hoja (una fila en blanco y los datos de INTERVE).
+    const last = invoices.getRow(invoices.rowCount - COMPANY_FOOTER.length - 1);
     expect(last.getCell(1).value).toBe("Total aprobado");
     expect(last.getCell(6).value).toBe(150000);
   });

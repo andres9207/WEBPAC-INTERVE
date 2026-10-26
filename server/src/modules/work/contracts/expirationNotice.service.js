@@ -5,7 +5,7 @@ import { dateOnlyText, todayDateOnly } from "../../../common/utils/term.utils.js
 import { insertNotification } from "../../app/notifications/notifications.service.js";
 import { getRuleValues } from "../../admin/businessRules/businessRules.service.js";
 import { BUSINESS_RULES } from "../../admin/businessRules/businessRules.constants.js";
-import { CONTRACT_STATES } from "./contractTerms.js";
+import { CLOSED_STATES, CONTRACT_STATES } from "./contractTerms.js";
 
 /**
  * Aviso de vencimiento (DEC-072). Avisa a los responsables activos de la obra
@@ -71,9 +71,9 @@ export const expiringPoliciesWhere = ({ today, days }) => ({
   pol_end_date: { lte: addDays(today, days) },
 });
 
-/** Contratos con alguna póliza por vencer o vencida, salvo los liquidados (ya no se renuevan). */
+/** Contratos con alguna póliza por vencer o vencida, salvo los liquidados y los anulados. */
 export const contractsWithExpiringPoliciesWhere = ({ today, days }) => ({
-  ctr_state: { not: CONTRACT_STATES.LIQUIDATED },
+  ctr_state: { notIn: CLOSED_STATES },
   tbl_policies: { some: expiringPoliciesWhere({ today, days }) },
 });
 
@@ -84,7 +84,7 @@ export const findExpiringPolicies = ({ today, days }) =>
       ...expiringPoliciesWhere({ today, days }),
       tbl_contracts: {
         sta_id: { not: DELETED_STATUS },
-        ctr_state: { not: CONTRACT_STATES.LIQUIDATED },
+        ctr_state: { notIn: CLOSED_STATES },
         tbl_works: { sta_id: { not: DELETED_STATUS } },
       },
     },

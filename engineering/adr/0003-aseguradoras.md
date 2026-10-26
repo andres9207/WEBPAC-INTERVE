@@ -6,6 +6,8 @@
 
 Implementado el maestro `tbl_insurers` (decisiones 1, 2, 3, 5, 7 y 8): migraciones `0028`–`0029`, módulo `admin/insurers` sobre el patrón de maestro ([DEC-020](../decisiones/DEC-020-patron-maestro.md), [DEC-022](../decisiones/DEC-022-vista-maestro.md)), selector de activas para el formulario de póliza, entidad de bloqueo `ASEGURADORA`. Sin semilla: las aseguradoras se cargan desde la pantalla.
 
+NIT (2026-10-26, migración `0116`, pedido en el documento de alcance de Intervé, punto 1.6): obligatorio al guardar y único entre no eliminadas, con las mismas reglas que el de constructoras (`nitField` del patrón de maestro). **Se aparta de la decisión 1**: la aseguradora tiene tres atributos, descripción, NIT y estado.
+
 Falta: la FK desde pólizas (decisión 6) y el bloqueo de eliminación por pólizas (decisión 4), que se conectan al crear `tbl_policies` (ADR-0018) agregándola a los `dependents` del maestro. El bloqueo responde 400, no 409, mientras PD-02 siga abierta. El texto de abajo es el análisis original.
 
 ## Fecha

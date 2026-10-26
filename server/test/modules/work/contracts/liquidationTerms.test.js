@@ -1,7 +1,7 @@
 import { LIQUIDATION_CONDITIONS, liquidationConditions, unmetConditions } from "../../../../src/modules/work/contracts/liquidationTerms.js";
 
 // Condiciones de liquidación (ADR-0017, DEC-081): todas a la vez; cada una,
-// fallando sola, impide liquidar y dice lo que falta. C7 informa y no bloquea.
+// fallando sola, impide liquidar y dice lo que falta. C7 y C10 informan y no bloquean.
 
 const facts = (overrides = {}) => ({
   hasLiquidationConcept: true,
@@ -15,6 +15,7 @@ const facts = (overrides = {}) => ({
   openSuspension: false,
   reportSuspensions: 0,
   uncoveredConcepts: [],
+  shortPolicies: [],
   ...overrides,
 });
 
@@ -27,7 +28,7 @@ const balances = ({ toAmortize = "0.00", retained = "0.00", base = "100000000.00
 const byKey = (conditions, key) => conditions.find((c) => c.key === key);
 
 describe("condiciones de liquidación", () => {
-  it("con todo cumplido no falta ninguna, y son las nueve en orden", () => {
+  it("con todo cumplido no falta ninguna, y son las diez en orden", () => {
     const conditions = liquidationConditions(facts());
     expect(conditions.map((c) => c.key)).toEqual(Object.keys(LIQUIDATION_CONDITIONS));
     expect(conditions.every((c) => c.met)).toBe(true);
@@ -50,6 +51,16 @@ describe("condiciones de liquidación", () => {
   it("C7 informa las suspensiones que exigían informe, pero no bloquea", () => {
     const conditions = liquidationConditions(facts({ reportSuspensions: 1 }));
     expect(byKey(conditions, "C7")).toMatchObject({ met: false, blocking: false, detail: expect.stringContaining("1 suspensión exigía") });
+    expect(unmetConditions(conditions)).toEqual([]);
+  });
+
+  it("C10 informa las pólizas que terminan antes que el contrato, pero no bloquea", () => {
+    const conditions = liquidationConditions(facts({ shortPolicies: ["P-1", "P-7"] }));
+    expect(byKey(conditions, "C10")).toMatchObject({
+      met: false,
+      blocking: false,
+      detail: "Terminan antes que el contrato: póliza P-1, póliza P-7.",
+    });
     expect(unmetConditions(conditions)).toEqual([]);
   });
 

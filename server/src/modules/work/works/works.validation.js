@@ -36,6 +36,7 @@ export const paginationWorksSchema = [
   optionalText("name", 200),
   optionalId("cncId"),
   optionalId("sptId"),
+  body("state").optional({ values: "falsy" }).isIn(["IN_PROGRESS", "FINISHED"]).withMessage("El estado debe ser en curso o finalizada."),
 ];
 
 export const getWorkSchema = [query("wrkId").isInt({ min: 1 }).withMessage("wrkId es obligatorio y debe ser un entero positivo.")];
@@ -85,6 +86,16 @@ export const saveWorkSchema = [
 export const changeWorkStatusSchema = [
   requiredId("wrkId"),
   body("staId").isIn(EDITABLE_STATUS_VALUES).withMessage("El estado debe ser activo o inactivo."),
+];
+
+// Finalizar o reabrir (DEC-083): la fecha, solo al finalizar.
+export const changeWorkStateSchema = [
+  requiredId("wrkId"),
+  body("state").isIn(["IN_PROGRESS", "FINISHED"]).withMessage("El estado debe ser en curso o finalizada."),
+  body("finishDate")
+    .if(body("state").equals("FINISHED"))
+    .isISO8601({ strict: true })
+    .withMessage("La fecha de finalización es requerida y debe ser una fecha válida."),
 ];
 
 export const deleteWorkSchema = [requiredId("wrkId")];

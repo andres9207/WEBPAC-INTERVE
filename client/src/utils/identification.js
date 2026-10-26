@@ -31,3 +31,14 @@ export const identificationFormatError = (format, number) => {
   }
   return null;
 };
+
+// NIT de un maestro (constructoras y aseguradoras): de 5 a 15 dígitos, guion y
+// un dígito de verificación libre, que no se recalcula. Mismo formato que valida
+// el servidor (nitField en master.service.js).
+export const NIT_PATTERN = /^\d{5,15}-\d$/;
+
+// Máscara del NIT: solo dígitos, y el último va después del guion. 9001234568 → 900123456-8.
+export const maskNit = (value) => {
+  const digits = value.replace(/\D/g, '').slice(0, 16);
+  return digits.length < 2 ? digits : `${digits.slice(0, -1)}-${digits.slice(-1)}`;
+};

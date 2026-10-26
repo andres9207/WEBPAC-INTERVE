@@ -266,6 +266,18 @@ describe("getWorkDashboard", () => {
     expect(contracts.policyCounts).toEqual({ NO_DATE: 0, ACTIVE: 0, EXPIRING: 0, EXPIRED: 1, withoutPolicy: 1 });
   });
 
+  it("contratos por liquidar (DEC-083): ni liquidados ni anulados, con su valor vigente", async () => {
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([
+      CONTRACT,
+      { ...CONTRACT, ctr_id: 21, ctr_number: "C-2", ctr_state: "LIQUIDATED", tbl_contract_concepts: [] },
+      { ...CONTRACT, ctr_id: 22, ctr_number: "C-3", ctr_state: "CANCELLED", tbl_contract_concepts: [] },
+    ]);
+
+    const { contracts } = await getWorkDashboard({ granted: ALL, scope: OWN });
+
+    expect(contracts.toLiquidate).toEqual({ count: 1, value: "1500.00", ctrIds: [20] });
+  });
+
   it("el estado de pólizas exige ver contratos y pólizas", async () => {
     const { contracts } = await getWorkDashboard({ granted: new Set([CONTRACTS]), scope: OWN });
     expect(contracts.items[0].policies).toBeNull();

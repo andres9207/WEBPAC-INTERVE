@@ -1,10 +1,11 @@
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
-import { defineMaster, createMasterService } from "../../../common/services/master.service.js";
+import { defineMaster, createMasterService, nitField } from "../../../common/services/master.service.js";
 
-// Maestro de aseguradoras (ADR-0003, DEC-017). Dos atributos: descripción y
-// estado. Una aseguradora con pólizas no se elimina, ni siquiera de forma
-// lógica: solo se desactiva, y sus pólizas conservan el emisor (ADR-0003,
-// decisiones 4 y 5). Nivel 1: auditoría técnica.
+// Maestro de aseguradoras (ADR-0003, DEC-017). Tres atributos: descripción,
+// NIT (migración 0116: obligatorio y único entre no eliminadas, como el de
+// constructoras) y estado. Una aseguradora con pólizas no se elimina, ni
+// siquiera de forma lógica: solo se desactiva, y sus pólizas conservan el
+// emisor (ADR-0003, decisiones 4 y 5). Nivel 1: auditoría técnica.
 export const insurersConfig = defineMaster({
   model: "tbl_insurers",
   prefix: "ins",
@@ -16,6 +17,7 @@ export const insurersConfig = defineMaster({
   permissions: PERMISSIONS.admin.insurers,
   fields: [
     { name: "description", column: "ins_description", label: "descripción", feminine: true, maxLength: 150, unique: true, filter: true, sortable: true },
+    nitField("ins_nit"),
   ],
   defaultSort: "description",
   selectOrder: "description",

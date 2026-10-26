@@ -41,8 +41,21 @@ const INPUT_FIELDS = [
 ];
 
 export const paginationWorksController = handle(async (req) => {
-  const { search, staId, code, name, cncId, sptId, rows, first, sortField, sortOrder } = req.body;
-  return worksService.paginationWorks({ search, staId, code, name, cncId, sptId, rows, first, sortField, sortOrder, scope: await workScopeOf(req) });
+  const { search, staId, code, name, cncId, sptId, state, rows, first, sortField, sortOrder } = req.body;
+  return worksService.paginationWorks({
+    search,
+    staId,
+    code,
+    name,
+    cncId,
+    sptId,
+    state,
+    rows,
+    first,
+    sortField,
+    sortOrder,
+    scope: await workScopeOf(req),
+  });
 });
 
 export const summaryWorksController = handle(async (req) => worksService.summaryWorks({ scope: await workScopeOf(req) }));
@@ -81,6 +94,19 @@ export const changeWorkStatusController = handle(async (req) => {
   const result = await worksService.changeWorkStatus({
     wrkId: req.body.wrkId,
     staId: req.body.staId,
+    useBy: req.user.useId,
+    scope: await workScopeOf(req),
+    ctx: auditContext(req),
+  });
+  notify();
+  return result;
+});
+
+export const changeWorkStateController = handle(async (req) => {
+  const result = await worksService.changeWorkState({
+    wrkId: req.body.wrkId,
+    state: req.body.state,
+    finishDate: req.body.finishDate,
     useBy: req.user.useId,
     scope: await workScopeOf(req),
     ctx: auditContext(req),

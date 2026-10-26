@@ -100,6 +100,8 @@ const prismaMock = {
     upsert: jest.fn(),
   },
   tbl_invoice_simple_details: { upsert: jest.fn() },
+  // Extracto de la obra (DEC-084).
+  tbl_statements: { findUnique: jest.fn(async () => state.statement) },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
@@ -146,7 +148,7 @@ const storedInvoice = (overrides = {}) => ({
   inv_date: new Date("2026-03-01T00:00:00Z"),
   inv_approval_date: null,
   inv_voucher_number: null,
-  inv_statement: null,
+  stm_id: null,
   inv_description: null,
   inv_state: "REGISTERED",
   tbl_invoice_advance_details: { iad_value: D("10000000") },
@@ -193,7 +195,7 @@ const simpleInput = (overrides = {}) => ({
   number: " F-100 ",
   date: "2026-03-01",
   voucherNumber: "",
-  statement: "",
+  stmId: "",
   description: "",
   // Importes de la pantalla del sistema que se migra (DEC-065).
   value: "20000",
@@ -242,6 +244,33 @@ beforeEach(() => {
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
   prismaMock.tbl_providers.findUnique.mockImplementation(async () => ({ prv_name: "Aceros SA", sta_id: 1 }));
   prismaMock.tbl_providers.findFirst.mockResolvedValue({ prv_id: 77 });
+});
+
+describe("extracto de la factura (DEC-084)", () => {
+  it("se asigna un extracto de la misma obra, bloqueado en su lugar del orden", async () => {
+    state.statement = { wrk_id: 8, stm_number: "001", sta_id: 1 };
+
+    await save(simpleInput({ stmId: 4 }));
+
+    expect(prismaMock.tbl_invoices.create.mock.calls[0][0].data).toMatchObject({ stm_id: 4 });
+    // Orden fijo (ADR-0027): obra → proveedor → extracto → maestros.
+    expect(lockedTables()).toEqual([
+      expect.stringMatching(/tbl_works/),
+      expect.stringMatching(/tbl_providers/),
+      expect.stringMatching(/tbl_statements/),
+      expect.stringMatching(/tbl_provider_types/),
+    ]);
+  });
+
+  it("un extracto de otra obra, eliminado o inactivo no se asigna (400)", async () => {
+    state.statement = { wrk_id: 9, stm_number: "001", sta_id: 1 };
+    await expect(save(simpleInput({ stmId: 4 }))).rejects.toMatchObject({ statusCode: 400, message: "El extracto 001 no es de la obra de la factura." });
+    state.statement = { wrk_id: 8, stm_number: "001", sta_id: 3 };
+    await expect(save(simpleInput({ stmId: 4 }))).rejects.toMatchObject({ statusCode: 400, message: "El extracto seleccionado no existe." });
+    state.statement = { wrk_id: 8, stm_number: "001", sta_id: 2 };
+    await expect(save(simpleInput({ stmId: 4 }))).rejects.toMatchObject({ statusCode: 400, message: "El extracto 001 está inactivo." });
+    expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
+  });
 });
 
 describe("registrar", () => {
@@ -577,7 +606,7 @@ describe("anular", () => {
     state.invoice = storedInvoice({ inv_state: "APPROVED", inv_approval_date: new Date("2026-03-05T00:00:00Z") });
     await expect(cancel([CAN_CANCEL, CAN_CANCEL_APPROVED])).rejects.toMatchObject({
       statusCode: 409,
-      message: "Las facturas de un contrato liquidado no se anulan: el contrato solo se consulta. Estado actual: Liquidado.",
+      message: "Las facturas de un contrato liquidado o anulado no se anulan: el contrato solo se consulta. Estado actual: Liquidado.",
     });
     state.invoice = storedInvoice();
     await expect(cancel()).rejects.toMatchObject({ statusCode: 409 });
@@ -669,7 +698,7 @@ describe("eliminar (DEC-068)", () => {
     state.invoice = storedInvoice();
     await expect(remove()).rejects.toMatchObject({
       statusCode: 409,
-      message: "Las facturas de un contrato liquidado no se eliminan: el contrato solo se consulta. Estado actual: Liquidado.",
+      message: "Las facturas de un contrato liquidado o anulado no se eliminan: el contrato solo se consulta. Estado actual: Liquidado.",
     });
     expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
   });
@@ -965,7 +994,7 @@ describe("listado", () => {
     const expected = [
       { inv_number: { contains: "F-1" } },
       { inv_voucher_number: { contains: "CE-9" } },
-      { inv_statement: { contains: "marzo" } },
+      { tbl_statements: { stm_number: { contains: "marzo" } } },
       { tbl_contracts: { ctr_number: { contains: "C-001" } } },
       { tbl_providers: { prv_name: { contains: "acer" } } },
       { inv_date: { gte: new Date("2026-03-01T00:00:00Z") } },

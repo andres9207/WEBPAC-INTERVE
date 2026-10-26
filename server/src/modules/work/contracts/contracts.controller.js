@@ -8,6 +8,7 @@ import { PERMISSIONS } from "../../../common/constants/permissions.constants.js"
 import * as contractsService from "./contracts.service.js";
 import * as conceptsService from "./contractConcepts.service.js";
 import * as suspensionsService from "./contractSuspensions.service.js";
+import * as cancellationService from "./contractCancellation.service.js";
 import * as policiesService from "./contractPolicies.service.js";
 import { exportContractReport, exportContractSummary } from "./contractReports.service.js";
 import { getContractMenu } from "./contractMenus.js";
@@ -215,6 +216,19 @@ export const suspendContractController = handle(async (req) => {
   const result = await suspensionsService.suspendContract({
     ctrId: req.body.ctrId,
     input: pick(req.body, ["reaId", "suspensionDate", "liftCondition", "observation", "requiresReport"]),
+    useBy: req.user.useId,
+    scope: await workScopeOf(req),
+    ctx: auditContext(req),
+    idempotencyKey: req.get(IDEMPOTENCY_HEADER),
+  });
+  notify();
+  return result;
+});
+
+export const cancelContractController = handle(async (req) => {
+  const result = await cancellationService.cancelContract({
+    ctrId: req.body.ctrId,
+    input: pick(req.body, ["reaId", "observation"]),
     useBy: req.user.useId,
     scope: await workScopeOf(req),
     ctx: auditContext(req),

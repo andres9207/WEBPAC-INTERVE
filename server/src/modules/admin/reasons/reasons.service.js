@@ -3,10 +3,15 @@ import { defineMaster, createMasterService } from "../../../common/services/mast
 
 /**
  * Actos a los que puede aplicar un motivo (`rea_scope`, dominio cerrado con
- * CHECK en la migración 0060, ampliado en 0068 y 0080). Reabrir un contrato o anular
+ * CHECK en la migración 0060, ampliado en 0068, 0080 y 0117). Reabrir un contrato o anular
  * un otrosí agregarán aquí su ámbito, junto con el CHECK.
  */
-export const REASON_SCOPES = Object.freeze({ SUSPENSION: "SUSPENSION", INVOICE_CANCEL: "INVOICE_CANCEL", POLICY_CANCEL: "POLICY_CANCEL" });
+export const REASON_SCOPES = Object.freeze({
+  SUSPENSION: "SUSPENSION",
+  INVOICE_CANCEL: "INVOICE_CANCEL",
+  POLICY_CANCEL: "POLICY_CANCEL",
+  CONTRACT_CANCEL: "CONTRACT_CANCEL",
+});
 
 // Maestro de motivos (ADR-0017, DEC-039). Un solo catálogo para las
 // transiciones manuales, dividido por ámbito: el nombre es único dentro de su

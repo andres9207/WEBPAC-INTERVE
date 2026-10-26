@@ -48,6 +48,24 @@ export const policyValidity = (endDate, { today = todayDateOnly(), days = DEFAUL
 };
 
 /**
+ * Si la vigencia de una póliza cubre el plazo del contrato: termina el día de
+ * la fecha fin del contrato o después (pedido del usuario, 2026-10-26; ADR-0018
+ * lo dejaba pendiente). Una póliza que sigue vigente después del contrato
+ * cubre. Sin fecha fin de la póliza o del contrato no se puede saber: null.
+ * Solo informa: no impide ningún acto ni la liquidación.
+ */
+export const policyCoversTerm = (policyEndDate, contractEndDate) => {
+  const policyEnd = policyEndDate instanceof Date ? policyEndDate : toDateOnly(policyEndDate);
+  const contractEnd = contractEndDate instanceof Date ? contractEndDate : toDateOnly(contractEndDate);
+  if (!policyEnd || !contractEnd) return null;
+  return policyEnd.getTime() >= contractEnd.getTime();
+};
+
+/** Pólizas vigentes (`pol_end_date`) cuya vigencia termina antes que el contrato (`policyCoversTerm`). */
+export const shortPolicies = (currentPolicies, contractEndDate) =>
+  currentPolicies.filter((p) => policyCoversTerm(p.pol_end_date, contractEndDate) === false);
+
+/**
  * Conceptos del contrato sin ninguna póliza vigente (ADR-0018, decisión 3).
  * Es un hallazgo visible, no un error que impida operar.
  */

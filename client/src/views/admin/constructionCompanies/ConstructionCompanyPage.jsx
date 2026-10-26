@@ -1,6 +1,7 @@
 import MasterPage from 'ui-component/extended/MasterPage';
 import { constructionCompaniesApi } from 'api/requests/constructionCompaniesApi';
 import { useAuth } from 'contexts/AuthContext';
+import { NIT_PATTERN, maskNit } from 'utils/identification';
 
 // Maestro de constructoras (ADR-0004) sobre la vista reutilizable de maestro
 // (MAE-FE-01). Una constructora con obras no se elimina, solo se desactiva: el
@@ -10,14 +11,6 @@ const COLUMNS = [
   { id: 'description', label: 'Descripción', sortable: true },
   { id: 'nit', label: 'NIT', sortable: true }
 ];
-
-// Máscara del NIT: solo dígitos, y el último va después del guion (el dígito de verificación, libre).
-// 9001234568 → 900123456-8. Mismo formato que valida el servidor (constructionCompanies.service.js).
-const NIT_PATTERN = /^\d{5,15}-\d$/;
-const maskNit = (value) => {
-  const digits = value.replace(/\D/g, '').slice(0, 16);
-  return digits.length < 2 ? digits : `${digits.slice(0, -1)}-${digits.slice(-1)}`;
-};
 
 // El NIT es obligatorio y único (migración 0115); el duplicado lo avisa el servidor.
 const FORM_FIELDS = [

@@ -31,6 +31,10 @@ export const AUDIT_ENTITIES = Object.freeze({
   INVOICE: "FACTURA",
   // Seguimiento manual de una factura (DEC-076).
   INVOICE_FOLLOW_UP: "SEGUIMIENTO_FACTURA",
+  // Extracto de la obra (DEC-084).
+  STATEMENT: "EXTRACTO",
+  // Glosa de una factura (DEC-085).
+  INVOICE_GLOSS: "GLOSA_FACTURA",
   POLICY_TYPE: "TIPO_POLIZA",
   POLICY: "POLIZA",
   // Días de aviso de vencimiento (DEC-072).

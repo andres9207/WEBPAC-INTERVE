@@ -33,6 +33,7 @@ const ContractDetailPage = Loadable(lazy(() => import('views/work/contracts/Cont
 const InvoicesPage = Loadable(lazy(() => import('views/billing/invoices/InvoicesPage')));
 const InvoiceDetailPage = Loadable(lazy(() => import('views/billing/invoices/InvoiceDetailPage')));
 const InvoiceFormPage = Loadable(lazy(() => import('views/billing/invoices/InvoiceFormPage')));
+const StatementsPage = Loadable(lazy(() => import('views/billing/statements/StatementsPage')));
 
 // ==============================|| MAIN ROUTING ||============================== //
 
@@ -146,7 +147,9 @@ const MainRoutes = {
                 { path: ':invId', element: <InvoiceDetailPage /> },
                 { path: ':invId/edit', element: <InvoiceFormPage /> }
               ]
-            }
+            },
+            // Extractos de la obra (DEC-084): listado con su formulario y su reporte en diálogos.
+            { path: 'statements', element: <StatementsPage /> }
           ]
         }
       ]

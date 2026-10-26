@@ -7,7 +7,7 @@ import { withLockedTransaction } from "../../../common/services/transaction.serv
 import { assertInScope, scopeWhere } from "../../../common/services/workScope.service.js";
 import { findExportRows, renderExport } from "../../../common/services/export.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
-import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
+import { ACTIVE_STATUS, DELETED_STATUS, INACTIVE_STATUS } from "../../../common/constants/status.constants.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import { decimal, moneyText, percentFor, percentOf, percentText, ratioText, sumMoney, toMoney, toPercent } from "../../../common/utils/money.utils.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
@@ -124,9 +124,9 @@ const text = (value) => String(value ?? "").trim();
 const optionalText = (value) => text(value) || null;
 const positiveId = (value) => (Number(value) > 0 ? Number(value) : null);
 
-// Bitácora funcional (ADR-0020, "Auditoría"). Extracto y descripción son de
-// nivel técnico, pero se registran igual: con el comprobante, son lo único
-// editable tras aprobar (DEC-080).
+// Bitácora funcional (ADR-0020, "Auditoría"). Extracto (stm_id, DEC-084) y
+// descripción son de nivel técnico, pero se registran igual: con el
+// comprobante, son lo único editable tras aprobar (DEC-080).
 const INVOICE_AUDITED = [
   "inv_type",
   "pvt_id",
@@ -137,7 +137,7 @@ const INVOICE_AUDITED = [
   "inv_number",
   "inv_date",
   "inv_voucher_number",
-  "inv_statement",
+  "stm_id",
   "inv_description",
 ];
 
@@ -168,7 +168,7 @@ const LOCKED_SELECT = {
   inv_date: true,
   inv_approval_date: true,
   inv_voucher_number: true,
-  inv_statement: true,
+  stm_id: true,
   inv_description: true,
   inv_state: true,
   tbl_invoice_advance_details: { select: { iad_value: true } },
@@ -263,6 +263,22 @@ const locksOf = (known, invId, prvId = known.prv_id) =>
   known.ctr_id
     ? { CONTRATO: known.ctr_id, FACTURA: Number(invId) }
     : { OBRA: known.wrk_id, PROVEEDOR: [...new Set([known.prv_id, prvId])], FACTURA: Number(invId) };
+
+/** Bloqueo del extracto que se asigna (DEC-084), después de la factura: nadie lo elimina mientras tanto. */
+const statementLock = (stmId) => (stmId ? { EXTRACTO: stmId } : {});
+
+/**
+ * El extracto asignado a la factura (DEC-084), ya bloqueado: de la misma obra
+ * (la FK compuesta lo garantiza; aquí, con un mensaje), no eliminado y, si
+ * cambia, activo. Sin extracto, nada que revisar.
+ */
+const assertStatement = async (tx, { wrkId, stmId, currentStmId = null }) => {
+  if (!stmId) return;
+  const row = await tx.tbl_statements.findUnique({ where: { stm_id: stmId }, select: { wrk_id: true, stm_number: true, sta_id: true } });
+  if (!row || row.sta_id === DELETED_STATUS) throw httpError(400, "El extracto seleccionado no existe.");
+  if (row.wrk_id !== Number(wrkId)) throw httpError(400, `El extracto ${row.stm_number} no es de la obra de la factura.`);
+  if (row.sta_id === INACTIVE_STATUS && stmId !== currentStmId) throw httpError(400, `El extracto ${row.stm_number} está inactivo.`);
+};
 
 // ─── Saldos de anticipo y de retenido (ADR-0024, ADR-0025) ──────────────────
 
@@ -897,7 +913,7 @@ const revalidateOnCancel = async (tx, invoice) => {
 // Lista blanca de orden (ENDPOINT_STANDARD, "Listados").
 const SORT_FIELDS = {
   number: (order) => ({ inv_number: order }),
-  statement: (order) => ({ inv_statement: order }),
+  statement: (order) => ({ tbl_statements: { stm_number: order } }),
   type: (order) => ({ inv_type: order }),
   provider: (order) => ({ tbl_providers: { prv_name: order } }),
   work: (order) => ({ tbl_works: { wrk_code: order } }),
@@ -922,7 +938,8 @@ const LIST_SELECT = {
   inv_number: true,
   inv_date: true,
   inv_approval_date: true,
-  inv_statement: true,
+  stm_id: true,
+  tbl_statements: { select: { stm_number: true } },
   inv_state: true,
   inv_update_at: true,
   updated_by_user: USER_NAME_SELECT,
@@ -1007,7 +1024,9 @@ const toListDto = (row) => ({
   number: row.inv_number,
   date: dateOnlyText(row.inv_date),
   approvalDate: dateOnlyText(row.inv_approval_date),
-  statement: row.inv_statement,
+  // Extracto de la obra (DEC-084): su número.
+  stmId: row.stm_id,
+  statement: row.tbl_statements?.stm_number ?? null,
   providerName: row.tbl_providers?.prv_name ?? null,
   wrkId: row.wrk_id,
   workCode: row.tbl_works?.wrk_code ?? null,
@@ -1142,7 +1161,7 @@ const invoiceListQuery = ({
       idFilter(wrkId, (id) => ({ wrk_id: id })),
       containsFilter(number, (c) => ({ inv_number: c })),
       containsFilter(voucherNumber, (c) => ({ inv_voucher_number: c })),
-      containsFilter(statement, (c) => ({ inv_statement: c })),
+      containsFilter(statement, (c) => ({ tbl_statements: { stm_number: c } })),
       containsFilter(contractNumber, (c) => ({ tbl_contracts: { ctr_number: c } })),
       containsFilter(providerName, (c) => ({ tbl_providers: { prv_name: c } })),
       dateRangeFilter("inv_date", dateFrom, dateTo),
@@ -1173,7 +1192,7 @@ export const contractInvoicesForReport = async ({ ctrId }) => {
       inv_number: true,
       inv_date: true,
       inv_approval_date: true,
-      inv_statement: true,
+      tbl_statements: { select: { stm_number: true } },
       inv_state: true,
       tbl_invoice_advance_details: { select: { iad_value: true } },
       tbl_invoice_liquidation_details: { select: { ild_value: true, ild_amortization: true, ild_retention: true } },
@@ -1190,7 +1209,7 @@ export const contractInvoicesForReport = async ({ ctrId }) => {
       typeName: TYPE_NAMES[row.inv_type] ?? row.inv_type,
       date: dateOnlyText(row.inv_date),
       approvalDate: dateOnlyText(row.inv_approval_date),
-      statement: row.inv_statement,
+      statement: row.tbl_statements?.stm_number ?? null,
       value: detail ? moneyText(detail[VALUE_COLUMN[row.inv_type]]) : null,
       amortization: moneyText(row.tbl_invoice_liquidation_details?.ild_amortization),
       retention: moneyText(row.tbl_invoice_liquidation_details?.ild_retention),
@@ -1199,6 +1218,20 @@ export const contractInvoicesForReport = async ({ ctrId }) => {
     };
   });
 };
+
+/**
+ * Facturas no eliminadas de un extracto (DEC-084), con los importes del
+ * listado y su comprobante: el reporte del extracto. Con el tope de los
+ * reportes (DEC-070). El alcance del extracto lo verifica quien llama.
+ */
+export const statementInvoices = async (stmId) =>
+  (
+    await findExportRows(prisma.tbl_invoices, {
+      where: { stm_id: Number(stmId), sta_id: { not: DELETED_STATUS } },
+      select: { ...LIST_SELECT, inv_voucher_number: true },
+      orderBy: [{ pvt_id: "asc" }, { inv_date: "asc" }, { inv_id: "asc" }],
+    })
+  ).map((row) => ({ ...toListDto(row), voucherNumber: row.inv_voucher_number }));
 
 // Columnas del reporte: las de la tabla del listado (DEC-070); un menú de
 // forma simple no tiene tipo que elegir ni contrato.
@@ -1343,6 +1376,7 @@ export const getInvoice = async ({ invId, scope }) => {
         },
       },
       tbl_works: { select: { wrk_code: true, wrk_name: true } },
+      tbl_statements: { select: { stm_number: true, stm_date: true } },
       tbl_work_stages: { select: { wks_name: true } },
       tbl_contracts: {
         select: { ctr_number: true, ctr_name: true, ctr_state: true, tbl_work_stages: { select: { wks_name: true } } },
@@ -1382,7 +1416,10 @@ export const getInvoice = async ({ invId, scope }) => {
     date: dateOnlyText(row.inv_date),
     approvalDate: dateOnlyText(row.inv_approval_date),
     voucherNumber: row.inv_voucher_number,
-    statement: row.inv_statement,
+    // Extracto de la obra (DEC-084).
+    stmId: row.stm_id,
+    statement: row.tbl_statements?.stm_number ?? null,
+    statementDate: dateOnlyText(row.tbl_statements?.stm_date),
     description: row.inv_description,
     providerName: row.tbl_providers?.prv_name ?? null,
     providerIdentification: [row.tbl_providers?.tbl_identity_documents?.idd_code, row.tbl_providers?.prv_identification].filter(Boolean).join(" "),
@@ -1567,6 +1604,7 @@ export const selectInvoiceContracts = async ({ type, pvtId, prvId, search, inclu
     ctr_name: true,
     ctr_state: true,
     prv_id: true,
+    wrk_id: true,
     tbl_providers: { select: { prv_name: true } },
     tbl_works: { select: { wrk_code: true, wrk_name: true } },
   };
@@ -1598,6 +1636,8 @@ export const selectInvoiceContracts = async ({ type, pvtId, prvId, search, inclu
   return rows.map((row) => ({
     value: row.ctr_id,
     prvId: row.prv_id,
+    // La obra del contrato: los extractos que ofrece el formulario (DEC-084).
+    wrkId: row.wrk_id,
     label: `${row.tbl_works?.wrk_code ?? ""} · ${row.ctr_number} — ${row.ctr_name}`,
     providerName: row.tbl_providers?.prv_name ?? null,
     workName: row.tbl_works ? `${row.tbl_works.wrk_code} — ${row.tbl_works.wrk_name}` : null,
@@ -1694,7 +1734,7 @@ const documentValuesOf = (input) => ({
   inv_number: text(input.number),
   inv_date: toDateOnly(input.date),
   inv_voucher_number: optionalText(input.voucherNumber),
-  inv_statement: optionalText(input.statement),
+  stm_id: positiveId(input.stmId),
   inv_description: optionalText(input.description),
 });
 
@@ -1753,9 +1793,11 @@ const createSimpleInvoice = async ({ input, document, useBy, ctx, idempotencyDat
     : (await prisma.tbl_work_provider_types.findMany({ where: { wrk_id: wrkId, prv_id: prvId, ...SIMPLE_TYPE_WHERE }, select: { pvt_id: true } })).map(
         (t) => t.pvt_id
       );
-  return withLockedTransaction({ OBRA: wrkId, PROVEEDOR: prvId, ...(types.length > 0 ? { TIPO_PROVEEDOR: types } : {}) }, async (tx) => {
+  const locks = { OBRA: wrkId, PROVEEDOR: prvId, ...statementLock(document.stm_id), ...(types.length > 0 ? { TIPO_PROVEEDOR: types } : {}) };
+  return withLockedTransaction(locks, async (tx) => {
     const wksId = positiveId(input.wksId);
     await assertWork(tx, wrkId);
+    await assertStatement(tx, { wrkId, stmId: document.stm_id });
     const pvtId = await resolveSimpleProvider(tx, { wrkId, prvId, pvtId: positiveId(input.pvtId) });
     await assertStage(tx, { wrkId, wksId });
     const values = { inv_type: input.type, pvt_id: pvtId, prv_id: prvId, wrk_id: wrkId, wks_id: wksId, ctr_id: null, ...document };
@@ -1776,8 +1818,9 @@ const createSimpleInvoice = async ({ input, document, useBy, ctx, idempotencyDat
 const createContractInvoice = async ({ input, document, granted, useBy, ctx, idempotencyData }) => {
   const known = await prisma.tbl_contracts.findUnique({ where: { ctr_id: Number(input.ctrId) }, select: { prv_id: true } });
   if (!known) throw httpError(404, "No se encontró el contrato.");
-  return withLockedTransaction({ PROVEEDOR: known.prv_id, CONTRATO: Number(input.ctrId) }, async (tx) => {
+  return withLockedTransaction({ PROVEEDOR: known.prv_id, CONTRATO: Number(input.ctrId), ...statementLock(document.stm_id) }, async (tx) => {
     const contract = await findLockedContract(tx, input.ctrId);
+    await assertStatement(tx, { wrkId: contract.wrk_id, stmId: document.stm_id });
     if (contract.prv_id !== known.prv_id) {
       throw httpError(409, "El proveedor del contrato cambió mientras se registraba la factura. Vuelve a intentarlo.");
     }
@@ -1818,7 +1861,7 @@ const updateInvoice = async ({ invId, input, document, granted, useBy, ctx }) =>
   const requestedPrvId = (isSimple && positiveId(input.prvId)) || known.prv_id;
 
   return withLockedTransaction(
-    locksOf(known, invId, requestedPrvId),
+    { ...locksOf(known, invId, requestedPrvId), ...statementLock(document.stm_id) },
     async (tx) => {
       const before = await findLockedInvoice(tx, invId);
       const values = isSimple ? { ...document, prv_id: requestedPrvId, wks_id: positiveId(input.wksId) ?? before.wks_id } : { ...document };
@@ -1858,6 +1901,7 @@ const updateInvoice = async ({ invId, input, document, granted, useBy, ctx }) =>
           await assertStage(tx, { wrkId: before.wrk_id, wksId: values.wks_id, currentWksId: before.wks_id });
         }
       }
+      if (values.stm_id !== before.stm_id) await assertStatement(tx, { wrkId: before.wrk_id, stmId: values.stm_id, currentStmId: before.stm_id });
       const prvId = values.prv_id ?? before.prv_id;
       if (values.inv_number !== before.inv_number || prvId !== before.prv_id) {
         await assertUniqueNumber(tx, { prvId, number: values.inv_number, excludeId: before.inv_id });

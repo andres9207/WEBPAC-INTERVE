@@ -10,6 +10,7 @@ import {
   selectWorkManagersSchema,
   saveWorkSchema,
   changeWorkStatusSchema,
+  changeWorkStateSchema,
   deleteWorkSchema,
 } from "./works.validation.js";
 import {
@@ -21,6 +22,7 @@ import {
   selectWorkManagersController,
   saveWorkController,
   changeWorkStatusController,
+  changeWorkStateController,
   deleteWorkController,
 } from "./works.controller.js";
 
@@ -67,6 +69,8 @@ worksRoutes.post(
   saveWorkController
 );
 worksRoutes.put("/change_status_work", verifyToken, requirePermission(can.changeStatus), changeWorkStatusSchema, validate, changeWorkStatusController);
+// Finalizar o reabrir la obra (DEC-083): el permiso de cambiar su estado (ADR-0011, "CAMBIAR ESTADO OBRA").
+worksRoutes.put("/change_state_work", verifyToken, requirePermission(can.changeStatus), changeWorkStateSchema, validate, changeWorkStateController);
 worksRoutes.put("/delete_work", verifyToken, requirePermission(can.delete), deleteWorkSchema, validate, deleteWorkController);
 
 export default worksRoutes;

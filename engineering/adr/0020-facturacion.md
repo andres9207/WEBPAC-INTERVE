@@ -4,6 +4,8 @@
 
 **Aceptado parcial** (2026-10-05, [DEC-042](../decisiones/DEC-042-facturas-area-ciclo-vida.md)): fase A. Existen el encabezado común con los cuatro tipos, los tres estados con historial, aprobar y anular con sus permisos, la inmutabilidad tras aprobar, la idempotencia y el número único por proveedor (decisiones 1 a 3, 5 a 12). Se aparta en dos puntos. El estado va en `inv_state` y no en `tbl_status` (`WORKFLOW_STANDARD`, regla 2). Las facturas de contrato no guardan la etapa: es la del contrato. Faltan los detalles por tipo con sus importes, los saldos y la evaluación de liquidación (fase B, decisiones contables pendientes).
 
+Extracto (2026-10-26, [DEC-084](../decisiones/DEC-084-extractos.md)): deja de ser un texto del encabezado y pasa a ser un registro de la obra (`tbl_statements`, el acta de WebPAC) al que la factura apunta (`stm_id`, FK compuesta con la obra). Sigue siendo editable tras aprobar.
+
 La facturación **no existía** en el código ni en el esquema cuando se escribió este ADR. Este ADR documenta la decisión arquitectónica recomendada y **gobierna a los ADR 0021, 0022, 0023, 0024, 0025 y 0026**, que desarrollan sus casos particulares.
 
 ## Fecha

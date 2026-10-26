@@ -4,8 +4,10 @@ import {
   assertPolicyStatus,
   contractPolicyStatus,
   decidingPolicy,
+  policyCoversTerm,
   policyExposure,
   policyValidity,
+  shortPolicies,
   uncoveredConcepts,
   uncoveredContractsWhere,
 } from "../../../../src/modules/work/contracts/policyTerms.js";
@@ -32,6 +34,27 @@ describe("policyValidity sin umbral", () => {
   it("usa 30 días, el valor por defecto de la regla de negocio (DEC-072)", () => {
     expect(policyValidity("2026-11-06", { today })).toBe(POLICY_VALIDITY.EXPIRING);
     expect(policyValidity("2026-11-07", { today })).toBe(POLICY_VALIDITY.ACTIVE);
+  });
+});
+
+describe("policyCoversTerm: la póliza termina el día de la fecha fin del contrato o después", () => {
+  it.each([
+    ["2026-12-31", "2026-12-31", true],
+    ["2027-12-31", "2026-12-31", true],
+    ["2026-12-30", "2026-12-31", false],
+    [null, "2026-12-31", null],
+    ["2026-12-31", null, null],
+  ])("póliza hasta %s, contrato hasta %s → %s", (policyEnd, contractEnd, expected) => {
+    expect(policyCoversTerm(policyEnd, contractEnd)).toBe(expected);
+  });
+
+  it("shortPolicies deja solo las que terminan antes; sin fecha no cuenta", () => {
+    const policies = [
+      { pol_number: "A", pol_end_date: new Date("2026-06-30T00:00:00Z") },
+      { pol_number: "B", pol_end_date: new Date("2027-06-30T00:00:00Z") },
+      { pol_number: "C", pol_end_date: null },
+    ];
+    expect(shortPolicies(policies, new Date("2026-12-31T00:00:00Z")).map((p) => p.pol_number)).toEqual(["A"]);
   });
 });
 

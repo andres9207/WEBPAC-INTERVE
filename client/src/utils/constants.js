@@ -55,10 +55,17 @@ export const CONTRACT_STATE_TABS = [
   { id: 'IN_PROGRESS', name: 'En ejecución', color: 'success' },
   { id: 'SUSPENDED', name: 'Suspendidos', color: 'lilac' },
   { id: 'IN_LIQUIDATION', name: 'En liquidación', color: 'info' },
-  { id: 'LIQUIDATED', name: 'Liquidados' }
+  { id: 'LIQUIDATED', name: 'Liquidados' },
+  { id: 'CANCELLED', name: 'Anulados', color: 'error' }
 ];
 
-export const CONTRACT_STATE_COLORS = { IN_PROGRESS: 'success', SUSPENDED: 'lilac', IN_LIQUIDATION: 'info', LIQUIDATED: 'default' };
+export const CONTRACT_STATE_COLORS = {
+  IN_PROGRESS: 'success',
+  SUSPENDED: 'lilac',
+  IN_LIQUIDATION: 'info',
+  LIQUIDATED: 'default',
+  CANCELLED: 'error'
+};
 
 // Estado de pólizas del contrato (DEC-052): los mismos de
 // CONTRACT_POLICY_STATUS_NAMES en server/src/modules/work/contracts/policyTerms.js.
@@ -75,13 +82,20 @@ export const CONTRACT_POLICY_STATUS_LABELS = {
 export const REASON_SCOPE_OPTIONS = [
   { value: 'SUSPENSION', label: 'Suspensión de contrato' },
   { value: 'INVOICE_CANCEL', label: 'Anulación de factura' },
-  { value: 'POLICY_CANCEL', label: 'Anulación de póliza' }
+  { value: 'POLICY_CANCEL', label: 'Anulación de póliza' },
+  { value: 'CONTRACT_CANCEL', label: 'Anulación de contrato' }
 ];
 
 // Bases de cálculo de una póliza (ADR-0019, DEC-050). Mismo dominio que
 // POLICY_BASES en server/src/modules/admin/policyTypes/policyBases.js. La
 // descripción va en el selector: quien configura un tipo debe ver qué compone
 // cada base.
+// Ciclo de vida de la obra (DEC-083): los mismos de WORK_STATES en server/src/modules/work/works/works.service.js.
+export const WORK_STATE_OPTIONS = [
+  { value: 'IN_PROGRESS', label: 'En curso' },
+  { value: 'FINISHED', label: 'Finalizada' }
+];
+
 export const POLICY_BASE_OPTIONS = [
   { value: 'DIRECT_COST', label: 'Costo directo', description: 'Solo el costo directo del concepto, sin AIU ni IVA.' },
   { value: 'TAXABLE_BASE', label: 'Base gravable', description: 'Costo directo + AIU, antes de IVA.' },

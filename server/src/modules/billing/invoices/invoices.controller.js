@@ -7,6 +7,7 @@ import { sendExport } from "../../../common/services/export.service.js";
 import * as invoicesService from "./invoices.service.js";
 import { getInvoiceEvidence } from "./invoiceEvidence.service.js";
 import * as followUpsService from "./invoiceFollowUps.service.js";
+import * as glossesService from "./invoiceGlosses.service.js";
 import { getInvoiceMenu, listInvoiceMenus } from "./invoiceMenus.js";
 import { SIMPLE_FIELDS, SIMPLE_PAIRS } from "./simpleInvoiceTerms.js";
 import { CONTRACT_PAIRS, CONTRACT_TAX_FIELDS } from "./contractInvoiceTerms.js";
@@ -56,7 +57,7 @@ const INVOICE_FIELDS = [
   "number",
   "date",
   "voucherNumber",
-  "statement",
+  "stmId",
   "description",
   "value",
   "amortization",
@@ -308,3 +309,40 @@ export const openInvoiceFollowUpController = handle(async (req) => {
 export const updateInvoiceFollowUpController = followUpAction(followUpsService.updateFollowUp, ["openDate", "description"]);
 export const closeInvoiceFollowUpController = followUpAction(followUpsService.closeFollowUp, ["observation"]);
 export const deleteInvoiceFollowUpController = followUpAction(followUpsService.deleteFollowUp, []);
+
+// ─── Glosas (DEC-085) ────────────────────────────────────────────────────────
+// Ver lo protege la ruta con ver facturas; operar, además con gestionar glosas.
+
+export const listInvoiceGlossesController = handle(async (req) => glossesService.listGlosses({ invId: req.query.invId, scope: await workScopeOf(req) }));
+
+const GLOSS_FIELDS = ["stmId", "code", "value", "description"];
+
+const glossAction = (fn, fields) =>
+  handle(async (req) => {
+    const result = await fn({
+      iglId: req.body.iglId,
+      input: pick(req.body, fields),
+      useBy: req.user.useId,
+      scope: await workScopeOf(req),
+      ctx: auditContext(req),
+    });
+    notify();
+    return result;
+  });
+
+export const createInvoiceGlossController = handle(async (req) => {
+  const result = await glossesService.createGloss({
+    invId: req.body.invId,
+    input: pick(req.body, GLOSS_FIELDS),
+    useBy: req.user.useId,
+    scope: await workScopeOf(req),
+    ctx: auditContext(req),
+    idempotencyKey: req.get(IDEMPOTENCY_HEADER),
+  });
+  notify();
+  return result;
+});
+
+export const updateInvoiceGlossController = glossAction(glossesService.updateGloss, GLOSS_FIELDS);
+export const releaseInvoiceGlossController = glossAction(glossesService.releaseGloss, ["releaseStmId", "observation"]);
+export const deleteInvoiceGlossController = glossAction(glossesService.deleteGloss, []);

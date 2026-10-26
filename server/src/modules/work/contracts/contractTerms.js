@@ -16,6 +16,7 @@ export const CONTRACT_STATES = Object.freeze({
   SUSPENDED: "SUSPENDED",
   IN_LIQUIDATION: "IN_LIQUIDATION",
   LIQUIDATED: "LIQUIDATED",
+  CANCELLED: "CANCELLED",
 });
 
 export const STATE_NAMES = Object.freeze({
@@ -23,6 +24,7 @@ export const STATE_NAMES = Object.freeze({
   SUSPENDED: "Suspendido",
   IN_LIQUIDATION: "En liquidación",
   LIQUIDATED: "Liquidado",
+  CANCELLED: "Anulado",
 });
 
 export const TRANSITION_ORIGINS = Object.freeze({ AUTOMATIC: "AUTOMATIC", MANUAL: "MANUAL" });
@@ -41,7 +43,13 @@ export const EXPIRING_TAB = "EXPIRING";
  */
 export const POLICIES_EXPIRING_TAB = "POLICIES_EXPIRING";
 
-const { IN_PROGRESS, SUSPENDED, IN_LIQUIDATION, LIQUIDATED } = CONTRACT_STATES;
+const { IN_PROGRESS, SUSPENDED, IN_LIQUIDATION, LIQUIDATED, CANCELLED } = CONTRACT_STATES;
+
+/**
+ * Estados que cierran el contrato: ya no se opera (sus pólizas no se renuevan)
+ * y no falta por liquidar (DEC-082, DEC-083).
+ */
+export const CLOSED_STATES = Object.freeze([LIQUIDATED, CANCELLED]);
 
 /** Destino de una transición que devuelve el contrato al estado que tenía (suspensión superpuesta). */
 export const PREVIOUS_STATE = "PREVIOUS_STATE";
@@ -57,6 +65,8 @@ export const PREVIOUS_STATE = "PREVIOUS_STATE";
  * - `resume`: la dispara el otrosí que reanuda el contrato, con el permiso
  *   de levantar (DEC-039). Vuelve al estado que el contrato tenía al
  *   suspenderse (ADR-0017, decisión 3), guardado en la suspensión.
+ * - `cancel`: manual, con permiso propio, desde cualquier estado y también
+ *   con facturas aprobadas (DEC-082). Anulado es final: solo consulta.
  */
 export const CONTRACT_TRANSITIONS = Object.freeze({
   create: { label: "Registrar el contrato", from: [null], to: IN_PROGRESS, origin: TRANSITION_ORIGINS.AUTOMATIC },
@@ -64,6 +74,7 @@ export const CONTRACT_TRANSITIONS = Object.freeze({
   liquidate: { label: "Liquidar", from: [IN_LIQUIDATION], to: LIQUIDATED, origin: TRANSITION_ORIGINS.AUTOMATIC },
   suspend: { label: "Suspender", from: [IN_PROGRESS], to: SUSPENDED, origin: TRANSITION_ORIGINS.MANUAL },
   resume: { label: "Reanudar con otrosí", from: [SUSPENDED], to: PREVIOUS_STATE, origin: TRANSITION_ORIGINS.MANUAL },
+  cancel: { label: "Anular", from: [IN_PROGRESS, SUSPENDED, IN_LIQUIDATION, LIQUIDATED], to: CANCELLED, origin: TRANSITION_ORIGINS.MANUAL },
 });
 
 /**
@@ -115,6 +126,7 @@ export const STATE_ALLOWS = Object.freeze({
     "createPolicy",
     "renewPolicy",
     "cancelPolicy",
+    "cancelContract",
   ]),
   // Suspendido: solo el otrosí que lo reanuda (DEC-039). Ninguna factura nueva.
   // Anular y eliminar (DEC-068) una factura del contrato se admite en todo
@@ -123,7 +135,7 @@ export const STATE_ALLOWS = Object.freeze({
   // Pólizas (ADR-0017, efectos por estado; DEC-050): en ejecución y suspendido,
   // todo; en liquidación, renovar las vigentes y amparar el otrosí de
   // liquidación (nace en ese estado); liquidado, solo consulta.
-  SUSPENDED: Object.freeze(["createAmendment", "cancelInvoice", "deleteInvoice", "createPolicy", "renewPolicy", "cancelPolicy"]),
+  SUSPENDED: Object.freeze(["createAmendment", "cancelInvoice", "deleteInvoice", "createPolicy", "renewPolicy", "cancelPolicy", "cancelContract"]),
   IN_LIQUIDATION: Object.freeze([
     "editLiquidationConcept",
     "invoiceLiquidation",
@@ -132,8 +144,11 @@ export const STATE_ALLOWS = Object.freeze({
     "deleteInvoice",
     "createLiquidationPolicy",
     "renewPolicy",
+    "cancelContract",
   ]),
-  LIQUIDATED: Object.freeze([]),
+  // Anular (DEC-082) es lo único que admiten liquidado y, por ser final, nada anulado.
+  LIQUIDATED: Object.freeze(["cancelContract"]),
+  CANCELLED: Object.freeze([]),
 });
 
 /** Acción de STATE_ALLOWS que habilita cada tipo de factura de contrato (DEC-042). */
@@ -155,12 +170,13 @@ const DENIED = {
   invoiceNormal: "Las facturas normales solo se registran o aprueban con el contrato en ejecución.",
   invoiceLiquidation: "Las facturas de liquidación solo se registran o aprueban con el contrato en liquidación.",
   invoiceRetentionRefund: "Las facturas de devolución de retenido solo se registran o aprueban con el contrato en liquidación.",
-  cancelInvoice: "Las facturas de un contrato liquidado no se anulan: el contrato solo se consulta.",
-  deleteInvoice: "Las facturas de un contrato liquidado no se eliminan: el contrato solo se consulta.",
+  cancelInvoice: "Las facturas de un contrato liquidado o anulado no se anulan: el contrato solo se consulta.",
+  deleteInvoice: "Las facturas de un contrato liquidado o anulado no se eliminan: el contrato solo se consulta.",
   createPolicy: "Solo se registran pólizas con el contrato en ejecución o suspendido; en liquidación, solo la del otrosí de liquidación.",
   createLiquidationPolicy: "La póliza del otrosí de liquidación se registra con el contrato en liquidación.",
-  renewPolicy: "Las pólizas de un contrato liquidado solo se consultan.",
+  renewPolicy: "Las pólizas de un contrato liquidado o anulado solo se consultan.",
   cancelPolicy: "Solo se anulan pólizas con el contrato en ejecución o suspendido.",
+  cancelContract: "El contrato ya está anulado.",
 };
 
 export const stateAllows = (state, action) => (STATE_ALLOWS[state] ?? []).includes(action);

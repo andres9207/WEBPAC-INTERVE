@@ -19,6 +19,7 @@ const prismaMock = {
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
 
 const { exportContractReport } = await import("../../../../src/modules/work/contracts/contractReports.service.js");
+const { COMPANY_FOOTER } = await import("../../../../src/common/services/export.service.js");
 
 // Sin AIU: valor = costo × 1,19; anticipo 15 % y retenido 5 % del costo.
 const concept = (ccp_id, ccp_type, ccp_number, ccp_direct_cost, sta_id = 1) => ({
@@ -55,13 +56,14 @@ const sheetOf = async (file) => {
   return workbook.worksheets[0];
 };
 
-// Filas de datos (después del encabezado de la tabla) como arreglos de valores.
+// Filas de datos (después del encabezado de la tabla) como arreglos de valores,
+// sin el pie de la hoja con los datos de INTERVE.
 const tableOf = (sheet, firstHeader) => {
   let header = null;
   const rows = [];
   sheet.eachRow((row, n) => {
     if (row.getCell(1).value === firstHeader) header = n;
-    else if (header) rows.push(row.values.slice(1));
+    else if (header && !COMPANY_FOOTER.includes(row.getCell(1).value)) rows.push(row.values.slice(1));
   });
   return { header, rows };
 };

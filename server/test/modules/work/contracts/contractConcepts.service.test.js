@@ -444,13 +444,13 @@ describe("liquidación (DEC-081)", () => {
     await expect(service.getContractLiquidation({ ctrId: 30 })).rejects.toMatchObject({ statusCode: 409 });
   });
 
-  it("consultar devuelve las nueve condiciones y cuántas faltan, sin escribir", async () => {
+  it("consultar devuelve las diez condiciones y cuántas faltan, sin escribir", async () => {
     settle();
     state.policies = [{ ccp_id: 300 }];
 
     const result = await service.getContractLiquidation({ ctrId: 30 });
     expect(result).toMatchObject({ state: "IN_LIQUIDATION", tolerancePct: "0.01", pending: 1 });
-    expect(result.conditions).toHaveLength(9);
+    expect(result.conditions).toHaveLength(10);
     expect(result.conditions.find((c) => c.key === "C8")).toMatchObject({ met: false, detail: "Sin póliza vigente: Otrosí de liquidación." });
     expect(prismaMock.tbl_contracts.update).not.toHaveBeenCalled();
   });

@@ -46,7 +46,8 @@ export const CONTRACT_STATE_CHART_COLORS = {
   IN_PROGRESS: 'primary.800',
   SUSPENDED: 'cyan.main',
   IN_LIQUIDATION: 'orange.dark',
-  LIQUIDATED: 'grey.600'
+  LIQUIDATED: 'grey.600',
+  CANCELLED: 'error.main'
 };
 
 export const POLICY_STATUS_COLORS = { NONE: 'default', NO_DATE: 'default', ACTIVE: 'success', EXPIRING: 'warning', EXPIRED: 'error' };

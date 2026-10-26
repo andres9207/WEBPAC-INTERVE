@@ -92,7 +92,10 @@ export function WorksActivityCard({ works }) {
 
 WorksActivityCard.propTypes = { works: PropTypes.arrayOf(PropTypes.object).isRequired };
 
-/** Alertas calculadas (no notificaciones): cada una con su cifra y su listado. Solo las que tienen algo. */
+/**
+ * Alertas calculadas (no notificaciones): cada una con su cifra y su listado
+ * (`to`) o su detalle (`onClick`, que abre el DrillDownDialog). Solo las que tienen algo.
+ */
 export function AlertsCard({ alerts }) {
   const active = alerts.filter((a) => a.count > 0);
   return (
@@ -103,8 +106,8 @@ export function AlertsCard({ alerts }) {
         </Stack>
       ) : (
         <List disablePadding aria-label="Alertas">
-          {active.map(({ key, count, label, hint, icon: Icon, tone, to }) => (
-            <ListItemButton key={key} component={RouterLink} to={to} sx={{ borderRadius: 1, gap: 1.5 }}>
+          {active.map(({ key, count, label, hint, icon: Icon, tone, to, onClick }) => (
+            <ListItemButton key={key} {...(to ? { component: RouterLink, to } : { onClick })} sx={{ borderRadius: 1, gap: 1.5 }}>
               <Avatar variant="rounded" sx={{ width: 36, height: 36, bgcolor: tone.bg, color: tone.fg, borderRadius: 1.5 }} aria-hidden>
                 <Icon size={20} stroke={1.8} />
               </Avatar>

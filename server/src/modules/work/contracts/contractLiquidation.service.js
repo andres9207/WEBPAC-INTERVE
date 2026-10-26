@@ -2,7 +2,7 @@ import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
 import { INVOICE_STATES, INVOICE_TYPES } from "../../billing/invoices/invoiceTerms.js";
 import { CONCEPT_TYPES, CONCEPT_TYPE_NAMES, CONTRACT_STATES, historyRow, sortConcepts } from "./contractTerms.js";
-import { uncoveredConcepts } from "./policyTerms.js";
+import { shortPolicies, uncoveredConcepts } from "./policyTerms.js";
 import { liquidationConditions, unmetConditions } from "./liquidationTerms.js";
 import { contractLabel, notifyWorkManagers } from "./contractNotifications.service.js";
 
@@ -35,7 +35,11 @@ export const liquidationFacts = async (db, ctrId, contractBalances) => {
       select: { ccp_id: true, ccp_type: true, ccp_number: true },
     })
   );
-  const currentPolicies = await db.tbl_policies.findMany({ where: { ctr_id: id, pol_is_current: true }, select: { ccp_id: true } });
+  const currentPolicies = await db.tbl_policies.findMany({
+    where: { ctr_id: id, pol_is_current: true },
+    select: { ccp_id: true, pol_number: true, pol_end_date: true },
+  });
+  const contract = await db.tbl_contracts.findUnique({ where: { ctr_id: id }, select: { ctr_end_date: true } });
   const approvedLiquidations = await db.tbl_invoices.count({
     where: contractInvoices(id, { inv_type: INVOICE_TYPES.LIQUIDATION, inv_state: INVOICE_STATES.APPROVED }),
   });
@@ -51,6 +55,7 @@ export const liquidationFacts = async (db, ctrId, contractBalances) => {
     openSuspension: openSuspension > 0,
     reportSuspensions,
     uncoveredConcepts: uncoveredConcepts(concepts, currentPolicies).map(conceptLabel),
+    shortPolicies: shortPolicies(currentPolicies, contract?.ctr_end_date).map((p) => p.pol_number),
   };
 };
 

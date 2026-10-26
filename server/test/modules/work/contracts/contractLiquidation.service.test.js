@@ -37,7 +37,7 @@ const settled = () => ({
 beforeEach(() => {
   jest.clearAllMocks();
   Object.assign(state, {
-    contract: { ctr_id: 30, ctr_state: "IN_LIQUIDATION" },
+    contract: { ctr_id: 30, ctr_state: "IN_LIQUIDATION", ctr_end_date: new Date("2026-12-31T00:00:00Z") },
     concepts: [
       { ccp_id: 1, ccp_type: "INITIAL", ccp_number: null },
       { ccp_id: 3, ccp_type: "LIQUIDATION", ccp_number: null },
@@ -101,8 +101,11 @@ describe("evaluateLiquidation", () => {
 });
 
 describe("liquidationFacts", () => {
-  it("lee los hechos del contrato: conceptos sin póliza, facturas y suspensiones", async () => {
-    state.policies = [{ ccp_id: 1 }];
+  it("lee los hechos del contrato: conceptos sin póliza, pólizas cortas, facturas y suspensiones", async () => {
+    state.policies = [
+      { ccp_id: 1, pol_number: "P-1", pol_end_date: new Date("2026-12-30T00:00:00Z") },
+      { ccp_id: 1, pol_number: "P-2", pol_end_date: new Date("2027-12-31T00:00:00Z") },
+    ];
     state.pendingInvoices = 2;
     state.openSuspensions = 1;
 
@@ -114,6 +117,8 @@ describe("liquidationFacts", () => {
       openSuspension: true,
       reportSuspensions: 0,
       uncoveredConcepts: ["Otrosí de liquidación"],
+      // Termina un día antes que el contrato; la que sigue un año después sí cubre.
+      shortPolicies: ["P-1"],
     });
     // Las facturas eliminadas no cuentan.
     expect(tx.tbl_invoices.count.mock.calls.every(([{ where }]) => where.sta_id?.not === 3)).toBe(true);

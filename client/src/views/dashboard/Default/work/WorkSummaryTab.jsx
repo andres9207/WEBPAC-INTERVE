@@ -18,6 +18,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import {
   IconAlertTriangle,
+  IconChecklist,
   IconClockHour4,
   IconCurrencyDollar,
   IconFileText,
@@ -98,6 +99,9 @@ function WorkHero({ work, referenceDate }) {
                 </Link>
               </Typography>
               <StatusChip staId={work.staId} label={work.statusName} />
+              {work.state === 'FINISHED' && (
+                <Chip size="small" variant="outlined" label={`${work.stateName} el ${fDateOnly(work.finishDate)}`} />
+              )}
             </Stack>
             <Typography variant="body2" color="text.secondary">
               {[work.constructionCompany, work.contractType, work.supervisionType && `Interventoría ${work.supervisionType.toLowerCase()}`]
@@ -276,7 +280,30 @@ ContractCard.propTypes = { contract: PropTypes.object.isRequired };
  */
 const attentionOf = (data) => {
   const list = [];
-  const { contracts, invoices } = data;
+  const { contracts, invoices, work } = data;
+  // Obra finalizada (DEC-083): no exige los contratos liquidados, pero avisa los que faltan.
+  if (work?.state === 'FINISHED' && contracts?.toLiquidate.count > 0) {
+    const pending = contracts.items.filter((c) => contracts.toLiquidate.ctrIds.includes(c.ctrId));
+    list.push({
+      key: 'to-liquidate',
+      count: pending.length,
+      text: `Obra finalizada con ${plural(pending.length, 'contrato', 'contratos')} por liquidar`,
+      hint: pending.map((c) => `${c.number} · ${c.stateName.toLowerCase()}`).join(', '),
+      icon: IconChecklist,
+      tone: ACTION_TONES.danger,
+      ...(pending.length === 1
+        ? { to: dashboardTo.contract(pending[0].ctrId) }
+        : {
+            drill: {
+              title: 'Contratos por liquidar',
+              subtitle: 'Valor vigente',
+              total: contracts.toLiquidate.value,
+              noun: CONTRACT_NOUN,
+              rows: contractRows(pending)
+            }
+          })
+    });
+  }
   if (contracts?.policies) {
     const byCtr = new Map(contracts.items.map((c) => [c.ctrId, c]));
     for (const p of contracts.policies.filter((x) => x.validity === 'EXPIRED')) {

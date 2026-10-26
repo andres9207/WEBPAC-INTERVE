@@ -27,6 +27,7 @@ import PoliciesDraftEditor from './components/PoliciesDraftEditor';
 import LiquidationTab from './components/LiquidationTab';
 import PoliciesTab from './components/PoliciesTab';
 import SuspendDialog from './components/SuspendDialog';
+import CancelContractDialog from './components/CancelContractDialog';
 import { FIELD_TAB, toForm, toPayload } from './components/contractForm';
 import useContractForm from './components/useContractForm';
 import ContractInvoicesTab from 'views/billing/invoices/components/ContractInvoicesTab';
@@ -122,6 +123,7 @@ function ContractView() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [suspending, setSuspending] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [addingPolicy, setAddingPolicy] = useState(false);
 
   // Con el resumen al lado no hay pestaña Resumen: se abre en los datos (o en Valor, sin permiso de editar).
@@ -224,6 +226,11 @@ function ContractView() {
     changed();
   };
 
+  const cancelled = () => {
+    setCancelling(false);
+    changed();
+  };
+
   const remove = async () => {
     try {
       const { data } = await contractsApi.remove({ ctrId: contract.ctrId });
@@ -255,6 +262,8 @@ function ContractView() {
   const hidden = (key) => ({ display: tab === key ? 'block' : 'none' });
   const open = contract?.openSuspension;
   const canSuspend = !isNew && canDo(perms?.suspend) && contract.allowedActions.includes('suspend');
+  // Anular (DEC-082): desde cualquier estado salvo anulado, con permiso propio.
+  const canCancel = !isNew && canDo(perms?.cancel) && contract.allowedActions.includes('cancelContract');
 
   return (
     <RouteDialog
@@ -321,6 +330,11 @@ function ContractView() {
           {!isNew && canDo(perms?.delete) && (
             <Button variant="outlined" color="error" onClick={() => setConfirmDelete(true)} disabled={saving}>
               Eliminar
+            </Button>
+          )}
+          {canCancel && (
+            <Button variant="outlined" color="error" onClick={() => setCancelling(true)} disabled={saving}>
+              Anular
             </Button>
           )}
           {!isNew && canDo(perms?.export) && (
@@ -454,6 +468,15 @@ function ContractView() {
           contract={{ ctrId: contract.ctrId, number: contract.number, startDate: contract.startDate }}
           onClose={() => setSuspending(false)}
           onSaved={suspended}
+        />
+      )}
+
+      {contract && (
+        <CancelContractDialog
+          open={cancelling}
+          contract={{ ctrId: contract.ctrId, number: contract.number }}
+          onClose={() => setCancelling(false)}
+          onSaved={cancelled}
         />
       )}
 

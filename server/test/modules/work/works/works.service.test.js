@@ -407,6 +407,50 @@ describe("saveWork — editar", () => {
   });
 });
 
+describe("changeWorkState: finalizar y reabrir la obra (DEC-083)", () => {
+  beforeEach(() => {
+    state.work = { sta_id: 1, wrk_state: "IN_PROGRESS", wrk_finish_date: null, wrk_start_date: new Date("2026-01-15T00:00:00Z") };
+  });
+
+  it("finaliza con la fecha y lo registra en la bitácora", async () => {
+    await expect(service.changeWorkState({ wrkId: 40, state: "FINISHED", finishDate: "2026-10-20", useBy: 9, ctx })).resolves.toEqual({
+      message: "Obra finalizada correctamente",
+      state: "FINISHED",
+    });
+    const { data } = prismaMock.tbl_works.update.mock.calls[0][0];
+    expect(data).toMatchObject({ wrk_state: "FINISHED", wrk_update_by: 9 });
+    expect(data.wrk_finish_date.toISOString()).toBe("2026-10-20T00:00:00.000Z");
+    expect(auditRows().map((r) => [r.aud_field, r.aud_new_value])).toEqual([
+      ["wrk_state", "FINISHED"],
+      ["wrk_finish_date", "2026-10-20"],
+    ]);
+  });
+
+  it("reabrir limpia la fecha", async () => {
+    state.work = { ...state.work, wrk_state: "FINISHED", wrk_finish_date: new Date("2026-10-20T00:00:00Z") };
+
+    await expect(service.changeWorkState({ wrkId: 40, state: "IN_PROGRESS", useBy: 9, ctx })).resolves.toMatchObject({ message: "Obra reabierta correctamente" });
+    expect(prismaMock.tbl_works.update.mock.calls[0][0].data).toMatchObject({ wrk_state: "IN_PROGRESS", wrk_finish_date: null });
+  });
+
+  it("repetir el mismo estado no escribe nada", async () => {
+    await service.changeWorkState({ wrkId: 40, state: "IN_PROGRESS", useBy: 9, ctx });
+    expect(prismaMock.tbl_works.update).not.toHaveBeenCalled();
+  });
+
+  it("finalizar exige la fecha, no anterior al inicio de la obra (400)", async () => {
+    await expect(service.changeWorkState({ wrkId: 40, state: "FINISHED", useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "La fecha de finalización es requerida.",
+    });
+    await expect(service.changeWorkState({ wrkId: 40, state: "FINISHED", finishDate: "2026-01-14", useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "La fecha de finalización no puede ser anterior al inicio de la obra (2026-01-15).",
+    });
+    expect(prismaMock.tbl_works.update).not.toHaveBeenCalled();
+  });
+});
+
 describe("changeWorkStatus y deleteWork", () => {
   beforeEach(() => {
     state.work = { sta_id: 1 };

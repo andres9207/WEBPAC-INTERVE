@@ -6,6 +6,7 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
+| Aplicar las migraciones `0115` a `0120` **junto con** su código y en orden, y después `npx prisma generate` y `yarn db:seed` (permisos 117 a 123). La `0119` convierte el texto `inv_statement` en extractos y **elimina la columna**: el código anterior la lee. En desarrollo ya están aplicadas (2026-10-26) | Alta | DEC-082 a DEC-085 |
 | Aplicar las migraciones `0011` a `0016` en orden. La `0014` vacía sesiones, códigos de recuperación e intentos de login: va junto con el despliegue, no antes ([DEC-009](../decisiones/DEC-009-zona-horaria.md)). La `0015` y la `0016` van **antes** del código que las usa: sin sus columnas, "olvidé mi contraseña" y crear registros fallan | Alta | `decisiones/README.md` |
 | Despliegue de [DEC-047](../decisiones/DEC-047-alcance-por-obra.md) (alcance por obra, migración `0076`): antes de activarlo en producción, asignar responsables a las obras u otorgar el permiso 91 a quien deba ver todo. Sin eso, esos usuarios dejan de ver obras, proveedores, contratos y facturas. Quien crea una obra sin el permiso 91 no la ve hasta que lo asignen como responsable | Alta | DEC-047 |
 | Aplicar la migración `0109` (menús de facturas dinámicos: forma de facturar y casilla del menú en el tipo de proveedor, `tbl_invoices.pvt_id` en lugar de `inv_view`, retiro de `ctr_invoice_view`, permiso 115 en lugar de 105 a 107, páginas 21 a 23 retiradas) **junto con** su código: el código anterior lee las columnas que se retiran. Después, `npx prisma generate` y `yarn db:seed`. Revisar los `SELECT` informativos (contratos sin menú que ahora admiten facturas; asignaciones con facturas simples y más de un tipo simple). En desarrollo ya está aplicada (2026-10-23) | Alta | DEC-074 |
@@ -140,6 +141,7 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
+| `server/yarn.lock` está en formato v1 y el proyecto usa Yarn 4 (Volta): `yarn test` y `yarn db:check-invariants` fallan con "This package doesn't seem to be present in your lockfile". Mientras tanto se corren con `npx jest` y `node`. Regenerarlo con `yarn install` reescribe el archivo entero: decidirlo y hacerlo en un cambio aparte | Media | Sesión 2026-10-26 |
 | Retirar `DB_HOST`/`DB_USER`/`DB_NAME`/`DB_PASSWORD` de `server/.env.template` y la dependencia `mysql2` de `server/package.json`. Ya no los usa nada (hay cambios sin confirmar en `.env.template`) | Baja | `decisiones/README.md` |
 | `server/process.env.NODE_ENV`: archivo suelto en la raíz del servidor, sin uso aparente | Baja | Descubrimiento |
 | `server/logs/*.log` está versionado y cambia en cada ejecución | Baja | Descubrimiento |

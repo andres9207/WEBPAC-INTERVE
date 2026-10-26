@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
+import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 
 import MasterPage from 'ui-component/extended/MasterPage';
@@ -9,7 +10,8 @@ import { getConstructionCompaniesSelectAPI } from 'api/requests/constructionComp
 import { getSupervisionTypesSelectAPI } from 'api/requests/supervisionTypesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { fMoneyText } from 'utils/formatNumber';
-import { fTerm } from 'utils/constants';
+import { WORK_STATE_OPTIONS, fTerm } from 'utils/constants';
+import { fDateOnly } from 'utils/formatTime';
 import WorkCard from './components/WorkCard';
 import WorksSummary from './components/WorksSummary';
 
@@ -42,7 +44,19 @@ const COLUMNS = [
   { id: 'mainManagerName', label: 'Responsable principal', render: (row) => row.mainManagerName ?? 'Sin principal' },
   // Valor vigente: el ampliado si existe. Lo calcula el servidor (FRONTEND_STANDARD, regla 9).
   { id: 'currentValue', label: 'Valor vigente', align: 'right', render: (row) => fMoneyText(row.currentValue) },
-  { id: 'term', label: 'Plazo', render: (row) => fTerm(row.initialTerm, row.termUnit) }
+  { id: 'term', label: 'Plazo', render: (row) => fTerm(row.initialTerm, row.termUnit) },
+  // Ciclo de vida (DEC-083): en curso o finalizada, con su fecha.
+  {
+    id: 'stateName',
+    label: 'Ciclo',
+    sortable: true,
+    render: (row) =>
+      row.state === 'FINISHED' ? (
+        <Chip size="small" variant="outlined" label={`Finalizada · ${fDateOnly(row.finishDate)}`} />
+      ) : (
+        row.stateName
+      )
+  }
 ];
 
 // Filtros del listado (DEC-048). Constructora e interventoría, entre las activas.
@@ -64,7 +78,8 @@ const FILTER_FIELDS = [
     fetchApi: () => getSupervisionTypesSelectAPI(),
     socketEvent: 'refresh-supervision-types',
     grid: { xs: 12, sm: 6 }
-  }
+  },
+  { key: 'state', type: 'dropdown', label: 'Ciclo', props: { options: WORK_STATE_OPTIONS }, grid: { xs: 12, sm: 6 } }
 ];
 
 const rowLabel = (row) => `${row.code} — ${row.name}`;

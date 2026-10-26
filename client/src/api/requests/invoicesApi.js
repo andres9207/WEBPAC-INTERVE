@@ -125,3 +125,18 @@ export const invoiceFollowUpsApi = {
   close: (params) => httpCliente.post('billing/invoices/close_invoice_follow_up', params),
   remove: (ifuId) => httpCliente.post('billing/invoices/delete_invoice_follow_up', { ifuId })
 };
+
+/**
+ * Glosas de una factura (DEC-085): verlas con ver facturas; levantar, editar, liberar y eliminar, además con
+ * gestionar glosas. La fecha de liberación la pone el servidor.
+ */
+export const invoiceGlossesApi = {
+  list: (invId) => httpCliente.get('billing/invoices/list_invoice_glosses', { invId }),
+  /** @param {{ invId, stmId, code, value, description }} params */
+  create: (params, idempotencyKey) => httpCliente.post('billing/invoices/create_invoice_gloss', params, idempotencyConfig(idempotencyKey)),
+  /** @param {{ iglId, stmId, code, value, description }} params */
+  update: (params) => httpCliente.post('billing/invoices/update_invoice_gloss', params),
+  /** @param {{ iglId, releaseStmId, observation }} params */
+  release: (params) => httpCliente.post('billing/invoices/release_invoice_gloss', params),
+  remove: (iglId) => httpCliente.post('billing/invoices/delete_invoice_gloss', { iglId })
+};

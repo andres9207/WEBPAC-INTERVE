@@ -156,10 +156,16 @@ export default function PoliciesTab({ contract, onChanged }) {
         row.status === 'CANCELLED' ? (
           <Chip size="small" color="error" variant="outlined" label="Anulada" />
         ) : (
-          <Chip size="small" color={VALIDITY_COLORS[row.validity]} label={row.validityName} />
+          <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
+            <Chip size="small" color={VALIDITY_COLORS[row.validity]} label={row.validityName} />
+            {/* Solo informa: la póliza termina antes que el contrato (policyCoversTerm en el servidor). */}
+            {row.coversTerm === false && <Chip size="small" color="warning" variant="outlined" label="No cubre el plazo" />}
+          </Stack>
         )
     }
   ];
+
+  const shortPolicies = data.policies.filter((p) => p.coversTerm === false);
 
   const actions = (row) => {
     const current = row.status === 'CURRENT';
@@ -200,6 +206,12 @@ export default function PoliciesTab({ contract, onChanged }) {
       {data.uncoveredConcepts.length > 0 && (
         <Alert severity="warning">
           Sin póliza vigente: {data.uncoveredConcepts.map((c) => `${c.label} (${fMoneyText(c.value)})`).join(', ')}.
+        </Alert>
+      )}
+
+      {shortPolicies.length > 0 && (
+        <Alert severity="info">
+          Terminan antes que el contrato ({fDateOnly(data.contractEndDate)}): {shortPolicies.map((p) => `póliza ${p.number}`).join(', ')}.
         </Alert>
       )}
 

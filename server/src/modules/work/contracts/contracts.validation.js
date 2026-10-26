@@ -216,6 +216,19 @@ export const suspendContractSchema = [
   body("requiresReport").optional({ values: "null" }).isBoolean().withMessage("Indica si la suspensión genera informe de interventoría."),
 ];
 
+// Anular (DEC-082): motivo del catálogo y observación obligatoria.
+export const cancelContractSchema = [
+  idempotencyKeyRule(),
+  requiredId("ctrId"),
+  requiredId("reaId").withMessage("Selecciona el motivo de la anulación."),
+  body("observation")
+    .trim()
+    .notEmpty()
+    .withMessage("La observación es requerida.")
+    .isLength({ max: 1000 })
+    .withMessage("La observación admite hasta 1000 caracteres."),
+];
+
 export const createLiquidationSchema = [
   idempotencyKeyRule(),
   requiredId("ctrId"),

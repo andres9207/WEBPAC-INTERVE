@@ -154,6 +154,9 @@ export const PERMISSIONS = {
       // el contrato, que exige este permiso además de createAmendment (DEC-039).
       suspend: 76,
       liftSuspension: 77,
+      // Anular el contrato desde cualquier estado, también con facturas
+      // aprobadas: estado final, solo consulta (DEC-082).
+      cancel: 117,
       // Apagar o volver a encender el AIU de un contrato cuyo tipo lo aplica
       // (ADR-0026, P13; DEC-046).
       changeAiu: 90,
@@ -208,6 +211,19 @@ export const PERMISSIONS = {
       // Abrir, editar, cerrar y eliminar el seguimiento de una factura; verlo
       // solo exige ver facturas (DEC-076).
       manageFollowUps: 116,
+      // Levantar, editar, liberar y eliminar las glosas de una factura; verlas
+      // solo exige ver facturas (DEC-085).
+      manageGlosses: 123,
+    },
+    // Extractos de la obra (DEC-084), el acta de WebPAC. Cambiar su estado
+    // (activo o inactivo) va con el permiso de modificar.
+    statements: {
+      view: 118, // pagination_statements, get_statement, get_statements_select, get_statement_report
+      create: 119,
+      edit: 120,
+      changeStatus: 120,
+      delete: 121,
+      export: 122,
     },
   },
 };

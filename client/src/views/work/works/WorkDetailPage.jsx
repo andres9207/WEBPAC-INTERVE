@@ -23,6 +23,7 @@ import FormSection from 'ui-component/extended/FormSection';
 import RouteDialog, { useRouteDialogAside } from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import ContactsList from 'ui-component/extended/ContactsList';
+import FinishWorkDialog from './components/FinishWorkDialog';
 import ManagerDialog from './components/ManagerDialog';
 import ManagersTable from './components/ManagersTable';
 import WorkDataForm from './components/WorkDataForm';
@@ -31,7 +32,7 @@ import WorkProvidersTab from 'views/work/providers/components/WorkProvidersTab';
 import WorkContractsTab from 'views/work/contracts/components/WorkContractsTab';
 import InvoicesTab from 'views/billing/invoices/components/InvoicesTab';
 import NewSimpleInvoiceButton from 'views/billing/invoices/components/NewSimpleInvoiceButton';
-import { getWorkManagersSelectAPI, previewWorkEndDateAPI, worksApi } from 'api/requests/worksApi';
+import { changeWorkStateAPI, getWorkManagersSelectAPI, previewWorkEndDateAPI, worksApi } from 'api/requests/worksApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkScope } from 'contexts/WorkScopeContext';
 import useEndDatePreview from 'hooks/useEndDatePreview';
@@ -122,6 +123,7 @@ function WorkView() {
     isNew || (canEdit && location.pathname.endsWith('/edit')) ? 'data' : (location.state?.tab ?? 'summary')
   );
   const [confirm, setConfirm] = useState(null);
+  const [finishing, setFinishing] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [userOptions, setUserOptions] = useState([]);
   const [managerDialog, setManagerDialog] = useState(null);
@@ -263,6 +265,27 @@ function WorkView() {
     refresh?.();
   };
 
+  // Ciclo de vida (DEC-083): finalizar pide la fecha en su diálogo; reabrir solo confirma.
+  const finished = work?.state === 'FINISHED';
+  const stateChanged = () => {
+    setFinishing(false);
+    load();
+    refresh?.();
+  };
+  const reopen = async () => {
+    const { data } = await changeWorkStateAPI({ wrkId: work.wrkId, state: 'IN_PROGRESS' });
+    showSuccess(data.message);
+    stateChanged();
+  };
+  const askReopen = () =>
+    setConfirm({
+      title: 'Reabrir obra',
+      message: `¿Reabrir "${work.code} — ${work.name}"? Vuelve a estar en curso y se borra su fecha de finalización.`,
+      label: 'Reabrir',
+      color: 'secondary',
+      run: reopen
+    });
+
   const remove = async () => {
     const { data } = await worksApi.remove({ wrkId: work.wrkId });
     showSuccess(data.message);
@@ -369,6 +392,9 @@ function WorkView() {
                 {work.code} · {work.name}
               </Typography>
               <StatusChip staId={work.staId} label={active ? 'Activa' : 'Inactiva'} />
+              {work.state === 'FINISHED' && (
+                <Chip size="small" color="default" variant="outlined" label={`${work.stateName} el ${fDateOnly(work.finishDate)}`} />
+              )}
             </Stack>
             <Typography variant="body2" color="text.secondary">
               {work.constructionCompany} · {work.contractType} · Interventoría {work.supervisionType?.toLowerCase()}
@@ -409,6 +435,11 @@ function WorkView() {
           {!isNew && canDo(perms?.changeStatus) && (
             <Button variant="outlined" color="inherit" onClick={askStatus} disabled={saving}>
               {active ? 'Desactivar' : 'Activar'}
+            </Button>
+          )}
+          {!isNew && canDo(perms?.changeStatus) && (
+            <Button variant="outlined" color="secondary" onClick={finished ? askReopen : () => setFinishing(true)} disabled={saving}>
+              {finished ? 'Reabrir obra' : 'Finalizar obra'}
             </Button>
           )}
           <Box sx={{ flexGrow: 1 }} />
@@ -685,6 +716,8 @@ function WorkView() {
         onClose={() => setManagerDialog(null)}
         onSave={saveManager}
       />
+
+      {work && <FinishWorkDialog open={finishing} work={work} onClose={() => setFinishing(false)} onSaved={stateChanged} />}
 
       <ConfirmDialog
         open={Boolean(confirm)}

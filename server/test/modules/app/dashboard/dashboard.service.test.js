@@ -32,6 +32,10 @@ const INVOICES = 115;
 const ALL = new Set([WORKS, PROVIDERS, CONTRACTS, POLICIES, INVOICES]);
 const OWN = Object.freeze({ all: false, wrkId: 8 });
 
+// Obras finalizadas con contratos por liquidar (DEC-083) también leen tbl_works:
+// los casos que siembran obras en seguimiento las separan por `wrk_state`.
+const worksOnly = (rows) => async ({ where }) => (where?.wrk_state ? [] : rows);
+
 const allWheres = () =>
   Object.values(prismaMock)
     .flatMap((model) => Object.values(model))
@@ -41,6 +45,35 @@ const allWheres = () =>
 beforeEach(() => jest.clearAllMocks());
 
 describe("getDashboardSummary", () => {
+  it("obras finalizadas con contratos por liquidar (DEC-083): en el alcance, con cada contrato abierto", async () => {
+    prismaMock.tbl_works.findMany.mockImplementationOnce(async () => [
+      {
+        wrk_id: 8,
+        wrk_code: "OB-8",
+        wrk_name: "Vía",
+        wrk_finish_date: new Date("2026-10-20T00:00:00Z"),
+        tbl_contracts: [{ ctr_id: 20, ctr_number: "C-1", ctr_name: "Concreto", ctr_state: "IN_LIQUIDATION", tbl_providers: { prv_name: "Acme" } }],
+      },
+    ]);
+
+    const { contracts } = await getDashboardSummary({ granted: new Set([CONTRACTS]), scope: OWN });
+
+    expect(contracts.finishedWorksToLiquidate).toEqual({
+      contracts: 1,
+      works: [
+        {
+          wrkId: 8,
+          code: "OB-8",
+          name: "Vía",
+          finishDate: "2026-10-20",
+          contracts: [{ ctrId: 20, number: "C-1", name: "Concreto", providerName: "Acme", state: "IN_LIQUIDATION", stateName: "En liquidación" }],
+        },
+      ],
+    });
+    const { where } = prismaMock.tbl_works.findMany.mock.calls[0][0];
+    expect(where).toMatchObject({ wrk_state: "FINISHED", wrk_id: { in: [8] }, tbl_contracts: { some: { ctr_state: { notIn: ["LIQUIDATED", "CANCELLED"] } } } });
+  });
+
   it("sin permisos no calcula nada: todos los bloques en null", async () => {
     const summary = await getDashboardSummary({ granted: new Set(), scope: OWN });
     expect(summary).toMatchObject({ works: null, providers: null, contracts: null, policies: null, invoices: null, worksActivity: null });
@@ -136,10 +169,10 @@ describe("getDashboardSummary", () => {
           ]
         : []
     );
-    prismaMock.tbl_works.findMany.mockResolvedValue([
+    prismaMock.tbl_works.findMany.mockImplementation(worksOnly([
       { wrk_id: 8, wrk_code: "OB-8", wrk_name: "Vía" },
       { wrk_id: 3, wrk_code: "OB-3", wrk_name: "Puente" },
-    ]);
+    ]));
     const { invoices } = await getDashboardSummary({ granted: new Set([INVOICES]), scope: OWN });
 
     const { where } = prismaMock.tbl_invoices.groupBy.mock.calls.find(([args]) => args.by[0] === "wrk_id")[0];
@@ -183,7 +216,7 @@ describe("getDashboardSummary", () => {
 
   it("obras en seguimiento: solo activas, con las cifras de los módulos que el usuario ve", async () => {
     prismaMock.tbl_contracts.groupBy.mockImplementation(async ({ by }) => (by[0] === "wrk_id" ? [{ wrk_id: 8, _count: { _all: 2 } }] : []));
-    prismaMock.tbl_works.findMany.mockResolvedValue([{ wrk_id: 8, wrk_code: "OB-8", wrk_name: "Vía" }]);
+    prismaMock.tbl_works.findMany.mockImplementation(worksOnly([{ wrk_id: 8, wrk_code: "OB-8", wrk_name: "Vía" }]));
     const { worksActivity } = await getDashboardSummary({ granted: new Set([WORKS, CONTRACTS]), scope: OWN });
 
     expect(worksActivity).toEqual([{ wrkId: 8, contracts: 2, invoices: null, workCode: "OB-8", workName: "Vía" }]);

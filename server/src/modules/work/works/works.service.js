@@ -47,6 +47,14 @@ import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/
 
 export const MANAGER_ROLES = Object.freeze(["MAIN", "SUPPORT"]);
 
+/**
+ * Ciclo de vida de la obra (DEC-083), aparte de su estado de visibilidad
+ * (`sta_id`). Finalizar no bloquea registros ni exige los contratos
+ * liquidados: el tablero informa los que faltan por liquidar.
+ */
+export const WORK_STATES = Object.freeze({ IN_PROGRESS: "IN_PROGRESS", FINISHED: "FINISHED" });
+export const WORK_STATE_NAMES = Object.freeze({ IN_PROGRESS: "En curso", FINISHED: "Finalizada" });
+
 const CAN = PERMISSIONS.work.works;
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
@@ -71,6 +79,7 @@ const SORT_FIELDS = {
   initialValue: (order) => ({ wrk_initial_value: order }),
   startDate: (order) => ({ wrk_start_date: order }),
   statusName: (order) => ({ tbl_status: { sta_name: order } }),
+  stateName: (order) => ({ wrk_state: order }),
   updatedAt: (order) => ({ wrk_update_at: order }),
 };
 
@@ -87,6 +96,8 @@ const LIST_SELECT = {
   wrk_initial_term: true,
   wrk_term_unit: true,
   sta_id: true,
+  wrk_state: true,
+  wrk_finish_date: true,
   wrk_update_at: true,
   tbl_construction_companies: { select: { cnc_description: true } },
   tbl_contract_types: { select: { ctt_name: true } },
@@ -127,10 +138,18 @@ const toListDto = (row, today = todayDateOnly()) => withProgress(row, today, {
   mainManagerName: userFullName(row.tbl_work_managers?.[0]?.tbl_users),
   activeManagers: row._count?.tbl_work_managers ?? 0,
   stages: (row.tbl_work_stages ?? []).map((s) => ({ name: s.wks_name, staId: s.sta_id })),
+  ...lifecycleOf(row),
   staId: row.sta_id,
   statusName: row.tbl_status?.sta_name ?? null,
   updatedAt: row.wrk_update_at,
   updatedByName: userFullName(row.updated_by_user),
+});
+
+// Estado del ciclo de vida de la obra (DEC-083).
+const lifecycleOf = (row) => ({
+  state: row.wrk_state,
+  stateName: WORK_STATE_NAMES[row.wrk_state] ?? row.wrk_state,
+  finishDate: dateOnlyText(row.wrk_finish_date),
 });
 
 // Agrega el avance del plazo y su nivel, calculados una sola vez.
@@ -154,9 +173,9 @@ const searchWhereOf = (search) => {
 
 /**
  * `scope`: alcance por obra de la petición (DEC-047). `code`, `name`, `cncId`
- * y `sptId`: filtros por campo del listado (DEC-048), también en los conteos.
+ * `sptId` y `state`: filtros por campo del listado (DEC-048), también en los conteos.
  */
-export const paginationWorks = async ({ search, staId, code, name, cncId, sptId, rows, first, sortField, sortOrder, scope }) => {
+export const paginationWorks = async ({ search, staId, code, name, cncId, sptId, state, rows, first, sortField, sortOrder, scope }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
@@ -169,6 +188,8 @@ export const paginationWorks = async ({ search, staId, code, name, cncId, sptId,
       containsFilter(name, (c) => ({ wrk_name: c })),
       idFilter(cncId, (id) => ({ cnc_id: id })),
       idFilter(sptId, (id) => ({ spt_id: id })),
+      // Ciclo de vida (DEC-083): en curso o finalizada.
+      WORK_STATES[state] ? { wrk_state: state } : null,
     ]),
   };
   const where = staId ? { ...baseWhere, AND: [...(baseWhere.AND ?? []), { sta_id: Number(staId) }] } : baseWhere;
@@ -258,6 +279,8 @@ export const getWork = async ({ wrkId, scope }) => {
       wrk_id: true,
       ...HEADER_SELECT,
       sta_id: true,
+      wrk_state: true,
+      wrk_finish_date: true,
       wrk_create_at: true,
       wrk_update_at: true,
       tbl_status: { select: { sta_name: true } },
@@ -310,6 +333,7 @@ export const getWork = async ({ wrkId, scope }) => {
     extendedValue: moneyText(row.wrk_extended_value),
     maxServiceOrderValue: moneyText(row.wrk_max_service_order_value),
     currentValue: moneyText(row.wrk_extended_value ?? row.wrk_initial_value),
+    ...lifecycleOf(row),
     staId: row.sta_id,
     statusName: row.tbl_status?.sta_name ?? null,
     createdAt: row.wrk_create_at,
@@ -748,6 +772,47 @@ export const changeWorkStatus = async ({ wrkId, staId, useBy, scope, ctx = { use
         });
       }
       return { message: `Obra ${next === ACTIVE_STATUS ? "activada" : "desactivada"} correctamente`, staId: next };
+    },
+    { idempotent: true }
+  );
+};
+
+/**
+ * Finalizar o reabrir la obra (DEC-083), con el permiso de cambiar su estado.
+ * Finalizar pide la fecha, no anterior al inicio de la obra; reabrir la
+ * limpia. Fija un estado final: reintentable. No toca contratos ni facturas.
+ */
+export const changeWorkState = async ({ wrkId, state, finishDate, useBy, scope, ctx = { useId: useBy } }) => {
+  assertInScope(scope, wrkId, "No se encontró la obra.");
+  if (!WORK_STATES[state]) throw httpError(400, "El estado debe ser en curso o finalizada.");
+  const finished = state === WORK_STATES.FINISHED;
+  const date = finished ? toDateOnly(finishDate) : null;
+  if (finished && !date) throw httpError(400, "La fecha de finalización es requerida.");
+
+  return withLockedTransaction(
+    { OBRA: wrkId },
+    async (tx) => {
+      await findLockedWork(tx, wrkId);
+      const before = await tx.tbl_works.findUnique({
+        where: { wrk_id: Number(wrkId) },
+        select: { wrk_state: true, wrk_finish_date: true, wrk_start_date: true },
+      });
+      if (date && before.wrk_start_date && date.getTime() < before.wrk_start_date.getTime()) {
+        throw httpError(400, `La fecha de finalización no puede ser anterior al inicio de la obra (${dateOnlyText(before.wrk_start_date)}).`);
+      }
+      const next = { wrk_state: state, wrk_finish_date: dateOnlyText(date) };
+      const changes = diffFields({ wrk_state: before.wrk_state, wrk_finish_date: dateOnlyText(before.wrk_finish_date) }, next, [
+        "wrk_state",
+        "wrk_finish_date",
+      ]);
+      if (changes.length > 0) {
+        await tx.tbl_works.update({
+          where: { wrk_id: Number(wrkId) },
+          data: { wrk_state: state, wrk_finish_date: date, wrk_update_by: Number(useBy) },
+        });
+        await writeAudit(tx, { entity: AUDIT_ENTITIES.WORK, recordId: Number(wrkId), operation: AUDIT_OPERATIONS.UPDATE, ctx, changes });
+      }
+      return { message: `Obra ${finished ? "finalizada" : "reabierta"} correctamente`, state };
     },
     { idempotent: true }
   );

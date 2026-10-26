@@ -26,6 +26,7 @@ const emit = jest.fn();
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contracts.service.js", () => contractsServiceMock);
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractConcepts.service.js", () => conceptsServiceMock);
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractSuspensions.service.js", () => suspensionsServiceMock);
+jest.unstable_mockModule("../../../../src/modules/work/contracts/contractCancellation.service.js", () => ({ cancelContract: jest.fn() }));
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractPolicies.service.js", () => policiesServiceMock);
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractReports.service.js", () => ({ exportContractReport, exportContractSummary }));
 jest.unstable_mockModule("../../../../src/common/services/effectivePermissions.service.js", () => ({ getEffectivePermissionIds }));

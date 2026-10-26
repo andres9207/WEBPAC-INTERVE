@@ -27,6 +27,11 @@ import {
   updateInvoiceFollowUpSchema,
   closeInvoiceFollowUpSchema,
   deleteInvoiceFollowUpSchema,
+  listInvoiceGlossesSchema,
+  createInvoiceGlossSchema,
+  updateInvoiceGlossSchema,
+  releaseInvoiceGlossSchema,
+  deleteInvoiceGlossSchema,
 } from "./invoices.validation.js";
 import {
   paginationInvoicesController,
@@ -53,6 +58,11 @@ import {
   updateInvoiceFollowUpController,
   closeInvoiceFollowUpController,
   deleteInvoiceFollowUpController,
+  listInvoiceGlossesController,
+  createInvoiceGlossController,
+  updateInvoiceGlossController,
+  releaseInvoiceGlossController,
+  deleteInvoiceGlossController,
 } from "./invoices.controller.js";
 
 // Facturas (DEC-042), montadas en /api/billing/invoices. Pipeline de
@@ -132,5 +142,13 @@ invoicesRoutes.post("/open_invoice_follow_up", verifyToken, canView, canManageFo
 invoicesRoutes.post("/update_invoice_follow_up", verifyToken, canView, canManageFollowUps, updateInvoiceFollowUpSchema, validate, updateInvoiceFollowUpController);
 invoicesRoutes.post("/close_invoice_follow_up", verifyToken, canView, canManageFollowUps, closeInvoiceFollowUpSchema, validate, closeInvoiceFollowUpController);
 invoicesRoutes.post("/delete_invoice_follow_up", verifyToken, canView, canManageFollowUps, deleteInvoiceFollowUpSchema, validate, deleteInvoiceFollowUpController);
+
+// Glosas (DEC-085): verlas con ver facturas; levantar, editar, liberar y eliminar, además con gestionar glosas.
+const canManageGlosses = requirePermission(can.manageGlosses);
+invoicesRoutes.get("/list_invoice_glosses", verifyToken, canView, listInvoiceGlossesSchema, validate, listInvoiceGlossesController);
+invoicesRoutes.post("/create_invoice_gloss", verifyToken, canView, canManageGlosses, createInvoiceGlossSchema, validate, createInvoiceGlossController);
+invoicesRoutes.post("/update_invoice_gloss", verifyToken, canView, canManageGlosses, updateInvoiceGlossSchema, validate, updateInvoiceGlossController);
+invoicesRoutes.post("/release_invoice_gloss", verifyToken, canView, canManageGlosses, releaseInvoiceGlossSchema, validate, releaseInvoiceGlossController);
+invoicesRoutes.post("/delete_invoice_gloss", verifyToken, canView, canManageGlosses, deleteInvoiceGlossSchema, validate, deleteInvoiceGlossController);
 
 export default invoicesRoutes;

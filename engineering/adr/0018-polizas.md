@@ -4,6 +4,8 @@
 
 **Aceptado parcial** (2026-10-07, [DEC-050](../decisiones/DEC-050-polizas.md)). Implementado: póliza ligada a contrato y concepto (FK compuesta), valor asegurado derivado, versiones con una sola vigente, anulación con motivo, conceptos sin póliza, vigencia con la fecha del servidor, permisos propios, bitácora funcional, pólizas en la creación del contrato y una vigente por concepto y tipo (2026-10-08). Falta: condición C8 (DEC-15) y documentos (fase 6). La decisión 10 se aplica con la tabla de efectos de ADR-0017: en liquidación solo se renueva y se ampara el otrosí de liquidación.
 
+Periodo que debe cubrir la vigencia (pendiente de validación abajo), resuelto el 2026-10-26: hasta la fecha fin del contrato, sin margen y sin tope; una póliza que termina antes se informa en el expediente y en la condición C10 de la liquidación ([DEC-081](../decisiones/DEC-081-liquidacion-automatica-contrato.md)), sin bloquear.
+
 Abajo, el análisis original. Las tablas "Estado actual" describen el sistema a la fecha del ADR.
 
 ## Fecha

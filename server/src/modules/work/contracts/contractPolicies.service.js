@@ -11,7 +11,7 @@ import { policyTypesService } from "../../admin/policyTypes/policyTypes.service.
 import { POLICY_BASE_NAMES, insuredValue, policyBaseValue } from "../../admin/policyTypes/policyBases.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { CONCEPT_TYPES, CONCEPT_TYPE_NAMES, CONTRACT_STATES, assertStateAllows, conceptAmounts, sortConcepts } from "./contractTerms.js";
-import { POLICY_VALIDITY_NAMES, contractPolicyStatus, policyValidity, uncoveredConcepts } from "./policyTerms.js";
+import { POLICY_VALIDITY_NAMES, contractPolicyStatus, policyCoversTerm, policyValidity, uncoveredConcepts } from "./policyTerms.js";
 import { policyExpiringDays } from "../../admin/businessRules/businessRules.service.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, httpError } from "./contracts.service.js";
 import { evaluateLiquidation, notifyLiquidated } from "./contractLiquidation.service.js";
@@ -381,7 +381,8 @@ const versionDto = (row, amounts) => ({
 /**
  * Pólizas del contrato agrupadas por póliza, la última versión primero, con
  * el valor asegurado calculado sobre la composición vigente del concepto, la
- * vigencia contra la fecha del servidor y los conceptos sin póliza vigente.
+ * vigencia contra la fecha del servidor, si cubre el plazo del contrato
+ * (`policyCoversTerm`, solo informa) y los conceptos sin póliza vigente.
  */
 export const getContractPolicies = async ({ ctrId, scope }) => {
   await assertContractInScope(scope, ctrId);
@@ -389,6 +390,7 @@ export const getContractPolicies = async ({ ctrId, scope }) => {
     where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS } },
     select: {
       ctr_id: true,
+      ctr_end_date: true,
       tbl_contract_concepts: { select: CONCEPT_SELECT },
       tbl_policies: { select: VERSION_SELECT, orderBy: [{ pol_root_id: "asc" }, { pol_version: "desc" }] },
     },
@@ -419,6 +421,7 @@ export const getContractPolicies = async ({ ctrId, scope }) => {
       statusName: cancelled ? "Anulada" : "Vigente",
       validity,
       validityName: validity ? POLICY_VALIDITY_NAMES[validity] : null,
+      coversTerm: cancelled ? null : policyCoversTerm(latest.pol_end_date, contract.ctr_end_date),
       ...versionDto(latest, entry?.amounts),
       versions: versions.map((row) => versionDto(row, entry?.amounts)),
     };
@@ -434,6 +437,7 @@ export const getContractPolicies = async ({ ctrId, scope }) => {
     })),
     concepts: concepts.map((c) => ({ ccpId: c.ccp_id, type: c.ccp_type, label: conceptLabel(c), value: moneyText(conceptAmounts(c).value) })),
     expiringDays: days,
+    contractEndDate: dateOnlyText(contract.ctr_end_date),
   };
 };
 

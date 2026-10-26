@@ -5,7 +5,9 @@ import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils
 import { decimal, moneyText, percentText, ratioPercent, sumMoney } from "../../../common/utils/money.utils.js";
 import { addTerm, dateOnlyText, progressLevel, termProgress, toDateOnly, todayDateOnly } from "../../../common/utils/term.utils.js";
 import { CONCEPT_SELECT } from "../../work/contracts/contracts.service.js";
+import { WORK_STATE_NAMES } from "../../work/works/works.service.js";
 import {
+  CLOSED_STATES,
   CONCEPT_TYPE_NAMES,
   CONTRACT_STATES,
   STATE_NAMES as CONTRACT_STATE_NAMES,
@@ -76,6 +78,8 @@ const workBlock = async (wrkId, today) => {
       wrk_term_unit: true,
       wrk_initial_value: true,
       wrk_extended_value: true,
+      wrk_state: true,
+      wrk_finish_date: true,
       sta_id: true,
       tbl_status: { select: { sta_name: true } },
       tbl_construction_companies: { select: { cnc_description: true } },
@@ -103,6 +107,10 @@ const workBlock = async (wrkId, today) => {
     name: row.wrk_name,
     staId: row.sta_id,
     statusName: row.tbl_status?.sta_name ?? null,
+    // Ciclo de vida (DEC-083): finalizada, con los contratos que faltan por liquidar en contracts.toLiquidate.
+    state: row.wrk_state,
+    stateName: WORK_STATE_NAMES[row.wrk_state] ?? row.wrk_state,
+    finishDate: dateOnlyText(row.wrk_finish_date),
     constructionCompany: row.tbl_construction_companies?.cnc_description ?? null,
     contractType: row.tbl_contract_types?.ctt_name ?? null,
     supervisionType: row.tbl_supervision_types?.spt_name ?? null,
@@ -124,6 +132,12 @@ const workBlock = async (wrkId, today) => {
 };
 
 // ─── Contratos y pólizas ─────────────────────────────────────────────────────
+
+// Lo que no está en un estado cerrado (liquidado o anulado) falta por liquidar (DEC-083).
+const toLiquidateOf = (items) => {
+  const open = items.filter((c) => !CLOSED_STATES.includes(c.state));
+  return { count: open.length, value: moneyText(sumMoney(open.map((c) => c._value))), ctrIds: open.map((c) => c.ctrId) };
+};
 
 const conceptLabel = (concept) =>
   concept.ccp_number ? `${CONCEPT_TYPE_NAMES[concept.ccp_type]} N.º ${concept.ccp_number}` : CONCEPT_TYPE_NAMES[concept.ccp_type];
@@ -363,6 +377,8 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
     contractedPct: workValue ? pct(contracted, workValue) : null,
     advance: { invoiced: moneyText(advanceInvoiced), amortized: moneyText(advanceAmortized), amortizedPct: pct(advanceAmortized, advanceInvoiced) },
     retention: { retained: moneyText(retained), balance: moneyText(retentionBalance), balancePct: pct(retentionBalance, retained) },
+    // Contratos por liquidar (DEC-083): ni liquidados ni anulados. El tablero los avisa en una obra finalizada.
+    toLiquidate: toLiquidateOf(items),
     // Contratos con retenido por devolver (alerta de la obra).
     withRetentionBalance: items.filter((c) => c._balances.retention.balance.gt(0)).map((c) => ({ ctrId: c.ctrId, number: c.number, balance: c.retention.balance, stateName: c.stateName })),
     byState,

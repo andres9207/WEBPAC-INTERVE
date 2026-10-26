@@ -1,7 +1,7 @@
 import { jest } from "@jest/globals";
 import ExcelJS from "exceljs";
 
-const { EXPORT_MAX_ROWS, findExportRows, renderExport } = await import("../../../src/common/services/export.service.js");
+const { COMPANY_FOOTER, EXPORT_MAX_ROWS, findExportRows, renderExport } = await import("../../../src/common/services/export.service.js");
 
 const COLUMNS = [
   { header: "Número", value: (r) => r.number },
@@ -42,6 +42,17 @@ describe("reportes de listados (DEC-070)", () => {
     expect(sheet.getCell("B7").value).toBe(1234567.5);
     expect(sheet.getColumn(2).numFmt).toBe("#,##0.00");
     expect(sheet.getCell("B8").value).toBe("");
+  });
+
+  it("Excel: termina con el pie de los datos de INTERVE", async () => {
+    const file = await renderExport({ format: "xlsx", title: "Contratos", columns: COLUMNS, rows: ROWS });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.buffer);
+    const sheet = workbook.worksheets[0];
+    const last = sheet.rowCount;
+    const footer = Array.from({ length: COMPANY_FOOTER.length }, (_, i) => sheet.getCell(`A${last - COMPANY_FOOTER.length + 1 + i}`).value);
+    expect(footer).toEqual([...COMPANY_FOOTER]);
+    expect(COMPANY_FOOTER[0]).toBe("INTERVE S.A.S");
   });
 
   it("PDF: un documento válido", async () => {

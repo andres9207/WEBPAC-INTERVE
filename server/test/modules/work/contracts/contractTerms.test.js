@@ -204,6 +204,17 @@ describe("estados (ADR-0017)", () => {
   });
 });
 
+describe("anulación (DEC-082)", () => {
+  it.each(["IN_PROGRESS", "SUSPENDED", "IN_LIQUIDATION", "LIQUIDATED"])("se anula desde %s, de forma manual", (state) => {
+    expect(assertTransition("cancel", state)).toMatchObject({ to: "CANCELLED", origin: "MANUAL" });
+  });
+
+  it("un anulado no se vuelve a anular ni sale del estado (409)", () => {
+    expect(() => assertTransition("cancel", "CANCELLED")).toThrow(expect.objectContaining({ statusCode: 409 }));
+    expect(() => assertTransition("suspend", "CANCELLED")).toThrow(expect.objectContaining({ statusCode: 409 }));
+  });
+});
+
 describe("suspensión (ADR-0017, DEC-039)", () => {
   it("solo se suspende desde ejecución", () => {
     expect(assertTransition("suspend", CONTRACT_STATES.IN_PROGRESS)).toMatchObject({ to: CONTRACT_STATES.SUSPENDED, origin: "MANUAL" });

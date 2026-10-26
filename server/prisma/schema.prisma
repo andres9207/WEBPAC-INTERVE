@@ -198,6 +198,8 @@ model tbl_status {
   tbl_insurers               tbl_insurers[]
   tbl_invoices               tbl_invoices[]
   tbl_invoice_follow_ups     tbl_invoice_follow_ups[]
+  tbl_statements             tbl_statements[]
+  tbl_invoice_glosses        tbl_invoice_glosses[]
   tbl_policy_types           tbl_policy_types[]
   tbl_profiles               tbl_profiles[]
   tbl_provider_types         tbl_provider_types[]
@@ -296,6 +298,13 @@ model tbl_users {
   invoice_follow_ups_created               tbl_invoice_follow_ups[]               @relation("InvoiceFollowUpCreatedBy")
   invoice_follow_ups_deleted               tbl_invoice_follow_ups[]               @relation("InvoiceFollowUpDeletedBy")
   invoice_follow_ups_updated               tbl_invoice_follow_ups[]               @relation("InvoiceFollowUpUpdatedBy")
+  statements_created                       tbl_statements[]                       @relation("StatementCreatedBy")
+  statements_deleted                       tbl_statements[]                       @relation("StatementDeletedBy")
+  statements_updated                       tbl_statements[]                       @relation("StatementUpdatedBy")
+  invoice_glosses_released                 tbl_invoice_glosses[]                  @relation("InvoiceGlossReleasedBy")
+  invoice_glosses_created                  tbl_invoice_glosses[]                  @relation("InvoiceGlossCreatedBy")
+  invoice_glosses_updated                  tbl_invoice_glosses[]                  @relation("InvoiceGlossUpdatedBy")
+  invoice_glosses_deleted                  tbl_invoice_glosses[]                  @relation("InvoiceGlossDeletedBy")
   policies_closed                          tbl_policies[]                         @relation("PolicyClosedBy")
   policies_created                         tbl_policies[]                         @relation("PolicyCreatedBy")
   policies_updated                         tbl_policies[]                         @relation("PolicyUpdatedBy")
@@ -489,11 +498,13 @@ model tbl_address_types {
 }
 
 /// Maestro de aseguradoras (database/migrations/0028_create_insurers.sql).
-/// ins_description_active es una columna GENERADA por MySQL (respalda la unicidad entre no eliminadas):
-/// nunca se escribe desde el código.
+/// ins_description_active e ins_nit_active son columnas GENERADAS por MySQL (respaldan la unicidad entre no
+/// eliminadas): nunca se escriben desde el código. ins_nit es NULL en la BD por las aseguradoras anteriores a la
+/// migración 0116; el servidor lo exige al guardar.
 model tbl_insurers {
   ins_id                 Int            @id @default(autoincrement())
   ins_description        String         @db.VarChar(150)
+  ins_nit                String?        @db.VarChar(17)
   sta_id                 Int            @default(1)
   ins_create_by          Int?
   ins_create_at          DateTime?      @default(now()) @db.Timestamp(0)
@@ -504,6 +515,7 @@ model tbl_insurers {
   ins_idempotency_key    String?        @unique(map: "uq_insurers_idempotency_key") @db.Char(36)
   ins_idempotency_hash   String?        @db.Char(64)
   ins_description_active String?        @unique(map: "uq_insurers_description_active") @db.VarChar(150)
+  ins_nit_active         String?        @unique(map: "uq_insurers_nit_active") @db.VarChar(17)
   created_by_user        tbl_users?     @relation("InsurerCreatedBy", fields: [ins_create_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_insurers_create_by")
   deleted_by_user        tbl_users?     @relation("InsurerDeletedBy", fields: [ins_delete_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_insurers_delete_by")
   tbl_status             tbl_status     @relation(fields: [sta_id], references: [sta_id], onUpdate: Restrict, map: "tbl_insurers_status")
@@ -552,7 +564,7 @@ model tbl_construction_companies {
   cnc_id                 Int         @id @default(autoincrement())
   cnc_description        String      @db.VarChar(150)
   cnc_nit                String?     @db.VarChar(17)
-  sta_id                Int         @default(1)
+  sta_id                 Int         @default(1)
   cnc_create_by          Int?
   cnc_create_at          DateTime?   @default(now()) @db.Timestamp(0)
   cnc_update_by          Int?
@@ -624,6 +636,8 @@ model tbl_works {
   wrk_initial_value           Decimal                    @db.Decimal(18, 2)
   wrk_extended_value          Decimal?                   @db.Decimal(18, 2)
   wrk_max_service_order_value Decimal?                   @db.Decimal(18, 2)
+  wrk_state                   String                     @default("IN_PROGRESS") @db.VarChar(20)
+  wrk_finish_date             DateTime?                  @db.Date
   sta_id                      Int                        @default(1)
   wrk_create_by               Int?
   wrk_create_at               DateTime?                  @default(now()) @db.Timestamp(0)
@@ -639,6 +653,7 @@ model tbl_works {
   tbl_work_contacts           tbl_work_contacts[]
   tbl_work_managers           tbl_work_managers[]
   tbl_work_providers          tbl_work_providers[]
+  tbl_statements              tbl_statements[]
   tbl_work_stages             tbl_work_stages[]
   tbl_construction_companies  tbl_construction_companies @relation(fields: [cnc_id], references: [cnc_id], onUpdate: Restrict, map: "tbl_works_construction_company")
   tbl_contract_types          tbl_contract_types         @relation(fields: [ctt_id], references: [ctt_id], onUpdate: Restrict, map: "tbl_works_contract_type")
@@ -1047,7 +1062,7 @@ model tbl_invoices {
   inv_date                             DateTime                              @db.Date
   inv_approval_date                    DateTime?                             @db.Date
   inv_voucher_number                   String?                               @db.VarChar(50)
-  inv_statement                        String?                               @db.VarChar(100)
+  stm_id                               Int?
   inv_description                      String?                               @db.VarChar(500)
   inv_state                            String                                @default("REGISTERED") @db.VarChar(20)
   sta_id                               Int                                   @default(1)
@@ -1066,6 +1081,7 @@ model tbl_invoices {
   liquidation_detail_by_contract       tbl_invoice_liquidation_details[]     @relation("InvoiceLiquidationDetailContract")
   tbl_invoice_retention_refund_details tbl_invoice_retention_refund_details?
   tbl_invoice_status_history           tbl_invoice_status_history[]
+  tbl_invoice_glosses                  tbl_invoice_glosses[]
   tbl_invoice_follow_ups               tbl_invoice_follow_ups[]
   tbl_contracts                        tbl_contracts?                        @relation(fields: [ctr_id, wrk_id, prv_id, pvt_id], references: [ctr_id, wrk_id, prv_id, pvt_id], onUpdate: NoAction, map: "tbl_invoices_contract")
   created_by_user                      tbl_users?                            @relation("InvoiceCreatedBy", fields: [inv_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_create_by")
@@ -1078,9 +1094,11 @@ model tbl_invoices {
   tbl_work_providers                   tbl_work_providers                    @relation(fields: [wrk_id, prv_id], references: [wrk_id, prv_id], onUpdate: NoAction, map: "tbl_invoices_work_provider")
   tbl_work_provider_types              tbl_work_provider_types               @relation(fields: [wrk_id, prv_id, pvt_id], references: [wrk_id, prv_id, pvt_id], onUpdate: NoAction, map: "tbl_invoices_work_provider_type")
   tbl_work_stages                      tbl_work_stages?                      @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: NoAction, map: "tbl_invoices_work_stage")
+  tbl_statements                       tbl_statements?                       @relation(fields: [stm_id, wrk_id], references: [stm_id, wrk_id], onUpdate: NoAction, map: "tbl_invoices_statement")
 
   @@unique([prv_id, inv_number_active], map: "uq_invoices_provider_number_active")
   @@unique([inv_id, ctr_id], map: "uq_invoices_id_contract")
+  @@unique([inv_id, wrk_id], map: "uq_invoices_id_work")
   @@index([inv_date], map: "idx_invoices_date")
   @@index([inv_state], map: "idx_invoices_state")
   @@index([inv_type], map: "idx_invoices_type")
@@ -1093,6 +1111,86 @@ model tbl_invoices {
   @@index([wks_id, wrk_id], map: "tbl_invoices_work_stage")
   @@index([pvt_id], map: "idx_invoices_provider_type")
   @@index([wrk_id, prv_id, pvt_id], map: "tbl_invoices_work_provider_type")
+  @@index([stm_id, wrk_id], map: "tbl_invoices_statement")
+}
+
+/// Glosas de facturas (database/migrations/0120_create_invoice_glosses.sql, DEC-085): de la obra de su factura, levantadas
+/// en un extracto y liberadas en otro posterior de la misma obra (FK compuestas).
+model tbl_invoice_glosses {
+  igl_id                  Int             @id @default(autoincrement())
+  inv_id                  Int
+  wrk_id                  Int
+  stm_id                  Int?
+  igl_code                String?         @db.VarChar(20)
+  igl_value               Decimal         @db.Decimal(18, 2)
+  igl_description         String          @db.VarChar(1000)
+  igl_release_stm_id      Int?
+  igl_release_date        DateTime?       @db.Date
+  igl_release_observation String?         @db.VarChar(1000)
+  igl_release_by          Int?
+  sta_id                  Int             @default(1)
+  igl_create_by           Int?
+  igl_create_at           DateTime?       @default(now()) @db.Timestamp(0)
+  igl_update_by           Int?
+  igl_update_at           DateTime?       @default(now()) @db.Timestamp(0)
+  igl_delete_by           Int?
+  igl_delete_at           DateTime?       @db.Timestamp(0)
+  igl_idempotency_key     String?         @unique(map: "uq_invoice_glosses_idempotency_key") @db.Char(36)
+  igl_idempotency_hash    String?         @db.Char(64)
+  tbl_invoices            tbl_invoices    @relation(fields: [inv_id, wrk_id], references: [inv_id, wrk_id], onUpdate: NoAction, map: "tbl_invoice_glosses_invoice")
+  statement               tbl_statements? @relation("GlossStatement", fields: [stm_id, wrk_id], references: [stm_id, wrk_id], onUpdate: NoAction, map: "tbl_invoice_glosses_statement")
+  release_statement       tbl_statements? @relation("GlossReleaseStatement", fields: [igl_release_stm_id, wrk_id], references: [stm_id, wrk_id], onUpdate: NoAction, map: "tbl_invoice_glosses_release_statement")
+  tbl_status              tbl_status      @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_glosses_status")
+  released_by_user        tbl_users?      @relation("InvoiceGlossReleasedBy", fields: [igl_release_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_glosses_release_by")
+  created_by_user         tbl_users?      @relation("InvoiceGlossCreatedBy", fields: [igl_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_glosses_create_by")
+  updated_by_user         tbl_users?      @relation("InvoiceGlossUpdatedBy", fields: [igl_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_glosses_update_by")
+  deleted_by_user         tbl_users?      @relation("InvoiceGlossDeletedBy", fields: [igl_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_glosses_delete_by")
+
+  @@index([inv_id, igl_release_date], map: "idx_invoice_glosses_invoice")
+  @@index([stm_id, wrk_id], map: "idx_invoice_glosses_statement")
+  @@index([igl_release_stm_id, wrk_id], map: "idx_invoice_glosses_release_statement")
+  @@index([sta_id], map: "tbl_invoice_glosses_status")
+  @@index([igl_release_by], map: "tbl_invoice_glosses_release_by")
+  @@index([igl_create_by], map: "tbl_invoice_glosses_create_by")
+  @@index([igl_update_by], map: "tbl_invoice_glosses_update_by")
+  @@index([igl_delete_by], map: "tbl_invoice_glosses_delete_by")
+}
+
+/// Extractos de la obra (database/migrations/0119_create_statements.sql, DEC-084): el acta de WebPAC. stm_number_active
+/// es una columna GENERADA por MySQL (número único en la obra entre no eliminados): nunca se escribe desde el código.
+model tbl_statements {
+  stm_id               Int                   @id @default(autoincrement())
+  wrk_id               Int
+  stm_number           String                @db.VarChar(20)
+  stm_date             DateTime              @db.Date
+  stm_communication    String?               @db.VarChar(50)
+  stm_description      String?               @db.VarChar(500)
+  sta_id               Int                   @default(1)
+  stm_create_by        Int?
+  stm_create_at        DateTime?             @default(now()) @db.Timestamp(0)
+  stm_update_by        Int?
+  stm_update_at        DateTime?             @default(now()) @db.Timestamp(0)
+  stm_delete_by        Int?
+  stm_delete_at        DateTime?             @db.Timestamp(0)
+  stm_idempotency_key  String?               @unique(map: "uq_statements_idempotency_key") @db.Char(36)
+  stm_idempotency_hash String?               @db.Char(64)
+  stm_number_active    String?               @db.VarChar(20)
+  tbl_invoices         tbl_invoices[]
+  glosses_raised       tbl_invoice_glosses[] @relation("GlossStatement")
+  glosses_released     tbl_invoice_glosses[] @relation("GlossReleaseStatement")
+  created_by_user      tbl_users?            @relation("StatementCreatedBy", fields: [stm_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_statements_create_by")
+  deleted_by_user      tbl_users?            @relation("StatementDeletedBy", fields: [stm_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_statements_delete_by")
+  tbl_status           tbl_status            @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_statements_status")
+  updated_by_user      tbl_users?            @relation("StatementUpdatedBy", fields: [stm_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_statements_update_by")
+  tbl_works            tbl_works             @relation(fields: [wrk_id], references: [wrk_id], onUpdate: NoAction, map: "tbl_statements_work")
+
+  @@unique([stm_id, wrk_id], map: "uq_statements_id_work")
+  @@unique([wrk_id, stm_number_active], map: "uq_statements_work_number_active")
+  @@index([wrk_id, stm_date], map: "idx_statements_work_date")
+  @@index([stm_create_by], map: "tbl_statements_create_by")
+  @@index([stm_delete_by], map: "tbl_statements_delete_by")
+  @@index([sta_id], map: "tbl_statements_status")
+  @@index([stm_update_by], map: "tbl_statements_update_by")
 }
 
 /// Seguimiento de facturas (database/migrations/0112_create_invoice_follow_ups.sql, DEC-076). ifu_open_invoice es una
@@ -1195,38 +1293,38 @@ model tbl_invoice_advance_details {
 /// Detalle de la factura de liquidación (0071, 0083, 0095). ccp_id es su otrosí de liquidación (DEC-059):
 /// del mismo contrato por FK compuesta (ccp_id, ctr_id); ctr_id es el de la factura por FK (inv_id, ctr_id).
 model tbl_invoice_liquidation_details {
-  inv_id                     Int                   @id
+  inv_id                     Int                    @id
   ctr_id                     Int
   /// Otrosí de liquidación (DEC-059); nulo en la factura normal, que usa este mismo detalle (DEC-071).
   ccp_id                     Int?
-  ild_value                  Decimal               @db.Decimal(18, 2)
-  ild_amortization           Decimal               @db.Decimal(18, 2)
-  ild_default_amortization   Decimal               @db.Decimal(18, 2)
-  ild_default_pct            Decimal               @db.Decimal(9, 6)
-  ild_applied_pct            Decimal               @db.Decimal(9, 6)
-  ild_adjustment_observation String?               @db.VarChar(1000)
-  ild_retention              Decimal?              @db.Decimal(18, 2)
-  ild_default_retention      Decimal?              @db.Decimal(18, 2)
-  ild_retention_default_pct  Decimal?              @db.Decimal(9, 6)
-  ild_retention_applied_pct  Decimal?              @db.Decimal(9, 6)
-  ild_retention_observation  String?               @db.VarChar(1000)
+  ild_value                  Decimal                @db.Decimal(18, 2)
+  ild_amortization           Decimal                @db.Decimal(18, 2)
+  ild_default_amortization   Decimal                @db.Decimal(18, 2)
+  ild_default_pct            Decimal                @db.Decimal(9, 6)
+  ild_applied_pct            Decimal                @db.Decimal(9, 6)
+  ild_adjustment_observation String?                @db.VarChar(1000)
+  ild_retention              Decimal?               @db.Decimal(18, 2)
+  ild_default_retention      Decimal?               @db.Decimal(18, 2)
+  ild_retention_default_pct  Decimal?               @db.Decimal(9, 6)
+  ild_retention_applied_pct  Decimal?               @db.Decimal(9, 6)
+  ild_retention_observation  String?                @db.VarChar(1000)
   /// Importes tributarios y descuento de materiales (DEC-075, migración 0110): todos o ninguno.
-  ild_utility_pct            Decimal?              @db.Decimal(5, 2)
-  ild_vat_pct                Decimal?              @db.Decimal(5, 2)
-  ild_withholding_pct        Decimal?              @db.Decimal(5, 2)
-  ild_vat_withholding_pct    Decimal?              @db.Decimal(5, 2)
-  ild_ica_withholding        Decimal?              @db.Decimal(18, 2)
-  ild_materials_discount     Decimal?              @db.Decimal(18, 2)
-  ild_formula_version        Int?                  @db.SmallInt
+  ild_utility_pct            Decimal?               @db.Decimal(5, 2)
+  ild_vat_pct                Decimal?               @db.Decimal(5, 2)
+  ild_withholding_pct        Decimal?               @db.Decimal(5, 2)
+  ild_vat_withholding_pct    Decimal?               @db.Decimal(5, 2)
+  ild_ica_withholding        Decimal?               @db.Decimal(18, 2)
+  ild_materials_discount     Decimal?               @db.Decimal(18, 2)
+  ild_formula_version        Int?                   @db.SmallInt
   ild_create_by              Int?
-  ild_create_at              DateTime?             @default(now()) @db.Timestamp(0)
+  ild_create_at              DateTime?              @default(now()) @db.Timestamp(0)
   ild_update_by              Int?
-  ild_update_at              DateTime?             @default(now()) @db.Timestamp(0)
-  created_by_user            tbl_users?            @relation("InvoiceLiquidationDetailCreatedBy", fields: [ild_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_liquidation_details_create_by")
-  tbl_invoices               tbl_invoices          @relation(fields: [inv_id], references: [inv_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_invoice")
-  invoice_contract           tbl_invoices          @relation("InvoiceLiquidationDetailContract", fields: [inv_id, ctr_id], references: [inv_id, ctr_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_invoice_contract")
+  ild_update_at              DateTime?              @default(now()) @db.Timestamp(0)
+  created_by_user            tbl_users?             @relation("InvoiceLiquidationDetailCreatedBy", fields: [ild_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_liquidation_details_create_by")
+  tbl_invoices               tbl_invoices           @relation(fields: [inv_id], references: [inv_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_invoice")
+  invoice_contract           tbl_invoices           @relation("InvoiceLiquidationDetailContract", fields: [inv_id, ctr_id], references: [inv_id, ctr_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_invoice_contract")
   tbl_contract_concepts      tbl_contract_concepts? @relation(fields: [ccp_id, ctr_id], references: [ccp_id, ctr_id], onUpdate: NoAction, map: "tbl_invoice_liquidation_details_concept")
-  updated_by_user            tbl_users?            @relation("InvoiceLiquidationDetailUpdatedBy", fields: [ild_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_liquidation_details_update_by")
+  updated_by_user            tbl_users?             @relation("InvoiceLiquidationDetailUpdatedBy", fields: [ild_update_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_liquidation_details_update_by")
 
   @@index([ild_create_by], map: "tbl_invoice_liquidation_details_create_by")
   @@index([ild_update_by], map: "tbl_invoice_liquidation_details_update_by")

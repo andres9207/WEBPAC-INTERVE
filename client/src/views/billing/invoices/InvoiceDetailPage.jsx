@@ -28,6 +28,7 @@ import { fMoneyText, fPercentText } from 'utils/formatNumber';
 import { INVOICE_STATE_COLORS, invoicePath, isBillingInvoiceType } from 'utils/constants';
 import InvoiceDetailPanel from './components/InvoiceDetailPanel';
 import InvoiceFollowUpsTab from './components/InvoiceFollowUpsTab';
+import InvoiceGlossesTab from './components/InvoiceGlossesTab';
 
 /**
  * Expediente de una factura (DEC-042), en un modal sobre el listado de su
@@ -247,7 +248,9 @@ const TABS = [
   { key: 'history', label: 'Historial de estado' },
   { key: 'amounts', label: 'Importes' },
   // Lo que se está trabajando sobre la factura (DEC-076).
-  { key: 'followUps', label: 'Seguimiento' }
+  { key: 'followUps', label: 'Seguimiento' },
+  // Errores hallados al registrarla, hasta su liberación en un extracto posterior (DEC-085).
+  { key: 'glosses', label: 'Glosas' }
 ];
 
 export default function InvoiceDetailPage() {
@@ -268,6 +271,7 @@ export default function InvoiceDetailPage() {
   const [dialog, setDialog] = useState(null);
   // Cuántos seguimientos tiene: lo cuenta la pestaña al cargarlos (antes, sin número).
   const [followUpCount, setFollowUpCount] = useState(null);
+  const [openGlosses, setOpenGlosses] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -368,6 +372,7 @@ export default function InvoiceDetailPage() {
                   <span>{t.label}</span>
                   {t.key === 'history' && <Chip label={invoice.history.length} size="small" color="default" />}
                   {t.key === 'followUps' && followUpCount !== null && <Chip label={followUpCount} size="small" color="default" />}
+                  {t.key === 'glosses' && openGlosses > 0 && <Chip label={openGlosses} size="small" color="warning" />}
                 </Stack>
               }
             />
@@ -426,7 +431,7 @@ export default function InvoiceDetailPage() {
                         ['Fecha de la factura', fDateOnly(invoice.date)],
                         ['Fecha de aprobación', invoice.approvalDate ? fDateOnly(invoice.approvalDate) : 'Sin aprobar'],
                         ['Número de comprobante', invoice.voucherNumber],
-                        ['Extracto', invoice.statement],
+                        ['Extracto', invoice.statement && `${invoice.statement} · ${fDateOnly(invoice.statementDate)}`],
                         ['Descripción', invoice.description]
                       ]}
                     />
@@ -521,6 +526,14 @@ export default function InvoiceDetailPage() {
           canManage={canDo(perms?.manageFollowUps)}
           onCount={setFollowUpCount}
           onChanged={refresh}
+        />
+      )}
+
+      {tab === 'glosses' && (
+        <InvoiceGlossesTab
+          invoice={{ invId: invoice.invId, wrkId: invoice.wrkId, stmId: invoice.stmId, state: invoice.state }}
+          canManage={canDo(perms?.manageGlosses)}
+          onCount={setOpenGlosses}
         />
       )}
 

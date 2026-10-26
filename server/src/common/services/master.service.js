@@ -35,6 +35,25 @@ const httpError = (statusCode, message) => Object.assign(new Error(message), { s
 const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /**
+ * Campo NIT de un maestro (constructoras, migración 0115; aseguradoras, 0116):
+ * obligatorio y único entre no eliminados, de 5 a 15 dígitos, guion y un dígito
+ * de verificación obligatorio pero libre: no se recalcula (pedido del usuario,
+ * 2026-10-24). La máscara del formulario pone el guion, así que el filtro busca
+ * también sin él: un NIT a medias ("900123" se ve "90012-3") encuentra "900123456-8".
+ */
+export const nitField = (column) => ({
+  name: "nit",
+  column,
+  label: "NIT",
+  maxLength: 17,
+  unique: true,
+  filter: true,
+  sortable: true,
+  pattern: { regex: /^\d{5,15}-\d$/, message: "El NIT debe tener de 5 a 15 dígitos, guion y dígito de verificación (p. ej. 900123456-8)." },
+  filterTerms: (text) => [...new Set([text, text.replace(/-/g, "")])],
+});
+
+/**
  * Valida y completa la declaración de un maestro. Falla al cargar el módulo
  * (no en una petición) si falta algo.
  *

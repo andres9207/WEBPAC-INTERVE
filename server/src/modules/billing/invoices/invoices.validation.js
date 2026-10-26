@@ -174,7 +174,8 @@ export const saveInvoiceSchema = [
     .withMessage("El número de la factura admite hasta 50 caracteres."),
   dateRule("date", "fecha de la factura"),
   optionalLongText("voucherNumber", "El número de comprobante", 50),
-  optionalLongText("statement", "El extracto", 100),
+  // Extracto de la obra (DEC-084): su id; el service verifica que sea de la obra de la factura.
+  optionalId("stmId"),
   optionalLongText("description", "La descripción", 500),
   // Anticipo y devolución de retenido: valor. Liquidación: VALOR,
   // amortización (DEC-044) y retenido (DEC-051).
@@ -282,3 +283,33 @@ export const closeInvoiceFollowUpSchema = [
 ];
 
 export const deleteInvoiceFollowUpSchema = [requiredId("ifuId")];
+
+// Glosas (DEC-085). La fecha de liberación la pone el servidor: no se acepta.
+const glossRules = () => [
+  optionalId("stmId"),
+  optionalText("code", 20),
+  // Con signo, como en WebPAC (un valor a favor o en contra); distinto de cero lo verifica el service.
+  body("value")
+    .customSanitizer((value) => (typeof value === "number" ? String(value) : value))
+    .isString()
+    .withMessage("El valor de la glosa es requerido.")
+    .bail()
+    .trim()
+    .matches(/^-?\d{1,16}(\.\d+)?$/)
+    .withMessage("El valor de la glosa debe ser un número, con punto decimal y hasta 16 dígitos enteros."),
+  body("description").trim().notEmpty().withMessage("La descripción de la glosa es requerida.").isLength({ max: 1000 }).withMessage("La descripción admite hasta 1000 caracteres."),
+];
+
+export const listInvoiceGlossesSchema = [query("invId").isInt({ min: 1 }).withMessage("invId es obligatorio y debe ser un entero positivo.")];
+
+export const createInvoiceGlossSchema = [idempotencyKeyRule(), requiredId("invId"), ...glossRules()];
+
+export const updateInvoiceGlossSchema = [requiredId("iglId"), ...glossRules()];
+
+export const releaseInvoiceGlossSchema = [
+  requiredId("iglId"),
+  requiredId("releaseStmId").withMessage("Selecciona el extracto en que se libera la glosa."),
+  body("observation").trim().notEmpty().withMessage("La observación de la liberación es requerida.").isLength({ max: 1000 }).withMessage("La observación admite hasta 1000 caracteres."),
+];
+
+export const deleteInvoiceGlossSchema = [requiredId("iglId")];

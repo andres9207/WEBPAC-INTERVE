@@ -24,12 +24,22 @@ import PDFDocument from "pdfkit";
  * resumen de un contrato).
  *
  * Todos llevan el logo de INTERVE: en Excel, en la primera fila de cada hoja;
- * en el PDF, a la derecha del encabezado de la primera página.
+ * en el PDF, a la derecha del encabezado de la primera página. Y el pie con
+ * los datos de la empresa (COMPANY_FOOTER): en el PDF, en cada página; en
+ * Excel, al final de cada hoja.
  */
 
 // Logo de INTERVE (src/images), leído una vez al cargar el módulo. Proporción 2359 × 1005.
 const LOGO = readFileSync(new URL("../../images/logo-interve.png", import.meta.url));
 const LOGO_RATIO = 1005 / 2359;
+
+// Pie de los reportes: los datos de INTERVE (pedido del usuario, 2026-10-26).
+export const COMPANY_FOOTER = Object.freeze([
+  "INTERVE S.A.S",
+  "Cra. 30 No. 10C-228 | Ed. Interplaza, Of. 503",
+  "PBX: (57+4) 352 3434 | CEL.3007856546 – ie@interve.co",
+  "Medellín - Colombia",
+]);
 
 /** Máximo de filas de un reporte (DEC-070). Más que eso responde 422: hay que afinar los filtros. */
 export const EXPORT_MAX_ROWS = 5000;
@@ -118,6 +128,14 @@ const addSheetHeading = (sheet, title, lines, count) => {
   sheet.addRow([]);
 };
 
+// Pie de la hoja, después del contenido: una fila en blanco y los datos de la empresa.
+const addSheetFooter = (sheet) => {
+  sheet.addRow([]);
+  COMPANY_FOOTER.forEach((line, i) => {
+    sheet.addRow([line]).font = { size: 8, bold: i === 0, color: { argb: "FF666666" } };
+  });
+};
+
 // Una tabla en su propia hoja: encabezado fijo, filtro y formato por columna.
 const addTableSheet = (workbook, { title, filters = [], columns, rows, groupKey, totals, empty }) => {
   const sheet = workbook.addWorksheet(sheetName(workbook, title));
@@ -155,6 +173,7 @@ const addTableSheet = (workbook, { title, filters = [], columns, rows, groupKey,
     }
   }
   if (totals) sheet.addRow(columns.map((column) => excelValue(column, totals))).font = { bold: true };
+  addSheetFooter(sheet);
   sheet.views = [{ state: "frozen", ySplit: headerRow }];
   if (rows.length > 0) sheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: columns.length } };
 };
@@ -180,6 +199,7 @@ const addFieldsSheet = (workbook, title, lines, sections) => {
     }
     sheet.addRow([]);
   }
+  addSheetFooter(sheet);
   sheet.getColumn(1).width = 30;
   sheet.getColumn(2).width = 70;
 };
@@ -207,6 +227,8 @@ const buildExcelDocument = async ({ title, lines, sections }) => {
 // ─── PDF ─────────────────────────────────────────────────────────────────────
 
 const MARGIN = 30;
+// Alto reservado al pie de cada página: los datos de la empresa y la numeración.
+const FOOTER_HEIGHT = 34;
 const FONT_SIZE = 7.5;
 const CELL_PADDING = 3;
 const PDF_PURPLE = "#5E35B1";
@@ -229,10 +251,17 @@ const pdfText = (column, row) => {
 
 const isRight = (column) => column.kind === "money" || column.kind === "percent";
 
-const newPdf = () => new PDFDocument({ size: "A4", layout: "landscape", margin: MARGIN, bufferPages: true });
+const newPdf = () =>
+  new PDFDocument({
+    size: "A4",
+    layout: "landscape",
+    // El contenido no baja hasta el pie: el margen inferior lo reserva.
+    margins: { top: MARGIN, left: MARGIN, right: MARGIN, bottom: MARGIN + FOOTER_HEIGHT },
+    bufferPages: true,
+  });
 
 const pageWidth = (doc) => doc.page.width - MARGIN * 2;
-const pageBottom = (doc) => doc.page.height - MARGIN - 14;
+const pageBottom = (doc) => doc.page.height - MARGIN - FOOTER_HEIGHT - 6;
 
 // Si lo que sigue (de alto `height`) no cabe, página nueva.
 const ensureRoom = (doc, height) => {
@@ -343,18 +372,28 @@ const drawSectionTitle = (doc, title) => {
   doc.y += 5;
 };
 
-// Numeración de páginas al final, cuando ya se sabe cuántas hay.
-const numberPages = (doc) => {
+// Pie de cada página al final, cuando ya se sabe cuántas hay: los datos de la
+// empresa a la izquierda y la numeración a la derecha, bajo una línea.
+const drawFooters = (doc) => {
   const range = doc.bufferedPageRange();
   for (let i = 0; i < range.count; i += 1) {
     doc.switchToPage(range.start + i);
     // El pie va bajo el margen inferior: sin esto, pdfkit abriría una página nueva.
     doc.page.margins.bottom = 0;
+    const top = doc.page.height - MARGIN - FOOTER_HEIGHT + 4;
+    doc.moveTo(MARGIN, top).lineTo(MARGIN + pageWidth(doc), top).lineWidth(0.4).strokeColor("#BBBBBB").stroke();
+    COMPANY_FOOTER.forEach((line, n) => {
+      doc
+        .font(n === 0 ? "Helvetica-Bold" : "Helvetica")
+        .fontSize(6.5)
+        .fillColor("#666666")
+        .text(line, MARGIN, top + 3 + n * 7.5, { width: pageWidth(doc) * 0.7, lineBreak: false });
+    });
     doc
       .font("Helvetica")
       .fontSize(7)
       .fillColor("#666666")
-      .text(`Página ${i + 1} de ${range.count}`, MARGIN, doc.page.height - MARGIN - 6, { width: pageWidth(doc), align: "right", lineBreak: false });
+      .text(`Página ${i + 1} de ${range.count}`, MARGIN, top + 3, { width: pageWidth(doc), align: "right", lineBreak: false });
   }
 };
 
@@ -366,7 +405,7 @@ const pdfBuffer = (draw) =>
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
     draw(doc);
-    numberPages(doc);
+    drawFooters(doc);
     doc.end();
   });
 

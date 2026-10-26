@@ -614,7 +614,7 @@ describe("paginationContracts", () => {
     jest.useRealTimers();
 
     expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where.AND[1]).toEqual({
-      ctr_state: { not: "LIQUIDATED" },
+      ctr_state: { notIn: ["LIQUIDATED", "CANCELLED"] },
       tbl_policies: { some: { pol_is_current: true, pol_end_date: { lte: new Date(Date.UTC(2026, 9, 28)) } } },
     });
     expect(page.statusCounts).toMatchObject({ POLICIES_EXPIRING: 3, EXPIRING: 3 });

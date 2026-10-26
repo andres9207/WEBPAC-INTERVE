@@ -31,3 +31,9 @@ export const getWorkManagersSelectAPI = (search) => httpCliente.get('work/works/
  * @returns {Promise<{ data: { endDate: string|null } }>}
  */
 export const previewWorkEndDateAPI = (params) => httpCliente.get('work/works/preview_work_end_date', params);
+
+/**
+ * Finalizar o reabrir la obra (DEC-083), con el permiso de cambiar su estado.
+ * @param {{ wrkId: number, state: 'IN_PROGRESS'|'FINISHED', finishDate?: string }} params
+ */
+export const changeWorkStateAPI = (params) => httpCliente.put('work/works/change_state_work', params);

@@ -107,6 +107,13 @@ export const suspendContractAPI = (params, idempotencyKey) =>
   httpCliente.post('work/contracts/suspend_contract', params, idempotencyConfig(idempotencyKey));
 
 /**
+ * Anular un contrato desde cualquier estado (DEC-082): estado final, solo consulta.
+ * @param {{ ctrId, reaId, observation }} params
+ */
+export const cancelContractAPI = (params, idempotencyKey) =>
+  httpCliente.post('work/contracts/cancel_contract', params, idempotencyConfig(idempotencyKey));
+
+/**
  * Pólizas del contrato (ADR-0018, DEC-050). La base y el valor asegurado los
  * pone el servidor: nunca se envían.
  */

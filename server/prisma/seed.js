@@ -49,6 +49,8 @@ const PAGES = [
   { pag_id: 18, pag_description: "Facturas", pag_parent: 13, pag_url: null, pag_icon: "receipt", pag_order: 5, pag_name: "Facturas", pag_type: 3 },
   // database/migrations/0082_seed_policies_pages_permissions.sql
   { pag_id: 20, pag_description: "Tipos de póliza", pag_parent: 5, pag_url: "admin/policyTypes", pag_icon: "shield-check", pag_order: 9, pag_name: "Tipos de póliza", pag_type: 2 },
+  // database/migrations/0119_create_statements.sql (DEC-084)
+  { pag_id: 21, pag_description: "Extractos", pag_parent: 13, pag_url: "billing/statements", pag_icon: "invoice", pag_order: 6, pag_name: "Extractos", pag_type: 2 },
 ];
 
 const PERMISSIONS = [
@@ -160,12 +162,20 @@ const PERMISSIONS = [
   { per_id: 111, per_name: "Eliminar factura aprobada", pag_id: 18, per_order: 12 },
   // database/migrations/0103_seed_export_permissions.sql (DEC-070)
   { per_id: 112, per_name: "Exportar contratos", pag_id: 16, per_order: 16 },
+  { per_id: 117, per_name: "Anular contrato", pag_id: 16, per_order: 17 },
   { per_id: 113, per_name: "Exportar facturas", pag_id: 18, per_order: 13 },
   // database/migrations/0107_seed_business_rules_permission.sql (DEC-072).
   // Cuelga de Administración: no tiene página propia en el sidebar.
   { per_id: 114, per_name: "Configurar reglas de negocio", pag_id: 5, per_order: 1 },
   // database/migrations/0113_seed_invoice_follow_ups_permission.sql (DEC-076)
   { per_id: 116, per_name: "Gestionar seguimiento de facturas", pag_id: 18, per_order: 14 },
+  // database/migrations/0119_create_statements.sql (DEC-084)
+  { per_id: 119, per_name: "Crear extracto", pag_id: 21, per_order: 1 },
+  { per_id: 120, per_name: "Modificar extracto", pag_id: 21, per_order: 2 },
+  { per_id: 121, per_name: "Eliminar extracto", pag_id: 21, per_order: 3 },
+  { per_id: 122, per_name: "Exportar extractos", pag_id: 21, per_order: 4 },
+  // database/migrations/0120_create_invoice_glosses.sql (DEC-085)
+  { per_id: 123, per_name: "Gestionar glosas", pag_id: 18, per_order: 15 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -210,6 +220,7 @@ const VIEW_PERMISSIONS = [
   { per_id: 115, per_name: "Ver facturas", pag_id: 18, per_order: 0 },
   { per_id: 93, per_name: "Ver tipos de póliza", pag_id: 20, per_order: 5 },
   { per_id: 99, per_name: "Ver pólizas", pag_id: 16, per_order: 12 },
+  { per_id: 118, per_name: "Ver extractos", pag_id: 21, per_order: 0 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay

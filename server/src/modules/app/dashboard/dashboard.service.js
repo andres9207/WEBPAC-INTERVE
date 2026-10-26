@@ -3,7 +3,8 @@ import { scopeWhere } from "../../../common/services/workScope.service.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import { dateOnlyText, todayDateOnly } from "../../../common/utils/term.utils.js";
-import { CONTRACT_STATES, STATE_NAMES as CONTRACT_STATE_NAMES } from "../../work/contracts/contractTerms.js";
+import { CLOSED_STATES, CONTRACT_STATES, STATE_NAMES as CONTRACT_STATE_NAMES } from "../../work/contracts/contractTerms.js";
+import { WORK_STATES } from "../../work/works/works.service.js";
 import {
   CONTRACT_POLICY_STATUS,
   CONTRACT_POLICY_STATUS_NAMES,
@@ -58,10 +59,52 @@ const providersBlock = async (scope) => ({
 });
 
 const contractsBlock = async (scope) => {
-  const grouped = await prisma.tbl_contracts.groupBy({ by: ["ctr_state"], where: { ...notDeleted, ...scopeWhere(scope) }, _count: { _all: true } });
+  const [grouped, toLiquidate] = await Promise.all([
+    prisma.tbl_contracts.groupBy({ by: ["ctr_state"], where: { ...notDeleted, ...scopeWhere(scope) }, _count: { _all: true } }),
+    finishedWorksToLiquidate(scope),
+  ]);
   const counts = Object.fromEntries(grouped.map((g) => [g.ctr_state, g._count._all]));
   const byState = Object.values(CONTRACT_STATES).map((state) => ({ state, name: CONTRACT_STATE_NAMES[state], count: counts[state] ?? 0 }));
-  return { total: byState.reduce((sum, s) => sum + s.count, 0), byState };
+  return { total: byState.reduce((sum, s) => sum + s.count, 0), byState, finishedWorksToLiquidate: toLiquidate };
+};
+
+/**
+ * Obras finalizadas con contratos por liquidar (DEC-083): finalizar no los
+ * exige, y el tablero los avisa. Cada obra con sus contratos (ni liquidados
+ * ni anulados), para el detalle.
+ */
+const finishedWorksToLiquidate = async (scope) => {
+  const open = { ...notDeleted, ctr_state: { notIn: CLOSED_STATES } };
+  const rows = await prisma.tbl_works.findMany({
+    where: { ...notDeleted, ...scopeWhere(scope), wrk_state: WORK_STATES.FINISHED, tbl_contracts: { some: open } },
+    select: {
+      wrk_id: true,
+      wrk_code: true,
+      wrk_name: true,
+      wrk_finish_date: true,
+      tbl_contracts: {
+        where: open,
+        select: { ctr_id: true, ctr_number: true, ctr_name: true, ctr_state: true, tbl_providers: { select: { prv_name: true } } },
+        orderBy: [{ ctr_number: "asc" }, { ctr_id: "asc" }],
+      },
+    },
+    orderBy: [{ wrk_finish_date: "asc" }, { wrk_id: "asc" }],
+  });
+  const works = rows.map((row) => ({
+    wrkId: row.wrk_id,
+    code: row.wrk_code,
+    name: row.wrk_name,
+    finishDate: dateOnlyText(row.wrk_finish_date),
+    contracts: row.tbl_contracts.map((c) => ({
+      ctrId: c.ctr_id,
+      number: c.ctr_number,
+      name: c.ctr_name,
+      providerName: c.tbl_providers?.prv_name ?? null,
+      state: c.ctr_state,
+      stateName: CONTRACT_STATE_NAMES[c.ctr_state] ?? c.ctr_state,
+    })),
+  }));
+  return { contracts: works.reduce((sum, w) => sum + w.contracts.length, 0), works };
 };
 
 /**

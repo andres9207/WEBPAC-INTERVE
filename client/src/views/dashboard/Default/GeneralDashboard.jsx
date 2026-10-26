@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography';
 import {
   IconAlertTriangle,
   IconBuildingCommunity,
+  IconChecklist,
   IconClockHour4,
   IconFilePlus,
   IconFileText,
@@ -35,6 +36,7 @@ import PolicyStatusCard from './components/PolicyStatusCard';
 import InvoicesByWorkCard from './components/InvoicesByWorkCard';
 import { AlertsCard, LatestInvoicesCard, QuickAccessCard, UpcomingPoliciesCard, WorksActivityCard } from './components/DashboardLists';
 import { daysOpenText, followUpsDrill, useDrillDown } from './work/DrillDownDialog';
+import { dashboardTo } from './work/workDashboard.utils';
 
 /**
  * Tablero general (ADR-0002, DEC-052), con "Ver todo" en el encabezado; con
@@ -201,9 +203,35 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
         tone: ACTION_TONES.neutral,
         to: '/work/contracts?status=SUSPENDED'
       });
+      // Obras finalizadas con contratos por liquidar (DEC-083): el detalle lista cada contrato con su obra.
+      const finished = s.contracts.finishedWorksToLiquidate;
+      if (finished?.contracts > 0) {
+        list.push({
+          key: 'to-liquidate',
+          count: finished.contracts,
+          label: 'contrato(s) por liquidar en obras finalizadas',
+          hint: finished.works.map((w) => w.code).join(', '),
+          icon: IconChecklist,
+          tone: ACTION_TONES.danger,
+          onClick: () =>
+            openDrill({
+              title: 'Contratos por liquidar en obras finalizadas',
+              noun: ['contrato', 'contratos'],
+              rows: finished.works.flatMap((w) =>
+                w.contracts.map((c) => ({
+                  key: `ctr-${c.ctrId}`,
+                  to: dashboardTo.contract(c.ctrId),
+                  primary: `${c.number} · ${c.name}`,
+                  secondary: [`${w.code} (finalizada el ${fDateOnly(w.finishDate)})`, c.providerName, c.stateName].filter(Boolean).join(' · '),
+                  value: ''
+                }))
+              )
+            })
+        });
+      }
     }
     return list;
-  }, [summary, s.policies, s.invoices, s.contracts, s.expiringDays, firstMenu]);
+  }, [summary, s.policies, s.invoices, s.contracts, s.expiringDays, firstMenu, openDrill]);
 
   // Accesos rápidos según permisos (experiencia de uso: el servidor vuelve a verificar).
   const canDo = (perId) => perId != null && hasPermission(perId);
