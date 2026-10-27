@@ -47,7 +47,7 @@ const FIELDS = [
     kind: 'percent',
     alt: 'utilityAmount'
   },
-  { name: 'vatPct', label: 'IVA', kind: 'percent', alt: 'vatAmount', required: true, helper: '% sobre el VALOR' },
+  { name: 'vatPct', label: 'IVA', kind: 'percent', alt: 'vatAmount', required: true, helper: '% sobre la utilidad (sin ella, el VALOR)' },
   { name: 'withholdingPct', label: 'Rte fuente', kind: 'percent', alt: 'withholdingAmount', helper: '% sobre el VALOR' },
   { name: 'vatWithholdingPct', label: 'Rte IVA', kind: 'percent', alt: 'vatWithholdingAmount', helper: '% sobre el IVA' },
   { name: 'icaWithholding', label: 'Rte ICA', kind: 'money', alt: 'icaWithholdingPct', helper: '% sobre el VALOR' },

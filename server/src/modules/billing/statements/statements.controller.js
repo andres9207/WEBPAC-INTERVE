@@ -98,3 +98,17 @@ export const getStatementReportController = handle(async (req) =>
 export const exportStatementController = handleExport(async (req) =>
   statementsService.exportStatement({ stmId: req.body.stmId, format: req.body.format, scope: await workScopeOf(req) })
 );
+
+// Extractos escritos en las facturas (solo lectura): agrupados por obra y texto.
+export const paginationStatementGroupsController = handle(async (req) => {
+  const { search, wrkId, number, rows, first, sortField, sortOrder } = req.body;
+  return statementsService.paginationStatementGroups({ search, wrkId, number, rows, first, sortField, sortOrder, scope: await workScopeOf(req) });
+});
+
+export const getStatementGroupReportController = handle(async (req) =>
+  statementsService.getStatementGroupReport({ wrkId: req.query.wrkId, number: req.query.number, scope: await workScopeOf(req) })
+);
+
+export const exportStatementGroupController = handleExport(async (req) =>
+  statementsService.exportStatementGroup({ wrkId: req.body.wrkId, number: req.body.number, format: req.body.format, scope: await workScopeOf(req) })
+);

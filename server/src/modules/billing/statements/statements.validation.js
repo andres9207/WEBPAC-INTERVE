@@ -50,3 +50,17 @@ export const deleteStatementSchema = [requiredId("stmId")];
 export const getStatementReportSchema = [statementIdQuery];
 
 export const exportStatementSchema = [requiredId("stmId"), exportFormatRule()];
+
+// Extractos escritos en las facturas: la obra y el texto identifican el grupo.
+export const paginationStatementGroupsSchema = [...paginationRules(), optionalText("search", 100), optionalId("wrkId"), optionalText("number", 20)];
+
+export const getStatementGroupReportSchema = [
+  query("wrkId").isInt({ min: 1 }).withMessage("wrkId es obligatorio y debe ser un entero positivo."),
+  query("number").trim().notEmpty().withMessage("El extracto es obligatorio.").isLength({ max: 20 }).withMessage("El extracto admite hasta 20 caracteres."),
+];
+
+export const exportStatementGroupSchema = [
+  requiredId("wrkId"),
+  body("number").trim().notEmpty().withMessage("El extracto es obligatorio.").isLength({ max: 20 }).withMessage("El extracto admite hasta 20 caracteres."),
+  exportFormatRule(),
+];

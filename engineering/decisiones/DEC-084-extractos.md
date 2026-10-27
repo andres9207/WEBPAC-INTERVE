@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-26 · **Tipo:** Obligatoria · **ADR:** [0020](../adr/0020-facturacion.md), [0027](../adr/0027-integridad-transaccional.md)
 
-Decidido por el usuario el 2026-10-26 ("como acta del WebPAC"), a partir del documento de alcance de Intervé (punto 7, "Control de Extractos"). **Revisada el 2026-10-27** por pedido del usuario: en la factura el extracto es un campo abierto, no un selector, y se agrupa después (migración 0124).
+Decidido por el usuario el 2026-10-26 ("como acta del WebPAC"), a partir del documento de alcance de Intervé (punto 7, "Control de Extractos"). **Revisada el 2026-10-27** por pedido del usuario: en la factura el extracto es un campo abierto, no un selector, y se agrupa después (migración 0124). El mismo día, la pantalla Extractos pasó a ser **de solo lectura**: agrupa las facturas por su texto, sin crear extractos ("por el momento solo necesito visualizar").
 
 ## Contexto
 
@@ -16,14 +16,18 @@ Decidido por el usuario el 2026-10-26 ("como acta del WebPAC"), a partir del doc
 - **El extracto agrupa por su número**: sus facturas son las no eliminadas de su obra cuyo texto es su número, con la intercalación de la columna (sin distinguir mayúsculas ni tildes), escritas antes o después de crear el extracto. El listado cuenta así sus facturas, y el detalle de la factura muestra la fecha del extracto si ya existe.
 - **Datos**: la 0119 convirtió cada texto distinto de una obra en un extracto; la 0124 devolvió a cada factura el número de su extracto como texto y quitó `stm_id` con su FK.
 - **Bloqueo**: entidad `EXTRACTO` en `LOCK_ORDER`, después de `FACTURA` (ADR-0027), para las glosas. Eliminar un extracto lo bloquea y responde 409 si alguna glosa lo usa; las facturas no lo impiden: conservan su texto. Cambiar el número de un extracto cambia qué facturas agrupa.
-- **Pantalla "Extractos"** (página 21, grupo Inicio) con permisos 118 a 122 (ver, crear, modificar y cambiar estado, eliminar, exportar). Quien tenía la página de Facturas recibió la de Extractos. El selector de extractos (lo usan las glosas) solo exige sesión y está limitado a la obra del alcance (DEC-018).
-- **Reporte del extracto**: sus facturas, los totales por menú (tipo de proveedor: mayores, subcontratistas, órdenes de servicio, simples) y en total, y el **chequeo de comprobantes de egreso**: las aprobadas sin número de comprobante. Las anuladas se listan y no suman (DEC-052). En pantalla y en Excel o PDF (DEC-070).
+- **Pantalla "Extractos"** (página 21, grupo Inicio), de solo lectura: un renglón por obra y texto escrito en las facturas (`pagination_statement_groups`), con cuántas facturas lo usan, las aprobadas, las aprobadas sin comprobante, la primera y la última fecha y el total sin las anuladas. Con una obra elegida, los de esa obra; con "Ver todo", todos. Ver con el permiso 118 y exportar el reporte con el 122. Los permisos 119 a 121 (crear, modificar y cambiar estado, eliminar) y las rutas del extracto registrado siguen en el servidor, sin pantalla. Quien tenía la página de Facturas recibió la de Extractos. El selector de extractos (lo usan las glosas) solo exige sesión y está limitado a la obra del alcance (DEC-018).
+- **Reporte del extracto** (`get_statement_group_report`, `export_statement_group`, por obra y texto): sus facturas, los totales por menú (tipo de proveedor: mayores, subcontratistas, órdenes de servicio, simples) y en total, y el **chequeo de comprobantes de egreso**: las aprobadas sin número de comprobante. Las anuladas se listan y no suman (DEC-052). En pantalla y en Excel o PDF (DEC-070).
 
 ## Descartado
 
 - Un selector de extractos en la factura (2026-10-26 a 2026-10-27): obligaba a crear el extracto antes de facturar. El usuario pidió un campo abierto.
 - Solo texto, sin extractos registrados: se perdían la fecha y el comunicado del acta y la regla de las glosas ("liberar en un extracto posterior", DEC-085).
 - Llevar al extracto el valor pagado, el anticipo y la amortización del acta de WebPAC: son del fondo rotatorio y de la fiducia, excluidos del alcance. "Total pagado por acta" queda con ellos.
+
+## Pendiente
+
+- Sin pantalla para registrar extractos, las glosas solo ofrecen los extractos registrados antes del 2026-10-27. Si se vuelve a necesitar, el extracto registrado se crea desde un grupo de la pantalla, con su número.
 
 ## Qué implica
 

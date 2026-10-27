@@ -1332,10 +1332,22 @@ describe("anticipo y amortización (DEC-044)", () => {
       },
       retentionPair: null,
       billing: { base: "120000000.00", billed: "0.00", toBill: "120000000.00" },
+      defaultUtilityPct: null,
     });
 
     prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce(null);
     await expect(service.getContractAdvance({ ctrId: "31" })).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("información del contrato: % utilidad por defecto, la U del valor inicial si el contrato solicita AIU", async () => {
+    const utility = (row) => {
+      prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce(row);
+      return service.getContractAdvance({ ctrId: "30" }).then((r) => r.defaultUtilityPct);
+    };
+    await expect(utility({ ctr_id: 30, ctr_aiu_requested: true, tbl_contract_concepts: [{ ccp_profit_pct: D("5") }] })).resolves.toBe("5.00");
+    await expect(utility({ ctr_id: 30, ctr_aiu_requested: false, tbl_contract_concepts: [{ ccp_profit_pct: D("5") }] })).resolves.toBeNull();
+    await expect(utility({ ctr_id: 30, ctr_aiu_requested: true, tbl_contract_concepts: [] })).resolves.toBeNull();
+    expect(prismaMock.tbl_contracts.findFirst.mock.calls.at(-1)[0].select.tbl_contract_concepts.where).toMatchObject({ ccp_type: "INITIAL" });
   });
 
   it("información del contrato: anticipo por aprobar sin contar la factura que se edita", async () => {
@@ -1577,7 +1589,7 @@ describe("IVA y retenciones de la normal y la liquidación (DEC-075)", () => {
     expect(created.ild_vat_withholding_pct.toFixed(2)).toBe("15.00");
     expect(created.ild_ica_withholding.toFixed(2)).toBe("50000.00");
     expect(created.ild_materials_discount.toFixed(2)).toBe("100000.00");
-    expect(created.ild_formula_version).toBe(1);
+    expect(created.ild_formula_version).toBe(2);
     expect(auditRows().find((r) => r.aud_field === "ild_vat_pct")).toMatchObject({ aud_new_value: "19.00" });
     expect(auditRows().find((r) => r.aud_field === "ild_materials_discount")).toMatchObject({ aud_new_value: "100000.00" });
   });

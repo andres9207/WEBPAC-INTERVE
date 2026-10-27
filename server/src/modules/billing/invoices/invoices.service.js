@@ -477,9 +477,19 @@ export const getContractAdvance = async ({ ctrId, invId, value, amortization, am
   await assertContractInScope(scope, ctrId);
   const contract = await prisma.tbl_contracts.findFirst({
     where: { ctr_id: Number(ctrId), sta_id: { not: DELETED_STATUS } },
-    select: { ctr_id: true },
+    select: {
+      ctr_id: true,
+      ctr_aiu_requested: true,
+      tbl_contract_concepts: {
+        where: { ccp_type: CONCEPT_TYPES.INITIAL, sta_id: { not: DELETED_STATUS } },
+        select: { ccp_profit_pct: true },
+        take: 1,
+      },
+    },
   });
   if (!contract) throw httpError(404, "No se encontró el contrato.");
+  // % utilidad por defecto de la normal y la liquidación: la U del valor inicial, si el contrato solicita AIU (DEC-046, DEC-075).
+  const initialConcept = contract.ctr_aiu_requested ? contract.tbl_contract_concepts?.[0] : null;
   const balances = await contractBalances(prisma, contract.ctr_id);
   const pending = await pendingAdvanceOf(contract.ctr_id, invId);
   const afterPending = balances.advance.toInvoice.minus(pending.invoiced);
@@ -499,6 +509,7 @@ export const getContractAdvance = async ({ ctrId, invId, value, amortization, am
     },
     retentionPair: amountPairOf(amount, retention, retentionPct),
     billing: billingDto(balances.billing),
+    defaultUtilityPct: initialConcept ? percentText(initialConcept.ccp_profit_pct) : null,
   };
 };
 
@@ -1216,6 +1227,21 @@ export const statementInvoices = async ({ wrkId, number }) =>
       orderBy: [{ pvt_id: "asc" }, { inv_date: "asc" }, { inv_id: "asc" }],
     })
   ).map((row) => ({ ...toListDto(row), voucherNumber: row.inv_voucher_number }));
+
+/**
+ * Facturas no eliminadas de varios extractos a la vez (una página del listado
+ * de extractos): las de esas obras con esos textos, con los importes del
+ * listado. Quien llama las reparte por obra y texto.
+ */
+export const statementsInvoices = async ({ wrkIds, numbers }) =>
+  wrkIds.length === 0
+    ? []
+    : (
+        await prisma.tbl_invoices.findMany({
+          where: { wrk_id: { in: wrkIds }, inv_statement: { in: numbers }, sta_id: { not: DELETED_STATUS } },
+          select: { ...LIST_SELECT, inv_voucher_number: true },
+        })
+      ).map((row) => ({ ...toListDto(row), voucherNumber: row.inv_voucher_number }));
 
 // Columnas del reporte: las de la tabla del listado (DEC-070); un menú de
 // forma simple no tiene tipo que elegir ni contrato.

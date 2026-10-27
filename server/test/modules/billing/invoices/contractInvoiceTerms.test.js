@@ -37,14 +37,18 @@ const detailOf = (input) => ({
   ild_retention: input.retention ?? "0",
 });
 
+// Una factura registrada con la v1 (IVA sobre el VALOR) se sigue componiendo con ella.
+const v1 = (input) => ({ ...detailOf(input), ild_formula_version: 1 });
+
 const text = (composed) => Object.fromEntries(Object.entries(composed).map(([key, value]) => [key, value.toFixed(2)]));
 
 describe("composeContractInvoice v1", () => {
   it("reproduce al centavo la pantalla del sistema que se migra", () => {
-    const composed = text(composeContractInvoice(detailOf(SCREEN)));
+    const composed = text(composeContractInvoice(v1(SCREEN)));
     expect(composed).toEqual({
       value: "2000000.00",
       utility: "200000.00", // se guarda, pero no entra en ninguna cifra
+      vatBase: "2000000.00",
       vat: "380000.00", // VALOR × % IVA, no sobre la utilidad
       valueWithVat: "2380000.00",
       withholding: "200000.00",
@@ -60,14 +64,14 @@ describe("composeContractInvoice v1", () => {
   });
 
   it("el % utilidad no cambia el IVA ni el total", () => {
-    const without = composeContractInvoice(detailOf({ ...SCREEN, utilityPct: "0" }));
-    const withUtility = composeContractInvoice(detailOf(SCREEN));
+    const without = composeContractInvoice(v1({ ...SCREEN, utilityPct: "0" }));
+    const withUtility = composeContractInvoice(v1(SCREEN));
     expect(withUtility.vat.eq(without.vat)).toBe(true);
     expect(withUtility.total.eq(without.total)).toBe(true);
   });
 
   it("redondea cada línea antes de sumar (medio hacia arriba)", () => {
-    const composed = text(composeContractInvoice(detailOf({ value: "100.05", vatPct: "19", vatWithholdingPct: "15" })));
+    const composed = text(composeContractInvoice(v1({ value: "100.05", vatPct: "19", vatWithholdingPct: "15" })));
     expect(composed.vat).toBe("19.01"); // 19.0095
     expect(composed.vatWithholding).toBe("2.85"); // 2.8515 sobre el IVA ya redondeado
     expect(composed.total).toBe("116.21");
@@ -75,6 +79,37 @@ describe("composeContractInvoice v1", () => {
 
   it("una versión de fórmula desconocida es un error de programación", () => {
     expect(() => composeContractInvoice({ ...detailOf(SCREEN), ild_formula_version: 99 })).toThrow("versión de fórmula desconocida");
+  });
+});
+
+describe("composeContractInvoice v2 (IVA sobre la utilidad)", () => {
+  it("con utilidad, el IVA es sobre ella; las retenciones conservan su base", () => {
+    expect(CONTRACT_FORMULA_VERSION).toBe(2);
+    const composed = text(composeContractInvoice(detailOf(SCREEN)));
+    expect(composed).toEqual({
+      value: "2000000.00",
+      utility: "200000.00",
+      vatBase: "200000.00",
+      vat: "38000.00", // UTILIDAD × % IVA
+      valueWithVat: "2038000.00",
+      withholding: "200000.00", // sobre el VALOR
+      vatWithholding: "3800.00", // sobre el IVA
+      icaWithholding: "10.00",
+      amortization: "10.00",
+      retention: "10.00",
+      materialsDiscount: "1000.00",
+      total: "1833170.00",
+    });
+  });
+
+  it("sin utilidad, el IVA es sobre el VALOR, como en la v1", () => {
+    const input = { ...SCREEN, utilityPct: "0" };
+    expect(text(composeContractInvoice(detailOf(input)))).toEqual(text(composeContractInvoice(v1(input))));
+  });
+
+  it("el caso de la pantalla: VALOR 23.000.000, utilidad 5 %, IVA 19 %", () => {
+    const composed = text(composeContractInvoice(detailOf({ value: "23000000", utilityPct: "5", vatPct: "19" })));
+    expect(composed).toMatchObject({ utility: "1150000.00", vat: "218500.00", valueWithVat: "23218500.00" });
   });
 });
 
@@ -111,8 +146,8 @@ describe("valor y porcentaje (DEC-065, extendido por DEC-075)", () => {
   it("convierte cada importe escrito por su otro lado a como se guarda", () => {
     const converted = convertContractAmounts({
       value: "2000000",
-      vatAmount: "380000",
-      vatWithholdingAmount: "38000", // sobre el IVA ya convertido
+      vatAmount: "38000", // sobre la utilidad ya convertida
+      vatWithholdingAmount: "3800", // sobre el IVA ya convertido
       icaWithholdingPct: "0.5",
       materialsDiscountPct: "1",
       utilityAmount: "200000",
@@ -128,8 +163,8 @@ describe("valor y porcentaje (DEC-065, extendido por DEC-075)", () => {
 
   it("da el valor y el % de cada importe", () => {
     const pairs = contractPairsDto(contractDraftOf(SCREEN));
-    expect(pairs.vatPct).toEqual({ amount: "380000.00", pct: "19.00" });
-    expect(pairs.vatWithholdingPct).toEqual({ amount: "38000.00", pct: "10.00" });
+    expect(pairs.vatPct).toEqual({ amount: "38000.00", pct: "19.00" });
+    expect(pairs.vatWithholdingPct).toEqual({ amount: "3800.00", pct: "10.00" });
     expect(pairs.icaWithholding).toEqual({ amount: "10.00", pct: "0.00" });
     expect(pairs.materialsDiscount).toEqual({ amount: "1000.00", pct: "0.05" });
     expect(pairs.utilityPct).toEqual({ amount: "200000.00", pct: "10.00" });
@@ -158,8 +193,8 @@ describe("contractTaxesDto", () => {
       "RETENIDO",
       "DCTO MATERIALES",
     ]);
-    expect(dto.total).toBe("2140970.00");
-    expect(dto.formulaVersion).toBe(1);
+    expect(dto.total).toBe("1833170.00");
+    expect(dto.formulaVersion).toBe(2);
   });
 
   it("una factura registrada antes de DEC-075 no tiene composición", () => {

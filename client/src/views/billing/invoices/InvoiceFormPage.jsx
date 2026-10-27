@@ -410,6 +410,13 @@ export default function InvoiceFormPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, contractView, contractBalances, type, defaultType, enabledTypes.join()]);
 
+  // % utilidad por defecto en la normal y la liquidación: la U del valor inicial del contrato con AIU; se puede cambiar.
+  const defaultUtilityPct = contractBalances?.defaultUtilityPct;
+  useEffect(() => {
+    if (isEdit || !isBillingInvoiceType(type) || !defaultUtilityPct) return;
+    setValue('utilityPct', defaultUtilityPct, { shouldDirty: true });
+  }, [isEdit, type, defaultUtilityPct, setValue]);
+
   // Otro tipo: los importes son de él. Proveedor y contrato se conservan.
   const changeType = (value) => {
     setValue('type', value ?? '', { shouldDirty: true });

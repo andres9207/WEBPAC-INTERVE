@@ -222,7 +222,10 @@ function InvoiceAmounts({ invoice }) {
               />
               <Typography variant="caption" color="text.secondary">
                 Tasas congeladas al registrar. IVA, retenciones y total se calculan con la fórmula v{amounts.formulaVersion} (DEC-075) y no
-                se guardan. El % de utilidad se guarda, pero no entra en el cálculo.
+                se guardan.{' '}
+                {amounts.formulaVersion >= 2
+                  ? 'Con utilidad, el IVA es sobre la utilidad; sin ella, sobre el VALOR.'
+                  : 'El % de utilidad se guarda, pero no entra en el cálculo.'}
               </Typography>
             </>
           ) : (

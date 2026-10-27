@@ -18,7 +18,7 @@ const prismaMock = {
     count: jest.fn(async () => 0),
     groupBy: jest.fn(async () => []),
   },
-  tbl_works: { findUnique: jest.fn(async () => state.work) },
+  tbl_works: { findUnique: jest.fn(async () => state.work), findMany: jest.fn(async () => state.works) },
   tbl_invoices: { count: jest.fn(async () => 0), groupBy: jest.fn(async () => state.invoiceGroups) },
   tbl_invoice_glosses: { count: jest.fn(async () => state.glossesCount) },
   tbl_audit_log: { createMany: jest.fn() },
@@ -29,7 +29,8 @@ const prismaMock = {
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
 // Las facturas del extracto salen del service de facturas (los mismos importes del listado).
 const statementInvoices = jest.fn(async () => state.invoices);
-jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.service.js", () => ({ statementInvoices }));
+const statementsInvoices = jest.fn(async () => state.invoices);
+jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.service.js", () => ({ statementInvoices, statementsInvoices }));
 // Las glosas del extracto (DEC-085), del service de glosas.
 jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoiceGlosses.service.js", () => ({
   statementGlosses: jest.fn(async () => state.glosses),
@@ -68,6 +69,7 @@ beforeEach(() => {
     work: { sta_id: 1 },
     invoices: [],
     invoiceGroups: [],
+    works: [],
     glossesCount: 0,
     glosses: { raised: [], released: [] },
     replay: null,
@@ -200,5 +202,59 @@ describe("reporte (documento de alcance, punto 7)", () => {
     const { glosses } = await service.getStatementReport({ stmId: 40, scope: OWN });
 
     expect(glosses).toMatchObject({ raisedValue: "70.00", releasedValue: "50.00" });
+  });
+});
+
+describe("extractos escritos en las facturas (solo lectura)", () => {
+  const group = (wrkId, text, count, min, max) => ({
+    wrk_id: wrkId,
+    inv_statement: text,
+    _count: { _all: count },
+    _min: { inv_date: new Date(`${min}T00:00:00Z`) },
+    _max: { inv_date: new Date(`${max}T00:00:00Z`) },
+  });
+  const invoice = (overrides) => ({ wrkId: 8, statement: "EXT-1", total: "100.00", value: "100.00", vat: null, state: "APPROVED", voucherNumber: "CE-1", ...overrides });
+
+  it("agrupa por obra y texto en el alcance, el más reciente primero, con los totales de la página", async () => {
+    state.invoiceGroups = [group(8, "EXT-1", 2, "2026-09-01", "2026-09-10"), group(8, "EXT-2", 1, "2026-10-01", "2026-10-01")];
+    state.works = [{ wrk_id: 8, wrk_code: "OB-8", wrk_name: "Vía" }];
+    state.invoices = [
+      invoice({}),
+      invoice({ statement: "ext-1", total: "50.00", voucherNumber: null }),
+      invoice({ statement: "EXT-2", total: "70.00", state: "CANCELLED" }),
+    ];
+
+    const page = await service.paginationStatementGroups({ scope: OWN, rows: 10, first: 0 });
+
+    expect(prismaMock.tbl_invoices.groupBy.mock.calls[0][0].where).toMatchObject({ wrk_id: { in: [8] }, inv_statement: { not: null }, sta_id: { not: 3 } });
+    expect(page.total).toBe(2);
+    expect(page.results.map((g) => g.number)).toEqual(["EXT-2", "EXT-1"]);
+    expect(page.results[1]).toMatchObject({ workCode: "OB-8", invoicesCount: 2, firstDate: "2026-09-01", lastDate: "2026-09-10", total: "150.00", approvedCount: 2, withoutVoucher: 1 });
+    // La anulada se cuenta en el grupo pero no suma.
+    expect(page.results[0]).toMatchObject({ total: "0.00", approvedCount: 0 });
+  });
+
+  it("ordena por número en forma natural y pagina", async () => {
+    state.invoiceGroups = [group(8, "EXT-10", 1, "2026-09-01", "2026-09-01"), group(8, "EXT-9", 1, "2026-09-02", "2026-09-02")];
+    const page = await service.paginationStatementGroups({ scope: OWN, rows: 1, first: 0, sortField: "number", sortOrder: 1 });
+    expect(page).toMatchObject({ total: 2, totalPages: 2 });
+    expect(page.results.map((g) => g.number)).toEqual(["EXT-9"]);
+  });
+
+  it("el reporte pide las facturas de la obra con ese texto, con las glosas del extracto registrado si lo hay", async () => {
+    state.invoices = [invoice({ date: "2026-09-10" }), invoice({ invId: 2, date: "2026-09-01" })];
+    prismaMock.tbl_statements.findFirst.mockImplementationOnce(async () => ({ stm_id: 40 }));
+
+    const report = await service.getStatementGroupReport({ wrkId: "8", number: " EXT-1 ", scope: OWN });
+
+    expect(statementInvoices).toHaveBeenCalledWith({ wrkId: 8, number: "EXT-1" });
+    expect(report.statement).toMatchObject({ number: "EXT-1", firstDate: "2026-09-01", lastDate: "2026-09-10", invoicesCount: 2 });
+    expect(report.totals).toMatchObject({ count: 2, total: "200.00" });
+  });
+
+  it("sin facturas o fuera del alcance, 404", async () => {
+    await expect(service.getStatementGroupReport({ wrkId: 8, number: "X", scope: OWN })).rejects.toMatchObject({ statusCode: 404 });
+    state.invoices = [invoice({})];
+    await expect(service.getStatementGroupReport({ wrkId: 8, number: "EXT-1", scope: OTHER })).rejects.toMatchObject({ statusCode: 404 });
   });
 });

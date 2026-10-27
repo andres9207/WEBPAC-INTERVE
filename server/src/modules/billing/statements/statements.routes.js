@@ -12,6 +12,9 @@ import {
   deleteStatementSchema,
   getStatementReportSchema,
   exportStatementSchema,
+  paginationStatementGroupsSchema,
+  getStatementGroupReportSchema,
+  exportStatementGroupSchema,
 } from "./statements.validation.js";
 import {
   paginationStatementsController,
@@ -22,6 +25,9 @@ import {
   deleteStatementController,
   getStatementReportController,
   exportStatementController,
+  paginationStatementGroupsController,
+  getStatementGroupReportController,
+  exportStatementGroupController,
 } from "./statements.controller.js";
 
 // Extractos de la obra (DEC-084), montados en /api/billing/statements, con las
@@ -55,5 +61,25 @@ statementsRoutes.put("/delete_statement", verifyToken, requirePermission(can.del
 // Reporte (documento de alcance, punto 7): sus facturas con totales por menú y el chequeo de comprobantes.
 statementsRoutes.get("/get_statement_report", verifyToken, canView, getStatementReportSchema, validate, getStatementReportController);
 statementsRoutes.post("/export_statement", verifyToken, canView, requirePermission(can.export), exportStatementSchema, validate, exportStatementController);
+
+// Extractos escritos en las facturas (solo lectura): ver con el 118 y exportar con el 122.
+statementsRoutes.post(
+  "/pagination_statement_groups",
+  verifyToken,
+  canView,
+  paginationStatementGroupsSchema,
+  validate,
+  paginationStatementGroupsController
+);
+statementsRoutes.get("/get_statement_group_report", verifyToken, canView, getStatementGroupReportSchema, validate, getStatementGroupReportController);
+statementsRoutes.post(
+  "/export_statement_group",
+  verifyToken,
+  canView,
+  requirePermission(can.export),
+  exportStatementGroupSchema,
+  validate,
+  exportStatementGroupController
+);
 
 export default statementsRoutes;

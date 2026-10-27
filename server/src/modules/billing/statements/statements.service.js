@@ -1,6 +1,6 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { ACTIVE_STATUS, DELETED_STATUS, INACTIVE_STATUS } from "../../../common/constants/status.constants.js";
-import { MAX_ROWS, countByStatus, containsFilter, filtersWhere, idFilter, paginate, searchWhere } from "../../../common/utils/pagination.utils.js";
+import { MAX_ROWS, countByStatus, containsFilter, filtersWhere, idFilter, paginate, resolvePagination, searchWhere } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
 import { moneyText, sumMoney } from "../../../common/utils/money.utils.js";
@@ -10,7 +10,7 @@ import { withLockedTransaction } from "../../../common/services/transaction.serv
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, writeAudit } from "../../../common/services/audit.service.js";
 import { renderDocument } from "../../../common/services/export.service.js";
 import { INVOICE_STATES } from "../invoices/invoiceTerms.js";
-import { statementInvoices } from "../invoices/invoices.service.js";
+import { statementInvoices, statementsInvoices } from "../invoices/invoices.service.js";
 import { statementGlosses } from "../invoices/invoiceGlosses.service.js";
 
 /**
@@ -342,6 +342,11 @@ export const getStatementReport = async ({ stmId, scope }) => {
     statementGlosses(statement.stmId),
   ]);
   statement.invoicesCount = invoices.length;
+  return buildReport(statement, invoices, glosses);
+};
+
+/** Las cifras del reporte a partir de sus facturas y glosas: las mismas para un extracto registrado o escrito. */
+const buildReport = (statement, invoices, glosses) => {
   const menus = new Map();
   for (const invoice of invoices) {
     if (!menus.has(invoice.pvtId)) menus.set(invoice.pvtId, { pvtId: invoice.pvtId, name: invoice.menuName, invoices: [] });
@@ -399,6 +404,16 @@ const GLOSS_COLUMNS = [
 /** El reporte del extracto en Excel o PDF (DEC-070), con las mismas cifras de la pantalla. */
 export const exportStatement = async ({ stmId, format, scope }) => {
   const report = await getStatementReport({ stmId, scope });
+  const { statement } = report;
+  return renderReport(report, format, [
+    { label: "Fecha", value: statement.date, kind: "date" },
+    { label: "Comunicado", value: statement.communication },
+    { label: "Descripción", value: statement.description },
+  ]);
+};
+
+/** Documento del reporte: el encabezado con `fields` propios y las secciones comunes. */
+const renderReport = (report, format, fields) => {
   const { statement, totals } = report;
   const sections = [
     {
@@ -406,9 +421,8 @@ export const exportStatement = async ({ stmId, format, scope }) => {
       fields: [
         { label: "Obra", value: [statement.workCode, statement.workName].filter(Boolean).join(" — ") },
         { label: "Número", value: statement.number },
-        { label: "Fecha", value: statement.date, kind: "date" },
-        { label: "Comunicado", value: statement.communication },
-        { label: "Descripción", value: statement.description },
+        ...fields,
+        { label: "Facturas", value: String(report.invoices.length) },
         { label: "Aprobadas sin comprobante de egreso", value: String(report.withoutVoucher.length) },
       ],
     },
@@ -437,4 +451,132 @@ export const exportStatement = async ({ stmId, format, scope }) => {
   ];
   const lines = report.cancelled > 0 ? [`Las ${report.cancelled} factura(s) anulada(s) se listan pero no suman.`] : [];
   return renderDocument({ format, title: `Extracto ${statement.number} — ${statement.workCode}`, lines, sections });
+};
+
+// ─── Extractos escritos en las facturas (solo lectura) ───────────────────────
+
+/*
+ * El extracto es un texto libre de la factura (migración 0124). La pantalla
+ * Extractos agrupa las facturas por obra y texto, sin registrar nada: cada
+ * grupo es un extracto escrito, con sus facturas, sus totales y su reporte. La
+ * agrupación es la de la BD (intercalación de la columna: sin distinguir
+ * mayúsculas ni tildes). Las glosas salen del extracto registrado con ese
+ * número, si lo hay.
+ */
+
+const isApproved = (invoice) => invoice.state === INVOICE_STATES.APPROVED;
+
+const GROUP_SORTS = {
+  number: (g) => g.number,
+  workCode: (g) => g.workCode ?? "",
+  invoicesCount: (g) => g.invoicesCount,
+  firstDate: (g) => g.firstDate ?? "",
+  lastDate: (g) => g.lastDate ?? "",
+};
+
+const compareBy = (key) => (a, b) => {
+  const x = key(a);
+  const y = key(b);
+  return typeof x === "number" ? x - y : String(x).localeCompare(String(y), "es", { numeric: true, sensitivity: "base" });
+};
+
+/**
+ * Extractos escritos en las facturas del alcance (DEC-047), uno por obra y
+ * texto, con cuántas facturas lo usan, sus fechas y, para la página, sus
+ * totales (sin las anuladas). Pocos textos distintos por obra: se agrupan en
+ * la BD y se ordenan y paginan aquí.
+ */
+export const paginationStatementGroups = async ({ search, wrkId, number, rows, first, sortField, sortOrder, scope }) => {
+  const where = {
+    sta_id: { not: DELETED_STATUS },
+    inv_statement: { not: null },
+    ...scopeWhere(scope),
+    ...filtersWhere([
+      idFilter(wrkId, (id) => ({ wrk_id: id })),
+      containsFilter(number, (c) => ({ inv_statement: c })),
+      containsFilter(search, (c) => ({ inv_statement: c })),
+    ]),
+  };
+  const groups = await prisma.tbl_invoices.groupBy({
+    by: ["wrk_id", "inv_statement"],
+    where,
+    _count: { _all: true },
+    _min: { inv_date: true },
+    _max: { inv_date: true },
+  });
+  const works = await prisma.tbl_works.findMany({
+    where: { wrk_id: { in: [...new Set(groups.map((g) => g.wrk_id))] } },
+    select: { wrk_id: true, wrk_code: true, wrk_name: true },
+  });
+  const workOf = new Map(works.map((w) => [w.wrk_id, w]));
+  const all = groups.map((g) => ({
+    wrkId: g.wrk_id,
+    workCode: workOf.get(g.wrk_id)?.wrk_code ?? null,
+    workName: workOf.get(g.wrk_id)?.wrk_name ?? null,
+    number: g.inv_statement,
+    invoicesCount: g._count._all,
+    firstDate: dateOnlyText(g._min.inv_date),
+    lastDate: dateOnlyText(g._max.inv_date),
+  }));
+  const compare = compareBy(GROUP_SORTS[sortField] ?? GROUP_SORTS.lastDate);
+  all.sort(Number(sortOrder) === 1 ? compare : (a, b) => compare(b, a));
+
+  const { skip, take } = resolvePagination({ first, rows });
+  const page = all.slice(skip, skip + take);
+  const invoices = await statementsInvoices({
+    wrkIds: [...new Set(page.map((g) => g.wrkId))],
+    numbers: [...new Set(page.map((g) => g.number))],
+  });
+  const byGroup = new Map();
+  for (const invoice of invoices) {
+    const key = groupKey(invoice.wrkId, invoice.statement);
+    if (!byGroup.has(key)) byGroup.set(key, []);
+    byGroup.get(key).push(invoice);
+  }
+  const results = page.map((g) => {
+    const own = byGroup.get(groupKey(g.wrkId, g.number)) ?? [];
+    const totals = totalsOf(own);
+    return {
+      ...g,
+      value: totals.value,
+      total: totals.total,
+      approvedCount: own.filter(isApproved).length,
+      withoutVoucher: own.filter((i) => isApproved(i) && !i.voucherNumber).length,
+    };
+  });
+  return { results, total: all.length, page: Math.floor(skip / take) + 1, limit: take, totalPages: Math.ceil(all.length / take) };
+};
+
+/** Reporte de un extracto escrito: las facturas de la obra con ese texto; 404 si no hay ninguna o la obra está fuera del alcance. */
+export const getStatementGroupReport = async ({ wrkId, number, scope }) => {
+  const id = Number(wrkId);
+  const value = text(number);
+  assertInScope(scope, id, NOT_FOUND);
+  const [invoices, work, registered] = await Promise.all([
+    statementInvoices({ wrkId: id, number: value }),
+    prisma.tbl_works.findUnique({ where: { wrk_id: id }, select: { wrk_code: true, wrk_name: true } }),
+    prisma.tbl_statements.findFirst({ where: { wrk_id: id, stm_number: value, sta_id: { not: DELETED_STATUS } }, select: { stm_id: true } }),
+  ]);
+  if (invoices.length === 0) throw httpError(404, NOT_FOUND);
+  const glosses = registered ? await statementGlosses(registered.stm_id) : { raised: [], released: [] };
+  const dates = invoices.map((i) => i.date).filter(Boolean).sort();
+  const statement = {
+    wrkId: id,
+    workCode: work?.wrk_code ?? null,
+    workName: work?.wrk_name ?? null,
+    number: invoices[0].statement ?? value,
+    firstDate: dates[0] ?? null,
+    lastDate: dates.at(-1) ?? null,
+    invoicesCount: invoices.length,
+  };
+  return buildReport(statement, invoices, glosses);
+};
+
+/** El reporte de un extracto escrito en Excel o PDF (DEC-070). */
+export const exportStatementGroup = async ({ wrkId, number, format, scope }) => {
+  const report = await getStatementGroupReport({ wrkId, number, scope });
+  return renderReport(report, format, [
+    { label: "Primera factura", value: report.statement.firstDate, kind: "date" },
+    { label: "Última factura", value: report.statement.lastDate, kind: "date" },
+  ]);
 };

@@ -21,13 +21,22 @@ import { decimal, moneyText, percentFor, percentOf, percentText, roundMoney, toM
  *   TOTAL             = VALOR + IVA − RTE FUENTE − RTE IVA − RTE ICA
  *                       − AMORTIZACIÓN − RETENIDO − DCTO MATERIALES   (neto a pagar)
  *
- * El % utilidad se captura y se guarda congelado (ADR-0026, decisión 7),
- * pero no entra en ninguna cifra. Cada línea se redondea antes de sumar
- * (DEC-045). Una versión publicada no cambia: una fórmula nueva es una
- * versión nueva y cada factura se compone con la suya (ADR-0026, decisión 5).
+ * En la v1 el % utilidad se captura y se guarda congelado (ADR-0026,
+ * decisión 7), pero no entra en ninguna cifra.
+ *
+ * Fórmula v2, régimen AIU (DEC-075, "IVA sobre la utilidad"): igual que la
+ * v1 salvo el IVA, que va sobre la utilidad cuando la hay:
+ *
+ *   UTILIDAD          = VALOR × % utilidad
+ *   IVA               = UTILIDAD × % IVA, si UTILIDAD > 0; si no, VALOR × % IVA
+ *
+ * Las retenciones conservan su base (RTE IVA, sobre el IVA que resulte).
+ * Cada línea se redondea antes de sumar (DEC-045). Una versión publicada no
+ * cambia: una fórmula nueva es una versión nueva y cada factura se compone
+ * con la suya (ADR-0026, decisión 5).
  */
 
-export const CONTRACT_FORMULA_VERSION = 1;
+export const CONTRACT_FORMULA_VERSION = 2;
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
@@ -78,38 +87,47 @@ export const assertContractTotal = (detail) => {
   if (total.lt(0)) throw httpError(400, `El total a pagar quedaría negativo (${moneyText(total)}): revisa retenciones y descuentos.`);
 };
 
-const FORMULAS = {
-  1: (d) => {
-    const value = roundMoney(d.ild_value);
-    const vat = percentOf(value, d.ild_vat_pct);
-    const valueWithVat = value.plus(vat);
-    const withholding = percentOf(value, d.ild_withholding_pct);
-    const vatWithholding = percentOf(vat, d.ild_vat_withholding_pct);
-    const icaWithholding = roundMoney(d.ild_ica_withholding);
-    const amortization = roundMoney(d.ild_amortization);
-    const retention = roundMoney(d.ild_retention);
-    const materialsDiscount = roundMoney(d.ild_materials_discount);
-    return {
-      value,
-      utility: percentOf(value, d.ild_utility_pct),
-      vat,
-      valueWithVat,
-      withholding,
-      vatWithholding,
-      icaWithholding,
-      amortization,
-      retention,
-      materialsDiscount,
-      total: valueWithVat
-        .minus(withholding)
-        .minus(vatWithholding)
-        .minus(icaWithholding)
-        .minus(amortization)
-        .minus(retention)
-        .minus(materialsDiscount),
-    };
-  },
+/** Base del IVA de cada versión: el VALOR en la v1; en la v2, la utilidad si la hay. */
+const VAT_BASES = {
+  1: (value) => value,
+  2: (value, utility) => (utility.gt(0) ? utility : value),
 };
+
+const composeWith = (vatBaseOf) => (d) => {
+  const value = roundMoney(d.ild_value);
+  const utility = percentOf(value, d.ild_utility_pct);
+  const vatBase = vatBaseOf(value, utility);
+  const vat = percentOf(vatBase, d.ild_vat_pct);
+  const valueWithVat = value.plus(vat);
+  const withholding = percentOf(value, d.ild_withholding_pct);
+  const vatWithholding = percentOf(vat, d.ild_vat_withholding_pct);
+  const icaWithholding = roundMoney(d.ild_ica_withholding);
+  const amortization = roundMoney(d.ild_amortization);
+  const retention = roundMoney(d.ild_retention);
+  const materialsDiscount = roundMoney(d.ild_materials_discount);
+  return {
+    value,
+    utility,
+    vatBase,
+    vat,
+    valueWithVat,
+    withholding,
+    vatWithholding,
+    icaWithholding,
+    amortization,
+    retention,
+    materialsDiscount,
+    total: valueWithVat
+      .minus(withholding)
+      .minus(vatWithholding)
+      .minus(icaWithholding)
+      .minus(amortization)
+      .minus(retention)
+      .minus(materialsDiscount),
+  };
+};
+
+const FORMULAS = Object.fromEntries(Object.entries(VAT_BASES).map(([version, vatBaseOf]) => [version, composeWith(vatBaseOf)]));
 
 /** El detalle tiene su composición (las registradas antes de DEC-075 no). */
 export const hasContractTaxes = (detail) => detail?.ild_vat_pct !== null && detail?.ild_vat_pct !== undefined;
@@ -168,7 +186,7 @@ export const contractTaxesDto = (detail) => {
  */
 export const CONTRACT_PAIRS = Object.freeze([
   { field: "utilityPct", line: "utility", stored: "percent", alt: "utilityAmount", base: (c) => c.value },
-  { field: "vatPct", line: "vat", stored: "percent", alt: "vatAmount", base: (c) => c.value },
+  { field: "vatPct", line: "vat", stored: "percent", alt: "vatAmount", base: (c) => c.vatBase },
   { field: "withholdingPct", line: "withholding", stored: "percent", alt: "withholdingAmount", base: (c) => c.value },
   { field: "vatWithholdingPct", line: "vatWithholding", stored: "percent", alt: "vatWithholdingAmount", base: (c) => c.vat },
   { field: "icaWithholding", line: "icaWithholding", stored: "money", alt: "icaWithholdingPct", base: (c) => c.value },

@@ -12,14 +12,14 @@ import BaseDialog from 'ui-component/extended/BaseDialog';
 import DataTable from 'ui-component/extended/DataTable';
 import ExportButton from 'ui-component/extended/ExportButton';
 import { Pending } from 'ui-component/extended/DetailBlocks';
-import { exportStatementAPI, getStatementReportAPI } from 'api/requests/statementsApi';
+import { exportStatementGroupAPI, getStatementGroupReportAPI } from 'api/requests/statementsApi';
 import { showError } from 'services/ToastService';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly } from 'utils/formatTime';
 import { invoicePath } from 'utils/constants';
 
 /**
- * Reporte del extracto (DEC-084; documento de alcance, punto 7): los totales
+ * Reporte del extracto escrito en las facturas (DEC-084; documento de alcance, punto 7): los totales
  * de sus facturas por menú (tipo de proveedor) y en total, el chequeo de
  * comprobantes de egreso (las aprobadas sin número de comprobante) y sus
  * facturas. Todas las cifras las calcula el servidor; las anuladas se listan
@@ -93,7 +93,7 @@ export default function StatementReportDialog({ statement, canExport, onClose })
     if (!statement) return undefined;
     let cancelled = false;
     setReport(null);
-    getStatementReportAPI(statement.stmId)
+    getStatementGroupReportAPI(statement)
       .then(({ data }) => !cancelled && setReport(data))
       .catch((err) => {
         showError(err.response?.data?.message || 'Error al cargar el reporte del extracto');
@@ -117,7 +117,7 @@ export default function StatementReportDialog({ statement, canExport, onClose })
       actions={
         <>
           {canExport && statement && (
-            <ExportButton request={(format) => exportStatementAPI(statement.stmId, format)} fileName={`extracto-${statement.number}`} />
+            <ExportButton request={(format) => exportStatementGroupAPI(statement, format)} fileName={`extracto-${statement.number}`} />
           )}
           <Button onClick={onClose}>Cerrar</Button>
         </>
@@ -128,8 +128,9 @@ export default function StatementReportDialog({ statement, canExport, onClose })
           <Typography variant="body2" color="text.secondary">
             {[
               `${report.statement.workCode} — ${report.statement.workName}`,
-              fDateOnly(report.statement.date),
-              report.statement.communication && `Comunicado ${report.statement.communication}`
+              report.statement.firstDate === report.statement.lastDate
+                ? fDateOnly(report.statement.firstDate)
+                : `Facturas del ${fDateOnly(report.statement.firstDate)} al ${fDateOnly(report.statement.lastDate)}`
             ]
               .filter(Boolean)
               .join(' · ')}
@@ -167,7 +168,7 @@ export default function StatementReportDialog({ statement, canExport, onClose })
 }
 
 StatementReportDialog.propTypes = {
-  /** Fila del listado: `{ stmId, number }`; null, cerrado. */
+  /** Fila del listado: `{ wrkId, number }`; null, cerrado. */
   statement: PropTypes.object,
   canExport: PropTypes.bool,
   onClose: PropTypes.func.isRequired
