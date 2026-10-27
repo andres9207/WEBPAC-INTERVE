@@ -15,7 +15,7 @@ import { fMoneyText } from 'utils/formatNumber';
  * (FRONTEND_STANDARD, regla 9). `extra` son cifras aparte del total (el
  * total facturado de la simple); `note`, una aclaración o un aviso.
  */
-export default function InvoiceDetailPanel({ lines, total, totalLabel = 'TOTAL', extra = [], note, warning, loading = false, stickyTop = 0 }) {
+export default function InvoiceDetailPanel({ lines, total, totalLabel = 'TOTAL', extra = [], note, warning, loading = false }) {
   const num = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
   return (
     <Box
@@ -27,9 +27,7 @@ export default function InvoiceDetailPanel({ lines, total, totalLabel = 'TOTAL',
         border: 1,
         borderColor: 'divider',
         borderRadius: 1.5,
-        p: 2.5,
-        position: { md: 'sticky' },
-        top: { md: stickyTop }
+        p: 2.5
       }}
     >
       <Typography variant="subtitle1" component="h3">
@@ -108,6 +106,5 @@ InvoiceDetailPanel.propTypes = {
   extra: PropTypes.arrayOf(PropTypes.shape({ label: PropTypes.string.isRequired, value: PropTypes.string, hint: PropTypes.string })),
   note: PropTypes.string,
   warning: PropTypes.string,
-  loading: PropTypes.bool,
-  stickyTop: PropTypes.number
+  loading: PropTypes.bool
 };

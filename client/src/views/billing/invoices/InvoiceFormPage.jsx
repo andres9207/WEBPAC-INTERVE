@@ -274,15 +274,6 @@ export default function InvoiceFormPage() {
   const [confirmLeave, setConfirmLeave] = useState(false);
   // Saldos del contrato (tarjetas) y composición de la simple (panel Detalle): los calcula el servidor (DEC-065).
   const [balances, setBalances] = useState(null);
-  // Alto de las tarjetas de saldos, que quedan fijas arriba al hacer scroll:
-  // el panel Detalle se fija justo debajo de ellas.
-  const [cardsHeight, setCardsHeight] = useState(0);
-  const cardsRef = useCallback((node) => {
-    if (!node) return undefined;
-    const observer = new ResizeObserver(() => setCardsHeight(node.offsetHeight));
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
   const [preview, setPreview] = useState(null);
 
   const { control, handleSubmit, reset, setValue, formState } = useForm({ defaultValues: EMPTY_FORM });
@@ -551,7 +542,6 @@ export default function InvoiceFormPage() {
         )}
         {hasAmounts(type) && balances && (
           <Box
-            ref={cardsRef}
             sx={(theme) => ({
               position: { md: 'sticky' },
               top: { md: CARDS_GAP - DIALOG_PADDING },
@@ -906,10 +896,9 @@ export default function InvoiceFormPage() {
             </Stack>
           </Grid>
           {type && (
-            <Grid size={{ xs: 12, md: 4 }} sx={{ alignSelf: { md: 'stretch' } }}>
+            <Grid size={{ xs: 12, md: 4 }}>
               {simple ? (
                 <InvoiceDetailPanel
-                  stickyTop={hasAmounts(type) && balances ? cardsHeight + 2 * CARDS_GAP - DIALOG_PADDING : 0}
                   lines={preview?.lines ?? []}
                   total={preview?.total ?? ''}
                   warning={preview && !preview.valid && value ? preview.message : undefined}
@@ -917,7 +906,6 @@ export default function InvoiceFormPage() {
                 />
               ) : (
                 <InvoiceDetailPanel
-                  stickyTop={hasAmounts(type) && balances ? cardsHeight + 2 * CARDS_GAP - DIALOG_PADDING : 0}
                   {...(isBillingInvoiceType(type)
                     ? {
                         // Normal y liquidación (DEC-075): la composición del servidor.
