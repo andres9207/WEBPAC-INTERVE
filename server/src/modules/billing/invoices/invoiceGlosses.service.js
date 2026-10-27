@@ -2,11 +2,12 @@ import { prisma } from "../../../common/configs/prismaClient.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { dateOnlyText, todayDateOnly } from "../../../common/utils/term.utils.js";
-import { moneyText, toMoney } from "../../../common/utils/money.utils.js";
+import { decimal, moneyText, toMoney } from "../../../common/utils/money.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, writeAudit } from "../../../common/services/audit.service.js";
 import { INVOICE_STATES } from "./invoiceTerms.js";
+import { GLOSS_FIELD_NAMES, glossFieldFor } from "./glossFields.js";
 import { assertInvoiceVisible } from "./invoices.service.js";
 
 /**
@@ -14,8 +15,11 @@ import { assertInvoiceVisible } from "./invoices.service.js";
  * hallados al registrar una factura recibida, que se controlan hasta su
  * liberación en un extracto posterior. Como la glosa de WebPAC (tblglosas).
  *
- * - De la obra de su factura (FK compuesta). Código opcional, valor distinto
- *   de cero (con signo, como en WebPAC) y descripción.
+ * - De la obra de su factura (FK compuesta). Campo de la factura glosado
+ *   (obligatorio: uno del Detalle de su tipo u "Otro", glossFields.js),
+ *   código opcional, valor distinto de cero (con signo, como en WebPAC) y
+ *   descripción. Una glosa negativa es una nota crédito: lo que el
+ *   proveedor devuelve; resta del total pagado del extracto.
  * - Se levanta en un extracto (opcional; el cliente propone el de la
  *   factura) y se libera en otro, con una observación; la fecha de
  *   liberación es la del servidor. El extracto es texto, como el de la
@@ -37,7 +41,7 @@ const NOT_FOUND = "No se encontró la glosa.";
 
 const STATEMENT_MAX = 20;
 
-const AUDITED = ["igl_statement", "igl_code", "igl_value", "igl_description", "igl_release_statement", "igl_release_date", "igl_release_observation", "sta_id"];
+const AUDITED = ["igl_statement", "igl_field", "igl_code", "igl_value", "igl_description", "igl_release_statement", "igl_release_date", "igl_release_observation", "sta_id"];
 const auditable = (values) =>
   Object.fromEntries(
     Object.entries(values).map(([column, value]) => [column, value instanceof Date ? dateOnlyText(value) : column === "igl_value" ? moneyText(value) : value])
@@ -63,11 +67,23 @@ const sameStatement = (a, b) => {
   return key(a) === key(b);
 };
 
+const requiredField = (value) => {
+  const field = text(value);
+  if (!field) throw httpError(400, "Elige el campo de la factura sobre el que se hace la glosa.");
+  return field;
+};
+
+/** 400 si el tipo de la factura no tiene ese campo (glossFields.js). */
+const assertFieldFor = (invoice, field) => {
+  if (!glossFieldFor(invoice.inv_type, field)) throw httpError(400, "La factura no tiene ese campo: elige uno de su Detalle u Otro.");
+};
+
 const valuesOf = (input) => {
   const value = toMoney(input?.value);
   if (value === null || value.isZero()) throw httpError(400, "El valor de la glosa es requerido y no puede ser cero.");
   return {
     igl_statement: statementText(input?.statement, "de la glosa"),
+    igl_field: requiredField(input?.field),
     igl_code: optionalText(input?.code),
     igl_value: value,
     igl_description: requiredText(input?.description, "descripción"),
@@ -78,6 +94,7 @@ const GLOSS_SELECT = {
   igl_id: true,
   inv_id: true,
   igl_statement: true,
+  igl_field: true,
   igl_code: true,
   igl_value: true,
   igl_description: true,
@@ -95,8 +112,12 @@ const toDto = (row) => ({
   iglId: row.igl_id,
   invId: row.inv_id,
   statement: row.igl_statement,
+  field: row.igl_field,
+  fieldName: GLOSS_FIELD_NAMES[row.igl_field] ?? row.igl_field,
   code: row.igl_code,
   value: moneyText(row.igl_value),
+  // Negativa: lo que el proveedor devuelve.
+  creditNote: decimal(row.igl_value).lt(0),
   description: row.igl_description,
   open: row.igl_release_date === null,
   releaseStatement: row.igl_release_statement,
@@ -113,7 +134,7 @@ const toDto = (row) => ({
 const findLockedInvoice = async (tx, invId) => {
   const row = await tx.tbl_invoices.findUnique({
     where: { inv_id: Number(invId) },
-    select: { inv_id: true, wrk_id: true, inv_state: true, sta_id: true },
+    select: { inv_id: true, wrk_id: true, inv_type: true, inv_state: true, sta_id: true },
   });
   if (!row || row.sta_id === DELETED_STATUS) throw httpError(404, "No se encontró la factura.");
   return row;
@@ -177,6 +198,7 @@ export const createGloss = async ({ invId, input, useBy, scope, ctx = { useId: u
       withLockedTransaction(locksFor(invId), async (tx) => {
         const invoice = await findLockedInvoice(tx, invId);
         assertNotCancelled(invoice, "glosas nuevas");
+        assertFieldFor(invoice, values.igl_field);
 
         const created = await tx.tbl_invoice_glosses.create({
           data: {
@@ -214,6 +236,7 @@ export const updateGloss = async ({ iglId, input, useBy, scope, ctx = { useId: u
     const before = await findLockedOpen(tx, iglId);
     const changes = diffFields(auditable(before), auditable(values), AUDITED);
     if (changes.length === 0) return { message: "No hubo cambios en la glosa", iglId: before.igl_id };
+    assertFieldFor(invoice, values.igl_field);
 
     await tx.tbl_invoice_glosses.update({ where: { igl_id: before.igl_id }, data: { ...values, igl_update_by: Number(useBy) } });
     await writeAudit(tx, { entity: AUDIT_ENTITIES.INVOICE_GLOSS, recordId: before.igl_id, operation: AUDIT_OPERATIONS.UPDATE, ctx, changes });

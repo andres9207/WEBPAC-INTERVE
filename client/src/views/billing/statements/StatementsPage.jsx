@@ -3,6 +3,7 @@ import InputAdornment from '@mui/material/InputAdornment';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { Outlet } from 'react-router-dom';
 import { IconReportAnalytics, IconSearch } from '@tabler/icons-react';
 
 import MainCard from 'ui-component/cards/MainCard';
@@ -14,6 +15,7 @@ import { useWorkScope } from 'contexts/WorkScopeContext';
 import { showError } from 'services/ToastService';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly } from 'utils/formatTime';
+import { STATEMENTS_PATH } from 'utils/constants';
 import { ALL_WORKS } from 'utils/workScope';
 
 // Extractos (DEC-084): solo lectura. El extracto es un texto libre de la
@@ -22,7 +24,9 @@ import { ALL_WORKS } from 'utils/workScope';
 // glosas (levantadas en él, menos liberadas en él). "Reporte" abre sus facturas,
 // los totales por menú y el chequeo de comprobantes de egreso, y se exporta.
 // Con una obra elegida en el encabezado, los de esa obra; con "Ver todo",
-// todos, con la columna de obra.
+// todos, con la columna de obra. Una factura del reporte se abre encima, en
+// el `Outlet` (ruta hija, como en el tablero); al cerrarla se vuelve al
+// reporte, que se recarga si la factura cambió.
 
 const num = { fontVariantNumeric: 'tabular-nums' };
 
@@ -61,6 +65,8 @@ export default function StatementsPage() {
   const [data, setData] = useState({ rows: [], total: 0 });
   const [loading, setLoading] = useState(true);
   const [reporting, setReporting] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const outletContext = useMemo(() => ({ returnTo: STATEMENTS_PATH, refresh: () => setReloadKey((k) => k + 1) }), []);
 
   // Se busca al dejar de escribir, desde la primera página.
   useEffect(() => {
@@ -87,7 +93,7 @@ export default function StatementsPage() {
     return () => {
       cancelled = true;
     };
-  }, [appliedSearch, page, rowsPerPage, sort, activeWork]);
+  }, [appliedSearch, page, rowsPerPage, sort, activeWork, reloadKey]);
 
   const columns = useMemo(() => (allWorks ? [WORK_COLUMN, ...BASE_COLUMNS] : BASE_COLUMNS), [allWorks]);
   const closeReport = useCallback(() => setReporting(null), []);
@@ -151,7 +157,13 @@ export default function StatementsPage() {
           />
         </Stack>
       </MainCard>
-      <StatementReportDialog statement={reporting} canExport={perms?.export != null && hasPermission(perms.export)} onClose={closeReport} />
+      <StatementReportDialog
+        statement={reporting}
+        canExport={perms?.export != null && hasPermission(perms.export)}
+        reloadKey={reloadKey}
+        onClose={closeReport}
+      />
+      <Outlet context={outletContext} />
     </>
   );
 }

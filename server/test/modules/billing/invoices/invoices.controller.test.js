@@ -116,6 +116,13 @@ describe("invoices.controller", () => {
     expect(emit).toHaveBeenCalledWith("refresh-invoices", {});
   });
 
+  it("saveInvoice pasa el extracto, el comprobante y la descripción: lo que cambia en una aprobada (DEC-080, DEC-084)", async () => {
+    invoicesServiceMock.saveInvoice.mockResolvedValue({ invId: 70 });
+    const notes = { statement: "EXT-7", voucherNumber: "CE-1", description: "Nota" };
+    await saveInvoiceController(mockReq({ user: { useId: 7, proId: 2 }, body: { invId: 70, ...notes } }), buildRes(), jest.fn());
+    expect(invoicesServiceMock.saveInvoice.mock.calls[0][0].input).toMatchObject(notes);
+  });
+
   it("saveInvoice pasa los importes de la simple y nunca los calculados del cliente (DEC-065)", async () => {
     invoicesServiceMock.saveInvoice.mockResolvedValue({ invId: 71 });
     const amounts = {

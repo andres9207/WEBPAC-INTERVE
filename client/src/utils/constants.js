@@ -189,6 +189,9 @@ export const contractPath = (pvtId, ctrId, suffix) =>
 /** Dirección del listado de un menú (su tipo de proveedor), o de una factura en él: `invoicePath(3, 70, 'edit')`. */
 export const invoicePath = (pvtId, invId, suffix) =>
   ['/billing/invoices', pvtId, invId, suffix].filter((part) => part !== undefined && part !== null && part !== '').join('/');
+/** Pantalla de extractos (DEC-084), y una factura abierta encima de ella, sin salir: `statementsPath(70)`. */
+export const STATEMENTS_PATH = '/billing/statements';
+export const statementsPath = (invId) => (invId ? `${STATEMENTS_PATH}/invoices/${invId}` : STATEMENTS_PATH);
 export const reasonScopeName = (scope) => REASON_SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? scope;
 
 const TERM_UNIT_NAMES = { DIA: ['día', 'días'], MES: ['mes', 'meses'], ANIO: ['año', 'años'] };

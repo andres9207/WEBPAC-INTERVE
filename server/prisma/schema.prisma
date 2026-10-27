@@ -1110,12 +1110,13 @@ model tbl_invoices {
 }
 
 /// Glosas de facturas (database/migrations/0120_create_invoice_glosses.sql, DEC-085): de la obra de su factura, levantadas
-/// en un extracto y liberadas en otro posterior de la misma obra. El extracto es texto, como el de la factura (0125).
+/// en un extracto y liberadas en otro posterior de la misma obra. El extracto es texto, como el de la factura (0125). igl_field: campo de la factura glosado, dominio cerrado con CHECK (0126).
 model tbl_invoice_glosses {
   igl_id                  Int             @id @default(autoincrement())
   inv_id                  Int
   wrk_id                  Int
   igl_statement           String?         @db.VarChar(20)
+  igl_field               String          @db.VarChar(30)
   igl_code                String?         @db.VarChar(20)
   igl_value               Decimal         @db.Decimal(18, 2)
   igl_description         String          @db.VarChar(1000)

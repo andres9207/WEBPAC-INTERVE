@@ -148,8 +148,14 @@ const MainRoutes = {
                 { path: ':invId/edit', element: <InvoiceFormPage /> }
               ]
             },
-            // Extractos de la obra (DEC-084): listado con su formulario y su reporte en diálogos.
-            { path: 'statements', element: <StatementsPage /> }
+            // Extractos de la obra (DEC-084): listado con su reporte en un diálogo. Las
+            // facturas del reporte se abren encima, con dirección propia, como en el
+            // tablero; cerrar vuelve al reporte.
+            {
+              path: 'statements',
+              element: <StatementsPage />,
+              children: [{ path: 'invoices/:invId', element: <InvoiceDetailPage /> }]
+            }
           ]
         }
       ]

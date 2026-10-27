@@ -11,6 +11,7 @@ import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import { decimal, moneyText, percentFor, percentOf, percentText, ratioText, sumMoney, toMoney, toPercent } from "../../../common/utils/money.utils.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
+import { glossFieldsFor } from "./glossFields.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, getContractFormOptions } from "../../work/contracts/contracts.service.js";
 import { evaluateLiquidation, notifyLiquidated } from "../../work/contracts/contractLiquidation.service.js";
 import { providerSelectOptions } from "../../work/providers/providers.service.js";
@@ -1435,6 +1436,8 @@ export const getInvoice = async ({ invId, scope }) => {
     // las glosas lo proponen.
     statement: row.inv_statement,
     stmId: statement?.stm_id ?? null,
+    // Campos que admite una glosa de esta factura (DEC-085).
+    glossFields: glossFieldsFor(row.inv_type),
     statementDate: dateOnlyText(statement?.stm_date),
     description: row.inv_description,
     providerName: row.tbl_providers?.prv_name ?? null,

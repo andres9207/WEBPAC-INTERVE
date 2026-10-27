@@ -287,6 +287,7 @@ export const deleteInvoiceFollowUpSchema = [requiredId("ifuId")];
 // Glosas (DEC-085). La fecha de liberación la pone el servidor: no se acepta.
 const glossRules = () => [
   optionalText("statement", 20),
+  body("field").trim().notEmpty().withMessage("Elige el campo de la factura sobre el que se hace la glosa.").isLength({ max: 30 }).withMessage("Campo no válido."),
   optionalText("code", 20),
   // Con signo, como en WebPAC (un valor a favor o en contra); distinto de cero lo verifica el service.
   body("value")

@@ -45,6 +45,7 @@ const openRow = (overrides = {}) => ({
   inv_id: 70,
   wrk_id: 8,
   igl_statement: "Acta 4",
+  igl_field: "value",
   igl_code: "01",
   igl_value: "35000.00",
   igl_description: "Mayor valor cobrado",
@@ -58,7 +59,7 @@ const openRow = (overrides = {}) => ({
 const create = (input) =>
   service.createGloss({
     invId: 70,
-    input: { statement: " Acta 4 ", code: " 01 ", value: "35000", description: " Mayor valor cobrado ", ...input },
+    input: { statement: " Acta 4 ", field: "value", code: " 01 ", value: "35000", description: " Mayor valor cobrado ", ...input },
     useBy: 9,
     scope: SCOPE,
     ctx,
@@ -67,7 +68,7 @@ const create = (input) =>
 
 beforeEach(() => {
   jest.clearAllMocks();
-  state.invoice = { inv_id: 70, wrk_id: 8, inv_state: "APPROVED", sta_id: 1 };
+  state.invoice = { inv_id: 70, wrk_id: 8, inv_type: "NORMAL", inv_state: "APPROVED", sta_id: 1 };
   state.gloss = openRow();
   state.ref = { inv_id: 70, sta_id: 1 };
 });
@@ -78,7 +79,7 @@ describe("levantar", () => {
 
     expect(lockedTables()).toEqual([expect.stringMatching(/tbl_invoices/)]);
     const { data } = prismaMock.tbl_invoice_glosses.create.mock.calls[0][0];
-    expect(data).toMatchObject({ inv_id: 70, wrk_id: 8, igl_statement: "Acta 4", igl_code: "01", igl_description: "Mayor valor cobrado", sta_id: 1, igl_idempotency_key: KEY });
+    expect(data).toMatchObject({ inv_id: 70, wrk_id: 8, igl_statement: "Acta 4", igl_field: "value", igl_code: "01", igl_description: "Mayor valor cobrado", sta_id: 1, igl_idempotency_key: KEY });
     expect(data.igl_value.toFixed(2)).toBe("35000.00");
     expect(auditRows().find((r) => r.aud_field === "igl_value")).toMatchObject({ aud_entity: "GLOSA_FACTURA", aud_new_value: "35000.00" });
     expect(auditRows().find((r) => r.aud_field === "igl_statement")).toMatchObject({ aud_new_value: "Acta 4" });
@@ -99,6 +100,33 @@ describe("levantar", () => {
     state.invoice.inv_state = "CANCELLED";
     await expect(create()).rejects.toMatchObject({ statusCode: 409, message: "La factura está anulada: no admite glosas nuevas." });
     expect(prismaMock.tbl_invoice_glosses.create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("campo de la factura", () => {
+  it("obligatorio (400) y de los del Detalle de su tipo (400); Otro siempre", async () => {
+    await expect(create({ field: " " })).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("Elige el campo") });
+    await expect(create({ field: "freight" })).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("no tiene ese campo") });
+    state.invoice.inv_type = "ADVANCE";
+    await expect(create({ field: "vat" })).rejects.toMatchObject({ statusCode: 400 });
+    await create({ field: "advance" });
+    await create({ field: "other" });
+    expect(prismaMock.tbl_invoice_glosses.create.mock.calls.map((c) => c[0].data.igl_field)).toEqual(["advance", "other"]);
+  });
+
+  it("al editar, el campo nuevo también se valida contra el tipo", async () => {
+    const input = { statement: "Acta 4", field: "freight", code: "01", value: "35000", description: "Mayor valor cobrado" };
+    await expect(service.updateGloss({ iglId: 50, input, useBy: 9, scope: SCOPE, ctx })).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.tbl_invoice_glosses.update).not.toHaveBeenCalled();
+  });
+
+  it("la negativa es una nota crédito", async () => {
+    prismaMock.tbl_invoice_glosses.findMany.mockResolvedValueOnce([openRow(), openRow({ igl_id: 51, igl_value: "-1000.00", igl_field: "vat" })]);
+    const rows = await service.listGlosses({ invId: 70, scope: SCOPE });
+    expect(rows.map((r) => [r.fieldName, r.creditNote])).toEqual([
+      ["VALOR", false],
+      ["IVA", true],
+    ]);
   });
 });
 
@@ -134,14 +162,14 @@ describe("liberar", () => {
     await expect(release("Acta 6")).rejects.toMatchObject({ statusCode: 409, message: "La glosa ya se liberó: solo se consulta." });
     await expect(service.deleteGloss({ iglId: 50, useBy: 9, scope: SCOPE, ctx })).rejects.toMatchObject({ statusCode: 409 });
     await expect(
-      service.updateGloss({ iglId: 50, input: { statement: "Acta 4", value: "1", description: "x" }, useBy: 9, scope: SCOPE, ctx })
+      service.updateGloss({ iglId: 50, input: { statement: "Acta 4", field: "value", value: "1", description: "x" }, useBy: 9, scope: SCOPE, ctx })
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 });
 
 describe("editar y eliminar", () => {
   it("edita una abierta; sin cambios no escribe", async () => {
-    const input = { statement: "Acta 4", code: "01", value: "35000", description: "Mayor valor cobrado" };
+    const input = { statement: "Acta 4", field: "value", code: "01", value: "35000", description: "Mayor valor cobrado" };
     await expect(service.updateGloss({ iglId: 50, input, useBy: 9, scope: SCOPE, ctx })).resolves.toMatchObject({ message: "No hubo cambios en la glosa" });
     expect(prismaMock.tbl_invoice_glosses.update).not.toHaveBeenCalled();
 

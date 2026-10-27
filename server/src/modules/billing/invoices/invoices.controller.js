@@ -315,7 +315,7 @@ export const deleteInvoiceFollowUpController = followUpAction(followUpsService.d
 
 export const listInvoiceGlossesController = handle(async (req) => glossesService.listGlosses({ invId: req.query.invId, scope: await workScopeOf(req) }));
 
-const GLOSS_FIELDS = ["statement", "code", "value", "description"];
+const GLOSS_FIELDS = ["statement", "field", "code", "value", "description"];
 
 const glossAction = (fn, fields) =>
   handle(async (req) => {

@@ -195,11 +195,22 @@ describe("reporte (documento de alcance, punto 7)", () => {
   it("total pagado: las facturas más las glosas levantadas en el extracto, menos las liberadas en él (DEC-085)", async () => {
     // Anticipo registrado por el máximo (5.052.000) y glosa por lo pagado de más (48.000).
     state.invoices = [invoice({ value: "5052000.00", vat: null, total: "5052000.00" })];
-    state.glosses = { raised: [{ iglId: 1, value: "48000.00" }, { iglId: 2, value: "-30.00" }], released: [{ iglId: 3, value: "50.00" }] };
+    state.glosses = {
+      raised: [
+        { iglId: 1, field: "advance", value: "48000.00" },
+        { iglId: 2, field: "other", value: "-30.00", creditNote: true },
+      ],
+      released: [{ iglId: 3, field: "advance", value: "50.00" }],
+    };
 
     const { glosses, totals } = await service.getStatementReport({ stmId: 40, scope: OWN });
 
     expect(glosses).toMatchObject({ raisedValue: "47970.00", releasedValue: "50.00" });
+    // Por campo, en el orden del catálogo.
+    expect(glosses.byField).toEqual([
+      { field: "advance", name: "ANTICIPO", raised: "48000.00", released: "50.00", net: "47950.00" },
+      { field: "other", name: "OTRO", raised: "-30.00", released: "0.00", net: "-30.00" },
+    ]);
     expect(totals).toMatchObject({ total: "5052000.00", glossesNet: "47920.00", paidTotal: "5099920.00" });
   });
 });

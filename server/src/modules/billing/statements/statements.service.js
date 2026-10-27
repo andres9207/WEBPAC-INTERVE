@@ -12,6 +12,7 @@ import { renderDocument } from "../../../common/services/export.service.js";
 import { INVOICE_STATES } from "../invoices/invoiceTerms.js";
 import { statementInvoices, statementsInvoices } from "../invoices/invoices.service.js";
 import { statementGlosses, statementsGlosses } from "../invoices/invoiceGlosses.service.js";
+import { GLOSS_FIELD_NAMES } from "../invoices/glossFields.js";
 
 /**
  * Extractos de la obra (DEC-084): el acta de WebPAC. Número único en la obra
@@ -352,6 +353,21 @@ const paidTotalOf = (total, raisedValue, releasedValue) => {
   return { glossesNet: moneyText(net), paidTotal: moneyText(decimal(total).plus(net)) };
 };
 
+/**
+ * Glosas del extracto por campo de la factura (DEC-085), en el orden del
+ * catálogo: cuánto se levantó, cuánto se liberó y el neto, que es lo que
+ * suma al total pagado.
+ */
+const glossesByField = ({ raised, released }) => {
+  const order = Object.keys(GLOSS_FIELD_NAMES);
+  const present = [...new Set([...raised, ...released].map((g) => g.field))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  return present.map((field) => {
+    const raisedValue = sumOf(raised.filter((g) => g.field === field), "value");
+    const releasedValue = sumOf(released.filter((g) => g.field === field), "value");
+    return { field, name: GLOSS_FIELD_NAMES[field] ?? field, raised: raisedValue, released: releasedValue, net: moneyText(decimal(raisedValue).minus(decimal(releasedValue))) };
+  });
+};
+
 /** Las cifras del reporte a partir de sus facturas y glosas: las mismas para un extracto registrado o escrito. */
 const buildReport = (statement, invoices, glosses) => {
   const menus = new Map();
@@ -376,6 +392,7 @@ const buildReport = (statement, invoices, glosses) => {
       released: glosses.released,
       raisedValue,
       releasedValue,
+      byField: glossesByField(glosses),
     },
   };
 };
@@ -404,11 +421,21 @@ const INVOICE_COLUMNS = [
 const GLOSS_COLUMNS = [
   { header: "Factura", value: (r) => r.invoiceNumber },
   { header: "Proveedor", value: (r) => r.providerName, width: 2 },
+  { header: "Campo", value: (r) => r.fieldName },
+  // Negativa: nota crédito, lo que el proveedor devuelve (DEC-085).
+  { header: "Tipo", value: (r) => (r.creditNote ? "Nota crédito" : "Glosa") },
   { header: "Código", value: (r) => r.code },
   { header: "Descripción", value: (r) => r.description, width: 3 },
   { header: "Valor", value: (r) => r.value, kind: "money" },
   { header: "Levantada en", value: (r) => r.statement },
   { header: "Liberada en", value: (r) => r.releaseStatement },
+];
+
+const GLOSS_FIELD_COLUMNS = [
+  { header: "Campo", value: (r) => r.name, width: 2 },
+  { header: "Levantadas", value: (r) => r.raised, kind: "money" },
+  { header: "Liberadas", value: (r) => r.released, kind: "money" },
+  { header: "Neto", value: (r) => r.net, kind: "money" },
 ];
 
 /** El reporte del extracto en Excel o PDF (DEC-070), con las mismas cifras de la pantalla. */
@@ -447,6 +474,15 @@ const renderReport = (report, format, fields) => {
       empty: "El extracto no tiene facturas.",
     },
     { title: "Facturas", columns: INVOICE_COLUMNS, rows: report.invoices, empty: "El extracto no tiene facturas." },
+    {
+      title: "Glosas por campo",
+      columns: GLOSS_FIELD_COLUMNS,
+      rows: report.glosses.byField,
+      totals: report.glosses.byField.length
+        ? { name: "Total", raised: report.glosses.raisedValue, released: report.glosses.releasedValue, net: totals.glossesNet }
+        : null,
+      empty: "El extracto no tiene glosas.",
+    },
     {
       title: "Glosas levantadas",
       columns: GLOSS_COLUMNS,

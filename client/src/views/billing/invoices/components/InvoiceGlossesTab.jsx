@@ -7,6 +7,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -26,7 +27,9 @@ import { newIdempotencyKey } from 'utils/idempotency';
  * controlan hasta su liberación en un extracto posterior. Llevan código
  * (opcional), valor con signo y descripción; se levantan en un extracto (se
  * propone el de la factura) y se liberan en otro, con observación. El
- * extracto se escribe, como en la factura (DEC-084). En el reporte del
+ * extracto se escribe, como en la factura (DEC-084). Cada glosa es sobre un
+ * campo de la factura (los de su Detalle u Otro, que da el servidor); la
+ * negativa es una nota crédito: lo que el proveedor devuelve. En el reporte del
  * extracto, la levantada suma al total pagado y la liberada resta: así se
  * registra lo pagado por encima de lo que la factura admite. No bloquean la
  * aprobación. Abiertas se editan y se eliminan; liberadas, solo se
@@ -42,7 +45,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
   const [idempotencyKey, setIdempotencyKey] = useState(null);
   const releasing = mode === 'release';
   const { control, handleSubmit, reset } = useForm({
-    defaultValues: { statement: '', code: '', value: '', description: '', releaseStatement: '', observation: '' }
+    defaultValues: { statement: '', field: '', code: '', value: '', description: '', releaseStatement: '', observation: '' }
   });
 
   useEffect(() => {
@@ -51,6 +54,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
     reset({
       // Una glosa nueva propone el extracto de la factura.
       statement: gloss ? (gloss.statement ?? '') : (invoice.statement ?? ''),
+      field: gloss?.field ?? '',
       code: gloss?.code ?? '',
       value: gloss?.value ?? '',
       description: gloss?.description ?? '',
@@ -64,6 +68,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
     try {
       const values = {
         statement: form.statement.trim() || null,
+        field: form.field,
         code: form.code.trim(),
         value: form.value.trim(),
         description: form.description.trim()
@@ -179,6 +184,28 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
                 />
               )}
             />
+            <Controller
+              name="field"
+              control={control}
+              rules={{ required: 'Elige el campo de la factura.' }}
+              render={({ field, fieldState }) => (
+                <TextField
+                  {...field}
+                  select
+                  label="Campo de la factura"
+                  fullWidth
+                  required
+                  error={!!fieldState.error}
+                  helperText={fieldState.error?.message ?? 'Sobre qué campo del Detalle es la glosa.'}
+                >
+                  {(invoice.glossFields ?? []).map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+            />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <Controller
                 name="code"
@@ -201,7 +228,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
                 rules={{
                   validate: (value) =>
                     !VALUE_PATTERN.test(value.trim())
-                      ? 'Un número con punto decimal; negativo si es a favor.'
+                      ? 'Un número con punto decimal; negativo si es nota crédito (lo que el proveedor devuelve).'
                       : Number(value) === 0
                         ? 'No puede ser cero.'
                         : true
@@ -351,8 +378,9 @@ export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
                   color={row.open ? 'warning' : 'success'}
                   variant={row.open ? 'filled' : 'outlined'}
                 />
+                {row.creditNote && <Chip size="small" label="Nota crédito" color="info" variant="outlined" />}
                 <Typography variant="subtitle1">
-                  {row.code ? `${row.code} · ` : ''}
+                  {row.fieldName} · {row.code ? `${row.code} · ` : ''}
                   {fMoneyText(row.value)}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -420,7 +448,7 @@ export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
 }
 
 InvoiceGlossesTab.propTypes = {
-  /** `{ invId, statement, state }`. */
+  /** `{ invId, statement, state, glossFields }`. */
   invoice: PropTypes.object.isRequired,
   canManage: PropTypes.bool,
   onCount: PropTypes.func
