@@ -2370,9 +2370,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractsPage.jsx": {
-    "mtime": 1793122973.6055183,
-    "seen": 1793127089.2434554,
-    "ast_hash": "8e7824e4aab4b677b5a0b3d5b54e3dec",
+    "mtime": 1793132055.4539437,
+    "seen": 1793132202.6091032,
+    "ast_hash": "58db507b73c936bdb93c77e3c9a06493",
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/components/ConceptDialog.jsx": {
@@ -2454,9 +2454,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contracts.service.js": {
-    "mtime": 1793122973.8486762,
-    "seen": 1793127089.2438176,
-    "ast_hash": "fc0dab3c1a88d5dc3a9be78822e1b49f",
+    "mtime": 1793132027.667086,
+    "seen": 1793132202.6094425,
+    "ast_hash": "d6dc977f14bb1b490369d0b8162d9896",
     "semantic_hash": ""
   },
   "server/src/modules/work/contracts/contracts.validation.js": {
@@ -3456,9 +3456,9 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/ContractBalanceCards.jsx": {
-    "mtime": 1793127412.7669494,
-    "seen": 1793131673.4158313,
-    "ast_hash": "f7a3eaaa501dda7b98720dd74f2301d3",
+    "mtime": 1793131738.6284611,
+    "seen": 1793132202.6090536,
+    "ast_hash": "85dd6eb93ae31ab804f954c651899fea",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/InvoiceDetailPanel.jsx": {
