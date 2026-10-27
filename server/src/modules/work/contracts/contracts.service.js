@@ -2,13 +2,12 @@ import { prisma } from "../../../common/configs/prismaClient.js";
 import { paginate, MAX_ROWS, containsFilter, idFilter, dateRangeFilter, filtersWhere } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { decimal, moneyText, percentText, toMoney, toPercent } from "../../../common/utils/money.utils.js";
-import { dateOnlyText, toDateOnly, todayDateOnly } from "../../../common/utils/term.utils.js";
+import { addTerm, dateOnlyText, toDateOnly, todayDateOnly } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { assertInScope, inScope, scopeWhere } from "../../../common/services/workScope.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { findExportRows, renderExport } from "../../../common/services/export.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
-import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
 import { assertProviderInScope, providerSelectOptions } from "../providers/providers.service.js";
 import { isContractMode, isSimpleMode } from "../../billing/invoices/invoiceMenus.js";
 import { CONTRACT_ADVANCE_FILTERS, CONTRACT_ADVANCE_FILTER_NAMES, contractsWithPendingAdvanceWhere } from "../../billing/invoices/advanceFilters.js";
@@ -19,6 +18,7 @@ import {
   CONCEPT_TYPES,
   CONCEPT_TYPE_NAMES,
   EXPIRING_TAB,
+  NO_POLICIES_TAB,
   POLICIES_EXPIRING_TAB,
   STATE_ALLOWS,
   STATE_NAMES,
@@ -35,7 +35,7 @@ import {
   totalExtensions,
 } from "./contractTerms.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
-import { CONTRACT_POLICY_STATUS_NAMES, assertPolicyStatus, uncoveredContractsWhere } from "./policyTerms.js";
+import { CONTRACT_POLICY_STATUS_NAMES, assertPolicyStatus, contractsWithoutPoliciesWhere, uncoveredContractsWhere } from "./policyTerms.js";
 // Importación circular a propósito: contractPolicies usa los helpers de este
 // archivo y este, insertPolicy. Ninguno de los dos los usa al cargarse.
 import { contractPolicyStatuses, insertPolicy, policyValuesOf } from "./contractPolicies.service.js";
@@ -203,7 +203,6 @@ export const findLockedContract = async (tx, ctrId) => {
       prv_id: true,
       pvt_id: true,
       wks_id: true,
-      ctt_id: true,
       ctr_number: true,
       ctr_name: true,
       ctr_start_date: true,
@@ -292,7 +291,8 @@ const SORT_FIELDS = {
   name: (order) => ({ ctr_name: order }),
   work: (order) => ({ tbl_works: { wrk_code: order } }),
   provider: (order) => ({ tbl_providers: { prv_name: order } }),
-  contractType: (order) => ({ tbl_contract_types: { ctt_name: order } }),
+  // El tipo de contrato es de la obra (DEC-086).
+  contractType: (order) => ({ tbl_works: { tbl_contract_types: { ctt_name: order } } }),
   startDate: (order) => ({ ctr_start_date: order }),
   endDate: (order) => ({ ctr_end_date: order }),
   state: (order) => ({ ctr_state: order }),
@@ -312,10 +312,9 @@ const LIST_SELECT = {
   sta_id: true,
   ctr_update_at: true,
   updated_by_user: USER_NAME_SELECT,
-  tbl_works: { select: { wrk_code: true, wrk_name: true } },
+  tbl_works: { select: { wrk_code: true, wrk_name: true, tbl_contract_types: { select: { ctt_name: true } } } },
   tbl_providers: { select: { prv_name: true } },
   tbl_work_stages: { select: { wks_name: true } },
-  tbl_contract_types: { select: { ctt_name: true } },
   // Para el valor vigente, que no se guarda: unos pocos conceptos por contrato.
   tbl_contract_concepts: { select: CONCEPT_SELECT },
 };
@@ -329,7 +328,7 @@ const toListDto = (row) => ({
   workName: row.tbl_works?.wrk_name ?? null,
   providerName: row.tbl_providers?.prv_name ?? null,
   stageName: row.tbl_work_stages?.wks_name ?? null,
-  contractType: row.tbl_contract_types?.ctt_name ?? null,
+  contractType: row.tbl_works?.tbl_contract_types?.ctt_name ?? null,
   startDate: dateOnlyText(row.ctr_start_date),
   endDate: dateOnlyText(row.ctr_end_date),
   endDateProvisional: isEndDateProvisional(row.ctr_state),
@@ -415,7 +414,7 @@ const advanceWhereOf = ({ advance, advanceCtrIds, canViewInvoices }) => {
 /**
  * Contratos no eliminados, paginados. `state` filtra por estado del ciclo de
  * vida (las pestañas), `wrkId`, por obra (la pestaña de la obra), `cttId`,
- * por tipo de contrato, `prvId`, por proveedor, y `pvtId`, por el tipo de
+ * por el tipo de contrato de la obra (DEC-086), `prvId`, por proveedor, y `pvtId`, por el tipo de
  * proveedor bajo el que se firmó (el menú de contratos, DEC-077). `number`, `name`, `providerName` (razón social) y el
  * rango de la fecha fin (`endDateFrom`, `endDateTo`) son filtros por campo
  * (DEC-048), igual que `wksId` (etapa) y `states` (uno o varios estados, aparte
@@ -461,7 +460,7 @@ export const contractListQuery = async ({
 }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
-  if ((policyStatus || uncovered || state === POLICIES_EXPIRING_TAB) && !canViewPolicies)
+  if ((policyStatus || uncovered || state === POLICIES_EXPIRING_TAB || state === NO_POLICIES_TAB) && !canViewPolicies)
     throw httpError(403, "Filtrar por el estado de las pólizas exige el permiso de ver pólizas.");
   const advanceFilter = advanceWhereOf({ advance, advanceCtrIds, canViewInvoices });
   const policyFilters = uncovered ? [uncoveredContractsWhere()] : [];
@@ -475,7 +474,7 @@ export const contractListQuery = async ({
   const baseWhere = {
     sta_id: { not: DELETED_STATUS },
     ...scopeWhere(scope),
-    ...(Number(cttId) > 0 ? { ctt_id: Number(cttId) } : {}),
+    ...(Number(cttId) > 0 ? { tbl_works: { ctt_id: Number(cttId) } } : {}),
     ...searchWhereOf(search),
     ...filtersWhere([
       idFilter(wrkId, (id) => ({ wrk_id: id })),
@@ -491,7 +490,7 @@ export const contractListQuery = async ({
       advanceFilter,
     ]),
   };
-  // "A vencer" y "Pólizas por vencer" (DEC-072): los predicados del aviso, con los días de cada regla de
+  // "Contrato próximo a vencer" y "Pólizas por vencer" (DEC-072): los predicados del aviso, con los días de cada regla de
   // negocio y la fecha del servidor. El de pólizas, solo para quien puede verlas.
   const rules = await getRuleValues();
   const today = todayDateOnly();
@@ -500,24 +499,33 @@ export const contractListQuery = async ({
   const policiesExpiringWhere = canViewPolicies
     ? { AND: [baseWhere, contractsWithExpiringPoliciesWhere({ today, days: rules[BUSINESS_RULES.POLICY_EXPIRING_DAYS] })] }
     : null;
+  // "Contrato sin póliza" (DEC-088): sin ninguna póliza vigente; también solo para quien puede verlas.
+  const noPoliciesWhere = canViewPolicies ? { AND: [baseWhere, contractsWithoutPoliciesWhere()] } : null;
   const where =
     state === EXPIRING_TAB
       ? expiringWhere
       : state === POLICIES_EXPIRING_TAB
         ? policiesExpiringWhere
-        : { ...baseWhere, ...(state ? { ctr_state: state } : {}) };
-  return { baseWhere, where, expiringWhere, policiesExpiringWhere, expiringDays: days, orderBy };
+        : state === NO_POLICIES_TAB
+          ? noPoliciesWhere
+          : { ...baseWhere, ...(state ? { ctr_state: state } : {}) };
+  return { baseWhere, where, expiringWhere, policiesExpiringWhere, noPoliciesWhere, expiringDays: days, orderBy };
 };
 
 export const paginationContracts = async ({ rows, first, ...filters }) => {
-  const { baseWhere, where, expiringWhere, policiesExpiringWhere, expiringDays, orderBy } = await contractListQuery(filters);
-  const [page, statusCounts, expiring, policiesExpiring] = await Promise.all([
+  const { baseWhere, where, expiringWhere, policiesExpiringWhere, noPoliciesWhere, expiringDays, orderBy } = await contractListQuery(filters);
+  const [page, statusCounts, expiring, policiesExpiring, noPolicies] = await Promise.all([
     paginate(prisma.tbl_contracts, { where, select: LIST_SELECT, orderBy }, { first, rows }),
     countByState(baseWhere),
     prisma.tbl_contracts.count({ where: expiringWhere }),
     policiesExpiringWhere ? prisma.tbl_contracts.count({ where: policiesExpiringWhere }) : null,
+    noPoliciesWhere ? prisma.tbl_contracts.count({ where: noPoliciesWhere }) : null,
   ]);
-  const extraCounts = { [EXPIRING_TAB]: expiring, ...(policiesExpiring === null ? {} : { [POLICIES_EXPIRING_TAB]: policiesExpiring }) };
+  const extraCounts = {
+    [EXPIRING_TAB]: expiring,
+    ...(policiesExpiring === null ? {} : { [POLICIES_EXPIRING_TAB]: policiesExpiring }),
+    ...(noPolicies === null ? {} : { [NO_POLICIES_TAB]: noPolicies }),
+  };
   return { ...page, results: page.results.map(toListDto), statusCounts: { ...statusCounts, ...extraCounts }, expiringDays };
 };
 
@@ -563,7 +571,7 @@ export const exportFilterLines = async ({
   ]);
   const lines = [
     ["Tipo de proveedor", menu?.pvt_name],
-    ["Estado", state === EXPIRING_TAB ? "A vencer" : state === POLICIES_EXPIRING_TAB ? "Pólizas por vencer o vencidas" : state ? (STATE_NAMES[state] ?? state) : "Todos"],
+    ["Estado", state === EXPIRING_TAB ? "Contrato próximo a vencer" : state === POLICIES_EXPIRING_TAB ? "Pólizas por vencer o vencidas" : state === NO_POLICIES_TAB ? "Contrato sin póliza" : state ? (STATE_NAMES[state] ?? state) : "Todos"],
     ["Estados", Array.isArray(states) ? states.map((s) => STATE_NAMES[s] ?? s).join(", ") : ""],
     ["Búsqueda", text(search)],
     ["Obra", work && `${work.wrk_code} — ${work.wrk_name}`],
@@ -617,7 +625,6 @@ export const getContract = async ({ ctrId, scope }) => {
       prv_id: true,
       pvt_id: true,
       wks_id: true,
-      ctt_id: true,
       ctr_number: true,
       ctr_name: true,
       ctr_start_date: true,
@@ -633,13 +640,12 @@ export const getContract = async ({ ctrId, scope }) => {
       ctr_update_at: true,
       created_by_user: USER_NAME_SELECT,
       updated_by_user: USER_NAME_SELECT,
-      tbl_works: { select: { wrk_code: true, wrk_name: true } },
+      tbl_works: { select: { wrk_code: true, wrk_name: true, tbl_contract_types: { select: { ctt_name: true } } } },
       tbl_providers: {
         select: { prv_name: true, prv_identification: true, tbl_identity_documents: { select: { idd_code: true } } },
       },
       tbl_work_provider_types: { select: { tbl_provider_types: { select: { pvt_name: true, pvt_invoice_mode: true, pvt_invoice_menu: true } } } },
       tbl_work_stages: { select: { wks_name: true } },
-      tbl_contract_types: { select: { ctt_name: true } },
       tbl_contract_concepts: { select: CONCEPT_SELECT },
       // Pólizas vigentes, para el conteo de la pestaña (DEC-050).
       _count: { select: { tbl_policies: { where: { pol_is_current: true } } } },
@@ -685,7 +691,6 @@ export const getContract = async ({ ctrId, scope }) => {
     prvId: row.prv_id,
     pvtId: row.pvt_id,
     wksId: row.wks_id,
-    cttId: row.ctt_id,
     number: row.ctr_number,
     name: row.ctr_name,
     workCode: row.tbl_works?.wrk_code ?? null,
@@ -693,7 +698,7 @@ export const getContract = async ({ ctrId, scope }) => {
     providerName: row.tbl_providers?.prv_name ?? null,
     providerIdentification: [row.tbl_providers?.tbl_identity_documents?.idd_code, row.tbl_providers?.prv_identification].filter(Boolean).join(" "),
     stageName: row.tbl_work_stages?.wks_name ?? null,
-    contractType: row.tbl_contract_types?.ctt_name ?? null,
+    contractType: row.tbl_works?.tbl_contract_types?.ctt_name ?? null,
     providerTypeName: row.tbl_work_provider_types?.tbl_provider_types?.pvt_name ?? null,
     // Menú de sus facturas (DEC-074): su tipo de proveedor. Admite facturas
     // si ese tipo factura con contrato; `invoiceMenu`, si el menú se muestra.
@@ -780,7 +785,8 @@ export const selectContractWorks = async ({ search, includeWrkId, scope } = {}) 
 export const getContractFormOptions = async ({ wrkId, includeWksId, includePrvId, includePvtId, scope }) => {
   assertInScope(scope, wrkId, "No se encontró la obra.");
   const id = Number(wrkId);
-  const [stages, assignments] = await Promise.all([
+  const [work, stages, assignments] = await Promise.all([
+    prisma.tbl_works.findUnique({ where: { wrk_id: id }, select: WORK_TERM_SELECT }),
     prisma.tbl_work_stages.findMany({
       where: { wrk_id: id, OR: [{ sta_id: ACTIVE_STATUS }, ...(includeWksId ? [{ wks_id: Number(includeWksId) }] : [])] },
       select: { wks_id: true, wks_name: true, sta_id: true },
@@ -807,6 +813,8 @@ export const getContractFormOptions = async ({ wrkId, includeWksId, includePrvId
     }),
   ]);
   return {
+    // Plazo de la obra: entre estas fechas cae la de inicio del contrato.
+    work: work ? workTermOf(work) : null,
     stages: stages.map((s) => ({ value: s.wks_id, label: s.sta_id === ACTIVE_STATUS ? s.wks_name : `${s.wks_name} (inactiva)` })),
     providers: assignments.map((a) => ({
       value: a.prv_id,
@@ -871,7 +879,6 @@ const headerValuesOf = (input) => ({
   prv_id: Number(input.prvId),
   pvt_id: Number(input.pvtId),
   wks_id: Number(input.wksId) > 0 ? Number(input.wksId) : null,
-  ctt_id: Number(input.cttId),
   ctr_number: text(input.number),
   ctr_name: text(input.name),
   ctr_start_date: toDateOnly(input.startDate),
@@ -886,7 +893,6 @@ const CONTRACT_AUDITED = [
   "prv_id",
   "pvt_id",
   "wks_id",
-  "ctt_id",
   "ctr_number",
   "ctr_start_date",
   "ctr_term",
@@ -900,10 +906,30 @@ const auditableContract = (row) =>
   );
 
 /** La obra existe y no está eliminada; si el contrato es nuevo, además activa. */
+const WORK_TERM_SELECT = { wrk_start_date: true, wrk_initial_term: true, wrk_term_unit: true };
+
+/** Inicio y fin de la obra, "AAAA-MM-DD": el fin, inicio + plazo, como en el listado de obras. */
+const workTermOf = (work) => ({
+  startDate: dateOnlyText(work.wrk_start_date),
+  endDate: addTerm(work.wrk_start_date, work.wrk_initial_term, work.wrk_term_unit),
+});
+
 const assertWork = async (tx, wrkId, { isNew }) => {
-  const work = await tx.tbl_works.findUnique({ where: { wrk_id: wrkId }, select: { sta_id: true, wrk_code: true } });
+  const work = await tx.tbl_works.findUnique({ where: { wrk_id: wrkId }, select: { sta_id: true, wrk_code: true, ...WORK_TERM_SELECT } });
   if (!work || work.sta_id === DELETED_STATUS) throw httpError(400, "La obra seleccionada no existe.");
   if (isNew && work.sta_id !== ACTIVE_STATUS) throw httpError(400, `La obra ${work.wrk_code} está inactiva: no admite contratos nuevos.`);
+  return work;
+};
+
+/**
+ * La fecha de inicio del contrato cae dentro del plazo de su obra: ni antes de
+ * su inicio ni después de su fin. Las fechas "AAAA-MM-DD" se comparan como texto.
+ */
+const assertStartWithinWork = (work, startDate) => {
+  const start = dateOnlyText(startDate);
+  const { startDate: from, endDate: to } = workTermOf(work);
+  if (start < from) throw httpError(400, `La fecha de inicio del contrato no puede ser anterior al inicio de la obra (${from}).`);
+  if (to && start > to) throw httpError(400, `La fecha de inicio del contrato no puede ser posterior al fin de la obra (${to}).`);
 };
 
 /** La etapa, si hay, es de la obra (ADR-0015, regla 2) y está activa, salvo que sea la que ya tenía. */
@@ -1032,11 +1058,9 @@ const createContract = ({ wrkId, input, policies, granted, useBy, ctx, idempoten
       OBRA: wrkId,
       PROVEEDOR: Number(input.prvId),
       ...(Number(input.pvtId) > 0 ? { TIPO_PROVEEDOR: Number(input.pvtId) } : {}),
-      TIPO_CONTRATO: Number(input.cttId),
       ...(policies.length > 0 && { ASEGURADORA: policies.map((p) => p.ins_id), TIPO_POLIZA: policies.map((p) => p.plt_id) }),
     },
     async (tx) => {
-      await contractTypesService.assertAssignable(tx, Number(input.cttId));
       await assertProviderAssigned(tx, { wrkId, prvId: Number(input.prvId) });
       // Tipo de proveedor del contrato y su configuración (DEC-066), con obra,
       // proveedor y tipo bloqueados: no cambian en medio.
@@ -1058,7 +1082,8 @@ const createContract = ({ wrkId, input, policies, granted, useBy, ctx, idempoten
         })
       );
 
-      await assertWork(tx, wrkId, { isNew: true });
+      const work = await assertWork(tx, wrkId, { isNew: true });
+      assertStartWithinWork(work, values.ctr_start_date);
       await assertStage(tx, { wrkId, wksId: values.wks_id });
       await assertUniqueNumber(tx, { wrkId, number: values.ctr_number });
 
@@ -1145,13 +1170,11 @@ const updateContract = async ({ ctrId, input, granted, useBy, ctx }) => {
       PROVEEDOR: Number(input.prvId),
       CONTRATO: ctrId,
       ...(Number(input.pvtId) > 0 ? { TIPO_PROVEEDOR: Number(input.pvtId) } : {}),
-      TIPO_CONTRATO: Number(input.cttId),
     },
     async (tx) => {
       const before = await findLockedContract(tx, ctrId);
       assertStateAllows(before.ctr_state, "editContract");
       const wrkId = before.wrk_id;
-      await contractTypesService.assertAssignable(tx, Number(input.cttId), before.ctt_id);
       await assertProviderAssigned(tx, { wrkId, prvId: Number(input.prvId), currentPrvId: before.prv_id });
 
       // Tipo de proveedor y su configuración actual (DEC-066). Un valor
@@ -1164,7 +1187,9 @@ const updateContract = async ({ ctrId, input, granted, useBy, ctx }) => {
         ctr_aiu_requested: await resolveAiuRequested(tx, { input, descriptors, before, granted }),
       };
 
-      await assertWork(tx, wrkId, { isNew: false });
+      const work = await assertWork(tx, wrkId, { isNew: false });
+      // Solo si cambia: un contrato anterior a la regla se sigue editando.
+      if (dateOnlyText(values.ctr_start_date) !== dateOnlyText(before.ctr_start_date)) assertStartWithinWork(work, values.ctr_start_date);
       await assertStage(tx, { wrkId, wksId: values.wks_id, currentWksId: before.wks_id });
       await assertUniqueNumber(tx, { wrkId, number: values.ctr_number, excludeId: before.ctr_id });
       // Las facturas son del proveedor del contrato: con facturas, no cambia

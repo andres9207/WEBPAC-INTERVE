@@ -37,7 +37,7 @@ const CONTRACT = {
   ctr_state: "IN_PROGRESS",
   tbl_providers: { prv_name: "Concretos" },
   tbl_work_stages: { wks_name: "Cimentación" },
-  tbl_contract_types: { ctt_name: "Obra civil" },
+  tbl_works: { tbl_contract_types: { ctt_name: "Obra civil" } },
   tbl_contract_concepts: CONCEPTS,
 };
 
@@ -240,7 +240,7 @@ describe("getWorkDashboard", () => {
     expect(contracts.policies).toEqual([expect.objectContaining({ polId: 5, validityName: "Vencida" })]);
   });
 
-  it("pestaña Pólizas: concepto amparado, tipo de contrato y conteos por vigencia y contratos sin póliza", async () => {
+  it("pestaña Pólizas: concepto amparado, tipo de contrato de la obra y conteos por vigencia y contratos sin póliza", async () => {
     prismaMock.tbl_contracts.findMany.mockResolvedValue([
       CONTRACT,
       {
@@ -253,14 +253,14 @@ describe("getWorkDashboard", () => {
         ctr_state: "LIQUIDATED",
         tbl_providers: { prv_name: "Aceros" },
         tbl_work_stages: null,
-        tbl_contract_types: { ctt_name: "Suministro" },
+        tbl_works: { tbl_contract_types: { ctt_name: "Obra civil" } },
         tbl_contract_concepts: [],
       },
     ]);
 
     const { contracts } = await getWorkDashboard({ granted: ALL, scope: OWN });
 
-    expect(contracts.items.map((c) => c.contractTypeName)).toEqual(["Obra civil", "Suministro"]);
+    expect(contracts.items.map((c) => c.contractTypeName)).toEqual(["Obra civil", "Obra civil"]);
     expect(contracts.policies[0]).toMatchObject({ polId: 5, conceptLabel: "Valor inicial" });
     // El liquidado sin pólizas también cuenta como contrato sin póliza.
     expect(contracts.policyCounts).toEqual({ NO_DATE: 0, ACTIVE: 0, EXPIRING: 0, EXPIRED: 1, withoutPolicy: 1 });

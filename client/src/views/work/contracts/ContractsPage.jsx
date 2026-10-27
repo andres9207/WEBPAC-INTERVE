@@ -106,17 +106,19 @@ export const CONTRACT_COLUMNS = [
   }
 ];
 
-// "A vencer" (DEC-072): los contratos en ejecución con la fecha fin dentro de los días de aviso de la regla de
+// "Contrato próximo a vencer" (DEC-072): los contratos en ejecución con la fecha fin dentro de los días de aviso de la regla de
 // negocio (30 por defecto, configurable). No es un estado: es parte de "En ejecución", así que no suma a "Todos".
 export const CONTRACT_STATE_FILTER = {
   param: 'state',
-  tabs: [...CONTRACT_STATE_TABS, { id: 'EXPIRING', name: 'A vencer', color: 'warning', subset: true }],
+  tabs: [...CONTRACT_STATE_TABS, { id: 'EXPIRING', name: 'Contrato próximo a vencer', color: 'warning', subset: true }],
   colors: CONTRACT_STATE_COLORS
 };
 
 // "Pólizas por vencer" (DEC-072): contratos no liquidados con alguna póliza vigente vencida o dentro de los días de
 // aviso de pólizas. Revela datos de pólizas: solo con el permiso de verlas (el servidor responde 403 sin él).
 const POLICIES_EXPIRING_TAB = { id: 'POLICIES_EXPIRING', name: 'Pólizas por vencer', color: 'error', subset: true };
+// "Contrato sin póliza" (DEC-088): contratos no liquidados ni anulados sin ninguna póliza vigente. También exige verlas.
+const NO_POLICIES_TAB = { id: 'NO_POLICIES', name: 'Contrato sin póliza', color: 'error', subset: true };
 
 const rowLabel = (row) => `${row.number} — ${row.name}`;
 
@@ -236,7 +238,9 @@ export default function ContractsPage() {
   const canViewPolicies = policiesView != null && hasPermission(policiesView);
   const stateTabs = useMemo(
     () =>
-      canViewPolicies ? { ...CONTRACT_STATE_FILTER, tabs: [...CONTRACT_STATE_FILTER.tabs, POLICIES_EXPIRING_TAB] } : CONTRACT_STATE_FILTER,
+      canViewPolicies
+        ? { ...CONTRACT_STATE_FILTER, tabs: [...CONTRACT_STATE_FILTER.tabs, POLICIES_EXPIRING_TAB, NO_POLICIES_TAB] }
+        : CONTRACT_STATE_FILTER,
     [canViewPolicies]
   );
   // Reporte de lo que muestra la tabla, sin paginar (DEC-070).

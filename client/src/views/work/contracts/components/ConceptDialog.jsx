@@ -403,7 +403,7 @@ ConceptDialog.propTypes = {
   open: PropTypes.bool.isRequired,
   /** amendment | liquidation | edit */
   mode: PropTypes.oneOf(['amendment', 'liquidation', 'edit']),
-  /** Contrato del detalle: `{ ctrId, cttId, number, termUnit, lastConceptDate, openSuspension, economicsLocked }`. */
+  /** Contrato del detalle: `{ ctrId, number, termUnit, lastConceptDate, openSuspension, economicsLocked }`. */
   contract: PropTypes.object,
   /** Concepto a modificar (fila de `concepts` del detalle). */
   concept: PropTypes.object,

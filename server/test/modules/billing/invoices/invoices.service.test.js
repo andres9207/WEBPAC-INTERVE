@@ -130,7 +130,6 @@ const contract = (overrides = {}) => ({
   prv_id: 77,
   pvt_id: 3,
   wks_id: 11,
-  ctt_id: 4,
   ctr_start_date: new Date("2026-01-31T00:00:00Z"),
   ctr_state: "IN_PROGRESS",
   sta_id: 1,

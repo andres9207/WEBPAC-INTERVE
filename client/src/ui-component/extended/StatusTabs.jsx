@@ -36,7 +36,7 @@ export default function StatusTabs({ statusTabs, selectedStatus, onChange, hideA
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [anchorEl, setAnchorEl] = useState(null);
 
-  // Una pestaña `subset` (p. ej. "A vencer", dentro de "En ejecución") no suma a "Todos": ya está contada en otra.
+  // Una pestaña `subset` (p. ej. "Contrato próximo a vencer", dentro de "En ejecución") no suma a "Todos": ya está contada en otra.
   const totalCount = statusTabs.filter((s) => !s.subset).reduce((acc, s) => acc + s.total, 0);
 
   const selectedLabel = selectedStatus === 'all'

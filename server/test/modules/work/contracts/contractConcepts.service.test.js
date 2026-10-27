@@ -61,7 +61,6 @@ const contract = (overrides = {}) => ({
   ctr_id: 30,
   wrk_id: 8,
   pvt_id: 3,
-  ctt_id: 2,
   ctr_start_date: new Date("2026-01-31T00:00:00Z"),
   ctr_term: 6,
   ctr_term_unit: "MES",

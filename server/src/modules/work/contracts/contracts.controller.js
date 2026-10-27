@@ -41,7 +41,7 @@ const handleExport = (fn) => async (req, res, next) => {
 const pick = (source, fields) => Object.fromEntries(fields.map((field) => [field, source?.[field]]));
 
 const CONCEPT_FIELDS = ["directCost", "adminPct", "contingencyPct", "profitPct", "vatPct", "advancePct", "retentionPct"];
-const CONTRACT_FIELDS = ["wrkId", "prvId", "pvtId", "wksId", "cttId", "number", "name", "startDate", "term", "termUnit", "observation", "aiuRequested"];
+const CONTRACT_FIELDS = ["wrkId", "prvId", "pvtId", "wksId", "number", "name", "startDate", "term", "termUnit", "observation", "aiuRequested"];
 const ACT_FIELDS = ["startDate", "description", ...CONCEPT_FIELDS];
 
 // Filtros del listado, también los del reporte (DEC-070). Los del tablero

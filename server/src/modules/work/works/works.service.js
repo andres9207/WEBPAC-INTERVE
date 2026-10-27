@@ -21,6 +21,7 @@ import { constructionCompaniesService } from "../../admin/constructionCompanies/
 import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
 import { supervisionTypesService } from "../../admin/supervisionTypes/supervisionTypes.service.js";
 import { defineContacts } from "../../admin/addressTypes/addressTypes.contacts.js";
+import { contractTermFor } from "../contracts/contractTerms.js";
 import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
@@ -313,16 +314,28 @@ const HEADER_COLUMNS = [
 const MONEY_COLUMNS = new Set(["wrk_area", "wrk_direct_cost", "wrk_initial_value", "wrk_extended_value", "wrk_max_service_order_value"]);
 const HEADER_SELECT = Object.fromEntries(HEADER_COLUMNS.map((column) => [column, true]));
 
+// Contactos de la obra (ADR-0009, ADR-0011 regla 16): reglas comunes con los de proveedor.
+const contactsHelper = defineContacts({ model: "tbl_work_contacts", prefix: "wkc", ownerColumn: "wrk_id", ownerLabel: "esta obra" });
+
 /**
  * Vista previa de la fecha final mientras se edita la obra (inicio + plazo
  * inicial): la misma cuenta que se muestra después de guardar, hecha aquí y
  * no en el cliente (FRONTEND_STANDARD, regla 9). No lee ni escribe la BD.
  * `endDate` es null si los datos no alcanzan.
+ *
+ * Funciona en los dos sentidos, como la del contrato: con `endDate` y sin
+ * `initialTerm`, da el plazo que la produce, en `termUnit` o en días si no es
+ * exacto (contractTermFor, sin prórrogas ni suspensiones). Responde
+ * `{ endDate, initialTerm, termUnit }`.
  */
-// Contactos de la obra (ADR-0009, ADR-0011 regla 16): reglas comunes con los de proveedor.
-const contactsHelper = defineContacts({ model: "tbl_work_contacts", prefix: "wkc", ownerColumn: "wrk_id", ownerLabel: "esta obra" });
-
-export const previewWorkEndDate = ({ startDate, initialTerm, termUnit }) => ({ endDate: addTerm(startDate, initialTerm, termUnit) });
+export const previewWorkEndDate = ({ startDate, initialTerm, termUnit, endDate }) => {
+  if (initialTerm === undefined || initialTerm === null || initialTerm === "") {
+    const found = contractTermFor({ startDate, endDate, unit: termUnit });
+    if (found.error) throw httpError(400, found.error);
+    return { endDate, initialTerm: found.term, termUnit: found.unit };
+  }
+  return { endDate: addTerm(startDate, initialTerm, termUnit) };
+};
 
 export const getWork = async ({ wrkId, scope }) => {
   assertInScope(scope, wrkId, "No se encontró la obra.");

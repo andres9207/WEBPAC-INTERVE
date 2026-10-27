@@ -18,7 +18,6 @@ export const contractTypesConfig = defineMaster({
   // ADR-0006, regla 13.
   dependents: [
     { model: "tbl_works", column: "ctt_id", label: "obra(s)" },
-    { model: "tbl_contracts", column: "ctt_id", label: "contrato(s)" },
   ],
   socketEvent: "refresh-contract-types",
 });

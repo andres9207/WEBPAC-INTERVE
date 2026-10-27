@@ -80,7 +80,12 @@ const TABS = [
 ];
 
 // Parámetros de la vista previa de la fecha final (preview_work_end_date).
-const workEndParams = ({ startDate, term, termUnit }) => ({ startDate, initialTerm: term, termUnit });
+// Con la fecha final, sin plazo, pide el plazo.
+const workEndParams = ({ startDate, term, termUnit, endDate }) => ({
+  startDate,
+  termUnit,
+  ...(endDate ? { endDate } : { initialTerm: term })
+});
 
 const initials = (name = '') =>
   name
@@ -537,7 +542,7 @@ function WorkView() {
       {canEdit ? (
         <>
           <Box sx={hidden('data')}>
-            <WorkDataForm control={control} getValues={getValues} endPreview={endPreview} loaded={work} />
+            <WorkDataForm control={control} getValues={getValues} setValue={setValue} endPreview={endPreview} loaded={work} />
           </Box>
 
           <Box sx={hidden('managers')}>

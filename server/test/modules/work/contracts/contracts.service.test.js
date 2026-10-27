@@ -61,7 +61,6 @@ const input = (overrides = {}) => ({
   prvId: 77,
   pvtId: 3,
   wksId: 11,
-  cttId: 2,
   number: " C-001 ",
   name: "Suministro de acero",
   startDate: "2026-01-31",
@@ -86,7 +85,6 @@ const storedContract = {
   prv_id: 77,
   pvt_id: 3,
   wks_id: 11,
-  ctt_id: 2,
   ctr_number: "C-001",
   ctr_name: "Suministro de acero",
   ctr_start_date: new Date("2026-01-31T00:00:00Z"),
@@ -167,14 +165,13 @@ describe("saveContract — crear", () => {
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
   });
 
-  it("bloquea obra, proveedor, tipo de proveedor y tipo de contrato antes de leer nada", async () => {
+  it("bloquea obra, proveedor y tipo de proveedor antes de leer nada", async () => {
     await service.saveContract({ ctrId: 0, input: input(), useBy: 9, ctx, idempotencyKey: KEY });
 
     expect(lockedTables()).toEqual([
       expect.stringMatching(/tbl_works/),
       expect.stringMatching(/tbl_providers /),
       expect.stringMatching(/tbl_provider_types/),
-      expect.stringMatching(/tbl_contract_types/),
     ]);
     const lastLock = prismaMock.$queryRaw.mock.invocationCallOrder.at(-1);
     expect(prismaMock.tbl_work_stages.findUnique.mock.invocationCallOrder[0]).toBeGreaterThan(lastLock);
@@ -273,7 +270,6 @@ describe("saveContract — crear con pólizas (PRO-BE-09)", () => {
       expect.stringMatching(/tbl_providers /),
       expect.stringMatching(/tbl_provider_types/),
       expect.stringMatching(/tbl_insurers/),
-      expect.stringMatching(/tbl_contract_types/),
       expect.stringMatching(/tbl_policy_types/),
     ]);
   });
@@ -281,7 +277,7 @@ describe("saveContract — crear con pólizas (PRO-BE-09)", () => {
   it("sin pólizas no las pide ni bloquea sus maestros", async () => {
     await create([], new Set());
     expect(prismaMock.tbl_policies.create).not.toHaveBeenCalled();
-    expect(lockedTables()).toHaveLength(4);
+    expect(lockedTables()).toHaveLength(3);
   });
 
   it("sin el permiso de registrar pólizas responde 403 y no abre la transacción", async () => {
@@ -326,7 +322,6 @@ describe("saveContract — editar", () => {
       expect.stringMatching(/tbl_providers /),
       expect.stringMatching(/tbl_contracts/),
       expect.stringMatching(/tbl_provider_types/),
-      expect.stringMatching(/tbl_contract_types/),
     ]);
     const { data } = prismaMock.tbl_contracts.update.mock.calls[0][0];
     // 31 ene + (8 + 2) meses = 30 nov.
@@ -373,10 +368,55 @@ describe("saveContract — editar", () => {
     await expect(service.saveContract({ ctrId: 30, input: input({ term: 8 }), useBy: 9, ctx })).resolves.toMatchObject({ ctrId: 30 });
   });
 
-  it("con facturas el tipo de contrato sí cambia: el menú de sus facturas es su tipo de proveedor (DEC-074)", async () => {
-    prismaMock.tbl_invoices.count.mockResolvedValue(1);
+  it("no guarda tipo de contrato: es el de la obra (DEC-086)", async () => {
     await service.saveContract({ ctrId: 30, input: input({ cttId: 3 }), useBy: 9, ctx });
-    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).toMatchObject({ ctt_id: 3 });
+    expect(prismaMock.tbl_contracts.update.mock.calls[0][0].data).not.toHaveProperty("ctt_id");
+  });
+});
+
+describe("fecha de inicio dentro del plazo de la obra", () => {
+  // Obra del 1 ene 2026 a 12 meses: fin, 1 ene 2027.
+  beforeEach(() => {
+    state.contract = { ...storedContract };
+    prismaMock.tbl_works.findUnique.mockResolvedValue({
+      sta_id: 1,
+      wrk_code: "OB-1",
+      wrk_start_date: new Date("2026-01-01T00:00:00Z"),
+      wrk_initial_term: 12,
+      wrk_term_unit: "MES",
+    });
+  });
+
+  it("antes del inicio de la obra responde 400 y no crea nada", async () => {
+    await expect(service.saveContract({ ctrId: 0, input: input({ startDate: "2025-12-31" }), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining("anterior al inicio de la obra (2026-01-01)"),
+    });
+    expect(prismaMock.tbl_contracts.create).not.toHaveBeenCalled();
+  });
+
+  it("después del fin de la obra responde 400", async () => {
+    await expect(service.saveContract({ ctrId: 0, input: input({ startDate: "2027-01-02" }), useBy: 9, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining("posterior al fin de la obra (2027-01-01)"),
+    });
+  });
+
+  it("el inicio y el fin de la obra se admiten", async () => {
+    await expect(service.saveContract({ ctrId: 0, input: input({ startDate: "2026-01-01" }), useBy: 9, ctx, idempotencyKey: KEY })).resolves.toMatchObject({ ctrId: 30 });
+    await expect(service.saveContract({ ctrId: 0, input: input({ startDate: "2027-01-01" }), useBy: 9, ctx, idempotencyKey: KEY })).resolves.toMatchObject({ ctrId: 30 });
+  });
+
+  it("al editar, solo se valida si cambia: un contrato anterior a la regla se sigue editando", async () => {
+    state.contract = { ...storedContract, ctr_start_date: new Date("2025-06-01T00:00:00Z") };
+    await expect(service.saveContract({ ctrId: 30, input: input({ startDate: "2025-06-01" }), useBy: 9, ctx })).resolves.toMatchObject({ ctrId: 30 });
+    await expect(service.saveContract({ ctrId: 30, input: input({ startDate: "2025-07-01" }), useBy: 9, ctx })).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("las opciones del formulario traen el plazo de la obra", async () => {
+    prismaMock.tbl_work_stages.findMany = jest.fn(async () => []);
+    prismaMock.tbl_work_providers.findMany = jest.fn(async () => []);
+    await expect(service.getContractFormOptions({ wrkId: 8 })).resolves.toMatchObject({ work: { startDate: "2026-01-01", endDate: "2027-01-01" } });
   });
 });
 
@@ -462,10 +502,10 @@ describe("paginationContracts", () => {
     await service.paginationContracts({ cttId: "4", rows: 10, first: 0, sortField: "contractType", sortOrder: -1 });
 
     expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0]).toMatchObject({
-      where: { sta_id: { not: 3 }, ctt_id: 4 },
-      orderBy: { tbl_contract_types: { ctt_name: "desc" } },
+      where: { sta_id: { not: 3 }, tbl_works: { ctt_id: 4 } },
+      orderBy: { tbl_works: { tbl_contract_types: { ctt_name: "desc" } } },
     });
-    expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, ctt_id: 4 });
+    expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, tbl_works: { ctt_id: 4 } });
   });
 
   it("el menú de contratos filtra por el tipo de proveedor, también en los conteos (DEC-077)", async () => {
@@ -628,6 +668,30 @@ describe("paginationContracts", () => {
     prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
     const page = await service.paginationContracts({});
     expect(page.statusCounts).not.toHaveProperty("POLICIES_EXPIRING");
+  });
+
+  it("pestaña Contrato sin póliza (DEC-088): no liquidados ni anulados, sin ninguna póliza vigente", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(4);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+
+    const page = await service.paginationContracts({ state: "NO_POLICIES", canViewPolicies: true });
+
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where.AND[1]).toEqual({
+      ctr_state: { notIn: ["LIQUIDATED", "CANCELLED"] },
+      tbl_policies: { none: { pol_is_current: true } },
+    });
+    expect(page.statusCounts).toMatchObject({ NO_POLICIES: 4 });
+  });
+
+  it("sin el permiso de ver pólizas, la pestaña Contrato sin póliza responde 403 y no se cuenta", async () => {
+    await expect(service.paginationContracts({ state: "NO_POLICIES" })).rejects.toMatchObject({ statusCode: 403 });
+
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+    const page = await service.paginationContracts({});
+    expect(page.statusCounts).not.toHaveProperty("NO_POLICIES");
   });
 
   it("los filtros vacíos no filtran", async () => {

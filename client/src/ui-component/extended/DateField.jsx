@@ -10,7 +10,8 @@ import { format, isValid, parse } from 'date-fns';
  *
  * `readOnly`: solo muestra (p. ej. una fecha que calcula el servidor).
  * `minDate`: "AAAA-MM-DD"; el calendario no deja elegir días anteriores (p. ej.
- * la fecha fin, desde la de inicio). Es ayuda de captura: el servidor valida.
+ * la fecha fin, desde la de inicio). `maxDate`, el último que se puede elegir.
+ * Son ayuda de captura: el servidor valida.
  */
 const ISO = 'yyyy-MM-dd';
 
@@ -29,12 +30,14 @@ export default function DateField({
   helperText,
   disabled = false,
   readOnly = false,
-  minDate
+  minDate,
+  maxDate
 }) {
   return (
     <DatePicker
       value={toDate(value)}
       minDate={toDate(minDate) ?? undefined}
+      maxDate={toDate(maxDate) ?? undefined}
       onChange={(date) => onChange?.(date && isValid(date) ? format(date, ISO) : '')}
       label={label}
       format="dd/MM/yyyy"
@@ -67,5 +70,7 @@ DateField.propTypes = {
   disabled: PropTypes.bool,
   readOnly: PropTypes.bool,
   /** "AAAA-MM-DD": primer día que se puede elegir */
-  minDate: PropTypes.string
+  minDate: PropTypes.string,
+  /** "AAAA-MM-DD": último día que se puede elegir */
+  maxDate: PropTypes.string
 };

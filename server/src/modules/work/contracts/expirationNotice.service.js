@@ -41,7 +41,7 @@ const workLabel = (work) => (work?.wrk_code ? ` (obra ${work.wrk_code})` : "");
 
 /**
  * "A vencer" de un contrato: en ejecución y con la fecha fin entre hoy y hoy
- * + días. Un solo predicado para el aviso y para la pestaña "A vencer" del
+ * + días. Un solo predicado para el aviso y para la pestaña "Contrato próximo a vencer" del
  * listado de contratos.
  */
 export const expiringContractsWhere = ({ today, days }) => ({

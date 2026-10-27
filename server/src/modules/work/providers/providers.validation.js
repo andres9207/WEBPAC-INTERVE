@@ -70,7 +70,7 @@ export const saveProviderSchema = [
   // Uno o varios tipos (DEC-041).
   body("pvtIds").isArray({ min: 1, max: 20 }).withMessage("Selecciona al menos un tipo de proveedor."),
   body("pvtIds.*").isInt({ min: 1 }).withMessage("Cada tipo de proveedor debe ser un id válido."),
-  optionalBodyText("serviceType", "El tipo de servicio", 150),
+  optionalBodyText("serviceType", "El tipo de servicio", 255),
   emailRule("email", { optional: true }),
   optionalBodyText("observation", "La observación", 500),
 

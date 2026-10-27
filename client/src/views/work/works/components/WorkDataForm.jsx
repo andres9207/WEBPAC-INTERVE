@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import { useCallback } from 'react';
-import { Controller } from 'react-hook-form';
+import { Controller, useWatch } from 'react-hook-form';
 
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
@@ -23,21 +23,37 @@ import { moneyRules } from './workForm';
  *
  * Importes como texto con punto decimal (MoneyField, DEC-028). El cliente no
  * compara ni calcula: ampliado ≥ inicial, valor vigente y fecha final los
- * decide el servidor (FRONTEND_STANDARD, regla 9). La fecha final se le pide
- * al servidor al salir del plazo, al cambiar la unidad o la fecha de inicio
- * (`endPreview`, de useEndDatePreview).
+ * decide el servidor (FRONTEND_STANDARD, regla 9). Plazo y fecha final se
+ * calculan en los dos sentidos, como en el contrato: al salir del plazo, al
+ * cambiar la unidad o la fecha de inicio se pide la fecha final; al escribir la
+ * fecha final, el plazo que la produce, en la unidad elegida o en días si no
+ * cae exacta (`endPreview`, de useEndDatePreview). Se guarda el plazo.
  */
-export default function WorkDataForm({ control, getValues, endPreview, loaded }) {
+export default function WorkDataForm({ control, getValues, setValue, endPreview, loaded }) {
   // Estables (useCallback): SelectSocket recarga las opciones cuando cambian.
   // El valor actual se incluye aunque el maestro esté inactivo.
   const fetchCompanies = useCallback(() => getConstructionCompaniesSelectAPI(loaded?.cncId), [loaded?.cncId]);
   const fetchContractTypes = useCallback(() => getContractTypesSelectAPI(loaded?.cttId), [loaded?.cttId]);
   const fetchSupervisionTypes = useCallback(() => getSupervisionTypesSelectAPI(loaded?.sptId), [loaded?.sptId]);
 
-  // Fecha final: al salir del plazo, al cambiar la unidad o la fecha de inicio.
+  const startDate = useWatch({ control, name: 'startDate' });
+
+  // Plazo desde la fecha final escrita: el servidor lo calcula y se pone en el formulario.
+  const recalcTerm = async (values) => {
+    const data = await endPreview.fromEndDate(values);
+    if (!data) return;
+    setValue('initialTerm', String(data.initialTerm), { shouldDirty: true, shouldValidate: true });
+    setValue('termUnit', data.termUnit, { shouldDirty: true });
+  };
+
+  // Fecha final: al salir del plazo, al cambiar la unidad o la fecha de inicio;
+  // sin plazo pero con fecha final, el plazo.
   const recalcEndDate = (changed = {}) => {
     const [startDate, initialTerm, termUnit] = getValues(['startDate', 'initialTerm', 'termUnit']);
-    endPreview.recalc({ startDate, term: initialTerm, termUnit, ...changed });
+    const values = { startDate, term: initialTerm, termUnit, ...changed };
+    if (!/^\d+$/.test(values.term ?? '') && endPreview.endDate)
+      recalcTerm({ startDate: values.startDate, termUnit: values.termUnit, endDate: endPreview.endDate });
+    else endPreview.recalc(values);
   };
 
   return (
@@ -211,9 +227,13 @@ export default function WorkDataForm({ control, getValues, endPreview, loaded })
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <DateField
               value={endPreview.endDate}
+              onChange={(value) => {
+                recalcTerm({ startDate: getValues('startDate'), termUnit: getValues('termUnit'), endDate: value });
+              }}
               label="Fecha final"
-              readOnly
-              helperText={endPreview.loading ? 'Calculando…' : 'Fecha de inicio + plazo inicial'}
+              minDate={startDate}
+              error={endPreview.error}
+              helperText={endPreview.loading ? 'Calculando…' : 'Inicio + plazo; escríbela y se calcula el plazo'}
             />
           </Grid>
         </Grid>
@@ -225,8 +245,15 @@ export default function WorkDataForm({ control, getValues, endPreview, loaded })
 WorkDataForm.propTypes = {
   control: PropTypes.object.isRequired,
   getValues: PropTypes.func.isRequired,
+  setValue: PropTypes.func.isRequired,
   /** Resultado de useEndDatePreview. */
-  endPreview: PropTypes.shape({ endDate: PropTypes.string, loading: PropTypes.bool, recalc: PropTypes.func }).isRequired,
+  endPreview: PropTypes.shape({
+    endDate: PropTypes.string,
+    loading: PropTypes.bool,
+    error: PropTypes.string,
+    recalc: PropTypes.func,
+    fromEndDate: PropTypes.func
+  }).isRequired,
   /** La obra cargada; null al crear. */
   loaded: PropTypes.object
 };

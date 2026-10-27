@@ -608,7 +608,6 @@ model tbl_contract_types {
   deleted_by_user      tbl_users?      @relation("ContractTypeDeletedBy", fields: [ctt_delete_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_contract_types_delete_by")
   tbl_status           tbl_status      @relation(fields: [sta_id], references: [sta_id], onUpdate: Restrict, map: "tbl_contract_types_status")
   updated_by_user      tbl_users?      @relation("ContractTypeUpdatedBy", fields: [ctt_update_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_contract_types_update_by")
-  tbl_contracts        tbl_contracts[]
   tbl_works            tbl_works[]
 
   @@index([ctt_create_by], map: "tbl_contract_types_create_by")
@@ -730,7 +729,7 @@ model tbl_providers {
   idd_id                       Int
   prv_identification           String                         @db.VarChar(20)
   prv_name                     String                         @db.VarChar(255)
-  prv_service_type             String?                        @db.VarChar(150)
+  prv_service_type             String?                        @db.VarChar(255)
   prv_email                    String?                        @db.VarChar(255)
   prv_observation              String?                        @db.VarChar(500)
   sta_id                       Int                            @default(1)
@@ -849,7 +848,6 @@ model tbl_contracts {
   prv_id                      Int
   pvt_id                      Int
   wks_id                      Int?
-  ctt_id                      Int
   ctr_number                  String                        @db.VarChar(50)
   ctr_name                    String                        @db.VarChar(200)
   ctr_start_date              DateTime                      @db.Date
@@ -873,7 +871,6 @@ model tbl_contracts {
   tbl_contract_concepts       tbl_contract_concepts[]
   tbl_contract_status_history tbl_contract_status_history[]
   tbl_contract_suspensions    tbl_contract_suspensions[]
-  tbl_contract_types          tbl_contract_types            @relation(fields: [ctt_id], references: [ctt_id], onUpdate: NoAction, map: "tbl_contracts_contract_type")
   created_by_user             tbl_users?                    @relation("ContractCreatedBy", fields: [ctr_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contracts_create_by")
   deleted_by_user             tbl_users?                    @relation("ContractDeletedBy", fields: [ctr_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_contracts_delete_by")
   tbl_providers               tbl_providers                 @relation(fields: [prv_id], references: [prv_id], onUpdate: NoAction, map: "tbl_contracts_provider")
@@ -890,7 +887,6 @@ model tbl_contracts {
   @@unique([wrk_id, ctr_number_active], map: "uq_contracts_work_number_active")
   @@unique([ctr_id, wrk_id, prv_id, pvt_id], map: "uq_contracts_id_work_provider_type")
   @@index([ctr_state], map: "idx_contracts_state")
-  @@index([ctt_id], map: "tbl_contracts_contract_type")
   @@index([pvt_id], map: "idx_contracts_provider_type")
   @@index([ctr_create_by], map: "tbl_contracts_create_by")
   @@index([ctr_delete_by], map: "tbl_contracts_delete_by")

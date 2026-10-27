@@ -14,9 +14,9 @@ import DateField from 'ui-component/extended/DateField';
 import FormSection from 'ui-component/extended/FormSection';
 import GenericFormSection from 'ui-component/extended/GenericFormSection';
 import SearchSelect from 'ui-component/extended/SearchSelect';
-import SelectSocket from 'ui-component/extended/SelectSocket';
 import { toFormFields } from './configurableFields';
 import { TERM_UNIT_OPTIONS } from 'utils/constants';
+import { fDateOnly } from 'utils/formatTime';
 
 /**
  * Pestaña "Datos del contrato" del expediente (DEC-057): obra, proveedor, su
@@ -35,7 +35,6 @@ export default function ContractDataForm({ form, contract, isNew, blocked }) {
     loadingOptions,
     providerTypes,
     fixedMenu,
-    fetchContractTypes,
     changeWork,
     recalcTerm,
     recalcEndDate,
@@ -212,7 +211,7 @@ export default function ContractDataForm({ form, contract, isNew, blocked }) {
               )}
             />
           </Grid>
-          <Grid size={{ xs: 12, sm: 8, md: 5 }}>
+          <Grid size={{ xs: 12, sm: 8, md: 9 }}>
             <Controller
               name="name"
               control={control}
@@ -231,29 +230,22 @@ export default function ContractDataForm({ form, contract, isNew, blocked }) {
               )}
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Controller
-              name="cttId"
-              control={control}
-              rules={{ required: 'Selecciona el tipo de contrato.' }}
-              render={({ field, fieldState }) => (
-                <SelectSocket
-                  value={field.value}
-                  onChange={field.onChange}
-                  label="Tipo de contrato"
-                  required
-                  error={fieldState.error}
-                  fetchApi={fetchContractTypes}
-                  socketEvent="refresh-contract-types"
-                />
-              )}
-            />
-          </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <Controller
               name="startDate"
               control={control}
-              rules={{ required: 'La fecha de inicio es requerida.' }}
+              rules={{
+                required: 'La fecha de inicio es requerida.',
+                // Dentro del plazo de la obra, si cambia (un contrato anterior a
+                // la regla se sigue editando); el servidor lo valida igual.
+                validate: (value) => {
+                  if (value === methods.formState.defaultValues?.startDate) return true;
+                  const { startDate: from, endDate: to } = options.work ?? {};
+                  if (from && value < from) return `No puede ser anterior al inicio de la obra (${fDateOnly(from)}).`;
+                  if (to && value > to) return `No puede ser posterior al fin de la obra (${fDateOnly(to)}).`;
+                  return true;
+                }
+              }}
               render={({ field, fieldState }) => (
                 <DateField
                   value={field.value}
@@ -263,6 +255,8 @@ export default function ContractDataForm({ form, contract, isNew, blocked }) {
                   }}
                   label="Fecha de inicio"
                   required
+                  minDate={options.work?.startDate}
+                  maxDate={options.work?.endDate ?? undefined}
                   error={fieldState.error?.message}
                 />
               )}

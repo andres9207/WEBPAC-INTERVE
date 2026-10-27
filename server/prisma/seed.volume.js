@@ -210,7 +210,6 @@ async function main() {
           prvId: assigned[j % PROVIDERS_PER_WORK],
           pvtId: providerTypeOf[assigned[j % PROVIDERS_PER_WORK]],
           wksId: stages[j % stages.length].wks_id,
-          cttId: contractTypes[j % contractTypes.length],
           number,
           name: `Contrato de volumen ${pad(w)}-${pad(j + 1)}`,
           startDate: ctrStart,

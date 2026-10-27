@@ -299,7 +299,8 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
       ctr_state: true,
       tbl_providers: { select: { prv_name: true } },
       tbl_work_stages: { select: { wks_name: true } },
-      tbl_contract_types: { select: { ctt_name: true } },
+      // El tipo de contrato es de la obra (DEC-086).
+      tbl_works: { select: { tbl_contract_types: { select: { ctt_name: true } } } },
       tbl_contract_concepts: { select: CONCEPT_SELECT },
     },
     orderBy: [{ ctr_number: "asc" }, { ctr_id: "asc" }],
@@ -339,7 +340,7 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
       name: row.ctr_name,
       providerName: row.tbl_providers?.prv_name ?? null,
       stageName: row.tbl_work_stages?.wks_name ?? null,
-      contractTypeName: row.tbl_contract_types?.ctt_name ?? null,
+      contractTypeName: row.tbl_works?.tbl_contract_types?.ctt_name ?? null,
       state: row.ctr_state,
       stateName: CONTRACT_STATE_NAMES[row.ctr_state] ?? row.ctr_state,
       startDate: dateOnlyText(row.ctr_start_date),

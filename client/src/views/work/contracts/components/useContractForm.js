@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 
 import { EMPTY_FORM, NO_DESCRIPTION, contractEndParams } from './contractForm';
@@ -9,7 +9,6 @@ import {
   getContractWorksSelectAPI,
   previewContractEndDateAPI
 } from 'api/requests/contractsApi';
-import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
 import useEndDatePreview from 'hooks/useEndDatePreview';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkScope } from 'contexts/WorkScopeContext';
@@ -148,9 +147,6 @@ export default function useContractForm({ ctrId, isNew, contract, menu = null })
     if (String(next) !== String(pvtId ?? '')) setValue('pvtId', next, { shouldDirty: true });
   }, [providerOption, providerTypes, pvtId, loadingOptions, setValue]);
 
-  const storedCttId = contract?.cttId;
-  const fetchContractTypes = useCallback(() => getContractTypesSelectAPI(storedCttId), [storedCttId]);
-
   const changeWork = (value) => {
     setValue('wrkId', value ?? '', { shouldDirty: true });
     setValue('wksId', '', { shouldDirty: true });
@@ -197,7 +193,6 @@ export default function useContractForm({ ctrId, isNew, contract, menu = null })
     providerTypes,
     // El menú desde el que se crea, con el tipo fijo (DEC-077); null si no.
     fixedMenu: fixedPvtId ? menu : null,
-    fetchContractTypes,
     changeWork,
     recalcTerm,
     recalcEndDate,

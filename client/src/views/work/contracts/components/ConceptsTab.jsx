@@ -134,7 +134,6 @@ export default function ConceptsTab({ contract, onChanged }) {
         mode={dialog?.mode}
         contract={{
           ctrId: contract.ctrId,
-          cttId: contract.cttId,
           number: contract.number,
           termUnit: contract.termUnit,
           lastConceptDate,

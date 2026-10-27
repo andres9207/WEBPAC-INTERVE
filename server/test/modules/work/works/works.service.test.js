@@ -707,6 +707,25 @@ describe("previewWorkEndDate (FRONTEND_STANDARD, regla 9)", () => {
     expect(service.previewWorkEndDate({ startDate: "2026-02-30", initialTerm: "1", termUnit: "MES" })).toEqual({ endDate: null });
     expect(service.previewWorkEndDate({ startDate: "2026-01-01", initialTerm: "1", termUnit: "SEMANA" })).toEqual({ endDate: null });
   });
+
+  it("con la fecha final y sin plazo, da el plazo en la unidad elegida, o en días si no cae exacto", () => {
+    expect(service.previewWorkEndDate({ startDate: "2026-10-27", endDate: "2027-04-27", termUnit: "MES" })).toEqual({
+      endDate: "2027-04-27",
+      initialTerm: 6,
+      termUnit: "MES",
+    });
+    expect(service.previewWorkEndDate({ startDate: "2026-10-27", endDate: "2026-11-10", termUnit: "MES" })).toEqual({
+      endDate: "2026-11-10",
+      initialTerm: 14,
+      termUnit: "DIA",
+    });
+  });
+
+  it("rechaza una fecha final que no es posterior a la de inicio", () => {
+    expect(() => service.previewWorkEndDate({ startDate: "2026-10-27", endDate: "2026-10-01", termUnit: "MES" })).toThrow(
+      expect.objectContaining({ statusCode: 400 }),
+    );
+  });
 });
 
 describe("saveWork — contactos (PRO-BD-04)", () => {

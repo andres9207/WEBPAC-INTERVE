@@ -2,7 +2,7 @@ import { toDateOnly, todayDateOnly } from "../../../common/utils/term.utils.js";
 import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { decimal } from "../../../common/utils/money.utils.js";
 import { insuredValue } from "../../admin/policyTypes/policyBases.js";
-import { conceptAmounts } from "./contractTerms.js";
+import { CLOSED_STATES, conceptAmounts } from "./contractTerms.js";
 import { DEFAULT_EXPIRING_DAYS } from "../../admin/businessRules/businessRules.constants.js";
 
 /**
@@ -155,4 +155,13 @@ export const assertPolicyStatus = (status) => {
  */
 export const uncoveredContractsWhere = () => ({
   tbl_contract_concepts: { some: { sta_id: { not: DELETED_STATUS }, tbl_policies: { none: { pol_is_current: true } } } },
+});
+
+/**
+ * Contratos sin ninguna póliza vigente ("Sin póliza" de DEC-064), salvo los
+ * liquidados y los anulados: la pestaña "Contrato sin póliza" (DEC-088).
+ */
+export const contractsWithoutPoliciesWhere = () => ({
+  ctr_state: { notIn: CLOSED_STATES },
+  tbl_policies: { none: { pol_is_current: true } },
 });
