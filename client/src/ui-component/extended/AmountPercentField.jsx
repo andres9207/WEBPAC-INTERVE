@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
@@ -18,8 +18,15 @@ import PercentField from './PercentField';
  *   escribir en el lado que se guarda.
  *
  * Mientras se escribe en el otro lado se muestra lo escrito; al salir, lo que
- * dio el servidor (con el % a dos decimales, puede diferir en centavos).
+ * dio el servidor (con el % a dos decimales, puede diferir en centavos). Un
+ * cero del servidor se muestra vacío, con el "0,00" de ejemplo: así se
+ * escribe encima sin borrar nada, como en un campo vacío. Borrar todo en
+ * cualquiera de las dos cajas deja el importe en cero (el campo vacío vale
+ * 0): no vuelve a aparecer lo que había.
  */
+
+const isZero = (text) => /^-?0*(\.0*)?$/.test(String(text ?? '').trim());
+
 export default function AmountPercentField({
   storedAs,
   value,
@@ -34,6 +41,12 @@ export default function AmountPercentField({
   helperText
 }) {
   const [draft, setDraft] = useState(null);
+  const altFocused = useRef(false);
+
+  // Borrado el otro lado, se muestra vacío hasta que llega el cálculo nuevo del servidor.
+  useEffect(() => {
+    if (!altFocused.current) setDraft((current) => (current === '' ? null : current));
+  }, [derived]);
 
   const stored = {
     value,
@@ -47,12 +60,22 @@ export default function AmountPercentField({
     helperText
   };
   const alt = {
-    value: draft ?? derived ?? '',
+    value: draft ?? (isZero(derived) ? '' : derived),
     onChange: (text) => {
+      altFocused.current = true;
       setDraft(text);
-      onAltChange(text);
+      if (text === '') {
+        // Vacío es cero: se vacía el lado que se guarda, sin nada que convertir.
+        onAltChange(null);
+        onChange('');
+      } else {
+        onAltChange(text);
+      }
     },
-    onBlur: () => setDraft(null)
+    onBlur: () => {
+      altFocused.current = false;
+      setDraft((current) => (current === '' ? '' : null));
+    }
   };
   const money = storedAs === 'money' ? stored : alt;
   const percent = storedAs === 'percent' ? stored : alt;

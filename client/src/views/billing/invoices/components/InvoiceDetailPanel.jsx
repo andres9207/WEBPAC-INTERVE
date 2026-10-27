@@ -14,7 +14,13 @@ import { fMoneyText } from 'utils/formatNumber';
  * el TOTAL destacado. Solo presenta: las cifras las calcula el servidor
  * (FRONTEND_STANDARD, regla 9). `extra` son cifras aparte del total (el
  * total facturado de la simple); `note`, una aclaración o un aviso.
+ *
+ * En pantallas medianas y grandes queda anclado arriba al hacer scroll en el
+ * modal (`sticky`), a 12 px del borde: el contenido de RouteDialog tiene 24 px
+ * de padding. Su columna debe estirarse al alto del formulario.
  */
+
+const STICKY_TOP = 12 - 24;
 export default function InvoiceDetailPanel({ lines, total, totalLabel = 'TOTAL', extra = [], note, warning, loading = false }) {
   const num = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
   return (
@@ -27,7 +33,9 @@ export default function InvoiceDetailPanel({ lines, total, totalLabel = 'TOTAL',
         border: 1,
         borderColor: 'divider',
         borderRadius: 1.5,
-        p: 2.5
+        p: 2.5,
+        position: { md: 'sticky' },
+        top: { md: STICKY_TOP }
       }}
     >
       <Typography variant="subtitle1" component="h3">

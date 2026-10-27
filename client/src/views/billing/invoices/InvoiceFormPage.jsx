@@ -272,7 +272,8 @@ export default function InvoiceFormPage() {
   const [balances, setBalances] = useState(null);
   const [preview, setPreview] = useState(null);
 
-  const { control, handleSubmit, reset, setValue, formState } = useForm({ defaultValues: EMPTY_FORM });
+  // Se valida al escribir: un error (también el que deja la conversión de valor a %) se va al corregir el campo.
+  const { control, handleSubmit, reset, setValue, clearErrors, formState } = useForm({ defaultValues: EMPTY_FORM, mode: 'onChange' });
   const { errors, isDirty } = formState;
 
   useEffect(() => {
@@ -409,16 +410,18 @@ export default function InvoiceFormPage() {
   // % utilidad por defecto en la normal y la liquidación: la U del valor inicial del contrato con AIU; se puede cambiar.
   const defaultUtilityPct = contractBalances?.defaultUtilityPct;
   useEffect(() => {
-    if (isEdit || !isBillingInvoiceType(type) || !defaultUtilityPct) return;
-    setValue('utilityPct', defaultUtilityPct, { shouldDirty: true });
+    // Una U de 0 no se escribe: el campo queda vacío, como los demás impuestos.
+    if (isEdit || !isBillingInvoiceType(type) || !(Number(defaultUtilityPct) > 0)) return;
+    setValue('utilityPct', defaultUtilityPct, { shouldDirty: true, shouldValidate: true });
   }, [isEdit, type, defaultUtilityPct, setValue]);
 
   // Otro tipo: los importes son de él. Proveedor y contrato se conservan.
   const changeType = (value) => {
     setValue('type', value ?? '', { shouldDirty: true });
-    for (const field of ['value', 'amortization', 'retention', ...SIMPLE_AMOUNT_FIELDS, ...CONTRACT_TAX_FIELDS]) {
-      setValue(field, '', { shouldDirty: true });
-    }
+    const amountFields = ['value', 'amortization', 'retention', ...SIMPLE_AMOUNT_FIELDS, ...CONTRACT_TAX_FIELDS];
+    for (const field of amountFields) setValue(field, '', { shouldDirty: true });
+    // Los errores eran de los importes del tipo anterior.
+    clearErrors(amountFields);
     setValue('adjustAmortization', false, { shouldDirty: true });
     setValue('adjustRetention', false, { shouldDirty: true });
     // IVA general por defecto en la normal y la liquidación (DEC-075), como en la simple; se puede cambiar.
@@ -485,7 +488,8 @@ export default function InvoiceFormPage() {
 
   if (loading) return <RouteDialog onClose={leave} loading />;
 
-  const hasErrors = Object.keys(errors).length > 0;
+  // El aviso general, solo tras intentar guardar: mientras se escribe basta el mensaje de cada campo.
+  const hasErrors = formState.isSubmitted && Object.keys(errors).length > 0;
   const noOptions = wrkId && !loadingOptions;
   // La etapa solo es obligatoria si la obra tiene etapas (DEC-069); el servidor lo vuelve a verificar.
   const withoutStages = Boolean(noOptions) && options.stages.length === 0;
@@ -885,7 +889,7 @@ export default function InvoiceFormPage() {
             </Stack>
           </Grid>
           {type && (
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid size={{ xs: 12, md: 4 }} sx={{ alignSelf: { md: 'stretch' } }}>
               {simple ? (
                 <InvoiceDetailPanel
                   lines={preview?.lines ?? []}

@@ -486,7 +486,7 @@ export default function InvoiceDetailPage() {
               </Grid>
             </Grid>
             {panel && (
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid size={{ xs: 12, md: 4 }} sx={{ alignSelf: { md: 'stretch' } }}>
                 <InvoiceDetailPanel {...panel} />
               </Grid>
             )}

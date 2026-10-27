@@ -75,6 +75,7 @@ export default function PercentField({ value, onChange, onBlur, label, required,
       fullWidth
       error={Boolean(error)}
       helperText={error || helperText}
+      placeholder="0,00"
       slotProps={{
         input: { endAdornment: <InputAdornment position="end">%</InputAdornment> },
         htmlInput: { inputMode: 'decimal', autoComplete: 'off', style: { textAlign: 'right', fontVariantNumeric: 'tabular-nums' } }
