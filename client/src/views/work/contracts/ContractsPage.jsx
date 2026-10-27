@@ -20,6 +20,7 @@ import {
   getContractMenuAPI
 } from 'api/requests/contractsApi';
 import { getContractTypesSelectAPI } from 'api/requests/contractTypesApi';
+import { getProviderTypesSelectAPI } from 'api/requests/providerTypesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField } from 'contexts/WorkScopeContext';
 import { fMoneyText } from 'utils/formatNumber';
@@ -52,7 +53,7 @@ export const CONTRACT_COLUMNS = [
   { id: 'number', label: 'Número', sortable: true },
   {
     id: 'contractType',
-    label: 'Tipo',
+    label: 'Tipo de contrato',
     sortable: true,
     render: (row) => (row.contractType ? <Chip label={row.contractType} size="small" color="primary" variant="outlined" /> : '—'),
     cardRender: (row) => row.contractType ?? '—'
@@ -62,16 +63,26 @@ export const CONTRACT_COLUMNS = [
     label: 'Contrato',
     sortable: true,
     render: (row) => (
-      <>
-        <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.dark' }}>
-          {row.name}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {row.providerName}
-        </Typography>
-      </>
+      <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.dark' }}>
+        {row.name}
+      </Typography>
     ),
-    cardRender: (row) => `${row.name} · ${row.providerName ?? ''}`
+    cardRender: (row) => row.name
+  },
+  {
+    id: 'provider',
+    label: 'Proveedor',
+    sortable: true,
+    render: (row) => row.providerName ?? '—',
+    cardRender: (row) => row.providerName ?? '—'
+  },
+  // Tipo de proveedor bajo el que se firmó (DEC-066): el menú del contrato (DEC-077). Dentro de un menú sobra.
+  {
+    id: 'providerType',
+    label: 'Tipo de proveedor',
+    sortable: true,
+    render: (row) => (row.providerTypeName ? <Chip label={row.providerTypeName} size="small" color="secondary" variant="outlined" /> : '—'),
+    cardRender: (row) => row.providerTypeName ?? '—'
   },
   {
     id: 'work',
@@ -178,6 +189,16 @@ const FILTER_FIELDS = [
   },
   { key: 'endDate', type: 'calendar-range', label: 'Fecha fin' }
 ];
+// Tipo de proveedor: solo en "Todos"; un menú ya lo fija (DEC-077).
+const PROVIDER_TYPE_FILTER = {
+  key: 'pvtId',
+  type: 'socketDropdown',
+  label: 'Tipo de proveedor',
+  fetchApi: () => getProviderTypesSelectAPI(),
+  socketEvent: 'refresh-provider-types',
+  grid: { xs: 12, sm: 6 }
+};
+const MENU_COLUMNS = CONTRACT_COLUMNS.filter((column) => column.id !== 'providerType');
 // Anticipo: por sus saldos o con facturas por aprobar. Revela importes de facturas: solo con el permiso de verlas.
 const ADVANCE_FILTER = {
   key: 'advance',
@@ -222,8 +243,13 @@ export default function ContractsPage() {
   const invoicesView = permissionsCatalog.billing?.invoices?.view;
   const canViewInvoices = invoicesView != null && hasPermission(invoicesView);
   const filterFields = useMemo(
-    () => [...FILTER_FIELDS, ...(canViewInvoices ? [ADVANCE_FILTER] : []), ...(workFilter ? [workFilter] : [])],
-    [canViewInvoices, workFilter]
+    () => [
+      ...FILTER_FIELDS,
+      ...(pvtId ? [] : [PROVIDER_TYPE_FILTER]),
+      ...(canViewInvoices ? [ADVANCE_FILTER] : []),
+      ...(workFilter ? [workFilter] : [])
+    ],
+    [pvtId, canViewInvoices, workFilter]
   );
   const linked = useLinkedFilters(LINKED_KEYS, describeLinked);
   // La alerta con la que llega desde el tablero: se lee una sola vez, como los filtros enlazados.
@@ -282,7 +308,7 @@ export default function ContractsPage() {
         idField="ctrId"
         api={contractsApi}
         permissions={permissionsCatalog.work?.contracts}
-        columns={CONTRACT_COLUMNS}
+        columns={pvtId ? MENU_COLUMNS : CONTRACT_COLUMNS}
         filterFields={filterFields}
         defaultSort="number"
         rowLabel={rowLabel}

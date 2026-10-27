@@ -74,7 +74,8 @@ export default function ContractBalanceCards({ balances, type }) {
         {
           label: 'Total retenido',
           value: money(balances.retention?.retained),
-          hint: 'Retenido acumulado',
+          // Saldo de retenido (DEC-051): lo retenido menos lo devuelto.
+          hint: `Pendiente por devolver: ${money(balances.retention?.balance)}`,
           icon: IconLock,
           tone: ACTION_TONES.info
         },

@@ -292,6 +292,8 @@ const SORT_FIELDS = {
   provider: (order) => ({ tbl_providers: { prv_name: order } }),
   // El tipo de contrato es de la obra (DEC-086).
   contractType: (order) => ({ tbl_works: { tbl_contract_types: { ctt_name: order } } }),
+  // Tipo de proveedor bajo el que se firmó (DEC-066): el menú del contrato (DEC-077).
+  providerType: (order) => ({ tbl_work_provider_types: { tbl_provider_types: { pvt_name: order } } }),
   startDate: (order) => ({ ctr_start_date: order }),
   endDate: (order) => ({ ctr_end_date: order }),
   state: (order) => ({ ctr_state: order }),
@@ -313,6 +315,7 @@ const LIST_SELECT = {
   updated_by_user: USER_NAME_SELECT,
   tbl_works: { select: { wrk_code: true, wrk_name: true, tbl_contract_types: { select: { ctt_name: true } } } },
   tbl_providers: { select: { prv_name: true } },
+  tbl_work_provider_types: { select: { tbl_provider_types: { select: { pvt_name: true } } } },
   tbl_work_stages: { select: { wks_name: true } },
   // Para el valor vigente, que no se guarda: unos pocos conceptos por contrato.
   tbl_contract_concepts: { select: CONCEPT_SELECT },
@@ -326,6 +329,7 @@ const toListDto = (row) => ({
   workCode: row.tbl_works?.wrk_code ?? null,
   workName: row.tbl_works?.wrk_name ?? null,
   providerName: row.tbl_providers?.prv_name ?? null,
+  providerTypeName: row.tbl_work_provider_types?.tbl_provider_types?.pvt_name ?? null,
   stageName: row.tbl_work_stages?.wks_name ?? null,
   contractType: row.tbl_works?.tbl_contract_types?.ctt_name ?? null,
   startDate: dateOnlyText(row.ctr_start_date),
@@ -528,9 +532,10 @@ export const paginationContracts = async ({ rows, first, ...filters }) => {
 // Columnas del reporte: las de la tabla del listado (DEC-070).
 const EXPORT_COLUMNS = [
   { header: "Número", value: (r) => r.number },
-  { header: "Tipo", value: (r) => r.contractType },
+  { header: "Tipo de contrato", value: (r) => r.contractType },
   { header: "Contrato", value: (r) => r.name, width: 2 },
   { header: "Proveedor", value: (r) => r.providerName, width: 2 },
+  { header: "Tipo de proveedor", value: (r) => r.providerTypeName },
   { header: "Obra", value: (r) => [r.workCode, r.workName].filter(Boolean).join(" — "), width: 2 },
   { header: "Etapa", value: (r) => r.stageName },
   { header: "Valor vigente", value: (r) => r.currentValue, kind: "money", width: 1.3 },
