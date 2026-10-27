@@ -15,6 +15,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import {
   IconAlertTriangle,
+  IconCalendarX,
   IconChecklist,
   IconClockHour4,
   IconCurrencyDollar,
@@ -216,6 +217,21 @@ const attentionOf = (data) => {
               rows: contractRows(pending)
             }
           })
+    });
+  }
+  // Contratos vencidos: en ejecución con la fecha fin ya pasada (alerta "Contrato vencido" del listado).
+  const expired = contracts?.items.filter((c) => c.alerts.includes('EXPIRED')) ?? [];
+  if (expired.length > 0) {
+    list.push({
+      key: 'expired-contracts',
+      count: expired.length,
+      text: plural(expired.length, 'contrato vencido', 'contratos vencidos'),
+      hint: expired.map((c) => `${c.number} · venció el ${fDateOnly(c.endDate)}`).join(', '),
+      icon: IconCalendarX,
+      tone: ACTION_TONES.danger,
+      ...(expired.length === 1
+        ? { to: dashboardTo.contract(expired[0].ctrId) }
+        : { drill: { title: 'Contratos vencidos', subtitle: 'Valor vigente', noun: CONTRACT_NOUN, rows: contractRows(expired) } })
     });
   }
   if (contracts?.policies) {

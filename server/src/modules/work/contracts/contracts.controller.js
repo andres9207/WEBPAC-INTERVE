@@ -48,9 +48,9 @@ const ACT_FIELDS = ["startDate", "description", ...CONCEPT_FIELDS];
 // por pólizas exigen poder verlas (DEC-052). `granted`: los permisos
 // efectivos, leídos una vez por petición.
 const listFiltersOf = (req, granted) => {
-  const { search, state, states, wrkId, wksId, cttId, prvId, pvtId, number, name, providerName, endDateFrom, endDateTo, sortField, sortOrder } = req.body;
+  const { search, state, alert, states, wrkId, wksId, cttId, prvId, pvtId, number, name, providerName, endDateFrom, endDateTo, sortField, sortOrder } = req.body;
   const { policyStatus, uncovered, advance } = req.body;
-  // Siempre: la pestaña "Pólizas por vencer" se cuenta solo para quien puede ver pólizas (DEC-072).
+  // Siempre: las alertas de pólizas se cuentan solo para quien puede verlas (DEC-072).
   const canViewPolicies = granted.has(PERMISSIONS.work.policies.view);
   return {
     search,
@@ -60,6 +60,7 @@ const listFiltersOf = (req, granted) => {
     advance,
     canViewInvoices: granted.has(PERMISSIONS.billing.invoices.view),
     state,
+    alert,
     states,
     wrkId,
     wksId,
@@ -164,7 +165,12 @@ export const saveContractController = handle(async (req) => {
   const granted = new Set(await getEffectivePermissionIds({ useId, proId }));
   const result = await contractsService.saveContract({
     ctrId: req.body.ctrId,
-    input: { ...pick(req.body, CONTRACT_FIELDS), initialConcept: pick(req.body.initialConcept, CONCEPT_FIELDS) },
+    input: {
+      ...pick(req.body, CONTRACT_FIELDS),
+      initialConcept: pick(req.body.initialConcept, CONCEPT_FIELDS),
+      // Pólizas de la creación (DEC-050): el service las registra en la misma transacción. Sin ellas aquí, se perdían.
+      ...(Array.isArray(req.body.policies) && { policies: req.body.policies.map((p) => pick(p, POLICY_FIELDS)) }),
+    },
     useBy: useId,
     granted,
     scope: await workScopeOf(req),

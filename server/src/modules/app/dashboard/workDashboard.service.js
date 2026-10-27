@@ -29,8 +29,7 @@ import {
 import { INVOICE_STATES, INVOICE_TYPES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
 import { getRuleValues } from "../../admin/businessRules/businessRules.service.js";
 import { BUSINESS_RULES } from "../../admin/businessRules/businessRules.constants.js";
-import { contractsWithExpiringPoliciesWhere, expiringContractsWhere } from "../../work/contracts/expirationNotice.service.js";
-import { EXPIRING_TAB, NO_POLICIES_TAB, POLICIES_EXPIRING_TAB } from "../../work/contracts/contractTerms.js";
+import { contractAlertWheres } from "../../work/contracts/contractAlerts.js";
 import { contractBalances } from "../../billing/invoices/invoices.service.js";
 import { openFollowUpsSummary } from "../../billing/invoices/invoiceFollowUps.service.js";
 import { composeSimpleInvoice } from "../../billing/invoices/simpleInvoiceTerms.js";
@@ -291,24 +290,16 @@ const pendingAdvances = async (wrkId) => {
  * Totales de la obra y conteo por estado del ciclo de vida.
  */
 /**
- * Pestañas del listado de contratos que no son un estado (DEC-072, DEC-088):
- * los contratos de la obra que cumplen cada una, con el mismo predicado del
- * listado. Las de pólizas, solo si el usuario las ve. [[pestaña, Set ctr_id]].
+ * Alertas del listado de contratos (CONTRACT_ALERTS): los contratos de la obra
+ * que cumplen cada una, con el mismo predicado del listado. Las de pólizas,
+ * solo si el usuario las ve. [[alerta, Set ctr_id]].
  */
-const listTabsOf = async (wrkId, { withPolicies, today, contractDays, policyDays }) => {
-  const tabs = [
-    [EXPIRING_TAB, expiringContractsWhere({ today, days: contractDays })],
-    ...(withPolicies
-      ? [
-          [POLICIES_EXPIRING_TAB, contractsWithExpiringPoliciesWhere({ today, days: policyDays })],
-          [NO_POLICIES_TAB, contractsWithoutPoliciesWhere()],
-        ]
-      : []),
-  ];
+const alertsOf = async (wrkId, { withPolicies, today, contractDays, policyDays }) => {
+  const alerts = contractAlertWheres({ today, contractDays, policyDays, withPolicies });
   const ids = await Promise.all(
-    tabs.map(([, where]) => prisma.tbl_contracts.findMany({ where: { wrk_id: wrkId, ...notDeleted, AND: [where] }, select: { ctr_id: true } }))
+    alerts.map(([, where]) => prisma.tbl_contracts.findMany({ where: { wrk_id: wrkId, ...notDeleted, AND: [where] }, select: { ctr_id: true } }))
   );
-  return tabs.map(([tab], i) => [tab, new Set(ids[i].map((row) => row.ctr_id))]);
+  return alerts.map(([alert], i) => [alert, new Set(ids[i].map((row) => row.ctr_id))]);
 };
 
 const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue, contractDays }) => {
@@ -354,7 +345,7 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue, c
   // contrato por consulta, pocas por obra.
   const balances = await Promise.all(rows.map((row) => contractBalances(prisma, row.ctr_id)));
   const pending = await pendingAdvances(wrkId);
-  const listTabs = await listTabsOf(wrkId, { withPolicies, today: policyOptions.today, contractDays, policyDays: policyOptions.days });
+  const alerts = await alertsOf(wrkId, { withPolicies, today: policyOptions.today, contractDays, policyDays: policyOptions.days });
 
   const items = rows.map((row, i) => {
     const totals = contractTotals(row.tbl_contract_concepts);
@@ -372,8 +363,8 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue, c
       startDate: dateOnlyText(row.ctr_start_date),
       endDate: dateOnlyText(row.ctr_end_date),
       endDateProvisional: isEndDateProvisional(row.ctr_state),
-      // Pestañas del listado, aparte del estado, en las que está el contrato.
-      listTabs: listTabs.filter(([, ids]) => ids.has(row.ctr_id)).map(([tab]) => tab),
+      // Alertas del listado en las que está el contrato.
+      alerts: alerts.filter(([, ids]) => ids.has(row.ctr_id)).map(([alert]) => alert),
       currentValue: moneyText(totals.value),
       // Base vigente antes de IVA: contra ella se mide el avance facturado (I5, DEC-071).
       currentBase: moneyText(totals.base),
@@ -417,11 +408,6 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue, c
     // Contratos con retenido por devolver (alerta de la obra).
     withRetentionBalance: items.filter((c) => c._balances.retention.balance.gt(0)).map((c) => ({ ctrId: c.ctrId, number: c.number, balance: c.retention.balance, stateName: c.stateName })),
     byState,
-    // Conteos de las pestañas del listado de contratos: por estado y las que no son un estado.
-    statusCounts: {
-      ...Object.fromEntries(byState.map((s) => [s.state, s.count])),
-      ...Object.fromEntries(listTabs.map(([tab, ids]) => [tab, ids.size])),
-    },
     items: items.map(({ _value, _balances, ...dto }) => dto),
     // Pólizas vigentes de la obra, de la más urgente a la que menos (línea de tiempo, alertas y pestaña Pólizas).
     policies: withPolicies ? policies.map((p) => policyDto(p, policyOptions, conceptLabels)).sort(byUrgency) : null,

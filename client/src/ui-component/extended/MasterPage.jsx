@@ -30,6 +30,7 @@ import ExportButton from 'ui-component/extended/ExportButton';
 import DataTable from 'ui-component/extended/DataTable';
 import StatusChip from 'ui-component/extended/StatusChip';
 import StatusTabs from 'ui-component/extended/StatusTabs';
+import AlertChips from 'ui-component/extended/AlertChips';
 import LastModifiedCell from 'ui-component/extended/LastModifiedCell';
 import MasterDialog from 'ui-component/extended/MasterDialog';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
@@ -99,6 +100,10 @@ const saveView = (key, value) => {
  *   ej. el contrato, DEC-035) en vez de activo/inactivo. `param` es el campo
  *   del filtro y de la fila (`state`); los conteos llegan en `statusCounts`
  *   por ese valor, y la columna de estado usa `stateName` de la fila.
+ * - `alerts`: fila de alertas bajo el encabezado (AlertChips), aparte de las
+ *   pestañas y combinable con ellas (p. ej. "Contrato vencido"). `param` es
+ *   el campo del filtro; los conteos llegan en `alertCounts`, y `options`
+ *   son `[{ id, name, color }]`. `initialAlert`: la alerta con la que abre.
  * - `filters`: filtros fijos que viajan en cada petición (p. ej. la obra).
  *   Al cambiar, el listado vuelve a la primera página.
  * - `initialStatus`: pestaña con la que abre (p. ej. "Registradas" al llegar
@@ -135,8 +140,10 @@ export default function MasterPage({
   renderCard,
   reloadKey,
   stateTabs,
+  alerts,
   filters,
   initialStatus,
+  initialAlert,
   extraActions,
   createOptions,
   exportOptions
@@ -158,6 +165,8 @@ export default function MasterPage({
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [statusCounts, setStatusCounts] = useState({});
+  const [activeAlert, setActiveAlert] = useState(initialAlert ?? '');
+  const [alertCounts, setAlertCounts] = useState({});
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -187,10 +196,11 @@ export default function MasterPage({
       ...fieldFilters.params,
       ...filters,
       ...(stateTabs ? { [stateTabs.param]: status === 'all' ? '' : status } : { staId: status === 'all' ? '' : status }),
+      ...(alerts ? { [alerts.param]: activeAlert } : {}),
       sortField,
       sortOrder
     }),
-    [fieldFilters.params, filters, stateTabs, status, sortField, sortOrder]
+    [fieldFilters.params, filters, stateTabs, status, alerts, activeAlert, sortField, sortOrder]
   );
 
   const fetchRows = useCallback(async () => {
@@ -200,6 +210,7 @@ export default function MasterPage({
       setRows(data.results ?? []);
       setTotal(data.total ?? 0);
       setStatusCounts(data.statusCounts ?? {});
+      setAlertCounts(data.alertCounts ?? {});
     } catch (err) {
       showError(err.response?.data?.message || `Error al cargar ${lowerTitle}`);
     } finally {
@@ -218,6 +229,11 @@ export default function MasterPage({
 
   const handleStatus = (_, value) => {
     setStatus(value);
+    setPage(0);
+  };
+
+  const handleAlert = (value) => {
+    setActiveAlert(value);
     setPage(0);
   };
 
@@ -310,11 +326,12 @@ export default function MasterPage({
   const openNew = () => (navigation ? navigation.create() : dialogRef.current?.open());
 
   const plural = (pluralTitle ?? `${lowerTitle}s`).toLowerCase();
-  const emptyMessage = fieldFilters.hasFilters
-    ? 'No hay resultados con los filtros aplicados.'
-    : status !== 'all'
-      ? `No hay ${plural} en este estado.`
-      : `Todavía no hay ${plural}.`;
+  const emptyMessage =
+    fieldFilters.hasFilters || activeAlert
+      ? 'No hay resultados con los filtros aplicados.'
+      : status !== 'all'
+        ? `No hay ${plural} en este estado.`
+        : `Todavía no hay ${plural}.`;
   // Con varias `createOptions`, "Nuevo" abre el menú; con una sola (el permiso solo da esa), el botón es ella y la
   // ejecuta sin menú; sin ellas, el alta.
   const singleCreateOption = createOptions?.length === 1 ? createOptions[0] : null;
@@ -324,7 +341,7 @@ export default function MasterPage({
     hasCreateMenu ? setCreateAnchor(event.currentTarget) : singleCreateOption ? singleCreateOption.command() : openNew();
   const createIcon = singleCreateOption?.icon ?? <IconPlus size={16} />;
   const emptyAction =
-    !fieldFilters.hasFilters && status === 'all' && canCreate ? (
+    !fieldFilters.hasFilters && !activeAlert && status === 'all' && canCreate ? (
       <Button
         variant="outlined"
         size="small"
@@ -444,6 +461,7 @@ export default function MasterPage({
         </Stack>
       }
     >
+      {alerts && <AlertChips options={alerts.options} counts={alertCounts} value={activeAlert} onChange={handleAlert} />}
       {showCards ? (
         <>
           {cards}
@@ -561,6 +579,10 @@ MasterPage.propTypes = {
   reloadKey: PropTypes.number,
   /** Pestañas por estado del ciclo de vida: `{ param, tabs: [{ id, name, color }], colors: { [id]: color } }`. */
   stateTabs: PropTypes.shape({ param: PropTypes.string.isRequired, tabs: PropTypes.array.isRequired, colors: PropTypes.object }),
+  /** Fila de alertas: `{ param, options: [{ id, name, color }] }`. Debe ser estable (useMemo). */
+  alerts: PropTypes.shape({ param: PropTypes.string.isRequired, options: PropTypes.array.isRequired }),
+  /** Alerta con la que abre (p. ej. "Contrato vencido" desde el tablero). */
+  initialAlert: PropTypes.string,
   /** Filtros fijos de la petición, p. ej. `{ wrkId }`. Debe ser estable (useMemo). */
   filters: PropTypes.object,
   /** Reporte del listado (DEC-070): `{ permission, request(params, format), fileName }`. */

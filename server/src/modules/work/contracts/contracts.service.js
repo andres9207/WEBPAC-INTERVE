@@ -17,9 +17,8 @@ import { PERMISSIONS } from "../../../common/constants/permissions.constants.js"
 import {
   CONCEPT_TYPES,
   CONCEPT_TYPE_NAMES,
-  EXPIRING_TAB,
-  NO_POLICIES_TAB,
-  POLICIES_EXPIRING_TAB,
+  CONTRACT_ALERT_NAMES,
+  POLICY_ALERTS,
   STATE_ALLOWS,
   STATE_NAMES,
   assertStateAllows,
@@ -35,11 +34,11 @@ import {
   totalExtensions,
 } from "./contractTerms.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
-import { CONTRACT_POLICY_STATUS_NAMES, assertPolicyStatus, contractsWithoutPoliciesWhere, uncoveredContractsWhere } from "./policyTerms.js";
+import { CONTRACT_POLICY_STATUS_NAMES, assertPolicyStatus, uncoveredContractsWhere } from "./policyTerms.js";
 // Importación circular a propósito: contractPolicies usa los helpers de este
 // archivo y este, insertPolicy. Ninguno de los dos los usa al cargarse.
 import { contractPolicyStatuses, insertPolicy, policyValuesOf } from "./contractPolicies.service.js";
-import { contractsWithExpiringPoliciesWhere, expiringContractsWhere } from "./expirationNotice.service.js";
+import { contractAlertWheres } from "./contractAlerts.js";
 import { getRuleValues } from "../../admin/businessRules/businessRules.service.js";
 import { BUSINESS_RULES } from "../../admin/businessRules/businessRules.constants.js";
 
@@ -443,6 +442,7 @@ export const contractListQuery = async ({
   advanceCtrIds = null,
   canViewInvoices = false,
   state,
+  alert,
   states,
   wrkId,
   wksId,
@@ -460,7 +460,7 @@ export const contractListQuery = async ({
 }) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
-  if ((policyStatus || uncovered || state === POLICIES_EXPIRING_TAB || state === NO_POLICIES_TAB) && !canViewPolicies)
+  if ((policyStatus || uncovered || POLICY_ALERTS.includes(alert)) && !canViewPolicies)
     throw httpError(403, "Filtrar por el estado de las pólizas exige el permiso de ver pólizas.");
   const advanceFilter = advanceWhereOf({ advance, advanceCtrIds, canViewInvoices });
   const policyFilters = uncovered ? [uncoveredContractsWhere()] : [];
@@ -490,43 +490,39 @@ export const contractListQuery = async ({
       advanceFilter,
     ]),
   };
-  // "Contrato próximo a vencer" y "Pólizas por vencer" (DEC-072): los predicados del aviso, con los días de cada regla de
-  // negocio y la fecha del servidor. El de pólizas, solo para quien puede verlas.
+  // Alertas (CONTRACT_ALERTS): los predicados del aviso (DEC-072) y de "sin póliza" (DEC-088), con los días de cada regla de
+  // negocio y la fecha del servidor. Las de pólizas, solo para quien puede verlas.
   const rules = await getRuleValues();
-  const today = todayDateOnly();
   const days = rules[BUSINESS_RULES.CONTRACT_EXPIRING_DAYS];
-  const expiringWhere = { AND: [baseWhere, expiringContractsWhere({ today, days })] };
-  const policiesExpiringWhere = canViewPolicies
-    ? { AND: [baseWhere, contractsWithExpiringPoliciesWhere({ today, days: rules[BUSINESS_RULES.POLICY_EXPIRING_DAYS] })] }
-    : null;
-  // "Contrato sin póliza" (DEC-088): sin ninguna póliza vigente; también solo para quien puede verlas.
-  const noPoliciesWhere = canViewPolicies ? { AND: [baseWhere, contractsWithoutPoliciesWhere()] } : null;
-  const where =
-    state === EXPIRING_TAB
-      ? expiringWhere
-      : state === POLICIES_EXPIRING_TAB
-        ? policiesExpiringWhere
-        : state === NO_POLICIES_TAB
-          ? noPoliciesWhere
-          : { ...baseWhere, ...(state ? { ctr_state: state } : {}) };
-  return { baseWhere, where, expiringWhere, policiesExpiringWhere, noPoliciesWhere, expiringDays: days, orderBy };
+  const alertWheres = contractAlertWheres({
+    today: todayDateOnly(),
+    contractDays: days,
+    policyDays: rules[BUSINESS_RULES.POLICY_EXPIRING_DAYS],
+    withPolicies: canViewPolicies,
+  });
+  const alertWhere = alert ? alertWheres.find(([key]) => key === alert)?.[1] : null;
+  const stateWhere = { ...baseWhere, ...(state ? { ctr_state: state } : {}) };
+  const withAlert = (where, predicate) => (predicate ? { AND: [where, predicate] } : where);
+  // La pestaña de estado y la alerta se combinan; cada una cuenta dentro de la otra.
+  return {
+    where: withAlert(stateWhere, alertWhere),
+    stateCountWhere: withAlert(baseWhere, alertWhere),
+    alertCountWheres: alertWheres.map(([key, predicate]) => [key, withAlert(stateWhere, predicate)]),
+    expiringDays: days,
+    orderBy,
+  };
 };
 
 export const paginationContracts = async ({ rows, first, ...filters }) => {
-  const { baseWhere, where, expiringWhere, policiesExpiringWhere, noPoliciesWhere, expiringDays, orderBy } = await contractListQuery(filters);
-  const [page, statusCounts, expiring, policiesExpiring, noPolicies] = await Promise.all([
+  const { where, stateCountWhere, alertCountWheres, expiringDays, orderBy } = await contractListQuery(filters);
+  const [page, statusCounts, ...alerts] = await Promise.all([
     paginate(prisma.tbl_contracts, { where, select: LIST_SELECT, orderBy }, { first, rows }),
-    countByState(baseWhere),
-    prisma.tbl_contracts.count({ where: expiringWhere }),
-    policiesExpiringWhere ? prisma.tbl_contracts.count({ where: policiesExpiringWhere }) : null,
-    noPoliciesWhere ? prisma.tbl_contracts.count({ where: noPoliciesWhere }) : null,
+    countByState(stateCountWhere),
+    ...alertCountWheres.map(([, alertWhere]) => prisma.tbl_contracts.count({ where: alertWhere })),
   ]);
-  const extraCounts = {
-    [EXPIRING_TAB]: expiring,
-    ...(policiesExpiring === null ? {} : { [POLICIES_EXPIRING_TAB]: policiesExpiring }),
-    ...(noPolicies === null ? {} : { [NO_POLICIES_TAB]: noPolicies }),
-  };
-  return { ...page, results: page.results.map(toListDto), statusCounts: { ...statusCounts, ...extraCounts }, expiringDays };
+  // Sin las de pólizas cuando el usuario no las ve: el cliente no muestra esas alertas.
+  const alertCounts = Object.fromEntries(alertCountWheres.map(([key], i) => [key, alerts[i]]));
+  return { ...page, results: page.results.map(toListDto), statusCounts, alertCounts, expiringDays };
 };
 
 // Columnas del reporte: las de la tabla del listado (DEC-070).
@@ -546,6 +542,7 @@ const EXPORT_COLUMNS = [
 // Líneas de los filtros aplicados, para el encabezado del reporte.
 export const exportFilterLines = async ({
   state,
+  alert,
   states,
   search,
   wrkId,
@@ -571,7 +568,8 @@ export const exportFilterLines = async ({
   ]);
   const lines = [
     ["Tipo de proveedor", menu?.pvt_name],
-    ["Estado", state === EXPIRING_TAB ? "Contrato próximo a vencer" : state === POLICIES_EXPIRING_TAB ? "Pólizas por vencer o vencidas" : state === NO_POLICIES_TAB ? "Contrato sin póliza" : state ? (STATE_NAMES[state] ?? state) : "Todos"],
+    ["Estado", state ? (STATE_NAMES[state] ?? state) : "Todos"],
+    ["Alerta", alert ? (CONTRACT_ALERT_NAMES[alert] ?? alert) : ""],
     ["Estados", Array.isArray(states) ? states.map((s) => STATE_NAMES[s] ?? s).join(", ") : ""],
     ["Búsqueda", text(search)],
     ["Obra", work && `${work.wrk_code} — ${work.wrk_name}`],

@@ -489,8 +489,9 @@ describe("paginationContracts", () => {
       orderBy: { ctr_update_at: "asc" },
     });
     expect(prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where).toEqual({ sta_id: { not: 3 }, AND: [{ wrk_id: 8 }] });
-    // "A vencer" se cuenta con count dentro de los mismos filtros (DEC-072).
-    expect(page.statusCounts).toEqual({ IN_PROGRESS: 4, EXPIRING: 1 });
+    // Las alertas se cuentan con count dentro de los mismos filtros y de la pestaña (DEC-072).
+    expect(page.statusCounts).toEqual({ IN_PROGRESS: 4 });
+    expect(page.alertCounts).toEqual({ EXPIRING: 1, EXPIRED: 1 });
     expect(page.results[0]).toMatchObject({ ctrId: 30, currentValue: "1190.00", stateName: "En ejecución", endDate: "2026-07-31", endDateProvisional: false });
   });
 
@@ -623,14 +624,14 @@ describe("paginationContracts", () => {
     ]);
   });
 
-  it("pestaña A vencer (DEC-072): en ejecución, con la fecha fin de hoy a hoy + los días de la regla, dentro de los filtros", async () => {
+  it("alerta Contrato próximo a vencer (DEC-072): en ejecución, con la fecha fin de hoy a hoy + los días de la regla, dentro de los filtros", async () => {
     jest.useFakeTimers().setSystemTime(new Date(2026, 9, 23, 10));
     prismaMock.tbl_business_rules.findMany.mockResolvedValueOnce([{ bru_key: "CONTRACT_EXPIRING_DAYS", bru_value: 10 }]);
     prismaMock.tbl_contracts.count.mockResolvedValue(2);
     prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
     prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
 
-    const page = await service.paginationContracts({ state: "EXPIRING", prvId: "77" });
+    const page = await service.paginationContracts({ alert: "EXPIRING", prvId: "77" });
     jest.useRealTimers();
 
     const { where } = prismaMock.tbl_contracts.findMany.mock.calls[0][0];
@@ -639,59 +640,99 @@ describe("paginationContracts", () => {
       ctr_state: "IN_PROGRESS",
       ctr_end_date: { gte: new Date(Date.UTC(2026, 9, 23)), lte: new Date(Date.UTC(2026, 10, 2)) },
     });
-    expect(page.statusCounts.EXPIRING).toBe(2);
+    expect(page.alertCounts.EXPIRING).toBe(2);
     expect(page.expiringDays).toBe(10);
   });
 
-  it("pestaña Pólizas por vencer (DEC-072): no liquidados con alguna póliza vigente vencida o que vence a hoy + los días de la regla", async () => {
+  it("alerta Contrato vencido: en ejecución, con la fecha fin anterior a hoy", async () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 9, 23, 10));
+    prismaMock.tbl_contracts.count.mockResolvedValue(1);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+
+    const page = await service.paginationContracts({ alert: "EXPIRED" });
+    jest.useRealTimers();
+
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where.AND[1]).toEqual({
+      ctr_state: "IN_PROGRESS",
+      ctr_end_date: { lt: new Date(Date.UTC(2026, 9, 23)) },
+    });
+    expect(page.alertCounts.EXPIRED).toBe(1);
+  });
+
+  it("la alerta se combina con la pestaña: el listado cumple las dos, los estados cuentan dentro de la alerta y las alertas, dentro del estado", async () => {
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+
+    await service.paginationContracts({ state: "SUSPENDED", alert: "POLICIES_EXPIRED", canViewPolicies: true });
+
+    const { where } = prismaMock.tbl_contracts.findMany.mock.calls[0][0];
+    expect(where.AND[0]).toMatchObject({ ctr_state: "SUSPENDED" });
+    expect(where.AND[1]).toMatchObject({ tbl_policies: expect.any(Object) });
+    const counted = prismaMock.tbl_contracts.groupBy.mock.calls[0][0].where;
+    expect(counted.AND[0]).not.toHaveProperty("ctr_state");
+    expect(counted.AND[1]).toEqual(where.AND[1]);
+    // La primera es el total de la página; las otras cinco, una por alerta.
+    const alertWheres = prismaMock.tbl_contracts.count.mock.calls.slice(1).map(([args]) => args.where);
+    expect(alertWheres).toHaveLength(5);
+    for (const alertWhere of alertWheres) expect(alertWhere.AND[0]).toMatchObject({ ctr_state: "SUSPENDED" });
+  });
+
+  it("alerta Pólizas por vencer (DEC-072): no liquidados con alguna póliza vigente vencida o que vence a hoy + los días de la regla", async () => {
     jest.useFakeTimers().setSystemTime(new Date(2026, 9, 23, 10));
     prismaMock.tbl_business_rules.findMany.mockResolvedValueOnce([{ bru_key: "POLICY_EXPIRING_DAYS", bru_value: 5 }]);
     prismaMock.tbl_contracts.count.mockResolvedValue(3);
     prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
     prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
 
-    const page = await service.paginationContracts({ state: "POLICIES_EXPIRING", canViewPolicies: true });
+    const page = await service.paginationContracts({ alert: "POLICIES_EXPIRING", canViewPolicies: true });
     jest.useRealTimers();
 
     expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where.AND[1]).toEqual({
       ctr_state: { notIn: ["LIQUIDATED", "CANCELLED"] },
       tbl_policies: { some: { pol_is_current: true, pol_end_date: { lte: new Date(Date.UTC(2026, 9, 28)) } } },
     });
-    expect(page.statusCounts).toMatchObject({ POLICIES_EXPIRING: 3, EXPIRING: 3 });
+    expect(page.alertCounts).toEqual({ EXPIRING: 3, EXPIRED: 3, POLICIES_EXPIRING: 3, POLICIES_EXPIRED: 3, NO_POLICIES: 3 });
   });
 
-  it("sin el permiso de ver pólizas, la pestaña Pólizas por vencer responde 403 y no se cuenta", async () => {
-    await expect(service.paginationContracts({ state: "POLICIES_EXPIRING" })).rejects.toMatchObject({ statusCode: 403 });
+  it("alerta Pólizas vencidas: no liquidados ni anulados con alguna póliza vigente vencida antes de hoy", async () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 9, 23, 10));
+    prismaMock.tbl_contracts.count.mockResolvedValue(0);
+    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
+    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
+
+    await service.paginationContracts({ alert: "POLICIES_EXPIRED", canViewPolicies: true });
+    jest.useRealTimers();
+
+    expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where.AND[1]).toEqual({
+      ctr_state: { notIn: ["LIQUIDATED", "CANCELLED"] },
+      tbl_policies: { some: { pol_is_current: true, pol_end_date: { lt: new Date(Date.UTC(2026, 9, 23)) } } },
+    });
+  });
+
+  it.each(["POLICIES_EXPIRING", "POLICIES_EXPIRED", "NO_POLICIES"])("sin el permiso de ver pólizas, la alerta %s responde 403 y no se cuenta", async (alert) => {
+    await expect(service.paginationContracts({ alert })).rejects.toMatchObject({ statusCode: 403 });
 
     prismaMock.tbl_contracts.count.mockResolvedValue(0);
     prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
     prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
     const page = await service.paginationContracts({});
-    expect(page.statusCounts).not.toHaveProperty("POLICIES_EXPIRING");
+    expect(page.alertCounts).toEqual({ EXPIRING: 0, EXPIRED: 0 });
   });
 
-  it("pestaña Contrato sin póliza (DEC-088): no liquidados ni anulados, sin ninguna póliza vigente", async () => {
+  it("alerta Contrato sin póliza (DEC-088): no liquidados ni anulados, sin ninguna póliza vigente", async () => {
     prismaMock.tbl_contracts.count.mockResolvedValue(4);
     prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
     prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
 
-    const page = await service.paginationContracts({ state: "NO_POLICIES", canViewPolicies: true });
+    const page = await service.paginationContracts({ alert: "NO_POLICIES", canViewPolicies: true });
 
     expect(prismaMock.tbl_contracts.findMany.mock.calls[0][0].where.AND[1]).toEqual({
       ctr_state: { notIn: ["LIQUIDATED", "CANCELLED"] },
       tbl_policies: { none: { pol_is_current: true } },
     });
-    expect(page.statusCounts).toMatchObject({ NO_POLICIES: 4 });
-  });
-
-  it("sin el permiso de ver pólizas, la pestaña Contrato sin póliza responde 403 y no se cuenta", async () => {
-    await expect(service.paginationContracts({ state: "NO_POLICIES" })).rejects.toMatchObject({ statusCode: 403 });
-
-    prismaMock.tbl_contracts.count.mockResolvedValue(0);
-    prismaMock.tbl_contracts.findMany.mockResolvedValue([]);
-    prismaMock.tbl_contracts.groupBy.mockResolvedValue([]);
-    const page = await service.paginationContracts({});
-    expect(page.statusCounts).not.toHaveProperty("NO_POLICIES");
+    expect(page.alertCounts).toMatchObject({ NO_POLICIES: 4 });
   });
 
   it("los filtros vacíos no filtran", async () => {

@@ -67,6 +67,21 @@ export const CONTRACT_STATE_COLORS = {
   CANCELLED: 'error'
 };
 
+// Alertas del listado de contratos: las mismas de CONTRACT_ALERTS en
+// server/src/modules/work/contracts/contractTerms.js. Van aparte de las
+// pestañas de estado y se combinan con ellas. Las de pólizas (`policies`)
+// solo con el permiso de verlas: el servidor responde 403 sin él.
+export const CONTRACT_ALERT_OPTIONS = [
+  { id: 'EXPIRING', name: 'Próximo a vencer', color: 'warning' },
+  { id: 'EXPIRED', name: 'Contrato vencido', color: 'error' },
+  { id: 'POLICIES_EXPIRING', name: 'Pólizas por vencer', color: 'warning', policies: true },
+  { id: 'POLICIES_EXPIRED', name: 'Pólizas vencidas', color: 'error', policies: true },
+  { id: 'NO_POLICIES', name: 'Sin póliza', color: 'error', policies: true }
+];
+
+/** Alertas que el usuario puede ver: las de pólizas, solo con su permiso. */
+export const contractAlertOptions = (canViewPolicies) => CONTRACT_ALERT_OPTIONS.filter((a) => canViewPolicies || !a.policies);
+
 // Estado de pólizas del contrato (DEC-052): los mismos de
 // CONTRACT_POLICY_STATUS_NAMES en server/src/modules/work/contracts/policyTerms.js.
 export const CONTRACT_POLICY_STATUS_LABELS = {

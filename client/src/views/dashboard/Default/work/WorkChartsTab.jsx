@@ -167,7 +167,8 @@ function Timeline({ work, contracts, policies, marks, referenceDate }) {
       label: `${fDateOnly(work.startDate)} → ${fDateOnly(work.endDate)}`,
       tone: { bg: 'grey.200', border: 'grey.400', fg: 'grey.800' },
       marks: [],
-      bold: true
+      bold: true,
+      href: dashboardTo.work(work.wrkId)
     });
   }
   for (const c of contracts) {
@@ -192,7 +193,9 @@ function Timeline({ work, contracts, policies, marks, referenceDate }) {
         label: p.endDate ? `${p.validity === 'EXPIRED' ? 'Venció' : 'Vence'} el ${fDateOnly(p.endDate)}` : 'Sin fecha de vigencia',
         tone: VALIDITY_BAR[p.validity] ?? VALIDITY_BAR.NO_DATE,
         marks: [],
-        href: dashboardTo.contract(c.ctrId)
+        href: dashboardTo.contract(c.ctrId),
+        // El expediente del contrato abre en su pestaña Pólizas.
+        linkState: { tab: 'policies' }
       });
     }
   }
@@ -264,10 +267,11 @@ function Timeline({ work, contracts, policies, marks, referenceDate }) {
                   <Link
                     component={RouterLink}
                     to={r.href}
+                    state={r.linkState}
                     underline="hover"
                     variant="body2"
                     noWrap
-                    sx={{ fontWeight: 500, color: 'text.primary' }}
+                    sx={{ fontWeight: r.bold ? 600 : 500, color: 'text.primary' }}
                   >
                     {r.name}
                   </Link>
@@ -290,7 +294,9 @@ function Timeline({ work, contracts, policies, marks, referenceDate }) {
                 ))}
                 {width > 0 && (
                   <Tooltip title={`${r.name} · ${r.from ? fDateOnly(r.from) : 'sin inicio'} → ${r.to ? fDateOnly(r.to) : 'sin fin'}`}>
+                    {/* La barra abre lo mismo que el nombre; el lector de pantalla ya tiene el enlace del nombre. */}
                     <Box
+                      {...(r.href && { component: RouterLink, to: r.href, state: r.linkState, tabIndex: -1, 'aria-hidden': true })}
                       sx={{
                         position: 'absolute',
                         top: 4,
@@ -304,7 +310,9 @@ function Timeline({ work, contracts, policies, marks, referenceDate }) {
                         borderColor: r.tone.border,
                         display: 'flex',
                         alignItems: 'center',
-                        overflow: 'hidden'
+                        overflow: 'hidden',
+                        textDecoration: 'none',
+                        ...(r.href && { cursor: 'pointer', '&:hover': { borderWidth: 2 } })
                       }}
                     >
                       <Typography variant="caption" sx={{ px: 1, whiteSpace: 'nowrap', fontWeight: 500, color: r.tone.fg }}>

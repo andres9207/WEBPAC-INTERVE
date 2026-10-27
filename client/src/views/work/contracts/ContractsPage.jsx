@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -29,6 +29,7 @@ import {
   CONTRACT_POLICY_STATUS_LABELS,
   CONTRACT_STATE_COLORS,
   CONTRACT_STATE_TABS,
+  contractAlertOptions,
   contractPath
 } from 'utils/constants';
 
@@ -40,7 +41,9 @@ import {
 // calcula el servidor (FRONTEND_STANDARD, regla 9). El tipo de contrato va en su propia columna y es uno de los
 // filtros del listado (DEC-048): las pestañas cuentan dentro de los filtros.
 // Desde el tablero llega con el estado de pólizas o "con conceptos sin
-// póliza" (DEC-052): el servidor filtra con el mismo predicado de la cifra.
+// póliza" (DEC-052), o con una alerta (`?alert=EXPIRED`): el servidor filtra
+// con el mismo predicado de la cifra. Las alertas (vencimiento del contrato y
+// de sus pólizas, sin póliza) van en su fila, aparte de las pestañas de estado.
 // Menús dinámicos (DEC-077): la misma pantalla es "Todos" (`/work/contracts`)
 // y el listado de un menú (`/work/contracts/menu/:pvtId`), que muestra solo los
 // contratos firmados bajo ese tipo de proveedor y lo fija al crear.
@@ -106,19 +109,9 @@ export const CONTRACT_COLUMNS = [
   }
 ];
 
-// "Contrato próximo a vencer" (DEC-072): los contratos en ejecución con la fecha fin dentro de los días de aviso de la regla de
-// negocio (30 por defecto, configurable). No es un estado: es parte de "En ejecución", así que no suma a "Todos".
-export const CONTRACT_STATE_FILTER = {
-  param: 'state',
-  tabs: [...CONTRACT_STATE_TABS, { id: 'EXPIRING', name: 'Contrato próximo a vencer', color: 'warning', subset: true }],
-  colors: CONTRACT_STATE_COLORS
-};
-
-// "Pólizas por vencer" (DEC-072): contratos no liquidados con alguna póliza vigente vencida o dentro de los días de
-// aviso de pólizas. Revela datos de pólizas: solo con el permiso de verlas (el servidor responde 403 sin él).
-export const POLICIES_EXPIRING_TAB = { id: 'POLICIES_EXPIRING', name: 'Pólizas por vencer', color: 'error', subset: true };
-// "Contrato sin póliza" (DEC-088): contratos no liquidados ni anulados sin ninguna póliza vigente. También exige verlas.
-export const NO_POLICIES_TAB = { id: 'NO_POLICIES', name: 'Contrato sin póliza', color: 'error', subset: true };
+// Pestañas: solo los estados del ciclo de vida. "Contrato próximo a vencer" (DEC-072), "Contrato vencido", las de pólizas
+// y "Contrato sin póliza" (DEC-088) son alertas (CONTRACT_ALERT_OPTIONS), en su propia fila.
+export const CONTRACT_STATE_FILTER = { param: 'state', tabs: CONTRACT_STATE_TABS, colors: CONTRACT_STATE_COLORS };
 
 const rowLabel = (row) => `${row.number} — ${row.name}`;
 
@@ -233,16 +226,13 @@ export default function ContractsPage() {
     [canViewInvoices, workFilter]
   );
   const linked = useLinkedFilters(LINKED_KEYS, describeLinked);
+  // La alerta con la que llega desde el tablero: se lee una sola vez, como los filtros enlazados.
+  const [searchParams] = useSearchParams();
+  const [initialAlert] = useState(() => searchParams.get('alert') ?? undefined);
   const filters = useMemo(() => (pvtId ? { pvtId, ...linked.filters } : linked.filters), [pvtId, linked.filters]);
   const policiesView = permissionsCatalog.work?.policies?.view;
   const canViewPolicies = policiesView != null && hasPermission(policiesView);
-  const stateTabs = useMemo(
-    () =>
-      canViewPolicies
-        ? { ...CONTRACT_STATE_FILTER, tabs: [...CONTRACT_STATE_FILTER.tabs, POLICIES_EXPIRING_TAB, NO_POLICIES_TAB] }
-        : CONTRACT_STATE_FILTER,
-    [canViewPolicies]
-  );
+  const alerts = useMemo(() => ({ param: 'alert', options: contractAlertOptions(canViewPolicies) }), [canViewPolicies]);
   // Reporte de lo que muestra la tabla, sin paginar (DEC-070).
   const exportOptions = useMemo(
     () => ({
@@ -297,7 +287,9 @@ export default function ContractsPage() {
         defaultSort="number"
         rowLabel={rowLabel}
         navigation={navigation}
-        stateTabs={stateTabs}
+        stateTabs={CONTRACT_STATE_FILTER}
+        alerts={alerts}
+        initialAlert={initialAlert}
         filters={filters}
         initialStatus={linked.initialStatus}
         header={<LinkedFilterNotice label={linked.label} onClear={linked.clear} />}

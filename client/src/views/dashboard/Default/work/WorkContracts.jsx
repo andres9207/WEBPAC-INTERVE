@@ -28,15 +28,15 @@ import { IconChevronDown, IconLayoutGrid, IconList, IconSearch } from '@tabler/i
 
 import MainCard from 'ui-component/cards/MainCard';
 import StatusTabs from 'ui-component/extended/StatusTabs';
+import AlertChips from 'ui-component/extended/AlertChips';
 import { fMoneyText, fPercentText } from 'utils/formatNumber';
 import { fDateOnly } from 'utils/formatTime';
-import { CONTRACT_STATE_COLORS } from 'utils/constants';
-import { CONTRACT_STATE_FILTER, NO_POLICIES_TAB, POLICIES_EXPIRING_TAB } from 'views/work/contracts/ContractsPage';
+import { CONTRACT_STATE_COLORS, CONTRACT_STATE_TABS, contractAlertOptions } from 'utils/constants';
 
 import { ADVANCE_LEVELS, AdvanceBar, AdvanceFilter, AdvanceLegend, matchesAdvanceFilter, matchesAdvanceLegend } from './AdvanceBars';
 import { POLICY_STATUS_COLORS, barPercent, chartAmount, dashboardTo, plural } from './workDashboard.utils';
 
-// Contratos del resumen de la obra (DEC-063): pestañas del listado, búsqueda,
+// Contratos del resumen de la obra (DEC-063): pestañas de estado y alertas del listado, búsqueda,
 // orden y dos vistas (tarjetas y tabla). Cifras, días y niveles llegan del
 // servidor; aquí solo se filtra, se ordena y se dibuja.
 
@@ -358,26 +358,31 @@ ContractsTable.propTypes = { items: PropTypes.arrayOf(PropTypes.object).isRequir
 
 export default function WorkContracts({ contracts }) {
   const [tab, setTab] = useState('all');
+  const [alert, setAlert] = useState('');
   const [advanceFilter, setAdvanceFilter] = useState('');
   const [advanceLegend, setAdvanceLegend] = useState('');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('number');
   const [view, setView] = useState(readView);
 
-  // Las pestañas del listado de contratos, con los conteos del servidor; las de pólizas, si las trae (permiso de verlas).
-  const tabs = [...CONTRACT_STATE_FILTER.tabs, ...(contracts.policies ? [POLICIES_EXPIRING_TAB, NO_POLICIES_TAB] : [])].map((t) => ({
-    ...t,
-    total: contracts.statusCounts[t.id] ?? 0
-  }));
+  // Como en el listado de contratos: pestañas de estado y alertas, combinables; cada una cuenta dentro de la otra. Las
+  // alertas de pólizas, si el servidor las trae (permiso de verlas).
+  const inTab = (c) => tab === 'all' || c.state === tab;
+  const inAlert = (c) => !alert || c.alerts.includes(alert);
+  const tabs = CONTRACT_STATE_TABS.map((t) => ({ ...t, total: contracts.items.filter((c) => c.state === t.id && inAlert(c)).length }));
+  const alertOptions = contractAlertOptions(Boolean(contracts.policies));
+  const alertCounts = Object.fromEntries(
+    alertOptions.map((a) => [a.id, contracts.items.filter((c) => inTab(c) && c.alerts.includes(a.id)).length])
+  );
   const sorts = SORTS.filter((s) => !s.needsProgress || contracts.items.some((c) => c.progress));
   const terms = normalize(search).split(/\s+/).filter(Boolean);
   const matchesSearch = (c) => {
     const text = normalize([c.number, c.name, c.providerName, c.stageName].join(' '));
     return terms.every((term) => text.includes(term));
   };
-  const inTab = (c) => tab === 'all' || c.state === tab || c.listTabs.includes(tab);
   const shown = contracts.items
     .filter(inTab)
+    .filter(inAlert)
     .filter(matchesSearch)
     .filter(matchesAdvanceFilter(advanceFilter))
     .filter(matchesAdvanceLegend(advanceLegend))
@@ -402,6 +407,7 @@ export default function WorkContracts({ contracts }) {
       ) : (
         <Stack spacing={2}>
           <StatusTabs statusTabs={tabs} selectedStatus={tab} onChange={(_e, value) => setTab(value)} />
+          <AlertChips options={alertOptions} counts={alertCounts} value={alert} onChange={setAlert} />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'center' }}>
             <TextField
               size="small"

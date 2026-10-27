@@ -278,26 +278,26 @@ describe("getWorkDashboard", () => {
     expect(contracts.toLiquidate).toEqual({ count: 1, value: "1500.00", ctrIds: [20] });
   });
 
-  it("pestañas del listado de contratos: los predicados del listado, en la obra; las de pólizas, solo con ver pólizas", async () => {
-    const tabQueries = () => prismaMock.tbl_contracts.findMany.mock.calls.map(([args]) => args).filter((args) => args.where.AND);
+  it("alertas del listado de contratos: los predicados del listado, en la obra; las de pólizas, solo con ver pólizas", async () => {
+    const alertQueries = () => prismaMock.tbl_contracts.findMany.mock.calls.map(([args]) => args).filter((args) => args.where.AND);
     prismaMock.tbl_contracts.findMany.mockImplementation(async ({ where }) => {
       if (!where.AND) return [CONTRACT];
-      // Solo el de "Contrato próximo a vencer" (en ejecución) devuelve el contrato.
-      return where.AND[0].ctr_state === "IN_PROGRESS" ? [{ ctr_id: 20 }] : [];
+      // Solo el de "Contrato vencido" (fecha fin antes de hoy) devuelve el contrato.
+      return where.AND[0].ctr_end_date?.lt ? [{ ctr_id: 20 }] : [];
     });
     const { contracts } = await getWorkDashboard({ granted: ALL, scope: OWN });
 
-    expect(tabQueries()).toHaveLength(3);
-    for (const args of tabQueries()) expect(args.where).toMatchObject({ wrk_id: 8, sta_id: { not: 3 } });
-    expect(tabQueries()[0].where.AND[0]).toMatchObject({ ctr_state: "IN_PROGRESS", ctr_end_date: expect.any(Object) });
-    expect(tabQueries()[2].where.AND[0]).toEqual({ ctr_state: { notIn: ["LIQUIDATED", "CANCELLED"] }, tbl_policies: { none: { pol_is_current: true } } });
-    expect(contracts.items[0].listTabs).toEqual(["EXPIRING"]);
-    expect(contracts.statusCounts).toMatchObject({ IN_PROGRESS: 1, SUSPENDED: 0, EXPIRING: 1, POLICIES_EXPIRING: 0, NO_POLICIES: 0 });
+    expect(alertQueries()).toHaveLength(5);
+    for (const args of alertQueries()) expect(args.where).toMatchObject({ wrk_id: 8, sta_id: { not: 3 } });
+    expect(alertQueries()[0].where.AND[0]).toMatchObject({ ctr_state: "IN_PROGRESS", ctr_end_date: { gte: expect.any(Date) } });
+    expect(alertQueries()[1].where.AND[0]).toMatchObject({ ctr_state: "IN_PROGRESS", ctr_end_date: { lt: expect.any(Date) } });
+    expect(alertQueries()[4].where.AND[0]).toEqual({ ctr_state: { notIn: ["LIQUIDATED", "CANCELLED"] }, tbl_policies: { none: { pol_is_current: true } } });
+    expect(contracts.items[0].alerts).toEqual(["EXPIRED"]);
 
     jest.clearAllMocks();
     const without = await getWorkDashboard({ granted: new Set([CONTRACTS]), scope: OWN });
-    expect(tabQueries()).toHaveLength(1);
-    expect(without.contracts.statusCounts).not.toHaveProperty("NO_POLICIES");
+    expect(alertQueries()).toHaveLength(2);
+    expect(without.contracts.items[0].alerts).toEqual(["EXPIRED"]);
   });
 
   it("avance facturado de cada contrato: VALOR de normales y liquidaciones aprobadas sobre la base antes de IVA (I5)", async () => {

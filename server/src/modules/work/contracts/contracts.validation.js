@@ -13,7 +13,7 @@ import {
 } from "../../../common/utils/validation.utils.js";
 import { TERM_UNITS } from "../../../common/utils/term.utils.js";
 import { CONTRACT_POLICY_STATUS } from "./policyTerms.js";
-import { CONTRACT_STATES, EXPIRING_TAB, NO_POLICIES_TAB, POLICIES_EXPIRING_TAB } from "./contractTerms.js";
+import { CONTRACT_ALERTS, CONTRACT_STATES } from "./contractTerms.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). Las reglas de
 // negocio (etapa de la obra, estado que admite el acto, cronología…) viven en
@@ -70,11 +70,10 @@ export const selectContractFilterStagesSchema = [
 export const paginationContractsSchema = [
   ...paginationRules(),
   optionalText("search", 100),
-  // La pestaña: un estado del ciclo de vida, "Contrato próximo a vencer", "Pólizas por vencer" (DEC-072) o "Contrato sin póliza" (DEC-088).
-  body("state")
-    .optional({ values: "falsy" })
-    .isIn([...Object.values(CONTRACT_STATES), EXPIRING_TAB, POLICIES_EXPIRING_TAB, NO_POLICIES_TAB])
-    .withMessage("El estado no es válido."),
+  // La pestaña: un estado del ciclo de vida.
+  body("state").optional({ values: "falsy" }).isIn(Object.values(CONTRACT_STATES)).withMessage("El estado no es válido."),
+  // La alerta, que se combina con la pestaña: vencimiento del contrato (DEC-072) o de sus pólizas, o sin póliza (DEC-088).
+  body("alert").optional({ values: "falsy" }).isIn(Object.values(CONTRACT_ALERTS)).withMessage("La alerta no es válida."),
   optionalId("wrkId"),
   optionalId("wksId"),
   optionalId("cttId"),

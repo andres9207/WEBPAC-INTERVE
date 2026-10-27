@@ -13,6 +13,7 @@ import {
   uncoveredContractsWhere,
 } from "../../work/contracts/policyTerms.js";
 import { contractPolicyStatuses } from "../../work/contracts/contractPolicies.service.js";
+import { expiredContractsWhere } from "../../work/contracts/expirationNotice.service.js";
 import { policyExpiringDays } from "../../admin/businessRules/businessRules.service.js";
 import { INVOICE_STATES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
 import { invoiceScopeWhere } from "../../billing/invoices/invoices.service.js";
@@ -58,14 +59,17 @@ const providersBlock = async (scope) => ({
   }),
 });
 
-const contractsBlock = async (scope) => {
-  const [grouped, toLiquidate] = await Promise.all([
-    prisma.tbl_contracts.groupBy({ by: ["ctr_state"], where: { ...notDeleted, ...scopeWhere(scope) }, _count: { _all: true } }),
+const contractsBlock = async (scope, today) => {
+  const where = { ...notDeleted, ...scopeWhere(scope) };
+  const [grouped, toLiquidate, expired] = await Promise.all([
+    prisma.tbl_contracts.groupBy({ by: ["ctr_state"], where, _count: { _all: true } }),
     finishedWorksToLiquidate(scope),
+    // Alerta "Contrato vencido": el mismo predicado del listado (contractAlerts.js).
+    prisma.tbl_contracts.count({ where: { AND: [where, expiredContractsWhere({ today })] } }),
   ]);
   const counts = Object.fromEntries(grouped.map((g) => [g.ctr_state, g._count._all]));
   const byState = Object.values(CONTRACT_STATES).map((state) => ({ state, name: CONTRACT_STATE_NAMES[state], count: counts[state] ?? 0 }));
-  return { total: byState.reduce((sum, s) => sum + s.count, 0), byState, finishedWorksToLiquidate: toLiquidate };
+  return { total: byState.reduce((sum, s) => sum + s.count, 0), byState, expired, finishedWorksToLiquidate: toLiquidate };
 };
 
 /**
@@ -302,7 +306,7 @@ export const getDashboardSummary = async ({ granted, scope }) => {
   const [works, providers, contracts, policies, invoices, worksActivity] = await Promise.all([
     see.works ? worksBlock(scope) : null,
     see.providers ? providersBlock(scope) : null,
-    see.contracts ? contractsBlock(scope) : null,
+    see.contracts ? contractsBlock(scope, today) : null,
     see.policies ? policiesBlock(scope, { today, days }) : null,
     see.invoices ? invoicesBlock(scope, today) : null,
     see.works && (see.contracts || see.invoices) ? worksActivityBlock(scope, see) : null,

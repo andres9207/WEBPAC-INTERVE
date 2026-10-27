@@ -30,24 +30,36 @@ export const STATE_NAMES = Object.freeze({
 export const TRANSITION_ORIGINS = Object.freeze({ AUTOMATIC: "AUTOMATIC", MANUAL: "MANUAL" });
 
 /**
- * Pestaña "Contrato próximo a vencer" del listado (DEC-072): no es un estado del ciclo de
- * vida, sino los contratos en ejecución que entran en su plazo de aviso. Va
- * en el mismo parámetro que las pestañas de estado (`state`).
+ * Alertas del listado de contratos: no son estados del ciclo de vida, sino
+ * predicados sobre fechas y pólizas (contractAlerts.js). Van en su propio
+ * parámetro (`alert`), que se combina con la pestaña de estado (`state`).
+ *
+ * - EXPIRING: "Contrato próximo a vencer" (DEC-072), en ejecución y dentro de
+ *   los días de aviso.
+ * - EXPIRED: "Contrato vencido", en ejecución con la fecha fin ya pasada.
+ * - POLICIES_EXPIRING: "Pólizas por vencer" (DEC-072), alguna póliza vigente
+ *   por vencer o ya vencida.
+ * - POLICIES_EXPIRED: "Pólizas vencidas", alguna póliza vigente ya vencida.
+ * - NO_POLICIES: "Contrato sin póliza" (DEC-088), sin ninguna póliza vigente.
  */
-export const EXPIRING_TAB = "EXPIRING";
+export const CONTRACT_ALERTS = Object.freeze({
+  EXPIRING: "EXPIRING",
+  EXPIRED: "EXPIRED",
+  POLICIES_EXPIRING: "POLICIES_EXPIRING",
+  POLICIES_EXPIRED: "POLICIES_EXPIRED",
+  NO_POLICIES: "NO_POLICIES",
+});
 
-/**
- * Pestaña "Pólizas por vencer" (DEC-072): contratos no liquidados con alguna
- * póliza vigente por vencer o ya vencida. Revela datos de pólizas: exige
- * poder verlas.
- */
-export const POLICIES_EXPIRING_TAB = "POLICIES_EXPIRING";
+export const CONTRACT_ALERT_NAMES = Object.freeze({
+  EXPIRING: "Contrato próximo a vencer",
+  EXPIRED: "Contrato vencido",
+  POLICIES_EXPIRING: "Pólizas por vencer o vencidas",
+  POLICIES_EXPIRED: "Pólizas vencidas",
+  NO_POLICIES: "Contrato sin póliza",
+});
 
-/**
- * Pestaña "Contrato sin póliza" (DEC-088): contratos no liquidados ni anulados
- * sin ninguna póliza vigente. Exige poder ver pólizas.
- */
-export const NO_POLICIES_TAB = "NO_POLICIES";
+/** Alertas que revelan datos de pólizas: exigen poder verlas. */
+export const POLICY_ALERTS = Object.freeze([CONTRACT_ALERTS.POLICIES_EXPIRING, CONTRACT_ALERTS.POLICIES_EXPIRED, CONTRACT_ALERTS.NO_POLICIES]);
 
 const { IN_PROGRESS, SUSPENDED, IN_LIQUIDATION, LIQUIDATED, CANCELLED } = CONTRACT_STATES;
 

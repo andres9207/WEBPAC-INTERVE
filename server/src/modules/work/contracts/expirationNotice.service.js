@@ -49,6 +49,17 @@ export const expiringContractsWhere = ({ today, days }) => ({
   ctr_end_date: { gte: today, lte: addDays(today, days) },
 });
 
+/**
+ * Contrato vencido: en ejecución y con la fecha fin anterior a hoy. Es el
+ * complemento de "a vencer"; el suspendido tiene la fecha fin provisional y
+ * en liquidación ya terminó la ejecución. Alerta "Contrato vencido" del
+ * listado de contratos y de los tableros.
+ */
+export const expiredContractsWhere = ({ today }) => ({
+  ctr_state: CONTRACT_STATES.IN_PROGRESS,
+  ctr_end_date: { lt: today },
+});
+
 /** Contratos en ejecución cuya fecha fin está entre hoy y hoy + días. */
 export const findExpiringContracts = ({ today, days }) =>
   prisma.tbl_contracts.findMany({
@@ -75,6 +86,16 @@ export const expiringPoliciesWhere = ({ today, days }) => ({
 export const contractsWithExpiringPoliciesWhere = ({ today, days }) => ({
   ctr_state: { notIn: CLOSED_STATES },
   tbl_policies: { some: expiringPoliciesWhere({ today, days }) },
+});
+
+/**
+ * Contratos con alguna póliza vigente ya vencida (fin de vigencia anterior a
+ * hoy), salvo los liquidados y los anulados. Es un subconjunto de los de
+ * póliza por vencer o vencida: alerta "Pólizas vencidas" del listado.
+ */
+export const contractsWithExpiredPoliciesWhere = ({ today }) => ({
+  ctr_state: { notIn: CLOSED_STATES },
+  tbl_policies: { some: { pol_is_current: true, pol_end_date: { lt: today } } },
 });
 
 /** Pólizas vigentes ya vencidas o cuyo fin de vigencia llega a hoy + días. */

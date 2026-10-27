@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-10-27 · **Tipo:** Obligatoria · **ADR:** [0018](../adr/0018-polizas.md), [0002](../adr/0002-dashboard.md)
 
+> Desde [DEC-089](DEC-089-alertas-listado-contratos.md), "Contrato sin póliza" es una alerta (`alert=NO_POLICIES`), no una pestaña; el predicado no cambia.
+
 Pedido por el usuario el 2026-10-27, junto con el cambio de nombre de la pestaña "A vencer" a "Contrato próximo a vencer" (DEC-072).
 
 ## Contexto

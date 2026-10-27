@@ -169,6 +169,22 @@ describe("contracts.controller", () => {
     expect(emit).toHaveBeenCalledWith("refresh-contracts", {});
   });
 
+  it("saveContract pasa al service las pólizas de la creación (DEC-050), solo con sus campos", async () => {
+    contractsServiceMock.saveContract.mockResolvedValue({ ctrId: 30 });
+    const policy = { pltId: 2, insId: 4, number: "POL-1", percentage: "10", startDate: "2026-02-01", endDate: "2027-02-01", observation: null };
+    const req = mockReq(
+      {
+        user: { useId: 7, proId: 2 },
+        body: { ctrId: 0, wrkId: 8, number: "C-1", initialConcept: { directCost: "100" }, policies: [{ ...policy, polId: 99, pol_is_current: false }] },
+      },
+      { "Idempotency-Key": KEY }
+    );
+
+    await saveContractController(req, buildRes(), jest.fn());
+
+    expect(contractsServiceMock.saveContract.mock.calls[0][0].input.policies).toEqual([policy]);
+  });
+
   it("createAmendment no pasa un número de otrosí ni un tipo del cliente", async () => {
     conceptsServiceMock.createAmendment.mockResolvedValue({ ccpId: 1 });
     const req = mockReq({ user: { useId: 7 }, body: { ctrId: 30, number: 99, type: "LIQUIDATION", extension: 2, directCost: "10" } }, { "Idempotency-Key": KEY });

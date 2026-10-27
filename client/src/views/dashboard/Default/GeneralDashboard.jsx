@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography';
 import {
   IconAlertTriangle,
   IconBuildingCommunity,
+  IconCalendarX,
   IconChecklist,
   IconClockHour4,
   IconFilePlus,
@@ -194,6 +195,15 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
       }
     }
     if (s.contracts) {
+      list.push({
+        key: 'expired-contracts',
+        count: s.contracts.expired,
+        label: 'contrato(s) vencido(s)',
+        hint: 'En ejecución con la fecha fin ya pasada',
+        icon: IconCalendarX,
+        tone: ACTION_TONES.danger,
+        to: '/work/contracts?alert=EXPIRED'
+      });
       list.push({
         key: 'suspended',
         count: countOf(s.contracts.byState, 'state', 'SUSPENDED'),
