@@ -2694,9 +2694,9 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/InvoiceFormPage.jsx": {
-    "mtime": 1793129950.3255067,
-    "seen": 1793131673.4158251,
-    "ast_hash": "91c532548bc259015c289e77572b62e1",
+    "mtime": 1793132328.5495715,
+    "seen": 1793132442.3323123,
+    "ast_hash": "259a48d49a628b5511ccd5704f71515f",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/InvoicesPage.jsx": {
@@ -3462,9 +3462,9 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/InvoiceDetailPanel.jsx": {
-    "mtime": 1792082912.6670055,
-    "seen": 1792090592.4413025,
-    "ast_hash": "bebc65e64107f04e89f879e7cc1a0fc2",
+    "mtime": 1793132328.5505366,
+    "seen": 1793132442.3323236,
+    "ast_hash": "b393d5d03c2418d9120bec6a8249b1f7",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/SimpleAmountsSection.jsx": {
