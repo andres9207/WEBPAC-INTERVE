@@ -116,9 +116,9 @@ export const CONTRACT_STATE_FILTER = {
 
 // "Pólizas por vencer" (DEC-072): contratos no liquidados con alguna póliza vigente vencida o dentro de los días de
 // aviso de pólizas. Revela datos de pólizas: solo con el permiso de verlas (el servidor responde 403 sin él).
-const POLICIES_EXPIRING_TAB = { id: 'POLICIES_EXPIRING', name: 'Pólizas por vencer', color: 'error', subset: true };
+export const POLICIES_EXPIRING_TAB = { id: 'POLICIES_EXPIRING', name: 'Pólizas por vencer', color: 'error', subset: true };
 // "Contrato sin póliza" (DEC-088): contratos no liquidados ni anulados sin ninguna póliza vigente. También exige verlas.
-const NO_POLICIES_TAB = { id: 'NO_POLICIES', name: 'Contrato sin póliza', color: 'error', subset: true };
+export const NO_POLICIES_TAB = { id: 'NO_POLICIES', name: 'Contrato sin póliza', color: 'error', subset: true };
 
 const rowLabel = (row) => `${row.number} — ${row.name}`;
 

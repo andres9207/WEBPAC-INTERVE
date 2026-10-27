@@ -11,7 +11,7 @@
 
 Se validaron B5 (manda el peor estado), B6 (umbral `POLICY_EXPIRING_DAYS`) y B7 (cuentan las facturas registradas y aprobadas). Faltan:
 
-- el costo de obra ejecutado y el estado de costos: esperan los importes de la factura simple y la composición (DEC-01 a DEC-03);
+- el costo de obra ejecutado y el estado de costos en el tablero general ("Ver todo"). En el de la obra existen desde el 2026-10-27 ([DEC-063](../decisiones/DEC-063-tablero-obra.md), "Analítica"): facturas aprobadas de todos los tipos, por menú, frente al valor vigente de la obra;
 - medir con un volumen representativo (fase 5);
 - **el logo de la marca**: el área usuaria lo va a entregar; mientras tanto se mantiene el de Berry;
 - el tema oscuro: no existe en el proyecto, y el tablero se verificó solo en el claro.

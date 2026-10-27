@@ -278,6 +278,50 @@ describe("getWorkDashboard", () => {
     expect(contracts.toLiquidate).toEqual({ count: 1, value: "1500.00", ctrIds: [20] });
   });
 
+  it("pestañas del listado de contratos: los predicados del listado, en la obra; las de pólizas, solo con ver pólizas", async () => {
+    const tabQueries = () => prismaMock.tbl_contracts.findMany.mock.calls.map(([args]) => args).filter((args) => args.where.AND);
+    prismaMock.tbl_contracts.findMany.mockImplementation(async ({ where }) => {
+      if (!where.AND) return [CONTRACT];
+      // Solo el de "Contrato próximo a vencer" (en ejecución) devuelve el contrato.
+      return where.AND[0].ctr_state === "IN_PROGRESS" ? [{ ctr_id: 20 }] : [];
+    });
+    const { contracts } = await getWorkDashboard({ granted: ALL, scope: OWN });
+
+    expect(tabQueries()).toHaveLength(3);
+    for (const args of tabQueries()) expect(args.where).toMatchObject({ wrk_id: 8, sta_id: { not: 3 } });
+    expect(tabQueries()[0].where.AND[0]).toMatchObject({ ctr_state: "IN_PROGRESS", ctr_end_date: expect.any(Object) });
+    expect(tabQueries()[2].where.AND[0]).toEqual({ ctr_state: { notIn: ["LIQUIDATED", "CANCELLED"] }, tbl_policies: { none: { pol_is_current: true } } });
+    expect(contracts.items[0].listTabs).toEqual(["EXPIRING"]);
+    expect(contracts.statusCounts).toMatchObject({ IN_PROGRESS: 1, SUSPENDED: 0, EXPIRING: 1, POLICIES_EXPIRING: 0, NO_POLICIES: 0 });
+
+    jest.clearAllMocks();
+    const without = await getWorkDashboard({ granted: new Set([CONTRACTS]), scope: OWN });
+    expect(tabQueries()).toHaveLength(1);
+    expect(without.contracts.statusCounts).not.toHaveProperty("NO_POLICIES");
+  });
+
+  it("avance facturado de cada contrato: VALOR de normales y liquidaciones aprobadas sobre la base antes de IVA (I5)", async () => {
+    prismaMock.tbl_invoices.findMany.mockImplementation(async ({ take }) =>
+      take
+        ? []
+        : [
+            // El anticipo no avanza: se amortiza dentro de las normales.
+            invoice(),
+            invoice({ inv_id: 2, inv_type: "NORMAL", tbl_invoice_advance_details: null, tbl_invoice_liquidation_details: { ild_value: "300.00" } }),
+            // Por aprobar: no cuenta.
+            invoice({ inv_id: 3, inv_type: "NORMAL", inv_state: "REGISTERED", tbl_invoice_advance_details: null, tbl_invoice_liquidation_details: { ild_value: "900.00" } }),
+          ]
+    );
+    const { contracts } = await getWorkDashboard({ granted: ALL, scope: OWN });
+    const [item] = contracts.items;
+    expect(item.currentBase).toBe("1500.00");
+    expect(item.progress).toEqual({ value: "300.00", pct: "20.00", level: "LOW" });
+    expect(typeof item.remainingDays).toBe("number");
+
+    const without = await getWorkDashboard({ granted: new Set([CONTRACTS]), scope: OWN });
+    expect(without.contracts.items[0].progress).toBeNull();
+  });
+
   it("el estado de pólizas exige ver contratos y pólizas", async () => {
     const { contracts } = await getWorkDashboard({ granted: new Set([CONTRACTS]), scope: OWN });
     expect(contracts.items[0].policies).toBeNull();
@@ -332,6 +376,51 @@ describe("getWorkDashboard", () => {
       expect.objectContaining({ invId: 2, type: "SIMPLE", state: "REGISTERED", ctrId: null, value: null }),
       expect.objectContaining({ invId: 3, type: "LIQUIDATION", state: "REGISTERED", ctrId: 20, value: "60.00" }),
     ]);
+  });
+
+  it("costo ejecutado (ADR-0002): solo las aprobadas, de todos los tipos, por menú y de mayor a menor", async () => {
+    prismaMock.tbl_invoices.findMany.mockImplementation(async ({ take }) =>
+      take
+        ? []
+        : [
+            invoice(),
+            invoice({ inv_id: 2, inv_type: "RETENTION_REFUND", tbl_invoice_advance_details: null, tbl_invoice_retention_refund_details: { irr_value: "10.00" } }),
+            invoice({
+              inv_id: 3,
+              pvt_id: 1,
+              tbl_provider_types: { pvt_name: "Simple" },
+              inv_type: "SIMPLE",
+              ctr_id: null,
+              tbl_contracts: null,
+              tbl_invoice_advance_details: null,
+              tbl_invoice_simple_details: { isd_value: "100.00", isd_vat_pct: "0.00" },
+            }),
+            invoice({ inv_id: 4, pvt_id: 1, tbl_provider_types: { pvt_name: "Simple" }, inv_type: "SIMPLE", ctr_id: null, tbl_contracts: null, tbl_invoice_advance_details: null }),
+            // Por aprobar: no es costo ejecutado.
+            invoice({ inv_id: 5, inv_state: "REGISTERED", tbl_invoice_advance_details: { iad_value: "999.00" } }),
+          ]
+    );
+    const { invoices } = await getWorkDashboard({ granted: ALL, scope: OWN });
+    expect(invoices.executed).toEqual({
+      value: "150.00",
+      count: 4,
+      byMenu: [
+        // La simple sin importes cuenta en la cantidad, no en el valor.
+        { pvtId: 1, name: "Simple", count: 2, unpriced: 1, value: "100.00", pct: "66.67" },
+        { pvtId: 3, name: "Contrato mayor", count: 2, unpriced: 0, value: "50.00", pct: "33.33" },
+      ],
+      // Contra el valor vigente de la obra (3000).
+      status: { budget: "3000.00", pending: "2850.00", exceeded: "0.00", executedPct: "5.00", pendingPct: "95.00" },
+    });
+  });
+
+  it("estado de costos: lo que pasa del valor vigente va en excedido; sin ver la obra, no hay estado", async () => {
+    prismaMock.tbl_invoices.findMany.mockImplementation(async ({ take }) => (take ? [] : [invoice({ tbl_invoice_advance_details: { iad_value: "3500.00" } })]));
+    const { invoices } = await getWorkDashboard({ granted: ALL, scope: OWN });
+    expect(invoices.executed.status).toEqual({ budget: "3000.00", pending: "0.00", exceeded: "500.00", executedPct: "116.67", pendingPct: "0.00" });
+
+    const without = await getWorkDashboard({ granted: new Set([INVOICES]), scope: OWN });
+    expect(without.invoices.executed).toMatchObject({ value: "3500.00", status: null });
   });
 
   it("sin ver contratos, lo facturado no se compara con lo contratado", async () => {

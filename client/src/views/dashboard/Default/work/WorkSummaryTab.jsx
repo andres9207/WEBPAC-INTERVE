@@ -1,11 +1,8 @@
-import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Link as RouterLink } from 'react-router-dom';
 
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import CardActionArea from '@mui/material/CardActionArea';
 import Chip from '@mui/material/Chip';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -35,12 +32,13 @@ import { ACTION_TONES } from 'ui-component/extended/ActionButton';
 import { gridSpacing } from 'store/constant';
 import { fMoneyText, fPercentText } from 'utils/formatNumber';
 import { fDateOnly } from 'utils/formatTime';
-import { CONTRACT_STATE_COLORS, INVOICE_STATE_COLORS, STATUS, fTerm } from 'utils/constants';
+import { INVOICE_STATE_COLORS, STATUS, fTerm } from 'utils/constants';
 
 import DashboardCards from '../components/DashboardCards';
-import { AdvanceBar, AdvanceFilter, AdvanceLegend, matchesAdvanceFilter, matchesAdvanceLegend } from './AdvanceBars';
 import { contractRows, daysOpenText, followUpsDrill, invoiceRows, useDrillDown } from './DrillDownDialog';
-import { MANAGER_ROLE_NAMES, POLICY_STATUS_COLORS, barPercent, dashboardTo, initialsOf, plural } from './workDashboard.utils';
+import { MANAGER_ROLE_NAMES, barPercent, dashboardTo, initialsOf, plural } from './workDashboard.utils';
+import WorkContracts from './WorkContracts';
+import WorkCosts from './WorkCosts';
 
 // Resumen de la obra (DEC-063): encabezado con el avance del plazo, cifras,
 // contratos con sus saldos, lo que hay por atender, etapas, facturas y
@@ -188,90 +186,6 @@ function WorkHero({ work, referenceDate }) {
 }
 
 WorkHero.propTypes = { work: PropTypes.object.isRequired, referenceDate: PropTypes.string };
-
-/** Tarjeta de un contrato: valor vigente, anticipo, retenido y pólizas. */
-function ContractCard({ contract }) {
-  const policies = contract.policies;
-  // La póliza de mayor exposición, que decide la categoría (DEC-064).
-  const deciding = policies?.deciding;
-  const policyHint = [
-    deciding &&
-      deciding.endDate &&
-      `${deciding.number} ${deciding.validity === 'EXPIRED' ? 'venció' : 'vence'} el ${fDateOnly(deciding.endDate)}`,
-    policies?.uncovered.length > 0 && `${policies.uncovered.map((c) => c.label).join(', ')} sin póliza`
-  ]
-    .filter(Boolean)
-    .join(' · ');
-  const hasAdvance = contract.advance.agreed !== '0.00';
-  return (
-    <Card variant="outlined" sx={{ height: '100%', borderRadius: 1.5 }}>
-      <CardActionArea
-        component={RouterLink}
-        to={dashboardTo.contract(contract.ctrId)}
-        sx={{ height: '100%', p: 2, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 1.5 }}
-      >
-        <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="flex-start">
-          <Stack sx={{ minWidth: 0 }}>
-            <Typography variant="subtitle1">
-              {contract.number} · {contract.name}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {[contract.providerName, contract.stageName].filter(Boolean).join(' · ')}
-            </Typography>
-          </Stack>
-          <Chip size="small" label={contract.stateName} color={CONTRACT_STATE_COLORS[contract.state]} variant="outlined" />
-        </Stack>
-        <Stack>
-          <Typography variant="caption" color="text.secondary">
-            Valor vigente
-          </Typography>
-          <Typography variant="h3" component="p" sx={num}>
-            {fMoneyText(contract.currentValue)}
-          </Typography>
-        </Stack>
-        {/* Las barras de anticipo del tablero (DEC-079): facturado frente al pactado y amortizado frente al facturado. */}
-        {hasAdvance && (
-          <Stack spacing={0.75}>
-            <Stack direction="row" justifyContent="space-between" spacing={1}>
-              <Typography variant="body2">Anticipo</Typography>
-              <Typography variant="body2" sx={num}>
-                Pactado {fMoneyText(contract.advance.agreed)}
-              </Typography>
-            </Stack>
-            <AdvanceBar label="Facturado" bar={contract.advance.bars.invoiced} />
-            <AdvanceBar label="Amortizado" bar={contract.advance.bars.amortized} />
-            {contract.advance.toAmortize !== '0.00' && (
-              <Typography variant="caption" color="text.secondary">
-                Por amortizar: {fMoneyText(contract.advance.toAmortize)}
-              </Typography>
-            )}
-          </Stack>
-        )}
-        {contract.retention.balance !== '0.00' && (
-          <Stack direction="row" justifyContent="space-between" spacing={1} sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}>
-            <Typography variant="body2">Retenido por devolver</Typography>
-            <Typography variant="body2" sx={{ ...num, fontWeight: 600 }}>
-              {fMoneyText(contract.retention.balance)}
-            </Typography>
-          </Stack>
-        )}
-        {policies && (
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-            <Typography variant="body2">Pólizas:</Typography>
-            <Chip size="small" label={policies.statusName} color={POLICY_STATUS_COLORS[policies.status]} variant="outlined" />
-            {policyHint && (
-              <Typography variant="caption" color="text.secondary">
-                {policyHint}
-              </Typography>
-            )}
-          </Stack>
-        )}
-      </CardActionArea>
-    </Card>
-  );
-}
-
-ContractCard.propTypes = { contract: PropTypes.object.isRequired };
 
 /**
  * Lo que hay por atender en la obra, armado con las cifras del servidor. Cada
@@ -607,9 +521,6 @@ ProvidersCard.propTypes = { providers: PropTypes.arrayOf(PropTypes.object).isReq
 export default function WorkSummaryTab({ data, workLabel }) {
   const { work, contracts, invoices, providers } = data;
   const { openDrill, dialog } = useDrillDown();
-  const [advanceFilter, setAdvanceFilter] = useState('');
-  const [advanceLegend, setAdvanceLegend] = useState('');
-  const shownContracts = contracts?.items.filter(matchesAdvanceFilter(advanceFilter)).filter(matchesAdvanceLegend(advanceLegend)) ?? [];
 
   const kpis = [];
   if (work) {
@@ -697,31 +608,13 @@ export default function WorkSummaryTab({ data, workLabel }) {
 
       <DashboardCards items={kpis} />
 
+      {invoices && <WorkCosts invoices={invoices} onDrill={openDrill} />}
+
       {(contracts || invoices) && (
         <Grid container spacing={gridSpacing}>
           {contracts && (
             <Grid size={{ xs: 12, lg: 8 }}>
-              <MainCard
-                title="Contratos de la obra"
-                secondary={contracts.items.length > 0 && <AdvanceFilter value={advanceFilter} onChange={setAdvanceFilter} />}
-                sx={{ height: '100%' }}
-              >
-                {contracts.items.length === 0 ? (
-                  <Empty>La obra todavía no tiene contratos.</Empty>
-                ) : (
-                  <Stack spacing={2}>
-                    {contracts.items.some((c) => c.advance.agreed !== '0.00') && (
-                      <AdvanceLegend value={advanceLegend} onChange={setAdvanceLegend} />
-                    )}
-                    {shownContracts.length === 0 && <Empty>Ningún contrato cumple el filtro.</Empty>}
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-                      {shownContracts.map((c) => (
-                        <ContractCard key={c.ctrId} contract={c} />
-                      ))}
-                    </Box>
-                  </Stack>
-                )}
-              </MainCard>
+              <WorkContracts contracts={contracts} />
             </Grid>
           )}
           <Grid size={{ xs: 12, lg: contracts ? 4 : 12 }}>
@@ -748,12 +641,6 @@ export default function WorkSummaryTab({ data, workLabel }) {
         )}
       </Grid>
 
-      {invoices && (
-        <Typography variant="caption" color="text.secondary">
-          La factura simple todavía no tiene importes (decisiones contables pendientes): cuenta en las cantidades, no en los valores. El
-          costo ejecutado de la obra llega con ella.
-        </Typography>
-      )}
       {dialog}
     </Stack>
   );

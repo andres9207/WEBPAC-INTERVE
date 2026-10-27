@@ -24,7 +24,7 @@ const num = { fontVariantNumeric: 'tabular-nums' };
 // Nivel de una barra de anticipo (lo decide el servidor por su porcentaje con lo por aprobar): color y nombre.
 // El nombre y la cifra van en texto junto a la barra: el amarillo y el verde no llegan a 3:1 sobre el fondo
 // (DESIGN_SYSTEM, "Gráficos"), así que el color no es la única señal.
-const ADVANCE_LEVELS = {
+export const ADVANCE_LEVELS = {
   LOW: { color: 'primary.800', name: 'Menos de 50 %' },
   MEDIUM: { color: 'warning.dark', name: '50 % a 80 %' },
   HIGH: { color: 'success.dark', name: '80 % a 100 %' },

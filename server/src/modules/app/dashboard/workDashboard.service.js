@@ -21,12 +21,16 @@ import {
   POLICY_VALIDITY,
   POLICY_VALIDITY_NAMES,
   contractPolicyStatus,
+  contractsWithoutPoliciesWhere,
   decidingPolicy,
   policyValidity,
   uncoveredConcepts,
 } from "../../work/contracts/policyTerms.js";
 import { INVOICE_STATES, INVOICE_TYPES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
-import { policyExpiringDays } from "../../admin/businessRules/businessRules.service.js";
+import { getRuleValues } from "../../admin/businessRules/businessRules.service.js";
+import { BUSINESS_RULES } from "../../admin/businessRules/businessRules.constants.js";
+import { contractsWithExpiringPoliciesWhere, expiringContractsWhere } from "../../work/contracts/expirationNotice.service.js";
+import { EXPIRING_TAB, NO_POLICIES_TAB, POLICIES_EXPIRING_TAB } from "../../work/contracts/contractTerms.js";
 import { contractBalances } from "../../billing/invoices/invoices.service.js";
 import { openFollowUpsSummary } from "../../billing/invoices/invoiceFollowUps.service.js";
 import { composeSimpleInvoice } from "../../billing/invoices/simpleInvoiceTerms.js";
@@ -286,7 +290,28 @@ const pendingAdvances = async (wrkId) => {
  * anticipo y de retenido y, si el usuario ve pólizas, su estado de pólizas.
  * Totales de la obra y conteo por estado del ciclo de vida.
  */
-const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue }) => {
+/**
+ * Pestañas del listado de contratos que no son un estado (DEC-072, DEC-088):
+ * los contratos de la obra que cumplen cada una, con el mismo predicado del
+ * listado. Las de pólizas, solo si el usuario las ve. [[pestaña, Set ctr_id]].
+ */
+const listTabsOf = async (wrkId, { withPolicies, today, contractDays, policyDays }) => {
+  const tabs = [
+    [EXPIRING_TAB, expiringContractsWhere({ today, days: contractDays })],
+    ...(withPolicies
+      ? [
+          [POLICIES_EXPIRING_TAB, contractsWithExpiringPoliciesWhere({ today, days: policyDays })],
+          [NO_POLICIES_TAB, contractsWithoutPoliciesWhere()],
+        ]
+      : []),
+  ];
+  const ids = await Promise.all(
+    tabs.map(([, where]) => prisma.tbl_contracts.findMany({ where: { wrk_id: wrkId, ...notDeleted, AND: [where] }, select: { ctr_id: true } }))
+  );
+  return tabs.map(([tab], i) => [tab, new Set(ids[i].map((row) => row.ctr_id))]);
+};
+
+const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue, contractDays }) => {
   const rows = await prisma.tbl_contracts.findMany({
     where: { wrk_id: wrkId, ...notDeleted },
     select: {
@@ -329,6 +354,7 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
   // contrato por consulta, pocas por obra.
   const balances = await Promise.all(rows.map((row) => contractBalances(prisma, row.ctr_id)));
   const pending = await pendingAdvances(wrkId);
+  const listTabs = await listTabsOf(wrkId, { withPolicies, today: policyOptions.today, contractDays, policyDays: policyOptions.days });
 
   const items = rows.map((row, i) => {
     const totals = contractTotals(row.tbl_contract_concepts);
@@ -346,7 +372,15 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
       startDate: dateOnlyText(row.ctr_start_date),
       endDate: dateOnlyText(row.ctr_end_date),
       endDateProvisional: isEndDateProvisional(row.ctr_state),
+      // Pestañas del listado, aparte del estado, en las que está el contrato.
+      listTabs: listTabs.filter(([, ids]) => ids.has(row.ctr_id)).map(([tab]) => tab),
       currentValue: moneyText(totals.value),
+      // Base vigente antes de IVA: contra ella se mide el avance facturado (I5, DEC-071).
+      currentBase: moneyText(totals.base),
+      // Días que faltan para la fecha fin; negativos si ya pasó.
+      remainingDays: row.ctr_end_date ? daysBetween(policyOptions.today, toDateOnly(dateOnlyText(row.ctr_end_date))) : null,
+      // Avance facturado: lo pone getWorkDashboard si el usuario ve facturas.
+      progress: null,
       ...balancesOf(balances[i], pending.get(row.ctr_id)),
       policies: withPolicies ? contractPolicies(sortConcepts(row.tbl_contract_concepts), own, policyOptions, conceptLabels) : null,
       _value: totals.value,
@@ -383,6 +417,11 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue })
     // Contratos con retenido por devolver (alerta de la obra).
     withRetentionBalance: items.filter((c) => c._balances.retention.balance.gt(0)).map((c) => ({ ctrId: c.ctrId, number: c.number, balance: c.retention.balance, stateName: c.stateName })),
     byState,
+    // Conteos de las pestañas del listado de contratos: por estado y las que no son un estado.
+    statusCounts: {
+      ...Object.fromEntries(byState.map((s) => [s.state, s.count])),
+      ...Object.fromEntries(listTabs.map(([tab, ids]) => [tab, ids.size])),
+    },
     items: items.map(({ _value, _balances, ...dto }) => dto),
     // Pólizas vigentes de la obra, de la más urgente a la que menos (línea de tiempo, alertas y pestaña Pólizas).
     policies: withPolicies ? policies.map((p) => policyDto(p, policyOptions, conceptLabels)).sort(byUrgency) : null,
@@ -446,7 +485,46 @@ const monthKeys = (today) =>
     return d.toISOString().slice(0, 7);
   });
 
+// Las que avanzan sobre el contrato (I5): sin el anticipo, que se amortiza dentro de ellas, ni la devolución.
+const PROGRESS_TYPES = [INVOICE_TYPES.NORMAL, INVOICE_TYPES.LIQUIDATION];
+
 const TYPE_ORDER = [INVOICE_TYPES.ADVANCE, INVOICE_TYPES.NORMAL, INVOICE_TYPES.LIQUIDATION, INVOICE_TYPES.RETENTION_REFUND, INVOICE_TYPES.SIMPLE];
+
+/**
+ * Costo ejecutado de la obra (ADR-0002): las facturas aprobadas de los cinco
+ * tipos, con el valor de `invoiceValue`, por menú (tipo de proveedor de la
+ * factura, DEC-074), de mayor a menor. `unpriced`: simples aprobadas sin
+ * importes (anteriores a DEC-065), que no suman.
+ */
+const executedBlock = (approved) => {
+  const value = sumMoney(approved.map(invoiceValue));
+  const menus = new Map();
+  for (const row of approved) {
+    const entry = menus.get(row.pvt_id) ?? { pvtId: row.pvt_id, name: row.tbl_provider_types?.pvt_name ?? null, rows: [] };
+    entry.rows.push(row);
+    menus.set(row.pvt_id, entry);
+  }
+  const byMenu = [...menus.values()]
+    .map(({ rows, ...entry }) => ({ ...entry, count: rows.length, unpriced: rows.filter((r) => invoiceValue(r) === null).length, value: sumMoney(rows.map(invoiceValue)) }))
+    .sort((a, b) => b.value.comparedTo(a.value) || String(a.name).localeCompare(String(b.name), "es"))
+    .map((entry) => ({ ...entry, value: moneyText(entry.value), pct: pct(entry.value, value) }));
+  return { value: moneyText(value), count: approved.length, byMenu, status: null };
+};
+
+/**
+ * Estado de costos: lo ejecutado frente al valor vigente de la obra. Lo
+ * pendiente no baja de 0; lo que pasa del valor vigente va en `exceeded`.
+ */
+const costStatus = (executed, budget) => {
+  const rest = budget.minus(executed);
+  return {
+    budget: moneyText(budget),
+    pending: moneyText(rest.gt(0) ? rest : ZERO_MONEY),
+    exceeded: moneyText(rest.lt(0) ? rest.negated() : ZERO_MONEY),
+    executedPct: pct(executed, budget),
+    pendingPct: pct(rest.gt(0) ? rest : ZERO_MONEY, budget),
+  };
+};
 
 /**
  * Facturas de la obra, de todos los menús: aprobadas y por aprobar, últimas
@@ -498,6 +576,10 @@ const invoicesBlock = async (wrkId, today) => {
     number: entry.number,
     total: moneyText(sum(entry.rows)),
     pending: moneyText(sum(entry.rows.filter((r) => r.inv_state === INVOICE_STATES.REGISTERED))),
+    // VALOR de las normales y las liquidaciones aprobadas: lo que suma I5 (DEC-071).
+    progressValue: moneyText(
+      sum(entry.rows.filter((r) => r.inv_state === INVOICE_STATES.APPROVED && PROGRESS_TYPES.includes(r.inv_type)))
+    ),
     byType: TYPE_ORDER.map((type) => {
       const own = entry.rows.filter((r) => r.inv_type === type);
       return { type, name: INVOICE_TYPE_NAMES[type], count: own.length, value: moneyText(sum(own)) };
@@ -513,6 +595,7 @@ const invoicesBlock = async (wrkId, today) => {
   }
   const pendingByMenu = [...menus.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), "es"));
   return {
+    executed: executedBlock(approved),
     approvedCount: approved.length,
     approvedValue: moneyText(sum(approved)),
     pendingCount: pending.length,
@@ -565,7 +648,9 @@ const providersBlock = async (wrkId) => {
 /** Tablero de la obra del alcance para el usuario (`granted`: permisos efectivos). */
 export const getWorkDashboard = async ({ granted, scope }) => {
   const today = todayDateOnly();
-  const days = await policyExpiringDays();
+  // Días de aviso (DEC-072): los de pólizas para su vigencia y los de contratos para "Contrato próximo a vencer".
+  const rules = await getRuleValues();
+  const days = rules[BUSINESS_RULES.POLICY_EXPIRING_DAYS];
   const base = { referenceDate: dateOnlyText(today), expiringDays: days };
   const wrkId = !scope?.all && scope?.wrkId ? Number(scope.wrkId) : null;
   if (!wrkId) return { ...base, wrkId: null, work: null, contracts: null, invoices: null, providers: null };
@@ -583,7 +668,12 @@ export const getWorkDashboard = async ({ granted, scope }) => {
   const work = see.works ? await workBlock(wrkId, today) : null;
   const [contracts, invoices, providers] = await Promise.all([
     see.contracts
-      ? contractsBlock(wrkId, { withPolicies: see.policies, policyOptions: { today, days }, workValue: work ? decimal(work.currentValue) : null })
+      ? contractsBlock(wrkId, {
+          withPolicies: see.policies,
+          policyOptions: { today, days },
+          workValue: work ? decimal(work.currentValue) : null,
+          contractDays: rules[BUSINESS_RULES.CONTRACT_EXPIRING_DAYS],
+        })
       : null,
     see.invoices ? invoicesBlock(wrkId, today) : null,
     see.providers ? providersBlock(wrkId) : null,
@@ -591,6 +681,16 @@ export const getWorkDashboard = async ({ granted, scope }) => {
 
   // Lo facturado aprobado frente a lo contratado: solo si el usuario ve los dos.
   if (invoices) invoices.approvedPct = contracts ? pct(invoices.approvedValue, contracts.contracted) : null;
+  // Avance facturado de cada contrato, solo si el usuario ve facturas.
+  if (invoices && contracts) {
+    const byContract = new Map(invoices.byContract.map((c) => [c.ctrId, c.progressValue]));
+    for (const c of contracts.items) {
+      const value = byContract.get(c.ctrId) ?? moneyText(ZERO_MONEY);
+      c.progress = { value, pct: pct(value, c.currentBase), level: advanceLevel(ratioPercent(value, c.currentBase)) };
+    }
+  }
+  // El estado de costos, solo si el usuario ve la obra (su valor vigente) y las facturas.
+  if (invoices && work) invoices.executed.status = costStatus(decimal(invoices.executed.value), decimal(work.currentValue));
 
   return { ...base, wrkId, work, contracts, invoices, providers };
 };

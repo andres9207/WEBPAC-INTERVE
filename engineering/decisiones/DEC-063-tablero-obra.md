@@ -50,6 +50,25 @@ El usuario pidió una tercera pestaña con las pólizas de la obra, como la del 
 - **Datos agregados a la respuesta**, sin consultas nuevas: `contractTypeName` en cada contrato, `conceptLabel` en cada póliza y `policyCounts`.
 - **"Por atender" del resumen (2026-10-22):** la cifra suma **registros**, no avisos (un aviso como "2 contratos con conceptos sin póliza" vale 2), el texto nombra los avisos que hay y el clic lleva a la tarjeta "Por atender en la obra", donde cada aviso abre su contrato o su detalle. Antes contaba avisos, decía siempre lo mismo y no respondía al clic. La pestaña Pólizas y "Por atender" no cuentan lo mismo: "Contratos sin póliza" son los que no tienen ninguna; el aviso de conceptos sin póliza incluye también un contrato con el valor inicial amparado y un otrosí sin amparar.
 
+## Analítica: costo ejecutado y estado de costos (2026-10-27)
+
+El usuario pidió en el Resumen, entre las cifras y los contratos de la obra, las dos donas del sistema que se migra. Cierra el costo ejecutado y el estado de costos de ADR-0002 para el tablero de la obra. Decidido por el usuario:
+
+- **Ejecutado:** las facturas **aprobadas** de la obra, de los **cinco tipos** (también anticipo y devolución de retenido), con el valor con que ya suman en el tablero (`invoiceValue`: el capturado en las de contrato y el total facturado en la simple, DEC-065). Una simple sin importes cuenta en la cantidad (`unpriced`) y no en el valor.
+- **Por tipo** es por **menú de facturas** (el tipo de proveedor de la factura, DEC-074), no por tipo de factura: lo que agrupa el sistema que se migra. De mayor a menor; los colores, por posición, con las claves de DEC-063.
+- **Estado de costos:** ejecutado frente al **valor vigente de la obra** (el ampliado si existe). Pendiente = valor vigente − ejecutado, sin bajar de 0; lo que pasa del valor vigente va en `exceeded` y se muestra como fila, no como porción. Solo si el usuario ve la obra y las facturas.
+- **Servidor:** `invoices.executed` (`value`, `count`, `byMenu` y `status`), calculado con `sumMoney` y `ratioPercent`. **Cliente:** `work/WorkCosts.jsx`. Lo ejecutado y cada menú abren sus facturas aprobadas en el detalle; lo pendiente no tiene filas.
+
+## Pestañas de contratos en el resumen (2026-10-27)
+
+La tarjeta "Contratos de la obra" tiene las pestañas del listado de contratos (`StatusTabs`, con `CONTRACT_STATE_FILTER` y las dos de pólizas de `ContractsPage`), que se combinan con el filtro y la leyenda de anticipo. Las que no son un estado ("Contrato próximo a vencer", "Pólizas por vencer", "Contrato sin póliza") salen de **los mismos predicados del listado** (`expiringContractsWhere`, `contractsWithExpiringPoliciesWhere`, `contractsWithoutPoliciesWhere`) con los días de las reglas de negocio, en la obra: el servidor manda en cada contrato `listTabs` y los conteos en `contracts.statusCounts`. Las de pólizas, solo con el permiso de verlas, como en el listado.
+
+Desde el mismo día la sección vive en `work/WorkContracts.jsx`, con búsqueda (número, nombre, proveedor, etapa), orden (número, valor vigente, fecha fin, avance facturado) y dos vistas, tarjetas compactas o tabla paginada; la vista elegida se recuerda en el navegador. Cada contrato trae del servidor:
+
+- **Avance facturado** (`progress`): el VALOR de sus facturas normales y de liquidación **aprobadas** sobre la base vigente antes de IVA (`currentBase`), la misma medida de I5 (DEC-071). El anticipo no entra porque se amortiza dentro de ellas. Su nivel usa la escala de las barras de anticipo (DEC-079). Solo si el usuario ve facturas.
+- **Días a la fecha fin** (`remainingDays`), con la fecha del servidor; la tarjeta los muestra solo en ejecución y suspendido.
+- El detalle del anticipo queda plegado en la tarjeta: se ve el pactado y los porcentajes facturado y amortizado, y las barras al desplegarlo.
+
 ## Descartado
 
 - **Navegar al listado desde el tablero de la obra:** con facturas de varias vistas no hay un solo listado, y uno sin vista sería una ruta nueva.
@@ -68,6 +87,6 @@ El usuario pidió una tercera pestaña con las pólizas de la obra, como la del 
 ## Dónde
 
 - Servidor: `server/src/modules/app/dashboard/workDashboard.service.js`, `getWorkDashboardController` en `dashboard.controller.js` y la ruta en `dashboard.routes.js`.
-- Cliente: `client/src/views/dashboard/Default/index.jsx`, `GeneralDashboard.jsx` y `work/` (`WorkDashboard.jsx`, `WorkSummaryTab.jsx`, `WorkChartsTab.jsx`, `WorkPoliciesTab.jsx`, `workDashboard.utils.js`); `getWorkDashboardAPI` en `api/requests/dashboardApi.js`.
+- Cliente: `client/src/views/dashboard/Default/index.jsx`, `GeneralDashboard.jsx` y `work/` (`WorkDashboard.jsx`, `WorkSummaryTab.jsx`, `WorkContracts.jsx`, `WorkCosts.jsx`, `WorkChartsTab.jsx`, `WorkPoliciesTab.jsx`, `workDashboard.utils.js`); `getWorkDashboardAPI` en `api/requests/dashboardApi.js`.
 - Tests: `server/test/modules/app/dashboard/workDashboard.service.test.js`; el controller entra en `server/test/common/workScope.guard.test.js`.
 - Diseño de referencia: `docs/design/dashboard-b/`.
