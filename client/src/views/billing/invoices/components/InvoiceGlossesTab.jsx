@@ -47,14 +47,15 @@ function GlossDialog({ open, mode, invoice, gloss, statements, onClose, onSaved 
     if (!open) return;
     setIdempotencyKey(mode === 'create' ? newIdempotencyKey() : null);
     reset({
-      stmId: gloss ? (gloss.stmId ?? '') : (invoice.stmId ?? ''),
+      // Una glosa nueva propone el extracto de la obra cuyo número escribió la factura, si está entre los activos.
+      stmId: gloss ? (gloss.stmId ?? '') : statements.some((s) => s.value === invoice.stmId) ? invoice.stmId : '',
       code: gloss?.code ?? '',
       value: gloss?.value ?? '',
       description: gloss?.description ?? '',
       releaseStmId: '',
       observation: ''
     });
-  }, [open, mode, gloss, invoice, reset]);
+  }, [open, mode, gloss, invoice, statements, reset]);
 
   const save = async (form) => {
     setSaving(true);

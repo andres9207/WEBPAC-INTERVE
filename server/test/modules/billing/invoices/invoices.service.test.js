@@ -147,7 +147,7 @@ const storedInvoice = (overrides = {}) => ({
   inv_date: new Date("2026-03-01T00:00:00Z"),
   inv_approval_date: null,
   inv_voucher_number: null,
-  stm_id: null,
+  inv_statement: null,
   inv_description: null,
   inv_state: "REGISTERED",
   tbl_invoice_advance_details: { iad_value: D("10000000") },
@@ -194,7 +194,7 @@ const simpleInput = (overrides = {}) => ({
   number: " F-100 ",
   date: "2026-03-01",
   voucherNumber: "",
-  stmId: "",
+  statement: "",
   description: "",
   // Importes de la pantalla del sistema que se migra (DEC-065).
   value: "20000",
@@ -245,30 +245,19 @@ beforeEach(() => {
   prismaMock.tbl_providers.findFirst.mockResolvedValue({ prv_id: 77 });
 });
 
-describe("extracto de la factura (DEC-084)", () => {
-  it("se asigna un extracto de la misma obra, bloqueado en su lugar del orden", async () => {
-    state.statement = { wrk_id: 8, stm_number: "001", sta_id: 1 };
+describe("extracto de la factura (DEC-084, migración 0124)", () => {
+  it("es texto libre: se guarda recortado, sin buscar ni bloquear un extracto", async () => {
+    await save(simpleInput({ statement: "  EXT-05 " }));
 
-    await save(simpleInput({ stmId: 4 }));
-
-    expect(prismaMock.tbl_invoices.create.mock.calls[0][0].data).toMatchObject({ stm_id: 4 });
-    // Orden fijo (ADR-0027): obra → proveedor → extracto → maestros.
-    expect(lockedTables()).toEqual([
-      expect.stringMatching(/tbl_works/),
-      expect.stringMatching(/tbl_providers/),
-      expect.stringMatching(/tbl_statements/),
-      expect.stringMatching(/tbl_provider_types/),
-    ]);
+    expect(prismaMock.tbl_invoices.create.mock.calls[0][0].data).toMatchObject({ inv_statement: "EXT-05" });
+    expect(prismaMock.tbl_statements.findUnique).not.toHaveBeenCalled();
+    // Orden fijo (ADR-0027): obra → proveedor → maestros; el extracto no se bloquea.
+    expect(lockedTables()).toEqual([expect.stringMatching(/tbl_works/), expect.stringMatching(/tbl_providers/), expect.stringMatching(/tbl_provider_types/)]);
   });
 
-  it("un extracto de otra obra, eliminado o inactivo no se asigna (400)", async () => {
-    state.statement = { wrk_id: 9, stm_number: "001", sta_id: 1 };
-    await expect(save(simpleInput({ stmId: 4 }))).rejects.toMatchObject({ statusCode: 400, message: "El extracto 001 no es de la obra de la factura." });
-    state.statement = { wrk_id: 8, stm_number: "001", sta_id: 3 };
-    await expect(save(simpleInput({ stmId: 4 }))).rejects.toMatchObject({ statusCode: 400, message: "El extracto seleccionado no existe." });
-    state.statement = { wrk_id: 8, stm_number: "001", sta_id: 2 };
-    await expect(save(simpleInput({ stmId: 4 }))).rejects.toMatchObject({ statusCode: 400, message: "El extracto 001 está inactivo." });
-    expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
+  it("vacío, sin extracto", async () => {
+    await save(simpleInput({ statement: "  " }));
+    expect(prismaMock.tbl_invoices.create.mock.calls[0][0].data).toMatchObject({ inv_statement: null });
   });
 });
 
@@ -993,7 +982,7 @@ describe("listado", () => {
     const expected = [
       { inv_number: { contains: "F-1" } },
       { inv_voucher_number: { contains: "CE-9" } },
-      { tbl_statements: { stm_number: { contains: "marzo" } } },
+      { inv_statement: { contains: "marzo" } },
       { tbl_contracts: { ctr_number: { contains: "C-001" } } },
       { tbl_providers: { prv_name: { contains: "acer" } } },
       { inv_date: { gte: new Date("2026-03-01T00:00:00Z") } },

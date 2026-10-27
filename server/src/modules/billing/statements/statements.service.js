@@ -15,15 +15,17 @@ import { statementGlosses } from "../invoices/invoiceGlosses.service.js";
 
 /**
  * Extractos de la obra (DEC-084): el acta de WebPAC. Número único en la obra
- * entre no eliminados, fecha, número de comunicado y descripción. Las
- * facturas apuntan a su extracto (FK compuesta: de la misma obra).
+ * entre no eliminados, fecha, número de comunicado y descripción. La factura
+ * escribe su extracto como texto libre (migración 0124): el extracto agrupa
+ * las facturas de su obra cuyo texto es su número, sin distinguir mayúsculas
+ * ni tildes (intercalación de la columna), las haya antes o después de crearlo.
  *
  * - Alcance por obra (DEC-047): se lista, se lee y se escribe solo en una
  *   obra del alcance; fuera, 404.
  * - Crear bloquea la obra (el padre); editar, cambiar el estado y eliminar
- *   bloquean el extracto. Asignarlo a una factura lo bloquea después de ella
- *   (invoices.service), así que no se elimina mientras tanto.
- * - Eliminar es lógico y responde 409 si alguna factura lo usa.
+ *   bloquean el extracto.
+ * - Eliminar es lógico y responde 409 si alguna glosa lo usa. Las facturas no
+ *   lo impiden: conservan su texto.
  * - El reporte totaliza sus facturas por menú (tipo de proveedor) y señala
  *   las aprobadas sin comprobante de egreso. Las anuladas no suman (DEC-052).
  */
@@ -59,10 +61,38 @@ const ROW_SELECT = {
   tbl_works: { select: { wrk_code: true, wrk_name: true } },
   tbl_status: { select: { sta_name: true } },
   updated_by_user: USER_NAME_SELECT,
-  _count: { select: { tbl_invoices: { where: { sta_id: { not: DELETED_STATUS } } } } },
 };
 
-const toDto = (row) => ({
+// Clave con que se cruza el texto de la factura con el número del extracto, igual que la intercalación de MySQL
+// (utf8mb4_0900_ai_ci): sin mayúsculas ni tildes.
+const groupKey = (wrkId, number) => `${wrkId}|${String(number).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()}`;
+
+/** Facturas no eliminadas de cada extracto de `rows`: las de su obra con ese texto. */
+const invoiceCounts = async (rows) => {
+  if (rows.length === 0) return new Map();
+  const groups = await prisma.tbl_invoices.groupBy({
+    by: ["wrk_id", "inv_statement"],
+    where: {
+      sta_id: { not: DELETED_STATUS },
+      wrk_id: { in: [...new Set(rows.map((r) => r.wrk_id))] },
+      inv_statement: { in: [...new Set(rows.map((r) => r.stm_number))] },
+    },
+    _count: { _all: true },
+  });
+  const counts = new Map();
+  for (const g of groups) {
+    const key = groupKey(g.wrk_id, g.inv_statement);
+    counts.set(key, (counts.get(key) ?? 0) + g._count._all);
+  }
+  return counts;
+};
+
+const withCounts = async (rows) => {
+  const counts = await invoiceCounts(rows);
+  return rows.map((row) => toDto(row, counts.get(groupKey(row.wrk_id, row.stm_number)) ?? 0));
+};
+
+const toDto = (row, invoicesCount = 0) => ({
   stmId: row.stm_id,
   wrkId: row.wrk_id,
   workCode: row.tbl_works?.wrk_code ?? null,
@@ -71,7 +101,7 @@ const toDto = (row) => ({
   date: dateOnlyText(row.stm_date),
   communication: row.stm_communication,
   description: row.stm_description,
-  invoicesCount: row._count?.tbl_invoices ?? 0,
+  invoicesCount,
   staId: row.sta_id,
   statusName: row.tbl_status?.sta_name ?? null,
   updatedAt: row.stm_update_at,
@@ -99,7 +129,7 @@ export const paginationStatements = async ({ search, staId, wrkId, number, commu
     paginate(prisma.tbl_statements, { where, select: ROW_SELECT, orderBy }, { first, rows }),
     countByStatus(prisma.tbl_statements, baseWhere),
   ]);
-  return { ...page, results: page.results.map(toDto), statusCounts };
+  return { ...page, results: await withCounts(page.results), statusCounts };
 };
 
 const findStatement = async (stmId, scope) => {
@@ -109,12 +139,12 @@ const findStatement = async (stmId, scope) => {
   return row;
 };
 
-export const getStatement = async ({ stmId, scope }) => toDto(await findStatement(stmId, scope));
+export const getStatement = async ({ stmId, scope }) => (await withCounts([await findStatement(stmId, scope)]))[0];
 
 /**
- * Extractos activos de una obra para el formulario de factura (DEC-018: sin
- * paginar, con tope fijo). `includeId`: el que ya tiene la factura, aunque
- * esté inactivo. La más reciente primero.
+ * Extractos activos de una obra para las glosas de sus facturas (DEC-018: sin
+ * paginar, con tope fijo). `includeId`: uno que ya se usa, aunque esté
+ * inactivo. La más reciente primero.
  */
 export const selectStatements = async ({ wrkId, includeId, scope }) => {
   assertInScope(scope, wrkId, "No se encontró la obra.");
@@ -234,7 +264,7 @@ export const saveStatement = async ({ stmId, input, useBy, scope, ctx = { useId:
   );
 };
 
-/** Activar o desactivar: uno inactivo no se ofrece en las facturas nuevas. Fija un estado final: reintentable. */
+/** Activar o desactivar: uno inactivo no se ofrece en las glosas nuevas. Fija un estado final: reintentable. */
 export const changeStatementStatus = async ({ stmId, staId, useBy, scope, ctx = { useId: useBy } }) => {
   const next = Number(staId);
   if (next !== ACTIVE_STATUS && next !== INACTIVE_STATUS) throw httpError(400, "El estado debe ser activo o inactivo.");
@@ -259,13 +289,11 @@ export const changeStatementStatus = async ({ stmId, staId, useBy, scope, ctx = 
   );
 };
 
-/** Eliminación lógica (DEC-006): 409 si alguna factura o glosa no eliminada lo usa. */
+/** Eliminación lógica (DEC-006): 409 si alguna glosa no eliminada lo usa. Las facturas conservan su texto. */
 export const deleteStatement = async ({ stmId, useBy, scope, ctx = { useId: useBy } }) => {
   await findImmutable(stmId, scope);
   return withLockedTransaction({ EXTRACTO: Number(stmId) }, async (tx) => {
     const before = await findLocked(tx, stmId);
-    const invoices = await tx.tbl_invoices.count({ where: { stm_id: before.stm_id, sta_id: { not: DELETED_STATUS } } });
-    if (invoices > 0) throw httpError(409, `No se puede eliminar el extracto: tiene ${invoices} factura(s).`);
     // Glosas levantadas o liberadas en él (DEC-085).
     const glosses = await tx.tbl_invoice_glosses.count({
       where: { sta_id: { not: DELETED_STATUS }, OR: [{ stm_id: before.stm_id }, { igl_release_stm_id: before.stm_id }] },
@@ -309,7 +337,11 @@ const totalsOf = (invoices) => {
  */
 export const getStatementReport = async ({ stmId, scope }) => {
   const statement = toDto(await findStatement(stmId, scope));
-  const [invoices, glosses] = await Promise.all([statementInvoices(statement.stmId), statementGlosses(statement.stmId)]);
+  const [invoices, glosses] = await Promise.all([
+    statementInvoices({ wrkId: statement.wrkId, number: statement.number }),
+    statementGlosses(statement.stmId),
+  ]);
+  statement.invoicesCount = invoices.length;
   const menus = new Map();
   for (const invoice of invoices) {
     if (!menus.has(invoice.pvtId)) menus.set(invoice.pvtId, { pvtId: invoice.pvtId, name: invoice.menuName, invoices: [] });

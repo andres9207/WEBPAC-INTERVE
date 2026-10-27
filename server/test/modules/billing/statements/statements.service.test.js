@@ -2,10 +2,11 @@ import { jest } from "@jest/globals";
 import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
 
 // Extractos de la obra (DEC-084): número único en la obra, alcance por obra,
-// eliminación bloqueada si alguna factura lo usa, y el reporte con los
-// totales por menú y el chequeo de comprobantes de egreso.
+// eliminación bloqueada si alguna glosa lo usa, las facturas agrupadas por su
+// texto de extracto (migración 0124), y el reporte con los totales por menú y
+// el chequeo de comprobantes de egreso.
 
-const state = { statement: null, duplicate: null, work: null, invoices: [], invoicesCount: 0, glossesCount: 0, glosses: null, replay: null };
+const state = { statement: null, duplicate: null, work: null, invoices: [], invoiceGroups: [], glossesCount: 0, glosses: null, replay: null };
 
 const prismaMock = {
   tbl_statements: {
@@ -18,7 +19,7 @@ const prismaMock = {
     groupBy: jest.fn(async () => []),
   },
   tbl_works: { findUnique: jest.fn(async () => state.work) },
-  tbl_invoices: { count: jest.fn(async () => state.invoicesCount) },
+  tbl_invoices: { count: jest.fn(async () => 0), groupBy: jest.fn(async () => state.invoiceGroups) },
   tbl_invoice_glosses: { count: jest.fn(async () => state.glossesCount) },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
@@ -27,9 +28,8 @@ const prismaMock = {
 
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
 // Las facturas del extracto salen del service de facturas (los mismos importes del listado).
-jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.service.js", () => ({
-  statementInvoices: jest.fn(async () => state.invoices),
-}));
+const statementInvoices = jest.fn(async () => state.invoices);
+jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.service.js", () => ({ statementInvoices }));
 // Las glosas del extracto (DEC-085), del service de glosas.
 jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoiceGlosses.service.js", () => ({
   statementGlosses: jest.fn(async () => state.glosses),
@@ -54,7 +54,6 @@ const statementRow = (overrides = {}) => ({
   sta_id: 1,
   tbl_works: { wrk_code: "OB-8", wrk_name: "Vía" },
   tbl_status: { sta_name: "Activo" },
-  _count: { tbl_invoices: 2 },
   ...overrides,
 });
 
@@ -68,7 +67,7 @@ beforeEach(() => {
     duplicate: null,
     work: { sta_id: 1 },
     invoices: [],
-    invoicesCount: 0,
+    invoiceGroups: [],
     glossesCount: 0,
     glosses: { raised: [], released: [] },
     replay: null,
@@ -116,12 +115,9 @@ describe("crear y editar", () => {
 });
 
 describe("eliminar", () => {
-  it("con facturas no se elimina (409)", async () => {
-    state.invoicesCount = 3;
-    await expect(service.deleteStatement({ stmId: 40, useBy: 9, scope: OWN, ctx })).rejects.toMatchObject({
-      statusCode: 409,
-      message: "No se puede eliminar el extracto: tiene 3 factura(s).",
-    });
+  it("las facturas con su número no lo impiden: conservan su texto", async () => {
+    await expect(service.deleteStatement({ stmId: 40, useBy: 9, scope: OWN, ctx })).resolves.toEqual({ message: "Extracto eliminado correctamente" });
+    expect(prismaMock.tbl_invoices.count).not.toHaveBeenCalled();
   });
 
   it("con glosas levantadas o liberadas en él no se elimina (409, DEC-085)", async () => {
@@ -132,7 +128,7 @@ describe("eliminar", () => {
     });
   });
 
-  it("sin facturas, lógica y con evidencia", async () => {
+  it("lógica y con evidencia", async () => {
     await expect(service.deleteStatement({ stmId: 40, useBy: 9, scope: OWN, ctx })).resolves.toEqual({ message: "Extracto eliminado correctamente" });
     expect(prismaMock.tbl_statements.update.mock.calls[0][0].data).toMatchObject({ sta_id: 3, stm_delete_by: 9, stm_delete_at: expect.any(Date) });
   });
@@ -141,6 +137,26 @@ describe("eliminar", () => {
     await expect(service.getStatement({ stmId: 40, scope: OTHER })).rejects.toMatchObject({ statusCode: 404 });
     await expect(service.deleteStatement({ stmId: 40, useBy: 9, scope: OTHER, ctx })).rejects.toMatchObject({ statusCode: 404 });
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("facturas del extracto: las de su obra con su número como texto", () => {
+  it("el conteo cruza obra y texto sin distinguir mayúsculas ni tildes, como MySQL", async () => {
+    state.invoiceGroups = [
+      { wrk_id: 8, inv_statement: "001", _count: { _all: 2 } },
+      { wrk_id: 8, inv_statement: "ÉXT-9", _count: { _all: 1 } },
+      { wrk_id: 9, inv_statement: "001", _count: { _all: 5 } },
+    ];
+    prismaMock.tbl_statements.findFirst.mockImplementationOnce(async () => statementRow({ stm_number: "ext-9" }));
+
+    await expect(service.getStatement({ stmId: 40, scope: OWN })).resolves.toMatchObject({ invoicesCount: 1 });
+    await expect(service.getStatement({ stmId: 40, scope: OWN })).resolves.toMatchObject({ invoicesCount: 2 });
+    expect(prismaMock.tbl_invoices.groupBy.mock.calls[0][0].where).toMatchObject({ wrk_id: { in: [8] }, inv_statement: { in: ["ext-9"] } });
+  });
+
+  it("el reporte pide las facturas por obra y número", async () => {
+    await service.getStatementReport({ stmId: 40, scope: OWN });
+    expect(statementInvoices).toHaveBeenCalledWith({ wrkId: 8, number: "001" });
   });
 });
 

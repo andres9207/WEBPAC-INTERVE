@@ -44,7 +44,7 @@ export const paginationInvoicesSchema = [
   // Filtros por campo (DEC-048).
   optionalText("number", 50),
   optionalText("voucherNumber", 50),
-  optionalText("statement", 100),
+  optionalText("statement", 20),
   optionalText("contractNumber", 50),
   optionalText("providerName", 255),
   optionalDate("dateFrom"),
@@ -174,8 +174,8 @@ export const saveInvoiceSchema = [
     .withMessage("El número de la factura admite hasta 50 caracteres."),
   dateRule("date", "fecha de la factura"),
   optionalLongText("voucherNumber", "El número de comprobante", 50),
-  // Extracto de la obra (DEC-084): su id; el service verifica que sea de la obra de la factura.
-  optionalId("stmId"),
+  // Extracto, texto libre (DEC-084): lo agrupa el extracto de la obra con ese número.
+  optionalLongText("statement", "El extracto", 20),
   optionalLongText("description", "La descripción", 500),
   // Anticipo y devolución de retenido: valor. Liquidación: VALOR,
   // amortización (DEC-044) y retenido (DEC-051).

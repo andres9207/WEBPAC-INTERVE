@@ -26,11 +26,13 @@ const INVOICE_NOUN = ['factura', 'facturas'];
 const drillLinkSx = { fontWeight: 500, color: 'text.primary', textAlign: 'left', verticalAlign: 'baseline' };
 const clickableChartSx = { '& .apexcharts-pie-area': { cursor: 'pointer' } };
 
-// Los menús son dinámicos (DEC-074): se colorean por posición, con las claves
-// validadas en DEC-063.
-const MENU_COLORS = ['primary.800', 'success.dark', 'orange.dark', 'cyan.main', 'secondary.main', 'grey.600'];
+// Los menús son dinámicos (DEC-074): se colorean por posición, con colores
+// del template Berry.
+const MENU_COLORS = ['primary.800', 'success.dark', 'orange.dark', 'primary.200', 'secondary.main', 'grey.600'];
+// Estado de costos con los azules de Berry: lo ejecutado en el oscuro y lo
+// pendiente en el claro, como el resto de una barra de avance.
 const EXECUTED_COLOR = 'primary.800';
-const PENDING_COLOR = 'cyan.main';
+const PENDING_COLOR = 'primary.200';
 const EXCEEDED_COLOR = 'error.main';
 
 const menuColor = (index) => MENU_COLORS[index % MENU_COLORS.length];

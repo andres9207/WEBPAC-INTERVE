@@ -910,7 +910,7 @@ export default function WorkChartsTab({ data }) {
         value: fMillions(contracts.advance.amortized),
         percent: contracts.advance.amortizedPct,
         hint: `De ${fMoneyText(contracts.advance.invoiced)} de anticipo facturado (${fPercentText(contracts.advance.amortizedPct, 1)})`,
-        color: 'cyan.main',
+        color: 'secondary.main',
         onClick: () =>
           openDrill({
             title: 'Anticipo amortizado por contrato',

@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-26 · **Tipo:** Obligatoria · **ADR:** [0020](../adr/0020-facturacion.md), [0027](../adr/0027-integridad-transaccional.md)
 
-Decidido por el usuario el 2026-10-26 ("como acta del WebPAC"), a partir del documento de alcance de Intervé (punto 7, "Control de Extractos").
+Decidido por el usuario el 2026-10-26 ("como acta del WebPAC"), a partir del documento de alcance de Intervé (punto 7, "Control de Extractos"). **Revisada el 2026-10-27** por pedido del usuario: en la factura el extracto es un campo abierto, no un selector, y se agrupa después (migración 0124).
 
 ## Contexto
 
@@ -12,22 +12,24 @@ Decidido por el usuario el 2026-10-26 ("como acta del WebPAC"), a partir del doc
 ## Decisión
 
 - **`tbl_statements`**: extracto de la obra, con número único en la obra entre no eliminados (columna generada + `UNIQUE`), fecha, comunicado y descripción; autoría, eliminación lógica e idempotencia. Sin valor, anticipo ni amortización.
-- **La factura apunta a su extracto** (`tbl_invoices.stm_id`) con FK compuesta `(stm_id, wrk_id)`: el extracto es de la obra de la factura. Sigue siendo editable tras aprobar (DEC-080, `NOTE_COLUMNS`). Un extracto inactivo no se asigna de nuevo; el que ya tenía la factura se conserva.
-- **Datos**: cada texto distinto de una obra pasó a ser un extracto, con la fecha de su primera factura (migración 0119), y `inv_statement` se eliminó.
-- **Bloqueo**: entidad `EXTRACTO` en `LOCK_ORDER`, después de `FACTURA` (ADR-0027). Asignar un extracto lo bloquea en la transacción de la factura; eliminarlo lo bloquea y responde 409 si alguna factura lo usa.
-- **Pantalla "Extractos"** (página 21, grupo Inicio) con permisos 118 a 122 (ver, crear, modificar y cambiar estado, eliminar, exportar). Quien tenía la página de Facturas recibió la de Extractos. El selector del formulario de factura solo exige sesión y está limitado a la obra del alcance (DEC-018).
+- **La factura escribe su extracto como texto libre** (`tbl_invoices.inv_statement`, hasta 20 caracteres como `stm_number`; desde la migración 0124). No se valida contra los extractos ni se bloquea ninguno al guardar. Sigue siendo editable tras aprobar (DEC-080, `NOTE_COLUMNS`).
+- **El extracto agrupa por su número**: sus facturas son las no eliminadas de su obra cuyo texto es su número, con la intercalación de la columna (sin distinguir mayúsculas ni tildes), escritas antes o después de crear el extracto. El listado cuenta así sus facturas, y el detalle de la factura muestra la fecha del extracto si ya existe.
+- **Datos**: la 0119 convirtió cada texto distinto de una obra en un extracto; la 0124 devolvió a cada factura el número de su extracto como texto y quitó `stm_id` con su FK.
+- **Bloqueo**: entidad `EXTRACTO` en `LOCK_ORDER`, después de `FACTURA` (ADR-0027), para las glosas. Eliminar un extracto lo bloquea y responde 409 si alguna glosa lo usa; las facturas no lo impiden: conservan su texto. Cambiar el número de un extracto cambia qué facturas agrupa.
+- **Pantalla "Extractos"** (página 21, grupo Inicio) con permisos 118 a 122 (ver, crear, modificar y cambiar estado, eliminar, exportar). Quien tenía la página de Facturas recibió la de Extractos. El selector de extractos (lo usan las glosas) solo exige sesión y está limitado a la obra del alcance (DEC-018).
 - **Reporte del extracto**: sus facturas, los totales por menú (tipo de proveedor: mayores, subcontratistas, órdenes de servicio, simples) y en total, y el **chequeo de comprobantes de egreso**: las aprobadas sin número de comprobante. Las anuladas se listan y no suman (DEC-052). En pantalla y en Excel o PDF (DEC-070).
 
 ## Descartado
 
-- Dejar el extracto como texto y agrupar por él: el usuario eligió el modelo del acta.
+- Un selector de extractos en la factura (2026-10-26 a 2026-10-27): obligaba a crear el extracto antes de facturar. El usuario pidió un campo abierto.
+- Solo texto, sin extractos registrados: se perdían la fecha y el comunicado del acta y la regla de las glosas ("liberar en un extracto posterior", DEC-085).
 - Llevar al extracto el valor pagado, el anticipo y la amortización del acta de WebPAC: son del fondo rotatorio y de la fiducia, excluidos del alcance. "Total pagado por acta" queda con ellos.
 
 ## Qué implica
 
-- Una consulta o un reporte que muestre el extracto de una factura lo lee por la relación (`tbl_statements.stm_number`), nunca de un texto.
+- Una consulta o un reporte que muestre el extracto de una factura lee `inv_statement`. Las facturas de un extracto se buscan por obra y texto (`statementInvoices`), nunca por id.
 - Una tabla nueva que referencie al extracto (las glosas) lo bloquea después de la factura.
 
 ## Dónde
 
-Migración `0119_create_statements.sql` · `server/src/modules/billing/statements/` (service, rutas, validación, controller) · `billing/invoices/invoices.service.js` (`assertStatement`, `statementLock`, `statementInvoices`), `invoiceTerms.js` (`NOTE_COLUMNS`) · `common/services/transaction.service.js` (`EXTRACTO`) · Cliente: `views/billing/statements/`, `api/requests/statementsApi.js`, el selector de `InvoiceFormPage.jsx` · Tests: `statements.service.test.js`, `invoices.service.test.js`.
+Migraciones `0119_create_statements.sql` y `0124_invoice_statement_text.sql` · `server/src/modules/billing/statements/` (service, rutas, validación, controller; `invoiceCounts`) · `billing/invoices/invoices.service.js` (`statementInvoices`), `invoiceTerms.js` (`NOTE_COLUMNS`) · `common/services/transaction.service.js` (`EXTRACTO`) · Cliente: `views/billing/statements/`, `api/requests/statementsApi.js`, el campo Extracto de `InvoiceFormPage.jsx` · Tests: `statements.service.test.js`, `invoices.service.test.js`.

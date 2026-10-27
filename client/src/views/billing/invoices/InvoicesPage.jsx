@@ -158,7 +158,7 @@ const CONTRACT_TYPE_OPTIONS = INVOICE_TYPE_OPTIONS.filter((o) => INVOICE_MODE_TY
 const commonFilters = (pvtId) => [
   { key: 'number', type: 'input', label: 'Número', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
   { key: 'voucherNumber', type: 'input', label: 'Comprobante', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
-  { key: 'statement', type: 'input', label: 'Extracto', props: { maxLength: 100 } },
+  { key: 'statement', type: 'input', label: 'Extracto', props: { maxLength: 20 } },
   {
     key: 'prvId',
     type: 'remoteDropdown',

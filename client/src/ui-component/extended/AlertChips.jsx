@@ -1,14 +1,17 @@
 import PropTypes from 'prop-types';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import { IconFilterOff } from '@tabler/icons-react';
 
 /**
  * Fila de alertas de un listado (p. ej. "Contrato vencido", "Pólizas
  * vencidas"): filtros rápidos con su conteo, aparte de las pestañas de estado
- * y combinables con ellas. Se elige una a la vez; volver a pulsar la elegida
- * la quita. Una alerta sin casos queda atenuada, pero se puede elegir.
+ * y combinables con ellas. Se elige una a la vez; se quita con su ×, con
+ * "Quitar alerta" o volviendo a pulsarla. Una alerta sin casos queda atenuada,
+ * pero se puede elegir.
  *
  * - `options`: `[{ id, name, color }]`, con `color` del tema del Chip
  *   (`warning`, `error`, `info`…).
@@ -34,6 +37,7 @@ export default function AlertChips({ options, counts, value, onChange, label = '
             color={selected || count > 0 ? (option.color ?? 'default') : 'default'}
             variant={selected ? 'filled' : 'outlined'}
             onClick={() => onChange(selected ? '' : option.id)}
+            onDelete={selected ? () => onChange('') : undefined}
             sx={{ opacity: selected || count > 0 ? 1 : 0.6 }}
             label={
               <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
@@ -46,6 +50,11 @@ export default function AlertChips({ options, counts, value, onChange, label = '
           />
         );
       })}
+      {value && (
+        <Button size="small" variant="text" startIcon={<IconFilterOff size={16} />} onClick={() => onChange('')}>
+          Quitar alerta
+        </Button>
+      )}
     </Stack>
   );
 }

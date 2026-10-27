@@ -431,7 +431,12 @@ export default function InvoiceDetailPage() {
                         ['Fecha de la factura', fDateOnly(invoice.date)],
                         ['Fecha de aprobación', invoice.approvalDate ? fDateOnly(invoice.approvalDate) : 'Sin aprobar'],
                         ['Número de comprobante', invoice.voucherNumber],
-                        ['Extracto', invoice.statement && `${invoice.statement} · ${fDateOnly(invoice.statementDate)}`],
+                        // Texto libre (DEC-084); la fecha, si ya existe el extracto de la obra con ese número.
+                        [
+                          'Extracto',
+                          invoice.statement &&
+                            [invoice.statement, invoice.statementDate && fDateOnly(invoice.statementDate)].filter(Boolean).join(' · ')
+                        ],
                         ['Descripción', invoice.description]
                       ]}
                     />

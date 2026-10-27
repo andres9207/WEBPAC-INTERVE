@@ -1058,7 +1058,7 @@ model tbl_invoices {
   inv_date                             DateTime                              @db.Date
   inv_approval_date                    DateTime?                             @db.Date
   inv_voucher_number                   String?                               @db.VarChar(50)
-  stm_id                               Int?
+  inv_statement                        String?                               @db.VarChar(20)
   inv_description                      String?                               @db.VarChar(500)
   inv_state                            String                                @default("REGISTERED") @db.VarChar(20)
   sta_id                               Int                                   @default(1)
@@ -1090,7 +1090,6 @@ model tbl_invoices {
   tbl_work_providers                   tbl_work_providers                    @relation(fields: [wrk_id, prv_id], references: [wrk_id, prv_id], onUpdate: NoAction, map: "tbl_invoices_work_provider")
   tbl_work_provider_types              tbl_work_provider_types               @relation(fields: [wrk_id, prv_id, pvt_id], references: [wrk_id, prv_id, pvt_id], onUpdate: NoAction, map: "tbl_invoices_work_provider_type")
   tbl_work_stages                      tbl_work_stages?                      @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: NoAction, map: "tbl_invoices_work_stage")
-  tbl_statements                       tbl_statements?                       @relation(fields: [stm_id, wrk_id], references: [stm_id, wrk_id], onUpdate: NoAction, map: "tbl_invoices_statement")
 
   @@unique([prv_id, inv_number_active], map: "uq_invoices_provider_number_active")
   @@unique([inv_id, ctr_id], map: "uq_invoices_id_contract")
@@ -1107,7 +1106,7 @@ model tbl_invoices {
   @@index([wks_id, wrk_id], map: "tbl_invoices_work_stage")
   @@index([pvt_id], map: "idx_invoices_provider_type")
   @@index([wrk_id, prv_id, pvt_id], map: "tbl_invoices_work_provider_type")
-  @@index([stm_id, wrk_id], map: "tbl_invoices_statement")
+  @@index([wrk_id, inv_statement], map: "idx_invoices_work_statement")
 }
 
 /// Glosas de facturas (database/migrations/0120_create_invoice_glosses.sql, DEC-085): de la obra de su factura, levantadas
@@ -1171,7 +1170,6 @@ model tbl_statements {
   stm_idempotency_key  String?               @unique(map: "uq_statements_idempotency_key") @db.Char(36)
   stm_idempotency_hash String?               @db.Char(64)
   stm_number_active    String?               @db.VarChar(20)
-  tbl_invoices         tbl_invoices[]
   glosses_raised       tbl_invoice_glosses[] @relation("GlossStatement")
   glosses_released     tbl_invoice_glosses[] @relation("GlossReleaseStatement")
   created_by_user      tbl_users?            @relation("StatementCreatedBy", fields: [stm_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_statements_create_by")

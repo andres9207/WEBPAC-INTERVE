@@ -7,8 +7,8 @@ import { fMoneyText } from 'utils/formatNumber';
 
 /**
  * Saldos del contrato en lo alto del formulario de una factura de contrato
- * (DEC-065), como en el sistema que se migra: anticipo por pagar
- * (pactado que falta por facturar), total retenido, total amortizado y pendiente por amortizar. Son los de
+ * (DEC-065), como en el sistema que se migra: anticipo pagado
+ * (facturas de anticipo aprobadas), total retenido, total amortizado y pendiente por amortizar. Son los de
  * `contractBalances` (DEC-044, DEC-051), solo con facturas aprobadas; el
  * servidor los vuelve a calcular bajo bloqueo al guardar y al aprobar.
  *
@@ -65,11 +65,11 @@ export default function ContractBalanceCards({ balances, type }) {
       label="Saldos del contrato"
       items={[
         {
-          label: 'Anticipo por pagar',
-          value: money(balances.toInvoice),
-          hint: `Anticipo pactado ${money(balances.agreed)} menos lo ya facturado ${money(balances.invoiced)}`,
+          label: 'Anticipo pagado',
+          value: money(balances.invoiced),
+          hint: `Facturas de anticipo aprobadas, de un anticipo pactado de ${money(balances.agreed)}`,
           icon: IconCreditCard,
-          tone: ACTION_TONES.danger
+          tone: ACTION_TONES.success
         },
         {
           label: 'Total retenido',

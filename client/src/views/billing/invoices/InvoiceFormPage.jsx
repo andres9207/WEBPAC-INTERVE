@@ -7,7 +7,6 @@ import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
-import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -30,7 +29,6 @@ import {
   getInvoiceWorksSelectAPI,
   invoicesApi
 } from 'api/requests/invoicesApi';
-import { getStatementsSelectAPI } from 'api/requests/statementsApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkScope } from 'contexts/WorkScopeContext';
 import { showError, showSuccess } from 'services/ToastService';
@@ -79,8 +77,8 @@ const EMPTY_FORM = {
   number: '',
   date: '',
   voucherNumber: '',
-  // Extracto de la obra (DEC-084): su id.
-  stmId: '',
+  // Extracto, texto libre (DEC-084): lo agrupa el extracto de la obra con ese número.
+  statement: '',
   description: '',
   // Importes del anticipo, la liquidación y la devolución (DEC-044, DEC-051).
   // `adjust…`: el usuario escribió la amortización o el retenido; sin eso, siguen al valor por defecto.
@@ -102,7 +100,7 @@ const EMPTY_FORM = {
   materialsDiscount: ''
 };
 
-const DOCUMENT_FIELDS = ['type', 'ctrId', 'wrkId', 'prvId', 'wksId', 'number', 'date', 'voucherNumber', 'stmId', 'description'];
+const DOCUMENT_FIELDS = ['type', 'ctrId', 'wrkId', 'prvId', 'wksId', 'number', 'date', 'voucherNumber', 'statement', 'description'];
 
 const DEFAULT_VAT_PCT = '19';
 
@@ -145,7 +143,7 @@ const toPayload = (invId, form, sendAmounts, pvtId) => ({
   number: text(form.number),
   date: form.date,
   voucherNumber: text(form.voucherNumber),
-  stmId: form.stmId || null,
+  statement: text(form.statement),
   description: text(form.description),
   ...(sendAmounts && hasAmounts(form.type) ? amountsPayload(form) : {}),
   ...(sendAmounts && isSimple(form.type) ? Object.fromEntries(SIMPLE_AMOUNT_FIELDS.map((field) => [field, form[field]])) : {})
@@ -410,24 +408,6 @@ export default function InvoiceFormPage() {
   const contract =
     contractOptions.items.find((c) => Number(c.value) === Number(ctrId)) ??
     (pickedContract && Number(pickedContract.value) === Number(ctrId) ? pickedContract : undefined);
-  // Extractos de la obra de la factura (DEC-084): en la simple, la elegida; en la de contrato, la de su contrato.
-  const statementWrkId = isEdit ? loaded?.wrkId : simple ? wrkId : contract?.wrkId;
-  const includeStmId = loaded?.stmId;
-  const [statements, setStatements] = useState([]);
-  useEffect(() => {
-    if (!statementWrkId) {
-      setStatements([]);
-      return undefined;
-    }
-    let cancelled = false;
-    getStatementsSelectAPI({ wrkId: statementWrkId, ...(includeStmId ? { includeId: includeStmId } : {}) })
-      .then(({ data }) => !cancelled && setStatements(data))
-      .catch((err) => !cancelled && showError(err.response?.data?.message || 'Error al cargar los extractos de la obra'));
-    return () => {
-      cancelled = true;
-    };
-  }, [statementWrkId, includeStmId]);
-
   const typeChoices = contractTypeChoices(contract, typeOptions, contractBalances);
   const enabledTypes = typeChoices.options.filter((o) => !o.disabled).map((o) => o.value);
   const defaultType = enabledTypes.includes(DEFAULT_CONTRACT_TYPE) ? DEFAULT_CONTRACT_TYPE : (enabledTypes[0] ?? '');
@@ -857,27 +837,17 @@ export default function InvoiceFormPage() {
                   </Grid>
                   <Grid size={{ xs: 12, md: 4 }}>
                     <Controller
-                      name="stmId"
+                      name="statement"
                       control={control}
                       render={({ field }) => (
                         <TextField
                           {...field}
-                          select
                           label="Extracto"
                           size="small"
                           fullWidth
-                          disabled={blocked || !statementWrkId}
-                          helperText={!statementWrkId ? 'Elige primero la obra o el contrato.' : statements.length === 0 ? 'La obra no tiene extractos activos.' : undefined}
-                        >
-                          <MenuItem value="">
-                            <em>Sin extracto</em>
-                          </MenuItem>
-                          {statements.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
+                          disabled={blocked}
+                          slotProps={{ htmlInput: { maxLength: 20, autoComplete: 'off' } }}
+                        />
                       )}
                     />
                   </Grid>

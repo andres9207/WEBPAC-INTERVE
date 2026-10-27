@@ -58,7 +58,7 @@ export const LOCK_ORDER = Object.freeze([
   "CONTRATO",
   "FACTURA",
   // El extracto de la obra (DEC-084): se bloquea después de la factura que se
-  // le asigna y de la que se glosa.
+  // glosa (DEC-085).
   "EXTRACTO",
   "POLIZA",
   "CONCEPTO",

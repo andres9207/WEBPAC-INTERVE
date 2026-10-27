@@ -64,7 +64,7 @@ describe("transiciones declaradas", () => {
 
 describe("qué admite cada estado", () => {
   it("registrada se edita entera; aprobada solo extracto, descripción y comprobante; anulada nada", () => {
-    expect(NOTE_COLUMNS).toEqual(["stm_id", "inv_description", "inv_voucher_number"]);
+    expect(NOTE_COLUMNS).toEqual(["inv_statement", "inv_description", "inv_voucher_number"]);
     expect(stateAllows(REGISTERED, "edit")).toBe(true);
     expect(stateAllows(APPROVED, "edit")).toBe(false);
     expect(stateAllows(APPROVED, "editNotes")).toBe(true);
