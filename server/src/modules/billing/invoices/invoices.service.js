@@ -12,6 +12,7 @@ import { PERMISSIONS } from "../../../common/constants/permissions.constants.js"
 import { decimal, moneyText, percentFor, percentOf, percentText, ratioText, sumMoney, toMoney, toPercent } from "../../../common/utils/money.utils.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { glossFieldsFor } from "./glossFields.js";
+import { statementAmounts } from "./statementAmounts.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, getContractFormOptions } from "../../work/contracts/contracts.service.js";
 import { evaluateLiquidation, notifyLiquidated } from "../../work/contracts/contractLiquidation.service.js";
 import { providerSelectOptions } from "../../work/providers/providers.service.js";
@@ -1227,7 +1228,7 @@ export const statementInvoices = async ({ wrkId, number }) =>
       select: { ...LIST_SELECT, inv_voucher_number: true },
       orderBy: [{ pvt_id: "asc" }, { inv_date: "asc" }, { inv_id: "asc" }],
     })
-  ).map((row) => ({ ...toListDto(row), voucherNumber: row.inv_voucher_number }));
+  ).map((row) => ({ ...toListDto(row), voucherNumber: row.inv_voucher_number, amounts: statementAmounts(row) }));
 
 /**
  * Facturas no eliminadas de varios extractos a la vez (una página del listado

@@ -159,19 +159,11 @@ describe("facturas del extracto: las de su obra con su número como texto", () =
 });
 
 describe("reporte (documento de alcance, punto 7)", () => {
-  const invoice = (overrides) => ({
-    invId: 1,
-    pvtId: 3,
-    menuName: "Contrato mayor",
-    number: "F-1",
-    providerName: "Acme",
-    value: "100.00",
-    vat: "19.00",
-    total: "119.00",
-    state: "APPROVED",
-    voucherNumber: "CE-1",
-    ...overrides,
-  });
+  // Los importes del extracto (`amounts`) repiten los del listado, como los da statementAmounts.
+  const invoice = (overrides) => {
+    const row = { invId: 1, pvtId: 3, menuName: "Contrato mayor", number: "F-1", providerName: "Acme", value: "100.00", vat: "19.00", total: "119.00", state: "APPROVED", voucherNumber: "CE-1", ...overrides };
+    return { ...row, amounts: { value: row.value, vat: row.vat, total: row.total } };
+  };
 
   it("totaliza por menú y en total, sin las anuladas, y señala las aprobadas sin comprobante", async () => {
     state.invoices = [
@@ -189,6 +181,9 @@ describe("reporte (documento de alcance, punto 7)", () => {
     ]);
     expect(report.totals).toEqual({ count: 3, value: "250.00", vat: "38.00", total: "288.00", glossesNet: "0.00", paidTotal: "288.00" });
     expect(report.cancelled).toBe(1);
+    // Una columna por importe que alguna factura tiene, con su suma sin las anuladas.
+    expect(report.amountColumns.map((c) => c.key)).toEqual(["value", "vat", "total"]);
+    expect(report.amountTotals).toMatchObject({ value: "250.00", vat: "38.00", total: "288.00", advance: "0.00" });
     expect(report.withoutVoucher).toEqual([{ invId: 2, number: "F-2", providerName: "Acme", menuName: "Contrato mayor" }]);
   });
 

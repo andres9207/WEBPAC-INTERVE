@@ -35,23 +35,45 @@ const MENU_COLUMNS = [
   { id: 'total', label: 'Total', align: 'right', render: (row) => fMoneyText(row.total) }
 ];
 
-const INVOICE_COLUMNS = [
+// Fila final de la tabla de facturas: la suma de cada importe, sin las anuladas.
+const TOTAL_ROW = 'total';
+const isTotal = (row) => row.invId === TOTAL_ROW;
+const onlyInvoice = (render) => (row) => (isTotal(row) ? '' : render(row));
+
+/**
+ * Columnas de la tabla de facturas: su identificación, un importe por columna
+ * que da el servidor (`amountColumns`: todos los que alguna factura del
+ * extracto tiene) y el estado.
+ */
+const invoiceColumnsOf = (amountColumns) => [
   {
     id: 'number',
     label: 'Factura',
-    render: (row) => (
-      <Link component={RouterLink} to={statementsPath(row.invId)}>
-        {row.number}
-      </Link>
-    )
+    render: (row) =>
+      isTotal(row) ? (
+        <strong>Total</strong>
+      ) : (
+        <Link component={RouterLink} to={statementsPath(row.invId)}>
+          {row.number}
+        </Link>
+      )
   },
-  { id: 'menuName', label: 'Menú' },
-  { id: 'providerName', label: 'Proveedor' },
-  { id: 'contractNumber', label: 'Contrato', render: (row) => row.contractNumber ?? '—' },
-  { id: 'date', label: 'Fecha', render: (row) => fDateOnly(row.date) },
-  { id: 'voucherNumber', label: 'Comprobante', render: (row) => row.voucherNumber ?? '—' },
-  { id: 'total', label: 'Total', align: 'right', render: (row) => fMoneyText(row.total) },
-  { id: 'stateName', label: 'Estado' }
+  { id: 'menuName', label: 'Menú', render: onlyInvoice((row) => row.menuName) },
+  { id: 'providerName', label: 'Proveedor', render: onlyInvoice((row) => row.providerName) },
+  { id: 'contractNumber', label: 'Contrato', render: onlyInvoice((row) => row.contractNumber ?? '—') },
+  { id: 'date', label: 'Fecha', render: onlyInvoice((row) => fDateOnly(row.date)) },
+  { id: 'voucherNumber', label: 'Comprobante', render: onlyInvoice((row) => row.voucherNumber ?? '—') },
+  ...amountColumns.map(({ key, label }) => ({
+    id: `amount-${key}`,
+    label,
+    align: 'right',
+    render: (row) => {
+      const amount = row.amounts?.[key];
+      if (amount == null) return '';
+      return isTotal(row) ? <strong>{fMoneyText(amount)}</strong> : fMoneyText(amount);
+    }
+  })),
+  { id: 'stateName', label: 'Estado', render: onlyInvoice((row) => row.stateName) }
 ];
 
 const GLOSS_COLUMNS = [
@@ -167,7 +189,11 @@ export default function StatementReportDialog({ statement, canExport, reloadKey 
                 {fMoneyText(totals.vat)} · Total {fMoneyText(totals.total)}
               </Typography>
               <Typography variant="h5">Facturas</Typography>
-              <DataTable columns={INVOICE_COLUMNS} rows={report.invoices} keyExtractor={(row) => row.invId} />
+              <DataTable
+                columns={invoiceColumnsOf(report.amountColumns)}
+                rows={[...report.invoices, { invId: TOTAL_ROW, amounts: report.amountTotals }]}
+                keyExtractor={(row) => row.invId}
+              />
             </>
           )}
           {report.glosses.byField.length > 0 && (

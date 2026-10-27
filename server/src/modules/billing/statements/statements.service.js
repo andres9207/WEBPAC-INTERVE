@@ -11,6 +11,7 @@ import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, writeAudit } from "../../
 import { renderDocument } from "../../../common/services/export.service.js";
 import { INVOICE_STATES } from "../invoices/invoiceTerms.js";
 import { statementInvoices, statementsInvoices } from "../invoices/invoices.service.js";
+import { STATEMENT_AMOUNTS } from "../invoices/statementAmounts.js";
 import { statementGlosses, statementsGlosses } from "../invoices/invoiceGlosses.service.js";
 import { GLOSS_FIELD_NAMES } from "../invoices/glossFields.js";
 
@@ -321,6 +322,16 @@ const sumOf = (invoices, field) => moneyText(sumMoney(invoices.map((i) => i[fiel
  * total. Una factura sin importes (registrada antes de DEC-065 o DEC-075)
  * cuenta en la cantidad y no en los valores.
  */
+
+/** Suma de cada importe del extracto (STATEMENT_AMOUNTS) en las facturas que cuentan (no anuladas). */
+const amountTotalsOf = (invoices) => {
+  const counted = invoices.filter((i) => i.state !== INVOICE_STATES.CANCELLED).map((i) => i.amounts ?? {});
+  return Object.fromEntries(STATEMENT_AMOUNTS.map(([key]) => [key, sumOf(counted, key)]));
+};
+
+/** Importes que tiene alguna factura del extracto: las columnas de su tabla, en el orden de STATEMENT_AMOUNTS. */
+const amountColumnsOf = (invoices) =>
+  STATEMENT_AMOUNTS.filter(([key]) => invoices.some((i) => i.amounts?.[key] != null)).map(([key, label]) => ({ key, label }));
 const totalsOf = (invoices) => {
   const counted = invoices.filter((i) => i.state !== INVOICE_STATES.CANCELLED);
   return { count: counted.length, value: sumOf(counted, "value"), vat: sumOf(counted, "vat"), total: sumOf(counted, "total") };
@@ -382,6 +393,9 @@ const buildReport = (statement, invoices, glosses) => {
   return {
     statement,
     invoices,
+    // Todos los importes de las facturas, una columna por importe que alguna tenga, con la suma de cada una.
+    amountColumns: amountColumnsOf(invoices),
+    amountTotals: amountTotalsOf(invoices),
     byMenu: [...menus.values()].map(({ invoices: own, ...menu }) => ({ ...menu, ...totalsOf(own) })),
     totals: { ...totals, ...paidTotalOf(totals.total, raisedValue, releasedValue) },
     cancelled: invoices.filter((i) => i.state === INVOICE_STATES.CANCELLED).length,
@@ -405,16 +419,15 @@ const MENU_COLUMNS = [
   { header: "Total", value: (r) => r.total, kind: "money" },
 ];
 
-const INVOICE_COLUMNS = [
+/** Columnas de la tabla de facturas: su identificación, un importe por columna de `amountColumns` y el estado. */
+const invoiceColumnsOf = (amountColumns) => [
   { header: "Menú", value: (r) => r.menuName },
   { header: "Número", value: (r) => r.number },
   { header: "Proveedor", value: (r) => r.providerName, width: 2 },
   { header: "Contrato", value: (r) => r.contractNumber },
   { header: "Fecha", value: (r) => r.date, kind: "date" },
   { header: "Comprobante", value: (r) => r.voucherNumber },
-  { header: "Valor", value: (r) => r.value, kind: "money" },
-  { header: "IVA", value: (r) => r.vat, kind: "money" },
-  { header: "Total", value: (r) => r.total, kind: "money" },
+  ...amountColumns.map(({ key, label }) => ({ header: label, value: (r) => r.amounts?.[key], kind: "money" })),
   { header: "Estado", value: (r) => r.stateName },
 ];
 
@@ -473,7 +486,14 @@ const renderReport = (report, format, fields) => {
       totals: { name: "Total", count: totals.count, value: totals.value, vat: totals.vat, total: totals.total },
       empty: "El extracto no tiene facturas.",
     },
-    { title: "Facturas", columns: INVOICE_COLUMNS, rows: report.invoices, empty: "El extracto no tiene facturas." },
+    {
+      title: "Facturas",
+      columns: invoiceColumnsOf(report.amountColumns),
+      rows: report.invoices,
+      // La suma de cada columna, sin las anuladas.
+      totals: report.invoices.length ? { menuName: "Total", amounts: report.amountTotals } : null,
+      empty: "El extracto no tiene facturas.",
+    },
     {
       title: "Glosas por campo",
       columns: GLOSS_FIELD_COLUMNS,
