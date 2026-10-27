@@ -2370,9 +2370,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/ContractsPage.jsx": {
-    "mtime": 1793118754.3820207,
-    "seen": 1793119393.939982,
-    "ast_hash": "674744f3d45f3486844a26881d2a7e0d",
+    "mtime": 1793120346.1114664,
+    "seen": 1793121558.0243397,
+    "ast_hash": "3c9238aebee0a72160a0d6bb4b431870",
     "semantic_hash": ""
   },
   "client/src/views/work/contracts/components/ConceptDialog.jsx": {
@@ -3420,9 +3420,9 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx": {
-    "mtime": 1793020539.3825605,
-    "seen": 1793023448.697826,
-    "ast_hash": "d32a0797f8d562403f30899a5fbd4686",
+    "mtime": 1793121407.0311954,
+    "seen": 1793121558.0243192,
+    "ast_hash": "f7968a17a613b6aa39d3986d62ae327b",
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/workDashboard.utils.js": {
@@ -3432,15 +3432,15 @@
     "semantic_hash": ""
   },
   "server/src/modules/app/dashboard/workDashboard.service.js": {
-    "mtime": 1793117036.53884,
-    "seen": 1793119393.9402728,
-    "ast_hash": "337f3042c9adca3d28229a7a97508297",
+    "mtime": 1793121315.9064238,
+    "seen": 1793121558.0246062,
+    "ast_hash": "3ea7887c08a161622c4668e093e638ca",
     "semantic_hash": ""
   },
   "server/test/modules/app/dashboard/workDashboard.service.test.js": {
-    "mtime": 1793117152.0459125,
-    "seen": 1793119393.940397,
-    "ast_hash": "5d1764b64dbbbe50842a614265b396f8",
+    "mtime": 1793121303.802849,
+    "seen": 1793121558.0247388,
+    "ast_hash": "bff95f4e516049331183ad73cfabe83c",
     "semantic_hash": ""
   },
   "server/prisma/dashboard.measure.js": {
@@ -3870,9 +3870,9 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/AdvanceBars.jsx": {
-    "mtime": 1793017597.6014657,
-    "seen": 1793023448.6978202,
-    "ast_hash": "ff6e7e255bf8d551981e92464c5459d6",
+    "mtime": 1793121386.7513533,
+    "seen": 1793121558.0243104,
+    "ast_hash": "a84a1981e9153ac6f5b8b8742a9ba3c6",
     "semantic_hash": ""
   },
   "client/src/api/requests/statementsApi.js": {
@@ -4053,6 +4053,18 @@
     "mtime": 1793117059.101995,
     "seen": 1793119393.9401596,
     "ast_hash": "37177d94a6f158fbc92baffdcfa4447b",
+    "semantic_hash": ""
+  },
+  "client/src/views/dashboard/Default/work/WorkContracts.jsx": {
+    "mtime": 1793121408.0367513,
+    "seen": 1793121558.0243144,
+    "ast_hash": "ad85a5cf921cf8e512b11e546b455c12",
+    "semantic_hash": ""
+  },
+  "client/src/views/dashboard/Default/work/WorkCosts.jsx": {
+    "mtime": 1793120049.4420767,
+    "seen": 1793121558.0243156,
+    "ast_hash": "cb7c6ecc595bd7a9130c9ab6d2b9b3c4",
     "semantic_hash": ""
   }
 }
