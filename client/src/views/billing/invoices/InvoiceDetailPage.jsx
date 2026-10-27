@@ -539,7 +539,7 @@ export default function InvoiceDetailPage() {
 
       {tab === 'glosses' && (
         <InvoiceGlossesTab
-          invoice={{ invId: invoice.invId, wrkId: invoice.wrkId, stmId: invoice.stmId, state: invoice.state }}
+          invoice={{ invId: invoice.invId, statement: invoice.statement, state: invoice.state }}
           canManage={canDo(perms?.manageGlosses)}
           onCount={setOpenGlosses}
         />

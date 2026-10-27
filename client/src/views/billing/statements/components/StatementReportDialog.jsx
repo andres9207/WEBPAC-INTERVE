@@ -161,6 +161,13 @@ export default function StatementReportDialog({ statement, canExport, onClose })
           )}
           <GlossesSection title="Glosas levantadas" rows={report.glosses.raised} total={report.glosses.raisedValue} />
           <GlossesSection title="Glosas liberadas" rows={report.glosses.released} total={report.glosses.releasedValue} />
+          {/* Total pagado (DEC-085): el de las facturas, más las glosas levantadas en el extracto, menos las liberadas en él. */}
+          <Typography variant="h5" sx={{ textAlign: 'right' }}>
+            Total pagado {fMoneyText(totals.paidTotal)}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right' }}>
+            Facturas {fMoneyText(totals.total)} + glosas levantadas − liberadas {fMoneyText(totals.glossesNet)}
+          </Typography>
         </Stack>
       )}
     </BaseDialog>

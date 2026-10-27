@@ -16,13 +16,15 @@ import { assertInvoiceVisible } from "./invoices.service.js";
  *
  * - De la obra de su factura (FK compuesta). Código opcional, valor distinto
  *   de cero (con signo, como en WebPAC) y descripción.
- * - Se levanta en un extracto de la obra (opcional; el cliente propone el de
- *   la factura) y se libera en otro posterior de la misma obra, con una
- *   observación; la fecha de liberación es la del servidor.
+ * - Se levanta en un extracto (opcional; el cliente propone el de la
+ *   factura) y se libera en otro, con una observación; la fecha de
+ *   liberación es la del servidor. El extracto es texto, como el de la
+ *   factura (DEC-084, migración 0125): el de liberación no puede ser el de
+ *   origen, sin distinguir mayúsculas ni tildes, como agrupa la BD.
  * - No bloquea la aprobación de la factura. Abierta, se edita y se elimina
  *   (lógico); liberada, solo se consulta. Una factura anulada no admite
  *   glosas nuevas ni cambios; las abiertas se pueden liberar o eliminar.
- * - Bloqueo: factura → extractos (ADR-0027, DEC-084). Ver exige ver
+ * - Bloqueo: la factura (ADR-0027). Ver exige ver
  *   facturas; operar, además, gestionar glosas (las rutas). Todo, dentro del
  *   alcance por obra (404 fuera).
  */
@@ -33,7 +35,9 @@ const optionalText = (value) => text(value) || null;
 const TEXT_MAX = 1000;
 const NOT_FOUND = "No se encontró la glosa.";
 
-const AUDITED = ["stm_id", "igl_code", "igl_value", "igl_description", "igl_release_stm_id", "igl_release_date", "igl_release_observation", "sta_id"];
+const STATEMENT_MAX = 20;
+
+const AUDITED = ["igl_statement", "igl_code", "igl_value", "igl_description", "igl_release_statement", "igl_release_date", "igl_release_observation", "sta_id"];
 const auditable = (values) =>
   Object.fromEntries(
     Object.entries(values).map(([column, value]) => [column, value instanceof Date ? dateOnlyText(value) : column === "igl_value" ? moneyText(value) : value])
@@ -46,33 +50,42 @@ const requiredText = (value, label) => {
   return result;
 };
 
+/** Texto del extracto, como el de la factura: hasta 20 caracteres. */
+const statementText = (value, label) => {
+  const result = optionalText(value);
+  if (result && result.length > STATEMENT_MAX) throw httpError(400, `El extracto ${label} admite hasta ${STATEMENT_MAX} caracteres.`);
+  return result;
+};
+
+/** Mismo extracto para la BD: sin distinguir mayúsculas ni tildes (intercalación de la columna). */
+const sameStatement = (a, b) => {
+  const key = (value) => String(value).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  return key(a) === key(b);
+};
+
 const valuesOf = (input) => {
   const value = toMoney(input?.value);
   if (value === null || value.isZero()) throw httpError(400, "El valor de la glosa es requerido y no puede ser cero.");
   return {
-    stm_id: Number(input?.stmId) > 0 ? Number(input.stmId) : null,
+    igl_statement: statementText(input?.statement, "de la glosa"),
     igl_code: optionalText(input?.code),
     igl_value: value,
     igl_description: requiredText(input?.description, "descripción"),
   };
 };
 
-const STATEMENT_SELECT = { select: { stm_number: true, stm_date: true } };
-
 const GLOSS_SELECT = {
   igl_id: true,
   inv_id: true,
-  stm_id: true,
+  igl_statement: true,
   igl_code: true,
   igl_value: true,
   igl_description: true,
-  igl_release_stm_id: true,
+  igl_release_statement: true,
   igl_release_date: true,
   igl_release_observation: true,
   igl_create_at: true,
   igl_update_at: true,
-  statement: STATEMENT_SELECT,
-  release_statement: STATEMENT_SELECT,
   created_by_user: USER_NAME_SELECT,
   updated_by_user: USER_NAME_SELECT,
   released_by_user: USER_NAME_SELECT,
@@ -81,14 +94,12 @@ const GLOSS_SELECT = {
 const toDto = (row) => ({
   iglId: row.igl_id,
   invId: row.inv_id,
-  stmId: row.stm_id,
-  statement: row.statement?.stm_number ?? null,
+  statement: row.igl_statement,
   code: row.igl_code,
   value: moneyText(row.igl_value),
   description: row.igl_description,
   open: row.igl_release_date === null,
-  releaseStmId: row.igl_release_stm_id,
-  releaseStatement: row.release_statement?.stm_number ?? null,
+  releaseStatement: row.igl_release_statement,
   releaseDate: dateOnlyText(row.igl_release_date),
   releaseObservation: row.igl_release_observation,
   createdAt: row.igl_create_at,
@@ -98,7 +109,7 @@ const toDto = (row) => ({
   releasedByName: userFullName(row.released_by_user),
 });
 
-/** Factura bloqueada (obra, extracto, estado); 404 si no existe o está eliminada. */
+/** Factura bloqueada (obra, estado); 404 si no existe o está eliminada. */
 const findLockedInvoice = async (tx, invId) => {
   const row = await tx.tbl_invoices.findUnique({
     where: { inv_id: Number(invId) },
@@ -112,20 +123,12 @@ const assertNotCancelled = (invoice, action) => {
   if (invoice.inv_state === INVOICE_STATES.CANCELLED) throw httpError(409, `La factura está anulada: no admite ${action}.`);
 };
 
-/** Extracto ya bloqueado: de la obra de la factura y no eliminado; 400 si no. */
-const findStatement = async (tx, { stmId, wrkId, label }) => {
-  const row = await tx.tbl_statements.findUnique({ where: { stm_id: stmId }, select: { wrk_id: true, stm_number: true, stm_date: true, sta_id: true } });
-  if (!row || row.sta_id === DELETED_STATUS) throw httpError(400, `El extracto ${label} no existe.`);
-  if (row.wrk_id !== wrkId) throw httpError(400, `El extracto ${row.stm_number} no es de la obra de la factura.`);
-  return row;
-};
-
 /**
- * Factura de la glosa (no cambia nunca) y su extracto, leídos antes del
- * bloqueo solo para saber qué bloquear; 404 si no existe o está eliminada.
+ * Factura de la glosa (no cambia nunca), leída antes del bloqueo solo para
+ * saber qué bloquear; 404 si no existe o está eliminada.
  */
 const glossRef = async (iglId) => {
-  const row = await prisma.tbl_invoice_glosses.findUnique({ where: { igl_id: Number(iglId) }, select: { inv_id: true, stm_id: true, sta_id: true } });
+  const row = await prisma.tbl_invoice_glosses.findUnique({ where: { igl_id: Number(iglId) }, select: { inv_id: true, sta_id: true } });
   if (!row || row.sta_id === DELETED_STATUS) throw httpError(404, NOT_FOUND);
   return row;
 };
@@ -138,10 +141,7 @@ const findLockedOpen = async (tx, iglId) => {
   return row;
 };
 
-const locksFor = (invId, ...stmIds) => {
-  const statements = stmIds.filter((id) => id > 0);
-  return { FACTURA: Number(invId), ...(statements.length > 0 ? { EXTRACTO: statements } : {}) };
-};
+const locksFor = (invId) => ({ FACTURA: Number(invId) });
 
 /** Glosas de una factura: las abiertas primero, la más reciente primero. */
 export const listGlosses = async ({ invId, scope }) => {
@@ -163,7 +163,7 @@ const IDEMPOTENCY_TARGET = {
   toResult: (row) => ({ message: "Glosa registrada correctamente", iglId: row.igl_id }),
 };
 
-/** Levanta una glosa sobre una factura no anulada, en un extracto de su obra (opcional). */
+/** Levanta una glosa sobre una factura no anulada, en un extracto (opcional). */
 export const createGloss = async ({ invId, input, useBy, scope, ctx = { useId: useBy }, idempotencyKey }) => {
   await assertInvoiceVisible({ scope }, invId);
   const values = valuesOf(input);
@@ -174,10 +174,9 @@ export const createGloss = async ({ invId, input, useBy, scope, ctx = { useId: u
     ownerId: useBy,
     payload: { invId: Number(invId), ...auditable(values) },
     execute: (idempotencyData) =>
-      withLockedTransaction(locksFor(invId, values.stm_id), async (tx) => {
+      withLockedTransaction(locksFor(invId), async (tx) => {
         const invoice = await findLockedInvoice(tx, invId);
         assertNotCancelled(invoice, "glosas nuevas");
-        if (values.stm_id) await findStatement(tx, { stmId: values.stm_id, wrkId: invoice.wrk_id, label: "de la glosa" });
 
         const created = await tx.tbl_invoice_glosses.create({
           data: {
@@ -209,13 +208,12 @@ export const updateGloss = async ({ iglId, input, useBy, scope, ctx = { useId: u
   await assertInvoiceVisible({ scope }, invId);
   const values = valuesOf(input);
 
-  return withLockedTransaction(locksFor(invId, values.stm_id), async (tx) => {
+  return withLockedTransaction(locksFor(invId), async (tx) => {
     const invoice = await findLockedInvoice(tx, invId);
     assertNotCancelled(invoice, "cambios en sus glosas");
     const before = await findLockedOpen(tx, iglId);
     const changes = diffFields(auditable(before), auditable(values), AUDITED);
     if (changes.length === 0) return { message: "No hubo cambios en la glosa", iglId: before.igl_id };
-    if (values.stm_id && values.stm_id !== before.stm_id) await findStatement(tx, { stmId: values.stm_id, wrkId: invoice.wrk_id, label: "de la glosa" });
 
     await tx.tbl_invoice_glosses.update({ where: { igl_id: before.igl_id }, data: { ...values, igl_update_by: Number(useBy) } });
     await writeAudit(tx, { entity: AUDIT_ENTITIES.INVOICE_GLOSS, recordId: before.igl_id, operation: AUDIT_OPERATIONS.UPDATE, ctx, changes });
@@ -224,31 +222,25 @@ export const updateGloss = async ({ iglId, input, useBy, scope, ctx = { useId: u
 };
 
 /**
- * Libera una glosa abierta en un extracto posterior de la misma obra: otro
- * extracto, con fecha igual o posterior a la del extracto en que se levantó.
- * Con observación; la fecha de liberación es la de hoy (servidor).
+ * Libera una glosa abierta en un extracto posterior: otro texto que el del
+ * extracto en que se levantó. Con observación; la fecha de liberación es la
+ * de hoy (servidor). En el reporte de ese extracto, la glosa resta del total
+ * pagado.
  */
 export const releaseGloss = async ({ iglId, input, useBy, scope, ctx = { useId: useBy } }) => {
-  const { inv_id: invId, stm_id: raisedStmId } = await glossRef(iglId);
+  const { inv_id: invId } = await glossRef(iglId);
   await assertInvoiceVisible({ scope }, invId);
-  const releaseStmId = Number(input?.releaseStmId);
-  if (!(releaseStmId > 0)) throw httpError(400, "Selecciona el extracto en que se libera la glosa.");
+  const releaseStatement = statementText(input?.releaseStatement, "de la liberación");
+  if (!releaseStatement) throw httpError(400, "Escribe el extracto en que se libera la glosa.");
   const observation = requiredText(input?.observation, "observación de la liberación");
 
-  // Los dos extractos, bloqueados: la fecha del de origen decide.
-  return withLockedTransaction(locksFor(invId, raisedStmId, releaseStmId), async (tx) => {
-    const invoice = await findLockedInvoice(tx, invId);
+  return withLockedTransaction(locksFor(invId), async (tx) => {
+    await findLockedInvoice(tx, invId);
     const before = await findLockedOpen(tx, iglId);
-    if (before.stm_id !== raisedStmId) throw httpError(409, "La glosa cambió mientras se liberaba. Vuelve a intentarlo.");
-    const release = await findStatement(tx, { stmId: releaseStmId, wrkId: invoice.wrk_id, label: "de la liberación" });
-    if (before.stm_id) {
-      if (before.stm_id === releaseStmId) throw httpError(400, "La glosa se libera en un extracto posterior, no en el que se levantó.");
-      const raised = await tx.tbl_statements.findUnique({ where: { stm_id: before.stm_id }, select: { stm_number: true, stm_date: true } });
-      if (raised && release.stm_date.getTime() < raised.stm_date.getTime()) {
-        throw httpError(400, `El extracto ${release.stm_number} es anterior al ${raised.stm_number}, en que se levantó la glosa.`);
-      }
+    if (before.igl_statement && sameStatement(before.igl_statement, releaseStatement)) {
+      throw httpError(400, "La glosa se libera en un extracto posterior, no en el que se levantó.");
     }
-    const values = { igl_release_stm_id: releaseStmId, igl_release_date: todayDateOnly(), igl_release_observation: observation };
+    const values = { igl_release_statement: releaseStatement, igl_release_date: todayDateOnly(), igl_release_observation: observation };
     await tx.tbl_invoice_glosses.update({
       where: { igl_id: before.igl_id },
       data: { ...values, igl_release_by: Number(useBy), igl_update_by: Number(useBy) },
@@ -301,15 +293,38 @@ const withInvoice = (row) => ({
   providerName: row.tbl_invoices?.tbl_providers?.prv_name ?? null,
 });
 
+const LIVE = { sta_id: { not: DELETED_STATUS }, tbl_invoices: { sta_id: { not: DELETED_STATUS } } };
+
 /**
- * Glosas de un extracto: las que se levantaron en él y las que se liberaron
- * en él, de facturas no eliminadas. El alcance lo verifica quien llama.
+ * Glosas de un extracto escrito (obra y texto): las que se levantaron en él
+ * y las que se liberaron en él, de facturas no eliminadas. La BD compara el
+ * texto con la intercalación de la columna, como agrupa las facturas. El
+ * alcance lo verifica quien llama.
  */
-export const statementGlosses = async (stmId) => {
-  const base = { sta_id: { not: DELETED_STATUS }, tbl_invoices: { sta_id: { not: DELETED_STATUS } } };
+export const statementGlosses = async ({ wrkId, number }) => {
+  const work = { ...LIVE, wrk_id: Number(wrkId) };
   const [raised, released] = await Promise.all([
-    prisma.tbl_invoice_glosses.findMany({ where: { ...base, stm_id: Number(stmId) }, select: STATEMENT_GLOSS_SELECT, orderBy: { igl_id: "asc" } }),
-    prisma.tbl_invoice_glosses.findMany({ where: { ...base, igl_release_stm_id: Number(stmId) }, select: STATEMENT_GLOSS_SELECT, orderBy: { igl_id: "asc" } }),
+    prisma.tbl_invoice_glosses.findMany({ where: { ...work, igl_statement: number }, select: STATEMENT_GLOSS_SELECT, orderBy: { igl_id: "asc" } }),
+    prisma.tbl_invoice_glosses.findMany({ where: { ...work, igl_release_statement: number }, select: STATEMENT_GLOSS_SELECT, orderBy: { igl_id: "asc" } }),
   ]);
   return { raised: raised.map(withInvoice), released: released.map(withInvoice) };
 };
+
+/**
+ * Glosas de varios extractos a la vez (una página del listado de
+ * extractos), con su obra, el valor y los dos textos. Quien llama las
+ * reparte por obra y texto.
+ */
+export const statementsGlosses = async ({ wrkIds, numbers }) =>
+  wrkIds.length === 0
+    ? []
+    : (
+        await prisma.tbl_invoice_glosses.findMany({
+          where: {
+            ...LIVE,
+            wrk_id: { in: wrkIds },
+            OR: [{ igl_statement: { in: numbers } }, { igl_release_statement: { in: numbers } }],
+          },
+          select: { wrk_id: true, igl_value: true, igl_statement: true, igl_release_statement: true },
+        })
+      ).map((row) => ({ wrkId: row.wrk_id, value: moneyText(row.igl_value), statement: row.igl_statement, releaseStatement: row.igl_release_statement }));

@@ -57,7 +57,7 @@ const INVOICE_FIELDS = [
   "number",
   "date",
   "voucherNumber",
-  "stmId",
+  "statement",
   "description",
   "value",
   "amortization",
@@ -315,7 +315,7 @@ export const deleteInvoiceFollowUpController = followUpAction(followUpsService.d
 
 export const listInvoiceGlossesController = handle(async (req) => glossesService.listGlosses({ invId: req.query.invId, scope: await workScopeOf(req) }));
 
-const GLOSS_FIELDS = ["stmId", "code", "value", "description"];
+const GLOSS_FIELDS = ["statement", "code", "value", "description"];
 
 const glossAction = (fn, fields) =>
   handle(async (req) => {
@@ -344,5 +344,5 @@ export const createInvoiceGlossController = handle(async (req) => {
 });
 
 export const updateInvoiceGlossController = glossAction(glossesService.updateGloss, GLOSS_FIELDS);
-export const releaseInvoiceGlossController = glossAction(glossesService.releaseGloss, ["releaseStmId", "observation"]);
+export const releaseInvoiceGlossController = glossAction(glossesService.releaseGloss, ["releaseStatement", "observation"]);
 export const deleteInvoiceGlossController = glossAction(glossesService.deleteGloss, []);

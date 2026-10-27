@@ -107,10 +107,6 @@ const DEFAULT_VAT_PCT = '19';
 const text = (value) => String(value ?? '').trim();
 const today = () => format(new Date(), 'yyyy-MM-dd');
 const isSimple = (type) => type === 'SIMPLE';
-// Separación (px) de las tarjetas de saldos fijas con el borde y con el formulario.
-const CARDS_GAP = 12;
-// El contenido de RouteDialog tiene padding 3 (24 px): `sticky` se fija bajo él.
-const DIALOG_PADDING = 24;
 const hasAmounts = (type) => type === 'ADVANCE' || type === 'RETENTION_REFUND' || isBillingInvoiceType(type);
 
 const toForm = (invoice) => ({
@@ -547,21 +543,7 @@ export default function InvoiceFormPage() {
             Revisa los campos marcados antes de guardar.
           </Alert>
         )}
-        {hasAmounts(type) && balances && (
-          <Box
-            sx={(theme) => ({
-              position: { md: 'sticky' },
-              top: { md: CARDS_GAP - DIALOG_PADDING },
-              zIndex: { md: 2 },
-              bgcolor: 'grey.50',
-              // Tapa el formulario que pasa por encima y por debajo de las
-              // tarjetas, sin cambiar el espacio que ocupan.
-              boxShadow: { md: `0 -${CARDS_GAP}px 0 0 ${theme.vars.palette.grey[50]}, 0 ${CARDS_GAP}px 0 0 ${theme.vars.palette.grey[50]}` }
-            })}
-          >
-            <ContractBalanceCards balances={balances} type={type} />
-          </Box>
-        )}
+        {hasAmounts(type) && balances && <ContractBalanceCards balances={balances} type={type} />}
 
         <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
           <Grid size={{ xs: 12, md: 8 }}>

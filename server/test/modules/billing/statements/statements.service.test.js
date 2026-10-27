@@ -2,11 +2,11 @@ import { jest } from "@jest/globals";
 import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
 
 // Extractos de la obra (DEC-084): número único en la obra, alcance por obra,
-// eliminación bloqueada si alguna glosa lo usa, las facturas agrupadas por su
-// texto de extracto (migración 0124), y el reporte con los totales por menú y
-// el chequeo de comprobantes de egreso.
+// las facturas y las glosas agrupadas por su texto de extracto (migraciones
+// 0124 y 0125), y el reporte con los totales por menú, el chequeo de
+// comprobantes de egreso y el total pagado con las glosas (DEC-085).
 
-const state = { statement: null, duplicate: null, work: null, invoices: [], invoiceGroups: [], glossesCount: 0, glosses: null, replay: null };
+const state = { statement: null, duplicate: null, work: null, invoices: [], invoiceGroups: [], glosses: null, pageGlosses: [], replay: null };
 
 const prismaMock = {
   tbl_statements: {
@@ -20,7 +20,7 @@ const prismaMock = {
   },
   tbl_works: { findUnique: jest.fn(async () => state.work), findMany: jest.fn(async () => state.works) },
   tbl_invoices: { count: jest.fn(async () => 0), groupBy: jest.fn(async () => state.invoiceGroups) },
-  tbl_invoice_glosses: { count: jest.fn(async () => state.glossesCount) },
+  tbl_invoice_glosses: { count: jest.fn(async () => 0) },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
@@ -34,7 +34,9 @@ jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.serv
 // Las glosas del extracto (DEC-085), del service de glosas.
 jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoiceGlosses.service.js", () => ({
   statementGlosses: jest.fn(async () => state.glosses),
+  statementsGlosses: jest.fn(async () => state.pageGlosses),
 }));
+const { statementGlosses } = await import("../../../../src/modules/billing/invoices/invoiceGlosses.service.js");
 
 const service = await import("../../../../src/modules/billing/statements/statements.service.js");
 
@@ -70,8 +72,8 @@ beforeEach(() => {
     invoices: [],
     invoiceGroups: [],
     works: [],
-    glossesCount: 0,
     glosses: { raised: [], released: [] },
+    pageGlosses: [],
     replay: null,
   });
 });
@@ -117,17 +119,10 @@ describe("crear y editar", () => {
 });
 
 describe("eliminar", () => {
-  it("las facturas con su número no lo impiden: conservan su texto", async () => {
+  it("las facturas y las glosas con su número no lo impiden: conservan su texto", async () => {
     await expect(service.deleteStatement({ stmId: 40, useBy: 9, scope: OWN, ctx })).resolves.toEqual({ message: "Extracto eliminado correctamente" });
     expect(prismaMock.tbl_invoices.count).not.toHaveBeenCalled();
-  });
-
-  it("con glosas levantadas o liberadas en él no se elimina (409, DEC-085)", async () => {
-    state.glossesCount = 1;
-    await expect(service.deleteStatement({ stmId: 40, useBy: 9, scope: OWN, ctx })).rejects.toMatchObject({
-      statusCode: 409,
-      message: "No se puede eliminar el extracto: tiene 1 glosa(s).",
-    });
+    expect(prismaMock.tbl_invoice_glosses.count).not.toHaveBeenCalled();
   });
 
   it("lógica y con evidencia", async () => {
@@ -156,9 +151,10 @@ describe("facturas del extracto: las de su obra con su número como texto", () =
     expect(prismaMock.tbl_invoices.groupBy.mock.calls[0][0].where).toMatchObject({ wrk_id: { in: [8] }, inv_statement: { in: ["ext-9"] } });
   });
 
-  it("el reporte pide las facturas por obra y número", async () => {
+  it("el reporte pide las facturas y las glosas por obra y número", async () => {
     await service.getStatementReport({ stmId: 40, scope: OWN });
     expect(statementInvoices).toHaveBeenCalledWith({ wrkId: 8, number: "001" });
+    expect(statementGlosses).toHaveBeenCalledWith({ wrkId: 8, number: "001" });
   });
 });
 
@@ -191,17 +187,20 @@ describe("reporte (documento de alcance, punto 7)", () => {
       { pvtId: 3, name: "Contrato mayor", count: 2, value: "200.00", vat: "38.00", total: "238.00" },
       { pvtId: 1, name: "Simple", count: 1, value: "50.00", vat: "0.00", total: "50.00" },
     ]);
-    expect(report.totals).toEqual({ count: 3, value: "250.00", vat: "38.00", total: "288.00" });
+    expect(report.totals).toEqual({ count: 3, value: "250.00", vat: "38.00", total: "288.00", glossesNet: "0.00", paidTotal: "288.00" });
     expect(report.cancelled).toBe(1);
     expect(report.withoutVoucher).toEqual([{ invId: 2, number: "F-2", providerName: "Acme", menuName: "Contrato mayor" }]);
   });
 
-  it("suma las glosas levantadas y las liberadas en el extracto (DEC-085)", async () => {
-    state.glosses = { raised: [{ iglId: 1, value: "100.00" }, { iglId: 2, value: "-30.00" }], released: [{ iglId: 3, value: "50.00" }] };
+  it("total pagado: las facturas más las glosas levantadas en el extracto, menos las liberadas en él (DEC-085)", async () => {
+    // Anticipo registrado por el máximo (5.052.000) y glosa por lo pagado de más (48.000).
+    state.invoices = [invoice({ value: "5052000.00", vat: null, total: "5052000.00" })];
+    state.glosses = { raised: [{ iglId: 1, value: "48000.00" }, { iglId: 2, value: "-30.00" }], released: [{ iglId: 3, value: "50.00" }] };
 
-    const { glosses } = await service.getStatementReport({ stmId: 40, scope: OWN });
+    const { glosses, totals } = await service.getStatementReport({ stmId: 40, scope: OWN });
 
-    expect(glosses).toMatchObject({ raisedValue: "70.00", releasedValue: "50.00" });
+    expect(glosses).toMatchObject({ raisedValue: "47970.00", releasedValue: "50.00" });
+    expect(totals).toMatchObject({ total: "5052000.00", glossesNet: "47920.00", paidTotal: "5099920.00" });
   });
 });
 
@@ -234,6 +233,24 @@ describe("extractos escritos en las facturas (solo lectura)", () => {
     expect(page.results[0]).toMatchObject({ total: "0.00", approvedCount: 0 });
   });
 
+  it("el total pagado de cada extracto suma sus glosas levantadas y resta las liberadas, por obra y texto", async () => {
+    state.invoiceGroups = [group(8, "EXT-1", 1, "2026-09-01", "2026-09-01"), group(8, "EXT-2", 1, "2026-10-01", "2026-10-01")];
+    state.works = [{ wrk_id: 8, wrk_code: "OB-8", wrk_name: "Vía" }];
+    state.invoices = [invoice({}), invoice({ statement: "EXT-2", total: "70.00" })];
+    state.pageGlosses = [
+      { wrkId: 8, value: "10.00", statement: "ext-1", releaseStatement: "EXT-2" },
+      { wrkId: 8, value: "5.00", statement: "EXT-1", releaseStatement: null },
+      { wrkId: 9, value: "999.00", statement: "EXT-1", releaseStatement: null },
+    ];
+
+    const page = await service.paginationStatementGroups({ scope: OWN, rows: 10, first: 0, sortField: "number", sortOrder: 1 });
+
+    expect(page.results.map((g) => [g.number, g.total, g.glossesNet, g.paidTotal])).toEqual([
+      ["EXT-1", "100.00", "15.00", "115.00"],
+      ["EXT-2", "70.00", "-10.00", "60.00"],
+    ]);
+  });
+
   it("ordena por número en forma natural y pagina", async () => {
     state.invoiceGroups = [group(8, "EXT-10", 1, "2026-09-01", "2026-09-01"), group(8, "EXT-9", 1, "2026-09-02", "2026-09-02")];
     const page = await service.paginationStatementGroups({ scope: OWN, rows: 1, first: 0, sortField: "number", sortOrder: 1 });
@@ -241,13 +258,13 @@ describe("extractos escritos en las facturas (solo lectura)", () => {
     expect(page.results.map((g) => g.number)).toEqual(["EXT-9"]);
   });
 
-  it("el reporte pide las facturas de la obra con ese texto, con las glosas del extracto registrado si lo hay", async () => {
+  it("el reporte pide las facturas y las glosas de la obra con ese texto", async () => {
     state.invoices = [invoice({ date: "2026-09-10" }), invoice({ invId: 2, date: "2026-09-01" })];
-    prismaMock.tbl_statements.findFirst.mockImplementationOnce(async () => ({ stm_id: 40 }));
 
     const report = await service.getStatementGroupReport({ wrkId: "8", number: " EXT-1 ", scope: OWN });
 
     expect(statementInvoices).toHaveBeenCalledWith({ wrkId: 8, number: "EXT-1" });
+    expect(statementGlosses).toHaveBeenCalledWith({ wrkId: 8, number: "EXT-1" });
     expect(report.statement).toMatchObject({ number: "EXT-1", firstDate: "2026-09-01", lastDate: "2026-09-10", invoicesCount: 2 });
     expect(report.totals).toMatchObject({ count: 2, total: "200.00" });
   });

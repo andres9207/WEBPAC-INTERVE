@@ -7,7 +7,6 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
-import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -16,7 +15,6 @@ import { IconCheck, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
 import BaseDialog from 'ui-component/extended/BaseDialog';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import { invoiceGlossesApi } from 'api/requests/invoicesApi';
-import { getStatementsSelectAPI } from 'api/requests/statementsApi';
 import { useSocket } from 'socket/SocketProvider';
 import { showError, showSuccess } from 'services/ToastService';
 import { fDateOnly } from 'utils/formatTime';
@@ -26,46 +24,59 @@ import { newIdempotencyKey } from 'utils/idempotency';
 /**
  * Glosas de una factura (DEC-085): errores hallados al registrarla, que se
  * controlan hasta su liberación en un extracto posterior. Llevan código
- * (opcional), valor con signo y descripción; se levantan en un extracto de la
- * obra (se propone el de la factura) y se liberan en otro posterior, con
- * observación. No bloquean la aprobación. Abiertas se editan y se eliminan;
- * liberadas, solo se consultan. Las reglas las repite el servidor.
+ * (opcional), valor con signo y descripción; se levantan en un extracto (se
+ * propone el de la factura) y se liberan en otro, con observación. El
+ * extracto se escribe, como en la factura (DEC-084). En el reporte del
+ * extracto, la levantada suma al total pagado y la liberada resta: así se
+ * registra lo pagado por encima de lo que la factura admite. No bloquean la
+ * aprobación. Abiertas se editan y se eliminan; liberadas, solo se
+ * consultan. Las reglas las repite el servidor.
  */
 
 const TEXT_MAX = 1000;
+const STATEMENT_MAX = 20;
 const VALUE_PATTERN = /^-?\d{1,16}(\.\d{1,2})?$/;
 
-function GlossDialog({ open, mode, invoice, gloss, statements, onClose, onSaved }) {
+function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState(null);
   const releasing = mode === 'release';
   const { control, handleSubmit, reset } = useForm({
-    defaultValues: { stmId: '', code: '', value: '', description: '', releaseStmId: '', observation: '' }
+    defaultValues: { statement: '', code: '', value: '', description: '', releaseStatement: '', observation: '' }
   });
 
   useEffect(() => {
     if (!open) return;
     setIdempotencyKey(mode === 'create' ? newIdempotencyKey() : null);
     reset({
-      // Una glosa nueva propone el extracto de la obra cuyo número escribió la factura, si está entre los activos.
-      stmId: gloss ? (gloss.stmId ?? '') : statements.some((s) => s.value === invoice.stmId) ? invoice.stmId : '',
+      // Una glosa nueva propone el extracto de la factura.
+      statement: gloss ? (gloss.statement ?? '') : (invoice.statement ?? ''),
       code: gloss?.code ?? '',
       value: gloss?.value ?? '',
       description: gloss?.description ?? '',
-      releaseStmId: '',
+      releaseStatement: '',
       observation: ''
     });
-  }, [open, mode, gloss, invoice, statements, reset]);
+  }, [open, mode, gloss, invoice, reset]);
 
   const save = async (form) => {
     setSaving(true);
     try {
-      const values = { stmId: form.stmId || null, code: form.code.trim(), value: form.value.trim(), description: form.description.trim() };
+      const values = {
+        statement: form.statement.trim() || null,
+        code: form.code.trim(),
+        value: form.value.trim(),
+        description: form.description.trim()
+      };
       const { data } =
         mode === 'create'
           ? await invoiceGlossesApi.create({ invId: invoice.invId, ...values }, idempotencyKey)
           : releasing
-            ? await invoiceGlossesApi.release({ iglId: gloss.iglId, releaseStmId: form.releaseStmId, observation: form.observation.trim() })
+            ? await invoiceGlossesApi.release({
+                iglId: gloss.iglId,
+                releaseStatement: form.releaseStatement.trim(),
+                observation: form.observation.trim()
+              })
             : await invoiceGlossesApi.update({ iglId: gloss.iglId, ...values });
       showSuccess(data.message);
       onSaved();
@@ -81,8 +92,12 @@ function GlossDialog({ open, mode, invoice, gloss, statements, onClose, onSaved 
     validate: (value) => (value.trim() ? true : `${label} es requerida.`),
     maxLength: { value: TEXT_MAX, message: `Máximo ${TEXT_MAX} caracteres.` }
   });
-  // Se libera en otro extracto de la obra; el servidor exige además que no sea anterior.
-  const releaseOptions = statements.filter((s) => s.value !== gloss?.stmId);
+  const statementRules = { maxLength: { value: STATEMENT_MAX, message: `Máximo ${STATEMENT_MAX} caracteres.` } };
+  // Se libera en otro extracto: el servidor lo compara sin distinguir mayúsculas ni tildes.
+  const sameAsRaised = (value) =>
+    gloss?.statement && value.trim().localeCompare(gloss.statement, 'es', { sensitivity: 'base' }) === 0
+      ? 'Se libera en un extracto posterior, no en el que se levantó.'
+      : true;
 
   return (
     <BaseDialog
@@ -110,25 +125,22 @@ function GlossDialog({ open, mode, invoice, gloss, statements, onClose, onSaved 
               {fMoneyText(gloss?.value)}: {gloss?.description}. Se libera con la fecha de hoy y después solo se consulta.
             </Alert>
             <Controller
-              name="releaseStmId"
+              name="releaseStatement"
               control={control}
-              rules={{ required: 'Selecciona el extracto en que se libera.' }}
+              rules={{
+                ...statementRules,
+                validate: (value) => (value.trim() ? sameAsRaised(value) : 'Escribe el extracto en que se libera.')
+              }}
               render={({ field, fieldState }) => (
                 <TextField
                   {...field}
-                  select
                   label="Extracto en que se libera"
                   fullWidth
                   required
                   error={!!fieldState.error}
-                  helperText={fieldState.error?.message ?? (releaseOptions.length === 0 ? 'La obra no tiene otro extracto activo.' : undefined)}
-                >
-                  {releaseOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                  helperText={fieldState.error?.message ?? 'En su reporte, la glosa resta del total pagado.'}
+                  slotProps={{ htmlInput: { maxLength: STATEMENT_MAX } }}
+                />
               )}
             />
             <Controller
@@ -153,19 +165,18 @@ function GlossDialog({ open, mode, invoice, gloss, statements, onClose, onSaved 
         ) : (
           <>
             <Controller
-              name="stmId"
+              name="statement"
               control={control}
-              render={({ field }) => (
-                <TextField {...field} select label="Extracto en que se levanta" fullWidth>
-                  <MenuItem value="">
-                    <em>Sin extracto</em>
-                  </MenuItem>
-                  {statements.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
+              rules={statementRules}
+              render={({ field, fieldState }) => (
+                <TextField
+                  {...field}
+                  label="Extracto en que se levanta"
+                  fullWidth
+                  error={!!fieldState.error}
+                  helperText={fieldState.error?.message ?? 'En su reporte, la glosa suma al total pagado.'}
+                  slotProps={{ htmlInput: { maxLength: STATEMENT_MAX } }}
+                />
               )}
             />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -239,7 +250,6 @@ GlossDialog.propTypes = {
   mode: PropTypes.oneOf(['create', 'edit', 'release']),
   invoice: PropTypes.object.isRequired,
   gloss: PropTypes.object,
-  statements: PropTypes.array.isRequired,
   onClose: PropTypes.func.isRequired,
   onSaved: PropTypes.func.isRequired
 };
@@ -247,7 +257,6 @@ GlossDialog.propTypes = {
 export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
   const socket = useSocket();
   const [rows, setRows] = useState(null);
-  const [statements, setStatements] = useState([]);
   const [dialog, setDialog] = useState(null);
   const [removing, setRemoving] = useState(null);
   const cancelled = invoice.state === 'CANCELLED';
@@ -266,18 +275,6 @@ export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
   useEffect(() => {
     load();
   }, [load]);
-
-  // Extractos activos de la obra de la factura, para levantar y liberar.
-  useEffect(() => {
-    if (!canManage) return undefined;
-    let ignore = false;
-    getStatementsSelectAPI({ wrkId: invoice.wrkId })
-      .then(({ data }) => !ignore && setStatements(data))
-      .catch((err) => !ignore && showError(err.response?.data?.message || 'Error al cargar los extractos de la obra'));
-    return () => {
-      ignore = true;
-    };
-  }, [canManage, invoice.wrkId]);
 
   // Otro usuario cambió una glosa: se recarga.
   useEffect(() => {
@@ -369,7 +366,12 @@ export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
                         Editar
                       </Button>
                     )}
-                    <Button size="small" color="success" startIcon={<IconCheck size={16} />} onClick={() => setDialog({ mode: 'release', gloss: row })}>
+                    <Button
+                      size="small"
+                      color="success"
+                      startIcon={<IconCheck size={16} />}
+                      onClick={() => setDialog({ mode: 'release', gloss: row })}
+                    >
                       Liberar
                     </Button>
                     <Button size="small" color="error" startIcon={<IconTrash size={16} />} onClick={() => setRemoving(row)}>
@@ -401,7 +403,6 @@ export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
         mode={dialog?.mode ?? 'create'}
         invoice={invoice}
         gloss={dialog?.gloss}
-        statements={statements}
         onClose={() => setDialog(null)}
         onSaved={saved}
       />
@@ -419,7 +420,7 @@ export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
 }
 
 InvoiceGlossesTab.propTypes = {
-  /** `{ invId, wrkId, stmId, state }`. */
+  /** `{ invId, statement, state }`. */
   invoice: PropTypes.object.isRequired,
   canManage: PropTypes.bool,
   onCount: PropTypes.func

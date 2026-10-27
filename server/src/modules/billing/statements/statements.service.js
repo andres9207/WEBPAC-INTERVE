@@ -3,7 +3,7 @@ import { ACTIVE_STATUS, DELETED_STATUS, INACTIVE_STATUS } from "../../../common/
 import { MAX_ROWS, countByStatus, containsFilter, filtersWhere, idFilter, paginate, resolvePagination, searchWhere } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
-import { moneyText, sumMoney } from "../../../common/utils/money.utils.js";
+import { decimal, moneyText, sumMoney } from "../../../common/utils/money.utils.js";
 import { assertInScope, scopeWhere } from "../../../common/services/workScope.service.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
@@ -11,7 +11,7 @@ import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, writeAudit } from "../../
 import { renderDocument } from "../../../common/services/export.service.js";
 import { INVOICE_STATES } from "../invoices/invoiceTerms.js";
 import { statementInvoices, statementsInvoices } from "../invoices/invoices.service.js";
-import { statementGlosses } from "../invoices/invoiceGlosses.service.js";
+import { statementGlosses, statementsGlosses } from "../invoices/invoiceGlosses.service.js";
 
 /**
  * Extractos de la obra (DEC-084): el acta de WebPAC. Número único en la obra
@@ -24,10 +24,12 @@ import { statementGlosses } from "../invoices/invoiceGlosses.service.js";
  *   obra del alcance; fuera, 404.
  * - Crear bloquea la obra (el padre); editar, cambiar el estado y eliminar
  *   bloquean el extracto.
- * - Eliminar es lógico y responde 409 si alguna glosa lo usa. Las facturas no
- *   lo impiden: conservan su texto.
+ * - Eliminar es lógico. Las facturas y las glosas no lo impiden: conservan
+ *   su texto (migraciones 0124 y 0125).
  * - El reporte totaliza sus facturas por menú (tipo de proveedor) y señala
  *   las aprobadas sin comprobante de egreso. Las anuladas no suman (DEC-052).
+ *   El total pagado suma las glosas levantadas en él y resta las liberadas
+ *   en él (DEC-085).
  */
 
 const NOT_FOUND = "No se encontró el extracto.";
@@ -289,16 +291,11 @@ export const changeStatementStatus = async ({ stmId, staId, useBy, scope, ctx = 
   );
 };
 
-/** Eliminación lógica (DEC-006): 409 si alguna glosa no eliminada lo usa. Las facturas conservan su texto. */
+/** Eliminación lógica (DEC-006). Las facturas y las glosas conservan su texto. */
 export const deleteStatement = async ({ stmId, useBy, scope, ctx = { useId: useBy } }) => {
   await findImmutable(stmId, scope);
   return withLockedTransaction({ EXTRACTO: Number(stmId) }, async (tx) => {
     const before = await findLocked(tx, stmId);
-    // Glosas levantadas o liberadas en él (DEC-085).
-    const glosses = await tx.tbl_invoice_glosses.count({
-      where: { sta_id: { not: DELETED_STATUS }, OR: [{ stm_id: before.stm_id }, { igl_release_stm_id: before.stm_id }] },
-    });
-    if (glosses > 0) throw httpError(409, `No se puede eliminar el extracto: tiene ${glosses} glosa(s).`);
     await tx.tbl_statements.update({
       where: { stm_id: before.stm_id },
       data: { sta_id: DELETED_STATUS, stm_update_by: Number(useBy), stm_delete_by: Number(useBy), stm_delete_at: new Date() },
@@ -339,10 +336,20 @@ export const getStatementReport = async ({ stmId, scope }) => {
   const statement = toDto(await findStatement(stmId, scope));
   const [invoices, glosses] = await Promise.all([
     statementInvoices({ wrkId: statement.wrkId, number: statement.number }),
-    statementGlosses(statement.stmId),
+    statementGlosses({ wrkId: statement.wrkId, number: statement.number }),
   ]);
   statement.invoicesCount = invoices.length;
   return buildReport(statement, invoices, glosses);
+};
+
+/**
+ * Total pagado del extracto (DEC-085): el total de sus facturas, más las
+ * glosas levantadas en él (lo pagado por encima de lo que la factura
+ * admite), menos las liberadas en él.
+ */
+const paidTotalOf = (total, raisedValue, releasedValue) => {
+  const net = decimal(raisedValue).minus(decimal(releasedValue));
+  return { glossesNet: moneyText(net), paidTotal: moneyText(decimal(total).plus(net)) };
 };
 
 /** Las cifras del reporte a partir de sus facturas y glosas: las mismas para un extracto registrado o escrito. */
@@ -353,19 +360,22 @@ const buildReport = (statement, invoices, glosses) => {
     menus.get(invoice.pvtId).invoices.push(invoice);
   }
   const withoutVoucher = invoices.filter((i) => i.state === INVOICE_STATES.APPROVED && !i.voucherNumber);
+  const totals = totalsOf(invoices);
+  const raisedValue = sumOf(glosses.raised, "value");
+  const releasedValue = sumOf(glosses.released, "value");
   return {
     statement,
     invoices,
     byMenu: [...menus.values()].map(({ invoices: own, ...menu }) => ({ ...menu, ...totalsOf(own) })),
-    totals: totalsOf(invoices),
+    totals: { ...totals, ...paidTotalOf(totals.total, raisedValue, releasedValue) },
     cancelled: invoices.filter((i) => i.state === INVOICE_STATES.CANCELLED).length,
     withoutVoucher: withoutVoucher.map((i) => ({ invId: i.invId, number: i.number, providerName: i.providerName, menuName: i.menuName })),
     // Glosas levantadas en el extracto y liberadas en él (DEC-085), con su valor total.
     glosses: {
       raised: glosses.raised,
       released: glosses.released,
-      raisedValue: sumOf(glosses.raised, "value"),
-      releasedValue: sumOf(glosses.released, "value"),
+      raisedValue,
+      releasedValue,
     },
   };
 };
@@ -424,6 +434,9 @@ const renderReport = (report, format, fields) => {
         ...fields,
         { label: "Facturas", value: String(report.invoices.length) },
         { label: "Aprobadas sin comprobante de egreso", value: String(report.withoutVoucher.length) },
+        { label: "Total de las facturas", value: totals.total, kind: "money" },
+        { label: "Glosas (levantadas − liberadas)", value: totals.glossesNet, kind: "money" },
+        { label: "Total pagado", value: totals.paidTotal, kind: "money" },
       ],
     },
     {
@@ -460,8 +473,8 @@ const renderReport = (report, format, fields) => {
  * Extractos agrupa las facturas por obra y texto, sin registrar nada: cada
  * grupo es un extracto escrito, con sus facturas, sus totales y su reporte. La
  * agrupación es la de la BD (intercalación de la columna: sin distinguir
- * mayúsculas ni tildes). Las glosas salen del extracto registrado con ese
- * número, si lo hay.
+ * mayúsculas ni tildes). Las glosas se agrupan igual, por su texto
+ * (migración 0125).
  */
 
 const isApproved = (invoice) => invoice.state === INVOICE_STATES.APPROVED;
@@ -523,23 +536,30 @@ export const paginationStatementGroups = async ({ search, wrkId, number, rows, f
 
   const { skip, take } = resolvePagination({ first, rows });
   const page = all.slice(skip, skip + take);
-  const invoices = await statementsInvoices({
-    wrkIds: [...new Set(page.map((g) => g.wrkId))],
-    numbers: [...new Set(page.map((g) => g.number))],
-  });
+  const pageGroups = { wrkIds: [...new Set(page.map((g) => g.wrkId))], numbers: [...new Set(page.map((g) => g.number))] };
+  const [invoices, glosses] = await Promise.all([statementsInvoices(pageGroups), statementsGlosses(pageGroups)]);
   const byGroup = new Map();
   for (const invoice of invoices) {
     const key = groupKey(invoice.wrkId, invoice.statement);
     if (!byGroup.has(key)) byGroup.set(key, []);
     byGroup.get(key).push(invoice);
   }
+  // Glosas por extracto: las levantadas en él y las liberadas en él.
+  const glossesOf = (wrkId, number) => {
+    const key = groupKey(wrkId, number);
+    const inGroup = (text) => text !== null && groupKey(wrkId, text) === key;
+    const own = glosses.filter((gl) => gl.wrkId === wrkId);
+    return { raised: own.filter((gl) => inGroup(gl.statement)), released: own.filter((gl) => inGroup(gl.releaseStatement)) };
+  };
   const results = page.map((g) => {
     const own = byGroup.get(groupKey(g.wrkId, g.number)) ?? [];
     const totals = totalsOf(own);
+    const { raised, released } = glossesOf(g.wrkId, g.number);
     return {
       ...g,
       value: totals.value,
       total: totals.total,
+      ...paidTotalOf(totals.total, sumOf(raised, "value"), sumOf(released, "value")),
       approvedCount: own.filter(isApproved).length,
       withoutVoucher: own.filter((i) => isApproved(i) && !i.voucherNumber).length,
     };
@@ -552,13 +572,12 @@ export const getStatementGroupReport = async ({ wrkId, number, scope }) => {
   const id = Number(wrkId);
   const value = text(number);
   assertInScope(scope, id, NOT_FOUND);
-  const [invoices, work, registered] = await Promise.all([
+  const [invoices, work, glosses] = await Promise.all([
     statementInvoices({ wrkId: id, number: value }),
     prisma.tbl_works.findUnique({ where: { wrk_id: id }, select: { wrk_code: true, wrk_name: true } }),
-    prisma.tbl_statements.findFirst({ where: { wrk_id: id, stm_number: value, sta_id: { not: DELETED_STATUS } }, select: { stm_id: true } }),
+    statementGlosses({ wrkId: id, number: value }),
   ]);
   if (invoices.length === 0) throw httpError(404, NOT_FOUND);
-  const glosses = registered ? await statementGlosses(registered.stm_id) : { raised: [], released: [] };
   const dates = invoices.map((i) => i.date).filter(Boolean).sort();
   const statement = {
     wrkId: id,

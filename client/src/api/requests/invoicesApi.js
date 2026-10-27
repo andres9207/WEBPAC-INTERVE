@@ -132,11 +132,11 @@ export const invoiceFollowUpsApi = {
  */
 export const invoiceGlossesApi = {
   list: (invId) => httpCliente.get('billing/invoices/list_invoice_glosses', { invId }),
-  /** @param {{ invId, stmId, code, value, description }} params */
+  /** @param {{ invId, statement, code, value, description }} params */
   create: (params, idempotencyKey) => httpCliente.post('billing/invoices/create_invoice_gloss', params, idempotencyConfig(idempotencyKey)),
-  /** @param {{ iglId, stmId, code, value, description }} params */
+  /** @param {{ iglId, statement, code, value, description }} params */
   update: (params) => httpCliente.post('billing/invoices/update_invoice_gloss', params),
-  /** @param {{ iglId, releaseStmId, observation }} params */
+  /** @param {{ iglId, releaseStatement, observation }} params */
   release: (params) => httpCliente.post('billing/invoices/release_invoice_gloss', params),
   remove: (iglId) => httpCliente.post('billing/invoices/delete_invoice_gloss', { iglId })
 };

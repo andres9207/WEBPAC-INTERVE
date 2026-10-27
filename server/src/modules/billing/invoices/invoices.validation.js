@@ -286,7 +286,7 @@ export const deleteInvoiceFollowUpSchema = [requiredId("ifuId")];
 
 // Glosas (DEC-085). La fecha de liberación la pone el servidor: no se acepta.
 const glossRules = () => [
-  optionalId("stmId"),
+  optionalText("statement", 20),
   optionalText("code", 20),
   // Con signo, como en WebPAC (un valor a favor o en contra); distinto de cero lo verifica el service.
   body("value")
@@ -308,7 +308,7 @@ export const updateInvoiceGlossSchema = [requiredId("iglId"), ...glossRules()];
 
 export const releaseInvoiceGlossSchema = [
   requiredId("iglId"),
-  requiredId("releaseStmId").withMessage("Selecciona el extracto en que se libera la glosa."),
+  body("releaseStatement").trim().notEmpty().withMessage("Escribe el extracto en que se libera la glosa.").isLength({ max: 20 }).withMessage("El extracto admite hasta 20 caracteres."),
   body("observation").trim().notEmpty().withMessage("La observación de la liberación es requerida.").isLength({ max: 1000 }).withMessage("La observación admite hasta 1000 caracteres."),
 ];
 

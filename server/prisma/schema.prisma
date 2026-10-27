@@ -1110,16 +1110,16 @@ model tbl_invoices {
 }
 
 /// Glosas de facturas (database/migrations/0120_create_invoice_glosses.sql, DEC-085): de la obra de su factura, levantadas
-/// en un extracto y liberadas en otro posterior de la misma obra (FK compuestas).
+/// en un extracto y liberadas en otro posterior de la misma obra. El extracto es texto, como el de la factura (0125).
 model tbl_invoice_glosses {
   igl_id                  Int             @id @default(autoincrement())
   inv_id                  Int
   wrk_id                  Int
-  stm_id                  Int?
+  igl_statement           String?         @db.VarChar(20)
   igl_code                String?         @db.VarChar(20)
   igl_value               Decimal         @db.Decimal(18, 2)
   igl_description         String          @db.VarChar(1000)
-  igl_release_stm_id      Int?
+  igl_release_statement   String?         @db.VarChar(20)
   igl_release_date        DateTime?       @db.Date
   igl_release_observation String?         @db.VarChar(1000)
   igl_release_by          Int?
@@ -1133,8 +1133,6 @@ model tbl_invoice_glosses {
   igl_idempotency_key     String?         @unique(map: "uq_invoice_glosses_idempotency_key") @db.Char(36)
   igl_idempotency_hash    String?         @db.Char(64)
   tbl_invoices            tbl_invoices    @relation(fields: [inv_id, wrk_id], references: [inv_id, wrk_id], onUpdate: NoAction, map: "tbl_invoice_glosses_invoice")
-  statement               tbl_statements? @relation("GlossStatement", fields: [stm_id, wrk_id], references: [stm_id, wrk_id], onUpdate: NoAction, map: "tbl_invoice_glosses_statement")
-  release_statement       tbl_statements? @relation("GlossReleaseStatement", fields: [igl_release_stm_id, wrk_id], references: [stm_id, wrk_id], onUpdate: NoAction, map: "tbl_invoice_glosses_release_statement")
   tbl_status              tbl_status      @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_glosses_status")
   released_by_user        tbl_users?      @relation("InvoiceGlossReleasedBy", fields: [igl_release_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_glosses_release_by")
   created_by_user         tbl_users?      @relation("InvoiceGlossCreatedBy", fields: [igl_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_glosses_create_by")
@@ -1142,8 +1140,8 @@ model tbl_invoice_glosses {
   deleted_by_user         tbl_users?      @relation("InvoiceGlossDeletedBy", fields: [igl_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_glosses_delete_by")
 
   @@index([inv_id, igl_release_date], map: "idx_invoice_glosses_invoice")
-  @@index([stm_id, wrk_id], map: "idx_invoice_glosses_statement")
-  @@index([igl_release_stm_id, wrk_id], map: "idx_invoice_glosses_release_statement")
+  @@index([wrk_id, igl_statement], map: "idx_invoice_glosses_work_statement")
+  @@index([wrk_id, igl_release_statement], map: "idx_invoice_glosses_work_release_statement")
   @@index([sta_id], map: "tbl_invoice_glosses_status")
   @@index([igl_release_by], map: "tbl_invoice_glosses_release_by")
   @@index([igl_create_by], map: "tbl_invoice_glosses_create_by")
@@ -1170,8 +1168,6 @@ model tbl_statements {
   stm_idempotency_key  String?               @unique(map: "uq_statements_idempotency_key") @db.Char(36)
   stm_idempotency_hash String?               @db.Char(64)
   stm_number_active    String?               @db.VarChar(20)
-  glosses_raised       tbl_invoice_glosses[] @relation("GlossStatement")
-  glosses_released     tbl_invoice_glosses[] @relation("GlossReleaseStatement")
   created_by_user      tbl_users?            @relation("StatementCreatedBy", fields: [stm_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_statements_create_by")
   deleted_by_user      tbl_users?            @relation("StatementDeletedBy", fields: [stm_delete_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_statements_delete_by")
   tbl_status           tbl_status            @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_statements_status")

@@ -15,8 +15,8 @@ Decidido por el usuario el 2026-10-26 ("como acta del WebPAC"), a partir del doc
 - **La factura escribe su extracto como texto libre** (`tbl_invoices.inv_statement`, hasta 20 caracteres como `stm_number`; desde la migración 0124). No se valida contra los extractos ni se bloquea ninguno al guardar. Sigue siendo editable tras aprobar (DEC-080, `NOTE_COLUMNS`).
 - **El extracto agrupa por su número**: sus facturas son las no eliminadas de su obra cuyo texto es su número, con la intercalación de la columna (sin distinguir mayúsculas ni tildes), escritas antes o después de crear el extracto. El listado cuenta así sus facturas, y el detalle de la factura muestra la fecha del extracto si ya existe.
 - **Datos**: la 0119 convirtió cada texto distinto de una obra en un extracto; la 0124 devolvió a cada factura el número de su extracto como texto y quitó `stm_id` con su FK.
-- **Bloqueo**: entidad `EXTRACTO` en `LOCK_ORDER`, después de `FACTURA` (ADR-0027), para las glosas. Eliminar un extracto lo bloquea y responde 409 si alguna glosa lo usa; las facturas no lo impiden: conservan su texto. Cambiar el número de un extracto cambia qué facturas agrupa.
-- **Pantalla "Extractos"** (página 21, grupo Inicio), de solo lectura: un renglón por obra y texto escrito en las facturas (`pagination_statement_groups`), con cuántas facturas lo usan, las aprobadas, las aprobadas sin comprobante, la primera y la última fecha y el total sin las anuladas. Con una obra elegida, los de esa obra; con "Ver todo", todos. Ver con el permiso 118 y exportar el reporte con el 122. Los permisos 119 a 121 (crear, modificar y cambiar estado, eliminar) y las rutas del extracto registrado siguen en el servidor, sin pantalla. Quien tenía la página de Facturas recibió la de Extractos. El selector de extractos (lo usan las glosas) solo exige sesión y está limitado a la obra del alcance (DEC-018).
+- **Bloqueo**: entidad `EXTRACTO` en `LOCK_ORDER`, después de `FACTURA` (ADR-0027). Eliminar un extracto lo bloquea; ni las facturas ni las glosas lo impiden: conservan su texto (las glosas, desde la 0125, DEC-085). Cambiar el número de un extracto cambia qué facturas y glosas agrupa.
+- **Pantalla "Extractos"** (página 21, grupo Inicio), de solo lectura: un renglón por obra y texto escrito en las facturas (`pagination_statement_groups`), con cuántas facturas lo usan, las aprobadas, las aprobadas sin comprobante, la primera y la última fecha, el total sin las anuladas, el neto de sus glosas y el total pagado (DEC-085). Con una obra elegida, los de esa obra; con "Ver todo", todos. Ver con el permiso 118 y exportar el reporte con el 122. Los permisos 119 a 121 (crear, modificar y cambiar estado, eliminar) y las rutas del extracto registrado siguen en el servidor, sin pantalla. Quien tenía la página de Facturas recibió la de Extractos. El selector de extractos solo exige sesión y está limitado a la obra del alcance (DEC-018); las glosas ya no lo usan.
 - **Reporte del extracto** (`get_statement_group_report`, `export_statement_group`, por obra y texto): sus facturas, los totales por menú (tipo de proveedor: mayores, subcontratistas, órdenes de servicio, simples) y en total, y el **chequeo de comprobantes de egreso**: las aprobadas sin número de comprobante. Las anuladas se listan y no suman (DEC-052). En pantalla y en Excel o PDF (DEC-070).
 
 ## Descartado
@@ -27,12 +27,12 @@ Decidido por el usuario el 2026-10-26 ("como acta del WebPAC"), a partir del doc
 
 ## Pendiente
 
-- Sin pantalla para registrar extractos, las glosas solo ofrecen los extractos registrados antes del 2026-10-27. Si se vuelve a necesitar, el extracto registrado se crea desde un grupo de la pantalla, con su número.
+- Un extracto con glosas y sin facturas (por ejemplo, uno escrito solo para liberar una glosa) no aparece en la pantalla, que agrupa por las facturas.
 
 ## Qué implica
 
 - Una consulta o un reporte que muestre el extracto de una factura lee `inv_statement`. Las facturas de un extracto se buscan por obra y texto (`statementInvoices`), nunca por id.
-- Una tabla nueva que referencie al extracto (las glosas) lo bloquea después de la factura.
+- Una tabla nueva que referencie al extracto registrado lo bloquea después de la factura. Las glosas lo escriben como texto (DEC-085).
 
 ## Dónde
 

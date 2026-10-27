@@ -18,7 +18,8 @@ import { ALL_WORKS } from 'utils/workScope';
 
 // Extractos (DEC-084): solo lectura. El extracto es un texto libre de la
 // factura; aquí se agrupan las facturas por obra y texto, con cuántas lo
-// usan, sus fechas y su total sin las anuladas. "Reporte" abre sus facturas,
+// usan, sus fechas, su total sin las anuladas y el total pagado con las
+// glosas (levantadas en él, menos liberadas en él). "Reporte" abre sus facturas,
 // los totales por menú y el chequeo de comprobantes de egreso, y se exporta.
 // Con una obra elegida en el encabezado, los de esa obra; con "Ver todo",
 // todos, con la columna de obra.
@@ -32,7 +33,15 @@ const BASE_COLUMNS = [
   { id: 'withoutVoucher', label: 'Sin comprobante', align: 'right', render: (row) => row.withoutVoucher || '—' },
   { id: 'firstDate', label: 'Primera factura', sortable: true, render: (row) => fDateOnly(row.firstDate) },
   { id: 'lastDate', label: 'Última factura', sortable: true, render: (row) => fDateOnly(row.lastDate) },
-  { id: 'total', label: 'Total', align: 'right', render: (row) => <span style={num}>{fMoneyText(row.total)}</span> }
+  { id: 'total', label: 'Total facturas', align: 'right', render: (row) => <span style={num}>{fMoneyText(row.total)}</span> },
+  // Glosas levantadas en el extracto menos las liberadas en él, y el total pagado con ellas (DEC-085).
+  {
+    id: 'glossesNet',
+    label: 'Glosas',
+    align: 'right',
+    render: (row) => (Number(row.glossesNet) ? <span style={num}>{fMoneyText(row.glossesNet)}</span> : '—')
+  },
+  { id: 'paidTotal', label: 'Total pagado', align: 'right', render: (row) => <span style={num}>{fMoneyText(row.paidTotal)}</span> }
 ];
 const WORK_COLUMN = { id: 'workCode', label: 'Obra', sortable: true, render: (row) => `${row.workCode} — ${row.workName}` };
 

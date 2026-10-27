@@ -79,13 +79,16 @@ const pctText = (ratio) => {
  * ''. Es una guía: al guardar y al aprobar el servidor vuelve a verificar
  * bajo bloqueo.
  */
-const amountLimit = (limit, emptyMessage, exceededMessage, valueCap) => ({
+// Lo cobrado de más en el VALOR se registra como glosa, que suma al total pagado del extracto (DEC-085).
+const GLOSS_HINT = 'Regístrala por el máximo y agrega una glosa por la diferencia en su pestaña Glosas.';
+
+const amountLimit = (limit, emptyMessage, exceededMessage, valueCap, hint) => ({
   empty: isEmpty(limit) ? emptyMessage : '',
   check: (amount) =>
     valueCap !== undefined && exceeds(amount, valueCap)
       ? 'No puede superar el VALOR de la factura.'
       : exceeds(amount, limit)
-        ? `${exceededMessage} (${shownLimit(limit)}).`
+        ? `${exceededMessage} (${shownLimit(limit)}).${hint ? ` ${hint}` : ''}`
         : ''
 });
 
@@ -278,18 +281,34 @@ export default function AdvanceAmountsSection({
       ? {}
       : {
           value: {
-            ADVANCE: amountLimit(balances.toInvoice, 'Ya se facturó todo el anticipo pactado.', 'Supera el anticipo por facturar'),
+            ADVANCE: amountLimit(
+              balances.toInvoice,
+              'Ya se facturó todo el anticipo pactado.',
+              'Supera el anticipo por facturar',
+              undefined,
+              GLOSS_HINT
+            ),
             NORMAL: amountLimit(
               balances.billing?.toBill,
               'No queda nada por facturar del contrato. Si el contrato creció, registra antes el otrosí.',
-              'Supera lo que queda por facturar del contrato'
+              'Supera lo que queda por facturar del contrato',
+              undefined,
+              GLOSS_HINT
             ),
             LIQUIDATION: amountLimit(
               balances.billing?.toBill,
               'No queda nada por facturar del contrato. Si el contrato creció, registra antes el otrosí.',
-              'Supera lo que queda por facturar del contrato'
+              'Supera lo que queda por facturar del contrato',
+              undefined,
+              GLOSS_HINT
             ),
-            RETENTION_REFUND: amountLimit(retention?.balance, 'El contrato no tiene retenido por devolver.', 'Supera el saldo de retenido')
+            RETENTION_REFUND: amountLimit(
+              retention?.balance,
+              'El contrato no tiene retenido por devolver.',
+              'Supera el saldo de retenido',
+              undefined,
+              GLOSS_HINT
+            )
           }[type],
           amortization: amountLimit(
             balances.toAmortize,
