@@ -15,7 +15,7 @@
 --   ctt_id              Tipo de contrato (ADR-0006).
 --   ctr_number          Número de contrato, único dentro de la obra entre los
 --                       contratos no eliminados (DEC-035, backlog DEC-17).
---   ctr_name            Nombre u objeto del contrato.
+--   ctr_name            Nombre del contrato.
 --   ctr_start_date      Fecha de inicio, capturada.
 --   ctr_term            Plazo, entero positivo, en ctr_term_unit.
 --   ctr_term_unit       DIA, MES o ANIO. No hay "frecuencia" aparte (backlog

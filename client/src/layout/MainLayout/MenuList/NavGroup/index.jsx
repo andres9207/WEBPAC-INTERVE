@@ -26,16 +26,16 @@ export default function NavGroup({ item, lastItem, remItems, lastItemId, setSele
 
   const openMini = Boolean(anchorEl);
 
+  // Sin `lastItem` (el sidebar) también se sigue a `item`: el menú se vuelve a
+  // pedir cuando cambia un tipo de proveedor (DEC-074, DEC-077).
   useEffect(() => {
-    if (lastItem) {
-      if (item.id === lastItemId) {
-        const localItem = { ...item };
-        const elements = remItems.map((ele) => ele.elements);
-        localItem.children = elements.flat(1);
-        setCurrentItem(localItem);
-      } else {
-        setCurrentItem(item);
-      }
+    if (lastItem && item.id === lastItemId) {
+      const localItem = { ...item };
+      const elements = remItems.map((ele) => ele.elements);
+      localItem.children = elements.flat(1);
+      setCurrentItem(localItem);
+    } else {
+      setCurrentItem(item);
     }
   }, [item, lastItem, remItems, lastItemId]);
 

@@ -219,7 +219,7 @@ export default function ContractDataForm({ form, contract, isNew, blocked }) {
               render={({ field, fieldState }) => (
                 <TextField
                   {...field}
-                  label="Nombre u objeto"
+                  label="Nombre"
                   required
                   size="small"
                   fullWidth
