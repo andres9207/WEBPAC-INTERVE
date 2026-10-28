@@ -447,9 +447,14 @@ const GLOSS_COLUMNS = [
   { header: "Descripción", value: (r) => r.description, width: 3 },
   { header: "Valor", value: (r) => r.value, kind: "money" },
   { header: "Suma al total", value: (r) => (r.affectsTotal ? "Sí" : "No") },
+  // Dónde, cuándo y quién la levantó; con qué factura, cuándo y quién la liberó.
   { header: "Levantada en", value: (r) => r.statement },
+  { header: "Levantada el", value: (r) => r.raisedDate, kind: "date" },
+  { header: "Levantada por", value: (r) => r.createdByName, width: 2 },
   { header: "Liberada con", value: (r) => r.releaseInvoiceNumber },
   { header: "Liberada en", value: (r) => r.releaseStatement },
+  { header: "Liberada el", value: (r) => r.releaseDate, kind: "date" },
+  { header: "Liberada por", value: (r) => r.releasedByName, width: 2 },
 ];
 
 const GLOSS_FIELD_COLUMNS = [

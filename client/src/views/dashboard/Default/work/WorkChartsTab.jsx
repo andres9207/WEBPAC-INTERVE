@@ -18,10 +18,12 @@ import { gridSpacing } from 'store/constant';
 import { fMoneyText, fPercentText } from 'utils/formatNumber';
 import { fDateOnly } from 'utils/formatTime';
 
-import { contractRows, invoiceRows, useDrillDown } from './DrillDownDialog';
+import { contractRows, glossRows, invoiceRows, useDrillDown } from './DrillDownDialog';
 import {
   CONTRACT_STATE_CHART_COLORS,
+  GLOSS_CHART_COLORS,
   INVOICE_TYPE_COLORS,
+  menuColor,
   barPercent,
   chartAmount,
   fMillions,
@@ -855,6 +857,198 @@ function ContractsByState({ contracts, onDrill }) {
 
 ContractsByState.propTypes = { contracts: PropTypes.object.isRequired, onDrill: PropTypes.func.isRequired };
 
+/**
+ * Dona por cantidad con su tabla al lado: cada segmento y cada nombre abren
+ * su detalle (`onSelect`). `segments`: { key, name, count, value, countPct,
+ * color, detail? }, con los importes y porcentajes del servidor.
+ */
+function DonutBreakdown({ label, segments, total, totalLabel, onSelect }) {
+  const theme = useTheme();
+  const palette = useSchemePalette();
+  const present = segments.filter((s) => s.count > 0);
+  const options = {
+    chart: {
+      type: 'donut',
+      fontFamily: theme.typography.fontFamily,
+      events: { dataPointSelection: (_e, _c, { dataPointIndex }) => present[dataPointIndex] && onSelect(present[dataPointIndex]) }
+    },
+    labels: present.map((s) => s.name),
+    colors: present.map((s) => paletteColor(palette, s.color)),
+    legend: { show: false },
+    dataLabels: { enabled: false },
+    stroke: { width: 2, colors: [palette.background.paper] },
+    plotOptions: {
+      pie: {
+        donut: {
+          size: '68%',
+          labels: {
+            show: true,
+            total: { show: true, label: totalLabel, formatter: () => String(total) },
+            value: { fontSize: '28px', fontWeight: 700 }
+          }
+        }
+      }
+    },
+    tooltip: { theme: palette.mode, y: { formatter: (v) => String(v) } }
+  };
+  return (
+    <Stack direction={{ xs: 'column', md: 'row' }} spacing={4} alignItems="center">
+      <Box
+        role="img"
+        aria-label={`${label}: ${segments.map((s) => `${s.name} ${s.count}`).join(', ')}`}
+        sx={{ width: 240, flexShrink: 0, ...clickableChartSx }}
+      >
+        <Chart type="donut" height={240} series={present.map((s) => s.count)} options={options} />
+      </Box>
+      <Stack component="ul" sx={{ listStyle: 'none', m: 0, p: 0, flex: '1 1 320px', width: '100%' }}>
+        {segments.map((s) => (
+          <Box
+            component="li"
+            key={s.key}
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: '14px minmax(0, 1fr) 40px minmax(120px, auto) 56px',
+              gap: 1.5,
+              alignItems: 'center',
+              py: 1.25,
+              borderBottom: 1,
+              borderColor: 'grey.100'
+            }}
+          >
+            <Box
+              aria-hidden
+              sx={{
+                width: 14,
+                height: 14,
+                borderRadius: 1,
+                boxSizing: 'border-box',
+                border: 2,
+                borderColor: s.color,
+                bgcolor: s.count ? s.color : 'background.paper'
+              }}
+            />
+            <Box sx={{ minWidth: 0 }}>
+              <Link
+                component="button"
+                type="button"
+                underline="hover"
+                variant="body2"
+                onClick={() => onSelect(s)}
+                sx={{ ...drillLinkSx, fontWeight: s.count ? 500 : 400, color: s.count ? 'text.primary' : 'text.secondary' }}
+              >
+                {s.name}
+              </Link>
+              {s.detail && (
+                <Typography variant="caption" color="text.secondary" component="div">
+                  {s.detail}
+                </Typography>
+              )}
+            </Box>
+            <Typography variant="body2" sx={{ ...num, textAlign: 'right', fontWeight: 600 }}>
+              {s.count}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ ...num, textAlign: 'right' }}>
+              {s.count ? fMoneyText(s.value) : '—'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right' }}>
+              {s.count ? fPercentText(s.countPct, 0) : ''}
+            </Typography>
+          </Box>
+        ))}
+      </Stack>
+    </Stack>
+  );
+}
+
+DonutBreakdown.propTypes = {
+  label: PropTypes.string.isRequired,
+  segments: PropTypes.arrayOf(PropTypes.object).isRequired,
+  total: PropTypes.number.isRequired,
+  totalLabel: PropTypes.string.isRequired,
+  onSelect: PropTypes.func.isRequired
+};
+
+/**
+ * Facturas por menú (tipo de proveedor de la factura, DEC-074): cuántas hay
+ * de cada uno, su valor y cuánto de él es anticipo. El detalle, las facturas
+ * del menú.
+ */
+function InvoicesByProviderType({ invoices, onDrill }) {
+  const segments = invoices.byProviderType.map((m, i) => ({
+    ...m,
+    key: m.pvtId,
+    color: menuColor(i),
+    detail: [m.advance !== '0.00' && `Anticipo ${fMoneyText(m.advance)}`, m.unpriced > 0 && `${m.unpriced} sin importes`]
+      .filter(Boolean)
+      .join(' · ')
+  }));
+  const drill = (m) =>
+    onDrill({
+      title: `Facturas de ${m.name}`,
+      subtitle: m.advance !== '0.00' ? `Anticipo ${fMoneyText(m.advance)}` : 'Registradas y aprobadas',
+      total: m.value,
+      noun: INVOICE_NOUN,
+      rows: invoiceRows(invoices.items.filter((inv) => inv.pvtId === m.pvtId)),
+      emptyText: 'Este menú no tiene facturas en la obra.'
+    });
+  return (
+    <MainCard
+      title={<CardTitle title="Facturas por tipo de proveedor" sub="Cantidad, valor total y anticipo de cada menú · sin las anuladas" />}
+      sx={{ height: '100%' }}
+    >
+      {invoices.count === 0 ? (
+        <Empty>La obra todavía no tiene facturas.</Empty>
+      ) : (
+        <DonutBreakdown
+          label="Facturas por tipo de proveedor"
+          segments={segments}
+          total={invoices.count}
+          totalLabel="facturas"
+          onSelect={drill}
+        />
+      )}
+    </MainCard>
+  );
+}
+
+InvoicesByProviderType.propTypes = { invoices: PropTypes.object.isRequired, onDrill: PropTypes.func.isRequired };
+
+const GLOSS_SEGMENTS = [
+  { key: 'open', name: 'Abiertas', title: 'Glosas abiertas', open: true, emptyText: 'La obra no tiene glosas abiertas.' },
+  { key: 'released', name: 'Liberadas', title: 'Glosas liberadas', open: false, emptyText: 'La obra no tiene glosas liberadas.' }
+];
+
+/**
+ * Glosas de las facturas de la obra (DEC-085): abiertas y liberadas, con la
+ * suma de su valor (con signo: la negativa es nota crédito). El detalle, cada
+ * glosa con su factura y su descripción.
+ */
+function Glosses({ glosses, onDrill }) {
+  const segments = GLOSS_SEGMENTS.map((s) => ({ ...s, ...glosses[s.key], color: GLOSS_CHART_COLORS[s.key] }));
+  const drill = (s) => {
+    const rows = glosses.items.filter((g) => g.open === s.open);
+    onDrill({
+      title: s.title,
+      subtitle: s.count > rows.length ? `Las ${rows.length} más recientes de ${s.count}` : 'De la más reciente a la más antigua',
+      total: s.value,
+      noun: ['glosa', 'glosas'],
+      rows: glossRows(rows),
+      emptyText: s.emptyText
+    });
+  };
+  return (
+    <MainCard title={<CardTitle title="Glosas" sub="Abiertas y liberadas, con la suma de su valor" />} sx={{ height: '100%' }}>
+      {glosses.count === 0 ? (
+        <Empty>Ninguna factura de la obra tiene glosas.</Empty>
+      ) : (
+        <DonutBreakdown label="Glosas" segments={segments} total={glosses.count} totalLabel="glosas" onSelect={drill} />
+      )}
+    </MainCard>
+  );
+}
+
+Glosses.propTypes = { glosses: PropTypes.object.isRequired, onDrill: PropTypes.func.isRequired };
+
 export default function WorkChartsTab({ data }) {
   const { work, contracts, invoices, referenceDate } = data;
   const { openDrill, dialog } = useDrillDown();
@@ -1010,6 +1204,17 @@ export default function WorkChartsTab({ data }) {
       )}
 
       {contracts && <ContractsByState contracts={contracts} onDrill={openDrill} />}
+
+      {invoices && (
+        <Grid container spacing={gridSpacing}>
+          <Grid size={{ xs: 12, lg: 6 }}>
+            <InvoicesByProviderType invoices={invoices} onDrill={openDrill} />
+          </Grid>
+          <Grid size={{ xs: 12, lg: 6 }}>
+            <Glosses glosses={invoices.glosses} onDrill={openDrill} />
+          </Grid>
+        </Grid>
+      )}
       {dialog}
     </Stack>
   );

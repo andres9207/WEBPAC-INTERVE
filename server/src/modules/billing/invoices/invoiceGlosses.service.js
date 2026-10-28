@@ -77,12 +77,6 @@ const statementText = (value, label) => {
   return result;
 };
 
-/** Mismo extracto para la BD: sin distinguir mayúsculas ni tildes (intercalación de la columna). */
-const sameStatement = (a, b) => {
-  const key = (value) => String(value).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  return key(a) === key(b);
-};
-
 const requiredField = (value) => {
   const field = text(value);
   if (!field) throw httpError(400, "Elige el campo de la factura sobre el que se hace la glosa.");
@@ -283,26 +277,20 @@ export const updateGloss = async ({ iglId, input, useBy, scope, ctx = { useId: u
 
 /**
  * 400 si la factura que libera no admite liberar la glosa de `invoice`: debe
- * ser otra, de la misma obra y proveedor, no anulada y con extracto escrito
- * (el de la liberación), distinto del extracto en que se levantó.
+ * ser otra (lo valida releaseGloss), de la misma obra y proveedor, y no
+ * anulada (409). Su extracto no importa (2026-10-28, pedido del usuario).
  */
-const assertReleaser = (invoice, releaser, gloss) => {
+const assertReleaser = (invoice, releaser) => {
   if (releaser.wrk_id !== invoice.wrk_id || releaser.prv_id !== invoice.prv_id) {
     throw httpError(400, "La factura que libera la glosa debe ser del mismo proveedor y de la misma obra.");
   }
   if (releaser.inv_state === INVOICE_STATES.CANCELLED) throw httpError(409, "La factura que libera la glosa está anulada.");
-  if (!releaser.inv_statement) {
-    throw httpError(400, "La factura que libera la glosa no tiene extracto: escríbelo en la factura para que la glosa aparezca en él.");
-  }
-  if (gloss.igl_statement && sameStatement(gloss.igl_statement, releaser.inv_statement)) {
-    throw httpError(400, "La glosa se libera en un extracto posterior: la factura que la libera es del extracto en que se levantó.");
-  }
 };
 
 /**
- * Libera una glosa abierta con la factura que la corrige (migración 0127).
- * Su extracto es el de la liberación, y como esa factura ya cuenta en él, la
- * glosa no mueve su total. Con observación; la fecha de liberación es la de
+ * Libera una glosa abierta con la factura que la corrige (migración 0127),
+ * de cualquier extracto. El extracto de esa factura, si lo tiene, es el de la
+ * liberación, y como la factura ya cuenta en él, la glosa no mueve su total. Con observación; la fecha de liberación es la de
  * hoy (servidor). Bloquea las dos facturas, en orden de id.
  */
 export const releaseGloss = async ({ iglId, input, useBy, scope, ctx = { useId: useBy } }) => {
@@ -317,7 +305,7 @@ export const releaseGloss = async ({ iglId, input, useBy, scope, ctx = { useId: 
     const invoice = await findLockedInvoice(tx, invId);
     const releaser = await findLockedInvoice(tx, releaseInvId, "No se encontró la factura que libera la glosa.");
     const before = await findLockedOpen(tx, iglId);
-    assertReleaser(invoice, releaser, before);
+    assertReleaser(invoice, releaser);
     const values = { igl_release_inv_id: releaser.inv_id, igl_release_date: todayDateOnly(), igl_release_observation: observation };
     await tx.tbl_invoice_glosses.update({
       where: { igl_id: before.igl_id },
@@ -359,15 +347,14 @@ export const deleteGloss = async ({ iglId, useBy, scope, ctx = { useId: useBy } 
 
 /**
  * Facturas con que se puede liberar una glosa abierta (DEC-018: sin paginar,
- * con tope fijo): del mismo proveedor y obra, otras que la suya, no
- * anuladas y con extracto escrito. Busca por número y extracto. La más
- * reciente primero. Las del extracto en que se levantó se ven, deshabilitadas.
- * La validación definitiva la hace releaseGloss bajo bloqueo.
+ * con tope fijo): del mismo proveedor y obra, de cualquiera de sus contratos
+ * y de cualquier extracto (o sin él), otras que la suya y no anuladas. Busca
+ * por número y extracto. La más reciente primero. La validación definitiva
+ * la hace releaseGloss bajo bloqueo.
  */
 export const selectReleaseInvoices = async ({ iglId, search, scope }) => {
   const { inv_id: invId } = await glossRef(iglId);
   await assertInvoiceVisible({ scope }, invId);
-  const { igl_statement: raisedIn } = await prisma.tbl_invoice_glosses.findUnique({ where: { igl_id: Number(iglId) }, select: { igl_statement: true } });
   const invoice = await prisma.tbl_invoices.findUnique({ where: { inv_id: invId }, select: { wrk_id: true, prv_id: true } });
   const value = text(search);
   const rows = await prisma.tbl_invoices.findMany({
@@ -377,24 +364,25 @@ export const selectReleaseInvoices = async ({ iglId, search, scope }) => {
       inv_id: { not: invId },
       sta_id: { not: DELETED_STATUS },
       inv_state: { not: INVOICE_STATES.CANCELLED },
-      inv_statement: { not: null },
       ...(value ? { OR: [{ inv_number: { contains: value } }, { inv_statement: { contains: value } }] } : {}),
     },
-    select: { inv_id: true, inv_number: true, inv_type: true, inv_statement: true, inv_date: true },
+    select: { inv_id: true, inv_number: true, inv_type: true, inv_statement: true, inv_date: true, tbl_contracts: { select: { ctr_number: true } } },
     orderBy: [{ inv_date: "desc" }, { inv_id: "desc" }],
     take: MAX_ROWS,
   });
-  return rows.map((row) => ({
-    value: row.inv_id,
-    label: `${row.inv_number} · ${TYPE_NAMES[row.inv_type]} · extracto ${row.inv_statement}`,
-    number: row.inv_number,
-    typeName: TYPE_NAMES[row.inv_type],
-    statement: row.inv_statement,
-    date: dateOnlyText(row.inv_date),
-    ...(raisedIn && sameStatement(raisedIn, row.inv_statement)
-      ? { disabled: true, description: "Es del extracto en que se levantó la glosa: se libera en uno posterior." }
-      : {}),
-  }));
+  return rows.map((row) => {
+    const contractNumber = row.tbl_contracts?.ctr_number ?? null;
+    return {
+      value: row.inv_id,
+      label: [row.inv_number, TYPE_NAMES[row.inv_type], contractNumber && `contrato ${contractNumber}`].filter(Boolean).join(" · "),
+      description: row.inv_statement ? `Extracto ${row.inv_statement}` : "Sin extracto",
+      number: row.inv_number,
+      typeName: TYPE_NAMES[row.inv_type],
+      contractNumber,
+      statement: row.inv_statement,
+      date: dateOnlyText(row.inv_date),
+    };
+  });
 };
 
 // ─── Reporte del extracto (DEC-084) ──────────────────────────────────────────
@@ -406,6 +394,8 @@ const STATEMENT_GLOSS_SELECT = {
 
 const withInvoice = (row) => ({
   ...toDto(row),
+  // Día en que se levantó, en el calendario del servidor (como la fecha de liberación).
+  raisedDate: row.igl_create_at ? dateOnlyText(todayDateOnly(row.igl_create_at)) : null,
   invoiceNumber: row.tbl_invoices?.inv_number ?? null,
   pvtId: row.tbl_invoices?.pvt_id ?? null,
   providerName: row.tbl_invoices?.tbl_providers?.prv_name ?? null,

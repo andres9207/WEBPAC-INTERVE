@@ -33,6 +33,37 @@ export const invoiceRows = (items) =>
     value: inv.value === null ? 'Sin importes' : fMoneyText(inv.value)
   }));
 
+/**
+ * Glosas del tablero (`invoices.glosses.items`, DEC-085) como filas: la
+ * factura glosada y lo que se glosó, el campo y, si se liberó, con qué
+ * factura. Abrir una lleva a su factura.
+ */
+export const glossRows = (items) =>
+  items.map((g) => ({
+    key: `igl-${g.iglId}`,
+    to: dashboardTo.invoice(g.invId),
+    primary: `${g.invoiceTypeName} ${g.invoiceNumber} · ${g.description}`,
+    secondary: [
+      g.fieldName,
+      g.code && `código ${g.code}`,
+      g.contractNumber,
+      g.providerName,
+      g.statement && `levantada en el extracto ${g.statement}`,
+      g.open
+        ? 'abierta'
+        : [
+            `liberada el ${fDateOnly(g.releaseDate)}`,
+            g.releaseInvoiceNumber && `con la factura ${g.releaseInvoiceNumber}`,
+            g.releaseStatement && `del extracto ${g.releaseStatement}`
+          ]
+            .filter(Boolean)
+            .join(' ')
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    value: fMoneyText(g.value)
+  }));
+
 /** Días que lleva abierto un seguimiento (los calcula el servidor). */
 export const daysOpenText = (days) => (days === 0 ? 'Desde hoy' : `${plural(days, 'día', 'días')}`);
 

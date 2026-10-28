@@ -50,6 +50,13 @@ export const CONTRACT_STATE_CHART_COLORS = {
   CANCELLED: 'error.main'
 };
 
+// Menús de facturas (tipos de proveedor, DEC-074): son dinámicos, así que se
+// colorean por posición; con más menús que colores, se repiten.
+export const MENU_CHART_COLORS = ['primary.800', 'success.dark', 'orange.dark', 'secondary.main', 'grey.600', 'primary.200', 'error.main'];
+export const menuColor = (index) => MENU_CHART_COLORS[index % MENU_CHART_COLORS.length];
+// Glosas (DEC-085): abierta, por atender; liberada, resuelta.
+export const GLOSS_CHART_COLORS = { open: 'warning.dark', released: 'success.dark' };
+
 export const POLICY_STATUS_COLORS = { NONE: 'default', NO_DATE: 'default', ACTIVE: 'success', EXPIRING: 'warning', EXPIRED: 'error' };
 
 /** Lee "primary.800" de la paleta del tema activo (`useSchemePalette`). */

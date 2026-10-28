@@ -29,7 +29,7 @@ import { newIdempotencyKey } from 'utils/idempotency';
 
 /**
  * Glosas de una factura (DEC-085): errores hallados al registrarla, que se
- * controlan hasta su liberación en un extracto posterior. Llevan código
+ * controlan hasta su liberación con la factura que las corrige. Llevan código
  * (opcional), valor con signo y descripción; se levantan en un extracto (se
  * propone el de la factura; se escribe, como en la factura, DEC-084). Cada
  * glosa es sobre un campo de la factura (los de su Detalle u Otro, que da el
@@ -38,8 +38,9 @@ import { newIdempotencyKey } from 'utils/idempotency';
  * Al levantarla se dice si suma al total pagado de su extracto (lo pagado
  * difiere de lo registrado) o es un pendiente que llegará en otra factura.
  * Se libera con la factura que la corrige (migración 0127): del mismo
- * proveedor y obra, con extracto, que es el de la liberación; esa factura ya
- * cuenta en él, así que liberar no cambia el total. No bloquean la
+ * proveedor y obra, de cualquiera de sus contratos y de cualquier extracto.
+ * El extracto de esa factura es el de la liberación; la factura ya cuenta en
+ * él, así que liberar no cambia el total. No bloquean la
  * aprobación. Abiertas se editan y se eliminan; liberadas, solo se
  * consultan. Las reglas las repite el servidor.
  *
@@ -89,7 +90,16 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
   const [idempotencyKey, setIdempotencyKey] = useState(null);
   const releasing = mode === 'release';
   const { control, handleSubmit, reset, setValue } = useForm({
-    defaultValues: { statement: '', field: '', code: '', value: '', affectsTotal: true, description: '', releaseInvId: '', observation: '' }
+    defaultValues: {
+      statement: '',
+      field: '',
+      code: '',
+      value: '',
+      affectsTotal: true,
+      description: '',
+      releaseInvId: '',
+      observation: ''
+    }
   });
   const releaseOptions = useReleaseInvoices(open && releasing ? gloss?.iglId : null);
 
@@ -211,8 +221,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
             <Controller
               name="releaseInvId"
               control={control}
-              // Las del extracto en que se levantó llegan deshabilitadas del servidor, que lo vuelve a validar.
-              rules={{ required: 'Elige la factura con la que se libera.' }}
+              rules={{ required: 'Elige la factura donde se libera.' }}
               render={({ field, fieldState }) => (
                 <SearchSelect
                   value={field.value}
@@ -220,14 +229,14 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
                   onSearch={releaseOptions.setSearch}
                   options={releaseOptions.items}
                   loading={releaseOptions.loading}
-                  label="Factura con la que se libera"
+                  label="Factura donde se libera"
                   required
-                  placeholder="Número o extracto"
+                  placeholder="Número de factura o extracto"
                   error={fieldState.error?.message}
                   helperText={
                     !releaseOptions.loading && !releaseOptions.search && releaseOptions.items.length === 0
-                      ? 'El proveedor no tiene otra factura con extracto en esta obra.'
-                      : 'Del mismo proveedor. Su extracto es el de la liberación, y como la factura ya cuenta en él, liberar no cambia su total.'
+                      ? 'El proveedor no tiene otra factura en esta obra.'
+                      : 'Del mismo proveedor en esta obra, de cualquier contrato y extracto. Su extracto es el de la liberación.'
                   }
                 />
               )}
@@ -538,8 +547,9 @@ export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
               {!row.open && (
                 <Box sx={{ pl: 1.5, borderLeft: '3px solid', borderColor: 'success.light' }}>
                   <Typography variant="caption" color="text.secondary">
-                    Liberada con la factura {row.releaseInvoiceNumber} ({row.releaseInvoiceTypeName}, extracto {row.releaseStatement ?? '—'}
-                    ) el {fDateOnly(row.releaseDate)} por {row.releasedByName ?? '—'}
+                    Liberada con la factura {row.releaseInvoiceNumber} ({row.releaseInvoiceTypeName},{' '}
+                    {row.releaseStatement ? `extracto ${row.releaseStatement}` : 'sin extracto'}) el {fDateOnly(row.releaseDate)} por{' '}
+                    {row.releasedByName ?? '—'}
                   </Typography>
                   <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
                     {row.releaseObservation}

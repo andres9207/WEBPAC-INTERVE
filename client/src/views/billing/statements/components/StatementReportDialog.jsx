@@ -96,6 +96,8 @@ const GLOSS_COLUMNS = [
   { id: 'value', label: 'Valor', align: 'right', render: (row) => fMoneyText(row.value) },
   { id: 'affectsTotal', label: 'Suma al total', render: (row) => (row.affectsTotal ? 'Sí' : 'No') },
   { id: 'statement', label: 'Levantada en', render: (row) => row.statement ?? '—' },
+  { id: 'raisedDate', label: 'Levantada el', render: (row) => fDateOnly(row.raisedDate) },
+  { id: 'createdByName', label: 'Levantada por', render: (row) => row.createdByName ?? '—' },
   {
     id: 'releaseInvoiceNumber',
     label: 'Liberada con',
@@ -108,7 +110,9 @@ const GLOSS_COLUMNS = [
         'Abierta'
       )
   },
-  { id: 'releaseStatement', label: 'Liberada en', render: (row) => row.releaseStatement ?? '—' }
+  { id: 'releaseStatement', label: 'Liberada en', render: (row) => row.releaseStatement ?? '—' },
+  { id: 'releaseDate', label: 'Liberada el', render: (row) => (row.releaseDate ? fDateOnly(row.releaseDate) : '—') },
+  { id: 'releasedByName', label: 'Liberada por', render: (row) => row.releasedByName ?? '—' }
 ];
 
 const GLOSS_FIELD_COLUMNS = [

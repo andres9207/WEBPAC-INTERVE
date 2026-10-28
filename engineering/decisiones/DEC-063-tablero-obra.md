@@ -69,6 +69,14 @@ Desde el mismo día la sección vive en `work/WorkContracts.jsx`, con búsqueda 
 - **Días a la fecha fin** (`remainingDays`), con la fecha del servidor; la tarjeta los muestra solo en ejecución y suspendido.
 - El detalle del anticipo queda plegado en la tarjeta: se ve el pactado y los porcentajes facturado y amortizado, y las barras al desplegarlo.
 
+## Facturas por tipo de proveedor y glosas (2026-10-28)
+
+El usuario pidió en "Contratos y facturas" dos donas con detalle. Decidido por el usuario:
+
+- **Facturas por tipo de proveedor:** cuenta **facturas**, no contratos, para que entre la Simple, que no firma contratos. Es por **menú** (el tipo de proveedor de la factura, DEC-074), con las registradas y las aprobadas, sin las anuladas (las mismas filas de "Facturas por tipo"). Por menú: cantidad, valor total (`invoiceValue`), lo que de él es **anticipo** (el valor de sus facturas de anticipo) y las simples sin importes (`unpriced`). De mayor a menor cantidad; los colores, por posición. El detalle: las facturas del menú. Servidor: `invoices.byProviderType`.
+- **Glosas** (DEC-085): **cerrada = liberada**. Abiertas y liberadas, con cuántas y la suma de su valor con signo. Las eliminadas no cuentan (`liveGlossesWhere`, el criterio del filtro «Glosas», DEC-093), ni las de una factura eliminada; las de una anulada, sí, como en el filtro. El detalle: cada glosa con su factura, la descripción, el campo, el código, el extracto y, si se liberó, la fecha y la factura que la liberó; abre la factura. Las filas llegan con tope de 100 por grupo, de la más reciente a la más antigua, y el detalle dice cuando se cortan. Servidor: `invoices.glosses` (`count`, `open`, `released`, `items`).
+- Las dos, con el permiso de ver facturas, en el bloque de facturas. Cliente: `InvoicesByProviderType` y `Glosses` en `work/WorkChartsTab.jsx`, sobre la dona con tabla `DonutBreakdown`; las filas del detalle, `glossRows` en `DrillDownDialog.jsx`.
+
 ## Descartado
 
 - **Navegar al listado desde el tablero de la obra:** con facturas de varias vistas no hay un solo listado, y uno sin vista sería una ruta nueva.

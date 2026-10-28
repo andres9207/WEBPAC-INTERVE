@@ -26,7 +26,14 @@ import {
   policyValidity,
   uncoveredConcepts,
 } from "../../work/contracts/policyTerms.js";
-import { INVOICE_STATES, INVOICE_TYPES, STATE_NAMES as INVOICE_STATE_NAMES, TYPE_NAMES as INVOICE_TYPE_NAMES } from "../../billing/invoices/invoiceTerms.js";
+import {
+  INVOICE_STATES,
+  INVOICE_TYPES,
+  STATE_NAMES as INVOICE_STATE_NAMES,
+  TYPE_NAMES as INVOICE_TYPE_NAMES,
+  liveGlossesWhere,
+} from "../../billing/invoices/invoiceTerms.js";
+import { GLOSS_FIELD_NAMES } from "../../billing/invoices/glossFields.js";
 import { getRuleValues } from "../../admin/businessRules/businessRules.service.js";
 import { BUSINESS_RULES } from "../../admin/businessRules/businessRules.constants.js";
 import { contractAlertWheres } from "../../work/contracts/contractAlerts.js";
@@ -498,6 +505,31 @@ const executedBlock = (approved) => {
 };
 
 /**
+ * Facturas por menú (tipo de proveedor de la factura, DEC-074), registradas y
+ * aprobadas, de mayor a menor cantidad: cuántas, su valor (`invoiceValue`) y
+ * cuánto de él es anticipo. `unpriced`: simples sin importes (anteriores a
+ * DEC-065), que cuentan en la cantidad y no en los valores.
+ */
+const byProviderTypeBlock = (rows) => {
+  const menus = new Map();
+  for (const row of rows) {
+    const entry = menus.get(row.pvt_id) ?? { pvtId: row.pvt_id, name: row.tbl_provider_types?.pvt_name ?? null, rows: [] };
+    entry.rows.push(row);
+    menus.set(row.pvt_id, entry);
+  }
+  return [...menus.values()]
+    .map(({ rows: own, ...entry }) => ({
+      ...entry,
+      count: own.length,
+      unpriced: own.filter((r) => invoiceValue(r) === null).length,
+      value: moneyText(sumMoney(own.map(invoiceValue))),
+      advance: moneyText(sumMoney(own.filter((r) => r.inv_type === INVOICE_TYPES.ADVANCE).map(invoiceValue))),
+      countPct: pct(own.length, rows.length),
+    }))
+    .sort((a, b) => b.count - a.count || String(a.name).localeCompare(String(b.name), "es"));
+};
+
+/**
  * Estado de costos: lo ejecutado frente al valor vigente de la obra. Lo
  * pendiente no baja de 0; lo que pasa del valor vigente va en `exceeded`.
  */
@@ -512,15 +544,86 @@ const costStatus = (executed, budget) => {
   };
 };
 
+// ─── Glosas ──────────────────────────────────────────────────────────────────
+
+// Filas del detalle de cada segmento de glosas, con tope: las cifras cuentan todas.
+const GLOSS_ROWS = 100;
+
+const glossDto = (row) => ({
+  iglId: row.igl_id,
+  invId: row.inv_id,
+  pvtId: row.tbl_invoices.pvt_id,
+  invoiceTypeName: INVOICE_TYPE_NAMES[row.tbl_invoices.inv_type] ?? row.tbl_invoices.inv_type,
+  invoiceNumber: row.tbl_invoices.inv_number,
+  invoiceStateName: INVOICE_STATE_NAMES[row.tbl_invoices.inv_state] ?? row.tbl_invoices.inv_state,
+  contractNumber: row.tbl_invoices.tbl_contracts?.ctr_number ?? null,
+  providerName: row.tbl_invoices.tbl_providers?.prv_name ?? null,
+  statement: row.igl_statement,
+  fieldName: GLOSS_FIELD_NAMES[row.igl_field] ?? row.igl_field,
+  code: row.igl_code,
+  value: moneyText(row.igl_value),
+  description: row.igl_description,
+  open: row.igl_release_date === null,
+  releaseInvoiceNumber: row.release_invoice?.inv_number ?? null,
+  // Extracto de la liberación: el de la factura que la libera (migración 0127).
+  releaseStatement: row.release_invoice?.inv_statement ?? null,
+  releaseDate: dateOnlyText(row.igl_release_date),
+});
+
+/**
+ * Glosas de las facturas de la obra (DEC-085): abiertas (no liberadas) y
+ * liberadas, con cuántas y la suma de su valor con signo. Las eliminadas no
+ * cuentan (`liveGlossesWhere`, el criterio del filtro «Glosas», DEC-093), ni
+ * las de una factura eliminada. `items`: las abiertas primero y, en cada
+ * grupo, las más recientes, con tope por grupo.
+ */
+const glossesBlock = async (wrkId) => {
+  const rows = await prisma.tbl_invoice_glosses.findMany({
+    where: { wrk_id: wrkId, ...liveGlossesWhere(), tbl_invoices: notDeleted },
+    select: {
+      igl_id: true,
+      inv_id: true,
+      igl_statement: true,
+      igl_field: true,
+      igl_code: true,
+      igl_value: true,
+      igl_description: true,
+      igl_release_date: true,
+      release_invoice: { select: { inv_number: true, inv_statement: true } },
+      tbl_invoices: {
+        select: {
+          pvt_id: true,
+          inv_type: true,
+          inv_number: true,
+          inv_state: true,
+          tbl_contracts: { select: { ctr_number: true } },
+          tbl_providers: { select: { prv_name: true } },
+        },
+      },
+    },
+    orderBy: [{ igl_create_at: "desc" }, { igl_id: "desc" }],
+  });
+  const open = rows.filter((r) => r.igl_release_date === null);
+  const released = rows.filter((r) => r.igl_release_date !== null);
+  const group = (own) => ({ count: own.length, value: moneyText(sumMoney(own.map((r) => r.igl_value))), countPct: pct(own.length, rows.length) });
+  return {
+    count: rows.length,
+    open: group(open),
+    released: group(released),
+    items: [...open.slice(0, GLOSS_ROWS), ...released.slice(0, GLOSS_ROWS)].map(glossDto),
+  };
+};
+
 /**
  * Facturas de la obra, de todos los menús: aprobadas y por aprobar, últimas
  * registradas y, sin las anuladas, por mes, por tipo y por contrato. Los
  * valores son los que se capturan por tipo (DEC-044, DEC-051). Y los
- * seguimientos abiertos (DEC-076), para el aviso y su detalle.
+ * seguimientos abiertos (DEC-076), para el aviso y su detalle, y las glosas
+ * (DEC-085).
  */
 const invoicesBlock = async (wrkId, today) => {
   const where = { wrk_id: wrkId, ...notDeleted };
-  const [rows, latest, followUps] = await Promise.all([
+  const [rows, latest, followUps, glosses] = await Promise.all([
     prisma.tbl_invoices.findMany({
       where: { ...where, inv_state: { in: [INVOICE_STATES.REGISTERED, INVOICE_STATES.APPROVED] } },
       select: INVOICE_SELECT,
@@ -528,6 +631,7 @@ const invoicesBlock = async (wrkId, today) => {
     }),
     prisma.tbl_invoices.findMany({ where, select: INVOICE_SELECT, orderBy: [{ inv_create_at: "desc" }, { inv_id: "desc" }], take: LATEST_ROWS }),
     openFollowUpsSummary({ invoiceWhere: { wrk_id: wrkId }, today }),
+    glossesBlock(wrkId),
   ]);
 
   const approved = rows.filter((r) => r.inv_state === INVOICE_STATES.APPROVED);
@@ -593,7 +697,9 @@ const invoicesBlock = async (wrkId, today) => {
     count: rows.length,
     byMonth,
     byType,
+    byProviderType: byProviderTypeBlock(rows),
     byContract,
+    glosses,
     latest: latest.map(invoiceDto),
     // Las filas de las que salen las cifras: la línea de tiempo marca las de
     // contrato y el detalle de cada cifra las filtra con el mismo criterio.

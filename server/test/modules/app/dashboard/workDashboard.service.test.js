@@ -50,6 +50,8 @@ const prismaMock = {
   tbl_invoices: { findMany: jest.fn() },
   // Seguimientos abiertos (DEC-076).
   tbl_invoice_follow_ups: { count: jest.fn(async () => 0), findMany: jest.fn(async () => []) },
+  // Glosas (DEC-085).
+  tbl_invoice_glosses: { findMany: jest.fn(async () => []) },
   tbl_work_providers: { findMany: jest.fn() },
   tbl_contract_concepts: { findMany: jest.fn() },
   tbl_invoice_advance_details: { aggregate: jest.fn() },
@@ -412,6 +414,90 @@ describe("getWorkDashboard", () => {
       // Contra el valor vigente de la obra (3000).
       status: { budget: "3000.00", pending: "2850.00", exceeded: "0.00", executedPct: "5.00", pendingPct: "95.00" },
     });
+  });
+
+  it("facturas por menú: registradas y aprobadas, con su valor y su anticipo, de mayor a menor cantidad", async () => {
+    prismaMock.tbl_invoices.findMany.mockImplementation(async ({ take }) =>
+      take
+        ? []
+        : [
+            invoice(),
+            invoice({ inv_id: 2, inv_type: "NORMAL", tbl_invoice_advance_details: null, tbl_invoice_liquidation_details: { ild_value: "60.00", ild_amortization: "6.00" } }),
+            invoice({ inv_id: 3, inv_state: "REGISTERED", tbl_invoice_advance_details: { iad_value: "10.00" } }),
+            invoice({
+              inv_id: 4,
+              pvt_id: 1,
+              tbl_provider_types: { pvt_name: "Simple" },
+              inv_type: "SIMPLE",
+              ctr_id: null,
+              tbl_contracts: null,
+              tbl_invoice_advance_details: null,
+            }),
+          ]
+    );
+    const { invoices } = await getWorkDashboard({ granted: ALL, scope: OWN });
+    expect(invoices.byProviderType).toEqual([
+      { pvtId: 3, name: "Contrato mayor", count: 3, unpriced: 0, value: "110.00", advance: "50.00", countPct: "75.00" },
+      // La simple sin importes cuenta en la cantidad, no en el valor.
+      { pvtId: 1, name: "Simple", count: 1, unpriced: 1, value: "0.00", advance: "0.00", countPct: "25.00" },
+    ]);
+  });
+
+  it("glosas: abiertas y liberadas de la obra, sin eliminadas ni de facturas eliminadas, con su descripción", async () => {
+    const gloss = (overrides = {}) => ({
+      igl_id: 1,
+      inv_id: 1,
+      igl_statement: "7",
+      igl_field: "other",
+      igl_code: "G-1",
+      igl_value: "-20.00",
+      igl_description: "IVA cobrado de más",
+      igl_release_date: null,
+      release_invoice: null,
+      tbl_invoices: { pvt_id: 3, inv_type: "NORMAL", inv_number: "F-1", inv_state: "APPROVED", tbl_contracts: { ctr_number: "C-1" }, tbl_providers: { prv_name: "Concretos" } },
+      ...overrides,
+    });
+    prismaMock.tbl_invoice_glosses.findMany.mockResolvedValue([
+      gloss({ igl_id: 3, igl_release_date: new Date("2026-03-01T00:00:00Z"), release_invoice: { inv_number: "F-2", inv_statement: "8" }, igl_value: "15.00" }),
+      gloss(),
+      gloss({ igl_id: 2, igl_value: "5.00" }),
+    ]);
+    const { invoices } = await getWorkDashboard({ granted: ALL, scope: OWN });
+
+    expect(prismaMock.tbl_invoice_glosses.findMany.mock.calls[0][0].where).toEqual({
+      wrk_id: 8,
+      sta_id: { not: 3 },
+      tbl_invoices: { sta_id: { not: 3 } },
+    });
+    expect(invoices.glosses).toMatchObject({
+      count: 3,
+      open: { count: 2, value: "-15.00", countPct: "66.67" },
+      released: { count: 1, value: "15.00", countPct: "33.33" },
+    });
+    // Las abiertas primero.
+    expect(invoices.glosses.items.map((g) => [g.iglId, g.open])).toEqual([
+      [1, true],
+      [2, true],
+      [3, false],
+    ]);
+    expect(invoices.glosses.items[2]).toMatchObject({
+      invId: 1,
+      pvtId: 3,
+      invoiceTypeName: "Normal",
+      invoiceNumber: "F-1",
+      contractNumber: "C-1",
+      providerName: "Concretos",
+      fieldName: "OTRO",
+      description: "IVA cobrado de más",
+      releaseInvoiceNumber: "F-2",
+      releaseStatement: "8",
+      releaseDate: "2026-03-01",
+    });
+  });
+
+  it("sin ver facturas, no se consultan las glosas", async () => {
+    await getWorkDashboard({ granted: new Set([WORKS, CONTRACTS]), scope: OWN });
+    expect(prismaMock.tbl_invoice_glosses.findMany).not.toHaveBeenCalled();
   });
 
   it("estado de costos: lo que pasa del valor vigente va en excedido; sin ver la obra, no hay estado", async () => {
