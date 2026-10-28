@@ -2352,9 +2352,9 @@
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/PercentField.jsx": {
-    "mtime": 1792775450.3651602,
-    "seen": 1792775614.7387493,
-    "ast_hash": "90847290394cb0797bfcf3e531304197",
+    "mtime": 1793137614.9647098,
+    "seen": 1793138491.239279,
+    "ast_hash": "815a6d6bb11a77120464948ac1d1beea",
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/RouteDialog.jsx": {
@@ -2694,9 +2694,9 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/InvoiceFormPage.jsx": {
-    "mtime": 1793137099.1789162,
-    "seen": 1793137104.8575292,
-    "ast_hash": "81f7f64aba3dc701690a3d8095b2b28b",
+    "mtime": 1793137614.9657273,
+    "seen": 1793138491.2393603,
+    "ast_hash": "7426d7ce8cd7a722a020c3b55e9bbbc1",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/InvoicesPage.jsx": {
@@ -3744,9 +3744,9 @@
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/AmountPercentField.jsx": {
-    "mtime": 1792759777.348264,
-    "seen": 1792764934.632269,
-    "ast_hash": "7a126b8d4e245a7b107aa8ee6bb27505",
+    "mtime": 1793137772.9033754,
+    "seen": 1793138491.2392166,
+    "ast_hash": "4270cfc755520c2a1afb64d5704d5e89",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/ContractTaxesSection.jsx": {
