@@ -33,12 +33,17 @@ import {
   STATE_NAMES,
   TYPE_NAMES,
   VOUCHER_FILTER_NAMES,
+  GLOSS_FILTER_NAMES,
+  INVOICE_ALERT_NAMES,
+  invoiceAlertWheres,
   assertTransition,
   cancelTransitionFor,
   hasContract,
   historyRow,
   stateAllows,
   voucherWhere,
+  glossWhere,
+  liveGlossesWhere,
 } from "./invoiceTerms.js";
 import {
   advanceBalances,
@@ -1091,7 +1096,8 @@ const countByState = async (where) => {
  * de la factura o la de su contrato), `contractName` y los rangos de valor,
  * descuento y % IVA (`valueFrom`…`vatPctTo`), en la tabla de detalle de cada
  * tipo; el IVA y el total se calculan y no se filtran. `voucher`: con o sin
- * comprobante de egreso (DEC-091).
+ * comprobante de egreso (DEC-091). `gloss`: con glosas abiertas, con alguna o
+ * sin ninguna (DEC-093).
  * Los conteos respetan todos los filtros menos el estado.
  *
  * `scope`: alcance por obra de la petición (DEC-047). El filtro de obra va en
@@ -1101,17 +1107,21 @@ const countByState = async (where) => {
  * pestañas de los expedientes), todas.
  */
 export const paginationInvoices = async ({ rows, first, ...filters }) => {
-  const { baseWhere, where, orderBy } = invoiceListQuery(filters);
-  const [page, statusCounts] = await Promise.all([
+  const { stateCountWhere, where, alertCountWheres, orderBy } = invoiceListQuery(filters);
+  const [page, statusCounts, ...alerts] = await Promise.all([
     paginate(prisma.tbl_invoices, { where, select: LIST_SELECT, orderBy }, { first, rows }),
-    countByState(baseWhere),
+    countByState(stateCountWhere),
+    ...alertCountWheres.map(([, alertWhere]) => prisma.tbl_invoices.count({ where: alertWhere })),
   ]);
-  return { ...page, results: page.results.map(toListDto), statusCounts };
+  const alertCounts = Object.fromEntries(alertCountWheres.map(([key], i) => [key, alerts[i]]));
+  return { ...page, results: page.results.map(toListDto), statusCounts, alertCounts };
 };
 
 /**
- * `where` (con y sin la pestaña de estado) y orden del listado. Los usan el
- * listado paginado y el reporte (DEC-070).
+ * `where` del listado, de los conteos de las pestañas de estado y de cada
+ * alerta, y orden. Los usan el listado paginado y el reporte (DEC-070). La
+ * pestaña de estado y la alerta (`alert`, DEC-094) se combinan; cada una
+ * cuenta dentro de la otra.
  */
 const invoiceListQuery = ({
   search,
@@ -1140,6 +1150,8 @@ const invoiceListQuery = ({
   vatPctTo,
   advance,
   voucher,
+  gloss,
+  alert,
   sortField,
   sortOrder,
   scope,
@@ -1173,9 +1185,19 @@ const invoiceListQuery = ({
       amountRange(VAT_PCT_COLUMNS, vatPctFrom, vatPctTo),
       invoiceAdvanceWhere(advance),
       voucherWhere(voucher),
+      glossWhere(gloss),
     ]),
   };
-  return { baseWhere, where: { ...baseWhere, ...(state ? { inv_state: state } : {}) }, orderBy };
+  const alertWheres = invoiceAlertWheres();
+  const alertWhere = alert ? (alertWheres.find(([key]) => key === alert)?.[1] ?? null) : null;
+  const stateWhere = { ...baseWhere, ...(state ? { inv_state: state } : {}) };
+  const withAlert = (where, predicate) => (predicate ? { AND: [where, predicate] } : where);
+  return {
+    where: withAlert(stateWhere, alertWhere),
+    stateCountWhere: withAlert(baseWhere, alertWhere),
+    alertCountWheres: alertWheres.map(([key, predicate]) => [key, withAlert(stateWhere, predicate)]),
+    orderBy,
+  };
 };
 
 /**
@@ -1296,6 +1318,8 @@ const exportFilterLines = async ({
   vatPctTo,
   advance,
   voucher,
+  gloss,
+  alert,
 }) => {
   const [work, provider, stage] = await Promise.all([
     positiveId(wrkId) ? prisma.tbl_works.findUnique({ where: { wrk_id: positiveId(wrkId) }, select: { wrk_code: true, wrk_name: true } }) : null,
@@ -1322,6 +1346,8 @@ const exportFilterLines = async ({
     ["IVA %", range(vatPctFrom, vatPctTo)],
     ["Anticipo", advance ? (INVOICE_ADVANCE_FILTER_NAMES[advance] ?? advance) : ""],
     ["Pago", voucher ? (VOUCHER_FILTER_NAMES[voucher] ?? voucher) : ""],
+    ["Glosas", gloss ? (GLOSS_FILTER_NAMES[gloss] ?? gloss) : ""],
+    ["Alerta", alert ? (INVOICE_ALERT_NAMES[alert] ?? alert) : ""],
   ].filter(([, value]) => value);
   return [`Filtros: ${lines.map(([label, value]) => `${label}: ${value}`).join(" · ")}`];
 };
@@ -1384,6 +1410,13 @@ export const getInvoice = async ({ invId, scope }) => {
       ...LOCKED_SELECT,
       inv_create_at: true,
       inv_update_at: true,
+      // Contadores de las pestañas Seguimiento y Glosas, antes de abrirlas (DEC-093).
+      _count: {
+        select: {
+          tbl_invoice_follow_ups: { where: { sta_id: { not: DELETED_STATUS } } },
+          tbl_invoice_glosses: { where: liveGlossesWhere({ open: true }) },
+        },
+      },
       created_by_user: USER_NAME_SELECT,
       updated_by_user: USER_NAME_SELECT,
       tbl_providers: { select: { prv_name: true, prv_identification: true, tbl_identity_documents: { select: { idd_code: true } } } },
@@ -1447,6 +1480,8 @@ export const getInvoice = async ({ invId, scope }) => {
     stmId: statement?.stm_id ?? null,
     // Campos que admite una glosa de esta factura (DEC-085), con su importe en ella (DEC-092).
     glossFields: glossFieldsFor(row.inv_type, amounts),
+    followUpsCount: row._count?.tbl_invoice_follow_ups ?? 0,
+    openGlossesCount: row._count?.tbl_invoice_glosses ?? 0,
     statementDate: dateOnlyText(statement?.stm_date),
     description: row.inv_description,
     providerName: row.tbl_providers?.prv_name ?? null,

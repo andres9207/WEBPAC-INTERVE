@@ -1,4 +1,5 @@
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
+import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
 /**
  * Reglas de la factura sin base de datos (ADR-0020, DEC-042): tipos,
@@ -127,6 +128,46 @@ export const VOUCHER_FILTER_NAMES = Object.freeze({
 });
 
 const NO_VOUCHER = [{ inv_voucher_number: null }, { inv_voucher_number: "" }];
+
+/**
+ * Filtro "Glosas" del listado (DEC-093): con glosas abiertas, con alguna o
+ * sin ninguna. Las eliminadas no cuentan.
+ */
+export const GLOSS_FILTERS = Object.freeze({ OPEN: "OPEN", ANY: "ANY", NONE: "NONE" });
+
+export const GLOSS_FILTER_NAMES = Object.freeze({
+  [GLOSS_FILTERS.OPEN]: "Con glosas abiertas",
+  [GLOSS_FILTERS.ANY]: "Con glosas",
+  [GLOSS_FILTERS.NONE]: "Sin glosas",
+});
+
+/** Glosas que cuentan (no eliminadas); `open`, solo las no liberadas. */
+export const liveGlossesWhere = ({ open = false } = {}) => ({ sta_id: { not: DELETED_STATUS }, ...(open ? { igl_release_date: null } : {}) });
+
+/** Condición Prisma del filtro de glosas, o null sin filtro. */
+export const glossWhere = (gloss) => {
+  if (gloss === GLOSS_FILTERS.OPEN) return { tbl_invoice_glosses: { some: liveGlossesWhere({ open: true }) } };
+  if (gloss === GLOSS_FILTERS.ANY) return { tbl_invoice_glosses: { some: liveGlossesWhere() } };
+  if (gloss === GLOSS_FILTERS.NONE) return { tbl_invoice_glosses: { none: liveGlossesWhere() } };
+  return null;
+};
+
+/**
+ * Alertas del listado (DEC-094): fila de chips con su conteo, aparte de las
+ * pestañas de estado y combinable con ellas (como las de contratos, DEC-089).
+ */
+export const INVOICE_ALERTS = Object.freeze({ OPEN_GLOSSES: "OPEN_GLOSSES", GLOSSES: "GLOSSES" });
+
+export const INVOICE_ALERT_NAMES = Object.freeze({
+  [INVOICE_ALERTS.OPEN_GLOSSES]: "Con glosas abiertas",
+  [INVOICE_ALERTS.GLOSSES]: "Con glosas",
+});
+
+/** Predicado de cada alerta, en el orden de la fila: `[clave, where]`. */
+export const invoiceAlertWheres = () => [
+  [INVOICE_ALERTS.OPEN_GLOSSES, glossWhere(GLOSS_FILTERS.OPEN)],
+  [INVOICE_ALERTS.GLOSSES, glossWhere(GLOSS_FILTERS.ANY)],
+];
 
 /** Condición Prisma del pago, o null sin filtro. */
 export const voucherWhere = (voucher) => {

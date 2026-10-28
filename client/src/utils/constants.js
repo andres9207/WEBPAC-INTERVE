@@ -156,6 +156,18 @@ export const INVOICE_VOUCHER_FILTER_OPTIONS = [
   { value: 'WITH', label: 'Con comprobante de egreso' },
   { value: 'WITHOUT', label: 'Sin comprobante de egreso' }
 ];
+// Alertas del listado de facturas (DEC-094, INVOICE_ALERTS del servidor): fila de chips con su conteo,
+// combinable con las pestañas de estado.
+export const INVOICE_ALERT_OPTIONS = [
+  { id: 'OPEN_GLOSSES', name: 'Con glosas abiertas', color: 'warning' },
+  { id: 'GLOSSES', name: 'Con glosas', color: 'info' }
+];
+// Filtro "Glosas" del listado de facturas (DEC-093, GLOSS_FILTERS del servidor).
+export const INVOICE_GLOSS_FILTER_OPTIONS = [
+  { value: 'OPEN', label: 'Con glosas abiertas' },
+  { value: 'ANY', label: 'Con glosas' },
+  { value: 'NONE', label: 'Sin glosas' }
+];
 export const CONTRACT_ADVANCE_FILTER_OPTIONS = [
   { value: 'WITH_ADVANCE', label: 'Con anticipo pactado' },
   { value: 'TO_INVOICE', label: 'Anticipo por facturar' },

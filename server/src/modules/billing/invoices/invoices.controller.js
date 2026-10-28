@@ -78,7 +78,7 @@ const listFiltersOf = (req) => {
   const { search, state, pvtId, type, wrkId, prvId, ctrId, sortField, sortOrder } = req.body;
   const { number, voucherNumber, statement, contractNumber, providerName, dateFrom, dateTo, approvalDateFrom, approvalDateTo } = req.body;
   const { wksId, contractName, valueFrom, valueTo, discountFrom, discountTo, vatPctFrom, vatPctTo } = req.body;
-  const { advance, voucher } = req.body;
+  const { advance, voucher, gloss, alert } = req.body;
   return {
     search,
     state,
@@ -106,6 +106,8 @@ const listFiltersOf = (req) => {
     vatPctTo,
     advance,
     voucher,
+    gloss,
+    alert,
     sortField,
     sortOrder,
   };

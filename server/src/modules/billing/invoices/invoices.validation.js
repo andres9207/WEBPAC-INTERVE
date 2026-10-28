@@ -10,7 +10,7 @@ import {
   percentRule,
   exportFormatRule,
 } from "../../../common/utils/validation.utils.js";
-import { INVOICE_STATES, INVOICE_TYPES, VOUCHER_FILTERS, hasContract } from "./invoiceTerms.js";
+import { GLOSS_FILTERS, INVOICE_ALERTS, INVOICE_STATES, INVOICE_TYPES, VOUCHER_FILTERS, hasContract } from "./invoiceTerms.js";
 import { SIMPLE_PAIRS } from "./simpleInvoiceTerms.js";
 import { INVOICE_ADVANCE_FILTERS } from "./advanceFilters.js";
 import { CONTRACT_PAIRS } from "./contractInvoiceTerms.js";
@@ -60,6 +60,8 @@ export const paginationInvoicesSchema = [
   // Anticipo, amortización y lo por aprobar de los dos.
   body("advance").optional({ values: "falsy" }).isIn(Object.values(INVOICE_ADVANCE_FILTERS)).withMessage("El filtro de anticipo no es válido."),
   body("voucher").optional({ values: "falsy" }).isIn(Object.values(VOUCHER_FILTERS)).withMessage("El filtro de pago no es válido."),
+  body("gloss").optional({ values: "falsy" }).isIn(Object.values(GLOSS_FILTERS)).withMessage("El filtro de glosas no es válido."),
+  body("alert").optional({ values: "falsy" }).isIn(Object.values(INVOICE_ALERTS)).withMessage("La alerta no es válida."),
 ];
 
 const menuQuery = () => query("pvtId").isInt({ min: 1 }).withMessage("pvtId es obligatorio: el menú de facturas.");

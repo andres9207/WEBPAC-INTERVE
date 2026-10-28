@@ -19,6 +19,8 @@ import { fDateOnly } from 'utils/formatTime';
 import { fMoneyText, fPercentText } from 'utils/formatNumber';
 import {
   INVOICE_ADVANCE_FILTER_OPTIONS,
+  INVOICE_ALERT_OPTIONS,
+  INVOICE_GLOSS_FILTER_OPTIONS,
   INVOICE_MODES,
   INVOICE_MODE_TYPES,
   INVOICE_STATE_COLORS,
@@ -98,6 +100,8 @@ export const INVOICE_COLUMNS = [
 ];
 
 export const INVOICE_STATE_FILTER = { param: 'state', tabs: INVOICE_STATE_TABS, colors: INVOICE_STATE_COLORS };
+// Alertas aparte de las pestañas y combinables con ellas, con su conteo (DEC-094).
+const INVOICE_ALERTS = { param: 'alert', options: INVOICE_ALERT_OPTIONS };
 
 // Importe que llega del servidor como texto (DEC-028): a la derecha, en cifras alineadas.
 const amountColumn = (id, label, format, sortable = false) => ({
@@ -161,6 +165,8 @@ const commonFilters = (pvtId) => [
   { key: 'voucherNumber', type: 'input', label: 'Comprobante', props: { maxLength: 50 }, grid: { xs: 12, sm: 6 } },
   // Con la pestaña "Aprobada", sin comprobante es lo pendiente de pago (DEC-091).
   { key: 'voucher', type: 'dropdown', label: 'Pago', props: { options: INVOICE_VOUCHER_FILTER_OPTIONS }, grid: { xs: 12, sm: 6 } },
+  // Con glosas abiertas, con alguna o sin ninguna (DEC-093).
+  { key: 'gloss', type: 'dropdown', label: 'Glosas', props: { options: INVOICE_GLOSS_FILTER_OPTIONS }, grid: { xs: 12, sm: 6 } },
   { key: 'statement', type: 'input', label: 'Extracto', props: { maxLength: 20 } },
   {
     key: 'prvId',
@@ -268,6 +274,7 @@ export default function InvoicesPage() {
         rowLabel={rowLabel}
         navigation={navigation}
         stateTabs={INVOICE_STATE_FILTER}
+        alerts={INVOICE_ALERTS}
         filters={filters}
         initialStatus={linked.initialStatus}
         header={simple ? null : <LinkedFilterNotice label={linked.label} onClear={linked.clear} />}

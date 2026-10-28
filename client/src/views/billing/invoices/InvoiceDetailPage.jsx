@@ -374,8 +374,13 @@ export default function InvoiceDetailPage() {
                 <Stack direction="row" spacing={1} alignItems="center">
                   <span>{t.label}</span>
                   {t.key === 'history' && <Chip label={invoice.history.length} size="small" color="default" />}
-                  {t.key === 'followUps' && followUpCount !== null && <Chip label={followUpCount} size="small" color="default" />}
-                  {t.key === 'glosses' && openGlosses > 0 && <Chip label={openGlosses} size="small" color="warning" />}
+                  {/* Del detalle de la factura hasta que la pestaña carga su lista (DEC-093). */}
+                  {t.key === 'followUps' && (followUpCount ?? invoice.followUpsCount) > 0 && (
+                    <Chip label={followUpCount ?? invoice.followUpsCount} size="small" color="default" />
+                  )}
+                  {t.key === 'glosses' && (openGlosses ?? invoice.openGlossesCount) > 0 && (
+                    <Chip label={openGlosses ?? invoice.openGlossesCount} size="small" color="warning" />
+                  )}
                 </Stack>
               }
             />

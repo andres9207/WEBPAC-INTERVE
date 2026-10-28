@@ -897,6 +897,32 @@ describe("listado", () => {
     expect(prismaMock.tbl_invoices.groupBy.mock.calls.at(-1)[0].where.AND).toContainEqual(condition);
   });
 
+  test.each([
+    ["OPEN", { tbl_invoice_glosses: { some: { sta_id: { not: 3 }, igl_release_date: null } } }],
+    ["ANY", { tbl_invoice_glosses: { some: { sta_id: { not: 3 } } } }],
+    ["NONE", { tbl_invoice_glosses: { none: { sta_id: { not: 3 } } } }],
+  ])("filtro Glosas %s (DEC-093): no cuenta las eliminadas, también en los conteos", async (gloss, condition) => {
+    await service.paginationInvoices({ gloss });
+    expect(prismaMock.tbl_invoices.groupBy.mock.calls.at(-1)[0].where.AND).toContainEqual(condition);
+  });
+
+  test("alertas de glosas (DEC-094): se combinan con la pestaña de estado y cada una cuenta dentro de la otra", async () => {
+    const openGlosses = { tbl_invoice_glosses: { some: { sta_id: { not: 3 }, igl_release_date: null } } };
+    prismaMock.tbl_invoices.count.mockResolvedValue(4);
+
+    const result = await service.paginationInvoices({ state: "APPROVED", alert: "OPEN_GLOSSES", rows: 10, first: 0 });
+
+    const listed = prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where;
+    expect(listed.AND[0]).toMatchObject({ inv_state: "APPROVED" });
+    expect(listed.AND[1]).toEqual(openGlosses);
+    const stateCount = prismaMock.tbl_invoices.groupBy.mock.calls.at(-1)[0].where;
+    expect(stateCount.AND[0]).not.toHaveProperty("inv_state");
+    expect(stateCount.AND[1]).toEqual(openGlosses);
+    const alertCounts = prismaMock.tbl_invoices.count.mock.calls.slice(-2).map(([args]) => args.where);
+    expect(alertCounts.every((where) => where.AND[0].inv_state === "APPROVED")).toBe(true);
+    expect(result.alertCounts).toEqual({ OPEN_GLOSSES: 4, GLOSSES: 4 });
+  });
+
   test("filtra por etapa, nombre del contrato y rangos de valor, descuento y % IVA en el detalle de cada tipo, también en los conteos", async () => {
     await service.paginationInvoices({ wksId: "5", contractName: "obra gris", valueFrom: "500", valueTo: "2000.5", discountTo: "0", vatPctFrom: "19" });
 
