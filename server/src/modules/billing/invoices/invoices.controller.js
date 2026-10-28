@@ -323,7 +323,11 @@ export const previewInvoiceGlossController = handle(async (req) => {
 
 export const listInvoiceGlossesController = handle(async (req) => glossesService.listGlosses({ invId: req.query.invId, scope: await workScopeOf(req) }));
 
-const GLOSS_FIELDS = ["statement", "field", "code", "value", "description"];
+const GLOSS_FIELDS = ["statement", "field", "code", "value", "affectsTotal", "description"];
+
+export const selectGlossReleaseInvoicesController = handle(async (req) =>
+  glossesService.selectReleaseInvoices({ iglId: req.query.iglId, search: req.query.search, scope: await workScopeOf(req) })
+);
 
 const glossAction = (fn, fields) =>
   handle(async (req) => {
@@ -352,5 +356,5 @@ export const createInvoiceGlossController = handle(async (req) => {
 });
 
 export const updateInvoiceGlossController = glossAction(glossesService.updateGloss, GLOSS_FIELDS);
-export const releaseInvoiceGlossController = glossAction(glossesService.releaseGloss, ["releaseStatement", "observation"]);
+export const releaseInvoiceGlossController = glossAction(glossesService.releaseGloss, ["releaseInvId", "observation"]);
 export const deleteInvoiceGlossController = glossAction(glossesService.deleteGloss, []);

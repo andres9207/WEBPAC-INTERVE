@@ -30,7 +30,7 @@ import WorkDataForm from './components/WorkDataForm';
 import { EMPTY_FORM, FIELD_TAB, rowKey, toForm, toPayload, validateManagers, validateStages } from './components/workForm';
 import WorkProvidersTab from 'views/work/providers/components/WorkProvidersTab';
 import WorkContractsTab from 'views/work/contracts/components/WorkContractsTab';
-import InvoicesTab from 'views/billing/invoices/components/InvoicesTab';
+import InvoicesTab, { useInvoicesCount } from 'views/billing/invoices/components/InvoicesTab';
 import NewSimpleInvoiceButton from 'views/billing/invoices/components/NewSimpleInvoiceButton';
 import { changeWorkStateAPI, getWorkManagersSelectAPI, previewWorkEndDateAPI, worksApi } from 'api/requests/worksApi';
 import { useAuth } from 'contexts/AuthContext';
@@ -190,6 +190,7 @@ function WorkView() {
   }, [canEdit, isNew, load]);
 
   const [managers, stages, contacts] = useWatch({ control, name: ['managers', 'stages', 'contacts'] });
+  const invoicesCount = useInvoicesCount({ wrkId });
 
   const dialogUserOptions = useMemo(() => {
     const taken = new Set(managers.filter((m) => m.key !== managerDialog?.manager?.key).map((m) => m.useId));
@@ -338,7 +339,7 @@ function WorkView() {
   const tabBadge = canEdit
     ? { managers: managers.length, stages: stages.length, contacts: contacts.length }
     : { managers: work.managers.length, stages: work.stages.length, contacts: work.contacts.length };
-  if (work) Object.assign(tabBadge, { providers: work.providersCount, contracts: work.contractsCount });
+  if (work) Object.assign(tabBadge, { providers: work.providersCount, contracts: work.contractsCount, invoices: invoicesCount });
 
   const hidden = (key) => ({ display: tab === key ? 'block' : 'none' });
 

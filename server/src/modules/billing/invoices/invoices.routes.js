@@ -32,6 +32,7 @@ import {
   createInvoiceGlossSchema,
   updateInvoiceGlossSchema,
   releaseInvoiceGlossSchema,
+  selectGlossReleaseInvoicesSchema,
   deleteInvoiceGlossSchema,
 } from "./invoices.validation.js";
 import {
@@ -64,6 +65,7 @@ import {
   createInvoiceGlossController,
   updateInvoiceGlossController,
   releaseInvoiceGlossController,
+  selectGlossReleaseInvoicesController,
   deleteInvoiceGlossController,
 } from "./invoices.controller.js";
 
@@ -152,6 +154,15 @@ invoicesRoutes.post("/preview_invoice_gloss", verifyToken, canView, previewInvoi
 invoicesRoutes.get("/list_invoice_glosses", verifyToken, canView, listInvoiceGlossesSchema, validate, listInvoiceGlossesController);
 invoicesRoutes.post("/create_invoice_gloss", verifyToken, canView, canManageGlosses, createInvoiceGlossSchema, validate, createInvoiceGlossController);
 invoicesRoutes.post("/update_invoice_gloss", verifyToken, canView, canManageGlosses, updateInvoiceGlossSchema, validate, updateInvoiceGlossController);
+invoicesRoutes.get(
+  "/select_gloss_release_invoices",
+  verifyToken,
+  canView,
+  canManageGlosses,
+  selectGlossReleaseInvoicesSchema,
+  validate,
+  selectGlossReleaseInvoicesController
+);
 invoicesRoutes.post("/release_invoice_gloss", verifyToken, canView, canManageGlosses, releaseInvoiceGlossSchema, validate, releaseInvoiceGlossController);
 invoicesRoutes.post("/delete_invoice_gloss", verifyToken, canView, canManageGlosses, deleteInvoiceGlossSchema, validate, deleteInvoiceGlossController);
 

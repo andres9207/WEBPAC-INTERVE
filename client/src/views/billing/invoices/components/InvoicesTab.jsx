@@ -36,6 +36,47 @@ const STATE_COLUMN = {
   render: (row) => <StatusChip staId={row.state} label={row.stateName} scope={null} colorMap={INVOICE_STATE_COLORS} />
 };
 
+/**
+ * Cuántas facturas lista la pestaña, para el contador del encabezado de
+ * pestañas del expediente, que se ve antes de abrirla. Lo pide al mismo
+ * listado, así que cuenta lo mismo que la tabla (alcance por obra, sin las
+ * eliminadas) y se actualiza con ella. Sin permiso de ver facturas, no hay
+ * contador (`undefined`).
+ */
+export function useInvoicesCount({ ctrId, wrkId, prvId }) {
+  const socket = useSocket();
+  const canView = useCanViewInvoices();
+  const [count, setCount] = useState();
+
+  const load = useCallback(async () => {
+    if (!canView || !(ctrId || wrkId || prvId)) return;
+    try {
+      const { data } = await invoicesApi.pagination({
+        ...(ctrId ? { ctrId } : {}),
+        ...(wrkId ? { wrkId } : {}),
+        ...(prvId ? { prvId } : {}),
+        first: 0,
+        rows: 1
+      });
+      setCount(data.total);
+    } catch {
+      // El contador es accesorio: la pestaña muestra el error al abrirse.
+    }
+  }, [canView, ctrId, wrkId, prvId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    socket.on('refresh-invoices', load);
+    return () => socket.off('refresh-invoices', load);
+  }, [socket, load]);
+
+  return canView ? count : undefined;
+}
+
 export default function InvoicesTab({ filter, hideColumns = [], actions = null, emptyTitle, emptyText }) {
   const navigate = useNavigate();
   const socket = useSocket();

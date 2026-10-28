@@ -23,8 +23,10 @@ import { statementsPath } from 'utils/constants';
  * de sus facturas por menú (tipo de proveedor) y en total, el chequeo de
  * comprobantes de egreso (las aprobadas sin número de comprobante) y sus
  * facturas. Todas las cifras las calcula el servidor; las anuladas se listan
- * pero no suman. Debajo, las glosas levantadas y liberadas en él, por campo
- * de la factura y una por una; la negativa es una nota crédito (DEC-085).
+ * pero no suman. Debajo, las glosas levantadas en él y las que liberó una
+ * factura suya, por campo de la factura y una por una; la negativa es una
+ * nota crédito (DEC-085). Al total pagado solo suman las levantadas que
+ * suman; las liberadas no restan, porque la factura que las libera ya cuenta.
  */
 
 const MENU_COLUMNS = [
@@ -92,18 +94,31 @@ const GLOSS_COLUMNS = [
   { id: 'code', label: 'Código', render: (row) => row.code ?? '—' },
   { id: 'description', label: 'Descripción' },
   { id: 'value', label: 'Valor', align: 'right', render: (row) => fMoneyText(row.value) },
+  { id: 'affectsTotal', label: 'Suma al total', render: (row) => (row.affectsTotal ? 'Sí' : 'No') },
   { id: 'statement', label: 'Levantada en', render: (row) => row.statement ?? '—' },
-  { id: 'releaseStatement', label: 'Liberada en', render: (row) => row.releaseStatement ?? 'Abierta' }
+  {
+    id: 'releaseInvoiceNumber',
+    label: 'Liberada con',
+    render: (row) =>
+      row.releaseInvId ? (
+        <Link component={RouterLink} to={statementsPath(row.releaseInvId)}>
+          {row.releaseInvoiceNumber}
+        </Link>
+      ) : (
+        'Abierta'
+      )
+  },
+  { id: 'releaseStatement', label: 'Liberada en', render: (row) => row.releaseStatement ?? '—' }
 ];
 
 const GLOSS_FIELD_COLUMNS = [
   { id: 'name', label: 'Campo' },
   { id: 'raised', label: 'Levantadas', align: 'right', render: (row) => fMoneyText(row.raised) },
   { id: 'released', label: 'Liberadas', align: 'right', render: (row) => fMoneyText(row.released) },
-  { id: 'net', label: 'Neto', align: 'right', render: (row) => fMoneyText(row.net) }
+  { id: 'net', label: 'Suma al total', align: 'right', render: (row) => fMoneyText(row.net) }
 ];
 
-/** Glosas del extracto (DEC-085): las que se levantaron en él o las que se liberaron en él. */
+/** Glosas del extracto (DEC-085): las que se levantaron en él o las que liberó una factura suya. */
 function GlossesSection({ title, rows, total }) {
   if (rows.length === 0) return null;
   return (
@@ -204,12 +219,12 @@ export default function StatementReportDialog({ statement, canExport, reloadKey 
           )}
           <GlossesSection title="Glosas levantadas" rows={report.glosses.raised} total={report.glosses.raisedValue} />
           <GlossesSection title="Glosas liberadas" rows={report.glosses.released} total={report.glosses.releasedValue} />
-          {/* Total pagado (DEC-085): el de las facturas, más las glosas levantadas en el extracto, menos las liberadas en él. */}
+          {/* Total pagado (DEC-085): el de las facturas más las glosas levantadas en el extracto que suman al total. */}
           <Typography variant="h5" sx={{ textAlign: 'right' }}>
             Total pagado {fMoneyText(totals.paidTotal)}
           </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right' }}>
-            Facturas {fMoneyText(totals.total)} + glosas levantadas − liberadas {fMoneyText(totals.glossesNet)}
+            Facturas {fMoneyText(totals.total)} + glosas que suman al total {fMoneyText(totals.glossesNet)}
           </Typography>
         </Stack>
       )}

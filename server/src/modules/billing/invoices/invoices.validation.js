@@ -301,6 +301,7 @@ const glossRules = () => [
     .trim()
     .matches(/^-?\d{1,16}(\.\d+)?$/)
     .withMessage("El valor de la glosa debe ser un número, con punto decimal y hasta 16 dígitos enteros."),
+  body("affectsTotal").optional({ values: "null" }).isBoolean({ strict: true }).withMessage("affectsTotal debe ser verdadero o falso."),
   body("description").trim().notEmpty().withMessage("La descripción de la glosa es requerida.").isLength({ max: 1000 }).withMessage("La descripción admite hasta 1000 caracteres."),
 ];
 
@@ -310,9 +311,15 @@ export const createInvoiceGlossSchema = [idempotencyKeyRule(), requiredId("invId
 
 export const updateInvoiceGlossSchema = [requiredId("iglId"), ...glossRules()];
 
+export const selectGlossReleaseInvoicesSchema = [
+  query("iglId").isInt({ min: 1 }).withMessage("iglId es obligatorio y debe ser un entero positivo."),
+  query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
+];
+
+// Se libera con la factura que la corrige (migración 0127): su extracto es el de la liberación.
 export const releaseInvoiceGlossSchema = [
   requiredId("iglId"),
-  body("releaseStatement").trim().notEmpty().withMessage("Escribe el extracto en que se libera la glosa.").isLength({ max: 20 }).withMessage("El extracto admite hasta 20 caracteres."),
+  requiredId("releaseInvId"),
   body("observation").trim().notEmpty().withMessage("La observación de la liberación es requerida.").isLength({ max: 1000 }).withMessage("La observación admite hasta 1000 caracteres."),
 ];
 

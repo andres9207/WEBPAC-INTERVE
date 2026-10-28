@@ -26,7 +26,7 @@ import WorkProviderDialog from './components/WorkProviderDialog';
 import ProviderDataForm from './components/ProviderDataForm';
 import useIdentityCheck from './components/useIdentityCheck';
 import { EMPTY_FORM, FIELD_TAB, text, toForm, toPayload } from './components/providerForm';
-import InvoicesTab from 'views/billing/invoices/components/InvoicesTab';
+import InvoicesTab, { useInvoicesCount } from 'views/billing/invoices/components/InvoicesTab';
 import NewSimpleInvoiceButton from 'views/billing/invoices/components/NewSimpleInvoiceButton';
 import { providersApi, workProvidersApi } from 'api/requests/providersApi';
 import { useAuth } from 'contexts/AuthContext';
@@ -162,6 +162,7 @@ function ProviderView() {
   }, [isNew, load]);
 
   const [iddId, identification, contacts] = useWatch({ control, name: ['iddId', 'identification', 'contacts'] });
+  const invoicesCount = useInvoicesCount({ prvId });
   const identityFormat = identityOptions.find((o) => o.value === iddId)?.format;
   const identityChanged = isNew || iddId !== provider?.iddId || text(identification) !== provider?.identification;
   const { existing: found } = useIdentityCheck({
@@ -250,7 +251,7 @@ function ProviderView() {
   const hidden = (key) => ({ display: tab === key ? 'block' : 'none' });
 
   const tabBadge = provider
-    ? { contacts: canEditCompany ? contacts.length : provider.contacts.length, works: provider.worksCount }
+    ? { contacts: canEditCompany ? contacts.length : provider.contacts.length, works: provider.worksCount, invoices: invoicesCount }
     : { contacts: contacts.length };
 
   const active = provider?.staId === STATUS.ACTIVE;

@@ -38,7 +38,7 @@ const BASE_COLUMNS = [
   { id: 'firstDate', label: 'Primera factura', sortable: true, render: (row) => fDateOnly(row.firstDate) },
   { id: 'lastDate', label: 'Última factura', sortable: true, render: (row) => fDateOnly(row.lastDate) },
   { id: 'total', label: 'Total facturas', align: 'right', render: (row) => <span style={num}>{fMoneyText(row.total)}</span> },
-  // Glosas levantadas en el extracto menos las liberadas en él, y el total pagado con ellas (DEC-085).
+  // Glosas levantadas en el extracto que suman al total, y el total pagado con ellas (DEC-085).
   {
     id: 'glossesNet',
     label: 'Glosas',

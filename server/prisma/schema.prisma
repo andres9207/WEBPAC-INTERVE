@@ -1078,6 +1078,7 @@ model tbl_invoices {
   tbl_invoice_retention_refund_details tbl_invoice_retention_refund_details?
   tbl_invoice_status_history           tbl_invoice_status_history[]
   tbl_invoice_glosses                  tbl_invoice_glosses[]
+  released_glosses                     tbl_invoice_glosses[]                 @relation("InvoiceGlossReleaseInvoice")
   tbl_invoice_follow_ups               tbl_invoice_follow_ups[]
   tbl_contracts                        tbl_contracts?                        @relation(fields: [ctr_id, wrk_id, prv_id, pvt_id], references: [ctr_id, wrk_id, prv_id, pvt_id], onUpdate: NoAction, map: "tbl_invoices_contract")
   created_by_user                      tbl_users?                            @relation("InvoiceCreatedBy", fields: [inv_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoices_create_by")
@@ -1119,8 +1120,9 @@ model tbl_invoice_glosses {
   igl_field               String          @db.VarChar(30)
   igl_code                String?         @db.VarChar(20)
   igl_value               Decimal         @db.Decimal(18, 2)
+  igl_affects_total       Boolean         @default(true)
   igl_description         String          @db.VarChar(1000)
-  igl_release_statement   String?         @db.VarChar(20)
+  igl_release_inv_id      Int?
   igl_release_date        DateTime?       @db.Date
   igl_release_observation String?         @db.VarChar(1000)
   igl_release_by          Int?
@@ -1134,6 +1136,7 @@ model tbl_invoice_glosses {
   igl_idempotency_key     String?         @unique(map: "uq_invoice_glosses_idempotency_key") @db.Char(36)
   igl_idempotency_hash    String?         @db.Char(64)
   tbl_invoices            tbl_invoices    @relation(fields: [inv_id, wrk_id], references: [inv_id, wrk_id], onUpdate: NoAction, map: "tbl_invoice_glosses_invoice")
+  release_invoice         tbl_invoices?   @relation("InvoiceGlossReleaseInvoice", fields: [igl_release_inv_id, wrk_id], references: [inv_id, wrk_id], onUpdate: NoAction, map: "tbl_invoice_glosses_release_invoice")
   tbl_status              tbl_status      @relation(fields: [sta_id], references: [sta_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_glosses_status")
   released_by_user        tbl_users?      @relation("InvoiceGlossReleasedBy", fields: [igl_release_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_glosses_release_by")
   created_by_user         tbl_users?      @relation("InvoiceGlossCreatedBy", fields: [igl_create_by], references: [use_id], onDelete: NoAction, onUpdate: NoAction, map: "tbl_invoice_glosses_create_by")
@@ -1142,7 +1145,7 @@ model tbl_invoice_glosses {
 
   @@index([inv_id, igl_release_date], map: "idx_invoice_glosses_invoice")
   @@index([wrk_id, igl_statement], map: "idx_invoice_glosses_work_statement")
-  @@index([wrk_id, igl_release_statement], map: "idx_invoice_glosses_work_release_statement")
+  @@index([igl_release_inv_id, wrk_id], map: "idx_invoice_glosses_release_invoice")
   @@index([sta_id], map: "tbl_invoice_glosses_status")
   @@index([igl_release_by], map: "tbl_invoice_glosses_release_by")
   @@index([igl_create_by], map: "tbl_invoice_glosses_create_by")

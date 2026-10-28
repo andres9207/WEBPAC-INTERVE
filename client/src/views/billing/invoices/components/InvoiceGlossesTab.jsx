@@ -5,8 +5,11 @@ import { Controller, useForm, useWatch } from 'react-hook-form';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import FormHelperText from '@mui/material/FormHelperText';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
@@ -16,6 +19,7 @@ import { IconCheck, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
 import AmountPercentField from 'ui-component/extended/AmountPercentField';
 import BaseDialog from 'ui-component/extended/BaseDialog';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
+import SearchSelect from 'ui-component/extended/SearchSelect';
 import { invoiceGlossesApi } from 'api/requests/invoicesApi';
 import { useSocket } from 'socket/SocketProvider';
 import { showError, showSuccess } from 'services/ToastService';
@@ -27,12 +31,15 @@ import { newIdempotencyKey } from 'utils/idempotency';
  * Glosas de una factura (DEC-085): errores hallados al registrarla, que se
  * controlan hasta su liberación en un extracto posterior. Llevan código
  * (opcional), valor con signo y descripción; se levantan en un extracto (se
- * propone el de la factura) y se liberan en otro, con observación. El
- * extracto se escribe, como en la factura (DEC-084). Cada glosa es sobre un
- * campo de la factura (los de su Detalle u Otro, que da el servidor); la
- * negativa es una nota crédito: lo que el proveedor devuelve. En el reporte del
- * extracto, la levantada suma al total pagado y la liberada resta: así se
- * registra lo pagado por encima de lo que la factura admite. No bloquean la
+ * propone el de la factura; se escribe, como en la factura, DEC-084). Cada
+ * glosa es sobre un campo de la factura (los de su Detalle u Otro, que da el
+ * servidor); la negativa es una nota crédito: lo que el proveedor devuelve.
+ *
+ * Al levantarla se dice si suma al total pagado de su extracto (lo pagado
+ * difiere de lo registrado) o es un pendiente que llegará en otra factura.
+ * Se libera con la factura que la corrige (migración 0127): del mismo
+ * proveedor y obra, con extracto, que es el de la liberación; esa factura ya
+ * cuenta en él, así que liberar no cambia el total. No bloquean la
  * aprobación. Abiertas se editan y se eliminan; liberadas, solo se
  * consultan. Las reglas las repite el servidor.
  *
@@ -45,13 +52,46 @@ const TEXT_MAX = 1000;
 const STATEMENT_MAX = 20;
 const VALUE_PATTERN = /^-?\d{1,16}(\.\d{1,2})?$/;
 
+/** Facturas con que se puede liberar la glosa, buscadas en el servidor al dejar de escribir. */
+function useReleaseInvoices(iglId) {
+  const [search, setSearch] = useState('');
+  const [state, setState] = useState({ items: [], loading: false });
+
+  useEffect(() => {
+    if (!iglId) return undefined;
+    let cancelled = false;
+    const term = search.trim();
+    const timer = setTimeout(
+      async () => {
+        setState((s) => ({ ...s, loading: true }));
+        try {
+          const { data } = await invoiceGlossesApi.releaseInvoices(iglId, term);
+          if (!cancelled) setState({ items: data, loading: false });
+        } catch (err) {
+          if (cancelled) return;
+          showError(err.response?.data?.message || 'Error al cargar las facturas');
+          setState((s) => ({ ...s, loading: false }));
+        }
+      },
+      term ? 300 : 0
+    );
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [iglId, search]);
+
+  return { ...state, search: search.trim(), setSearch };
+}
+
 function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState(null);
   const releasing = mode === 'release';
   const { control, handleSubmit, reset, setValue } = useForm({
-    defaultValues: { statement: '', field: '', code: '', value: '', description: '', releaseStatement: '', observation: '' }
+    defaultValues: { statement: '', field: '', code: '', value: '', affectsTotal: true, description: '', releaseInvId: '', observation: '' }
   });
+  const releaseOptions = useReleaseInvoices(open && releasing ? gloss?.iglId : null);
 
   // Importe del campo y el otro lado (el %), del servidor; lo escrito en % hasta que lo convierte.
   const [fieldName, value] = useWatch({ control, name: ['field', 'value'] });
@@ -98,8 +138,10 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
       field: gloss?.field ?? '',
       code: gloss?.code ?? '',
       value: gloss?.value ?? '',
+      // Una glosa nueva suma al total: la de una diferencia de pago.
+      affectsTotal: gloss ? gloss.affectsTotal : true,
       description: gloss?.description ?? '',
-      releaseStatement: '',
+      releaseInvId: '',
       observation: ''
     });
   }, [open, mode, gloss, invoice, reset]);
@@ -112,6 +154,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
         field: form.field,
         code: form.code.trim(),
         value: form.value.trim(),
+        affectsTotal: form.affectsTotal,
         description: form.description.trim()
       };
       const { data } =
@@ -120,7 +163,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
           : releasing
             ? await invoiceGlossesApi.release({
                 iglId: gloss.iglId,
-                releaseStatement: form.releaseStatement.trim(),
+                releaseInvId: form.releaseInvId,
                 observation: form.observation.trim()
               })
             : await invoiceGlossesApi.update({ iglId: gloss.iglId, ...values });
@@ -139,11 +182,6 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
     maxLength: { value: TEXT_MAX, message: `Máximo ${TEXT_MAX} caracteres.` }
   });
   const statementRules = { maxLength: { value: STATEMENT_MAX, message: `Máximo ${STATEMENT_MAX} caracteres.` } };
-  // Se libera en otro extracto: el servidor lo compara sin distinguir mayúsculas ni tildes.
-  const sameAsRaised = (value) =>
-    gloss?.statement && value.trim().localeCompare(gloss.statement, 'es', { sensitivity: 'base' }) === 0
-      ? 'Se libera en un extracto posterior, no en el que se levantó.'
-      : true;
 
   return (
     <BaseDialog
@@ -171,22 +209,26 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
               {fMoneyText(gloss?.value)}: {gloss?.description}. Se libera con la fecha de hoy y después solo se consulta.
             </Alert>
             <Controller
-              name="releaseStatement"
+              name="releaseInvId"
               control={control}
-              rules={{
-                ...statementRules,
-                validate: (value) => (value.trim() ? sameAsRaised(value) : 'Escribe el extracto en que se libera.')
-              }}
+              // Las del extracto en que se levantó llegan deshabilitadas del servidor, que lo vuelve a validar.
+              rules={{ required: 'Elige la factura con la que se libera.' }}
               render={({ field, fieldState }) => (
-                <TextField
-                  {...field}
-                  label="Extracto en que se libera"
-                  size="small"
-                  fullWidth
+                <SearchSelect
+                  value={field.value}
+                  onChange={field.onChange}
+                  onSearch={releaseOptions.setSearch}
+                  options={releaseOptions.items}
+                  loading={releaseOptions.loading}
+                  label="Factura con la que se libera"
                   required
-                  error={!!fieldState.error}
-                  helperText={fieldState.error?.message ?? 'En su reporte, la glosa resta del total pagado.'}
-                  slotProps={{ htmlInput: { maxLength: STATEMENT_MAX } }}
+                  placeholder="Número o extracto"
+                  error={fieldState.error?.message}
+                  helperText={
+                    !releaseOptions.loading && !releaseOptions.search && releaseOptions.items.length === 0
+                      ? 'El proveedor no tiene otra factura con extracto en esta obra.'
+                      : 'Del mismo proveedor. Su extracto es el de la liberación, y como la factura ya cuenta en él, liberar no cambia su total.'
+                  }
                 />
               )}
             />
@@ -223,7 +265,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
                   size="small"
                   fullWidth
                   error={!!fieldState.error}
-                  helperText={fieldState.error?.message ?? 'En su reporte, la glosa suma al total pagado.'}
+                  helperText={fieldState.error?.message}
                   slotProps={{ htmlInput: { maxLength: STATEMENT_MAX } }}
                 />
               )}
@@ -309,6 +351,23 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
                 )}
               />
             </Stack>
+            <Controller
+              name="affectsTotal"
+              control={control}
+              render={({ field }) => (
+                <Box>
+                  <FormControlLabel
+                    control={<Checkbox checked={field.value} onChange={(event) => field.onChange(event.target.checked)} />}
+                    label="Suma al total pagado del extracto"
+                  />
+                  <FormHelperText sx={{ mt: 0 }}>
+                    {field.value
+                      ? 'Lo pagado difiere de lo registrado (p. ej. pagaron 80 de IVA y el sistema calcula 76): la glosa cuadra el extracto con el del constructor.'
+                      : 'Es un pendiente que llegará en otra factura (p. ej. se pagaron 10 de 100): no cambia el total.'}
+                  </FormHelperText>
+                </Box>
+              )}
+            />
             <Controller
               name="description"
               control={control}
@@ -403,7 +462,7 @@ export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
         <Typography variant="body2" color="text.secondary">
           {cancelled
             ? 'Factura anulada: no admite glosas nuevas. Las abiertas se pueden liberar o eliminar.'
-            : 'Errores hallados al registrar la factura, hasta su liberación en un extracto posterior. No impiden aprobarla.'}
+            : 'Errores hallados al registrar la factura, hasta que otra factura del proveedor, en un extracto posterior, los libere. No impiden aprobarla.'}
         </Typography>
         {canManage && (
           <Button
@@ -443,6 +502,7 @@ export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
                   variant={row.open ? 'filled' : 'outlined'}
                 />
                 {row.creditNote && <Chip size="small" label="Nota crédito" color="info" variant="outlined" />}
+                {!row.affectsTotal && <Chip size="small" label="No suma al total" variant="outlined" />}
                 <Typography variant="subtitle1">
                   {row.fieldName} · {row.code ? `${row.code} · ` : ''}
                   {fMoneyText(row.value)}
@@ -478,7 +538,8 @@ export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
               {!row.open && (
                 <Box sx={{ pl: 1.5, borderLeft: '3px solid', borderColor: 'success.light' }}>
                   <Typography variant="caption" color="text.secondary">
-                    Liberada en el extracto {row.releaseStatement} el {fDateOnly(row.releaseDate)} por {row.releasedByName ?? '—'}
+                    Liberada con la factura {row.releaseInvoiceNumber} ({row.releaseInvoiceTypeName}, extracto {row.releaseStatement ?? '—'}
+                    ) el {fDateOnly(row.releaseDate)} por {row.releasedByName ?? '—'}
                   </Typography>
                   <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
                     {row.releaseObservation}

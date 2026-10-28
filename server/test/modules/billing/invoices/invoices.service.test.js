@@ -33,6 +33,8 @@ const state = {
   stage: null,
   assignment: null,
   liquidationConcept: null,
+  // Glosas enlazadas a la factura por su liberación (migración 0127).
+  glossLinks: 0,
 };
 
 const D = (value) => new Prisma.Decimal(value);
@@ -100,6 +102,7 @@ const prismaMock = {
     upsert: jest.fn(),
   },
   tbl_invoice_simple_details: { upsert: jest.fn() },
+  tbl_invoice_glosses: { count: jest.fn(async () => state.glossLinks) },
   // Extracto de la obra (DEC-084).
   tbl_statements: { findUnique: jest.fn(async () => state.statement) },
   tbl_audit_log: { createMany: jest.fn() },
@@ -240,6 +243,7 @@ beforeEach(() => {
   state.activeStages = 2;
   state.assignment = assignment();
   state.liquidationConcept = { ccp_id: 41 };
+  state.glossLinks = 0;
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
   prismaMock.tbl_providers.findUnique.mockImplementation(async () => ({ prv_name: "Aceros SA", sta_id: 1 }));
   prismaMock.tbl_providers.findFirst.mockResolvedValue({ prv_id: 77 });
@@ -562,6 +566,14 @@ describe("aprobar", () => {
 });
 
 describe("anular", () => {
+  it("una factura que libera glosas no se anula (409, migración 0127)", async () => {
+    state.invoice = storedInvoice();
+    state.glossLinks = 2;
+    await expect(cancel()).rejects.toMatchObject({ statusCode: 409, message: "La factura libera 2 glosa(s) de otras facturas: no se puede anular." });
+    expect(prismaMock.tbl_invoice_glosses.count.mock.calls[0][0].where).toEqual({ igl_release_inv_id: 70, sta_id: { not: 3 } });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+  });
+
   it("una registrada, con motivo de anulación y observación; bloquea contrato → factura → motivo", async () => {
     state.invoice = storedInvoice();
     await expect(cancel()).resolves.toEqual({ message: "Factura anulada correctamente", invId: 70 });
@@ -648,6 +660,13 @@ describe("eliminar (DEC-068)", () => {
   const approvedAdvance = () => storedInvoice({ inv_state: "APPROVED", inv_approval_date: new Date("2026-03-05T00:00:00Z") });
   const remove = (granted = [], input = { observation: "Registrada dos veces" }) =>
     service.deleteInvoice({ invId: 70, input, useBy: 9, granted: new Set(granted), ctx });
+
+  it("una factura que libera glosas no se elimina (409, migración 0127)", async () => {
+    state.invoice = storedInvoice();
+    state.glossLinks = 1;
+    await expect(remove()).rejects.toMatchObject({ statusCode: 409, message: "La factura libera 1 glosa(s) de otras facturas: no se puede eliminar." });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+  });
 
   it("una registrada: eliminación lógica con autor y fecha, observación en la bitácora; bloquea contrato → factura", async () => {
     state.invoice = storedInvoice();
@@ -824,6 +843,21 @@ describe("editar una simple", () => {
     const [, providerLock] = prismaMock.$queryRaw.mock.calls;
     expect(providerLock.slice(1).flatMap((v) => v?.values ?? [v]).filter((v) => typeof v === "number")).toEqual(expect.arrayContaining([77, 78]));
     expect(prismaMock.tbl_invoices.update.mock.calls[0][0].data).toMatchObject({ prv_id: 78 });
+  });
+
+  it("no cambia de proveedor si libera glosas o tiene glosas liberadas (409, migración 0127)", async () => {
+    state.invoice = storedSimple();
+    state.glossLinks = 1;
+    await expect(save(simpleInput({ prvId: 78 }), 70)).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.tbl_invoice_glosses.count.mock.calls[0][0].where).toEqual({
+      sta_id: { not: 3 },
+      OR: [{ igl_release_inv_id: 70 }, { inv_id: 70, igl_release_inv_id: { not: null } }],
+    });
+    expect(prismaMock.tbl_invoices.update).not.toHaveBeenCalled();
+    // Con el mismo proveedor, no se revisa.
+    prismaMock.tbl_invoice_glosses.count.mockClear();
+    await expect(save(simpleInput({ description: "Nota" }), 70)).resolves.toMatchObject({ invId: 70 });
+    expect(prismaMock.tbl_invoice_glosses.count).not.toHaveBeenCalled();
   });
 });
 

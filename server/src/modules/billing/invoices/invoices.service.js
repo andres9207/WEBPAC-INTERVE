@@ -1966,6 +1966,8 @@ const updateInvoice = async ({ invId, input, document, granted, useBy, ctx }) =>
       if (values.inv_number !== before.inv_number || prvId !== before.prv_id) {
         await assertUniqueNumber(tx, { prvId, number: values.inv_number, excludeId: before.inv_id });
       }
+      // Una glosa se libera con una factura del mismo proveedor (migración 0127): las ya liberadas fijan el de las dos.
+      if (prvId !== before.prv_id) await assertNoReleasedGlossLinks(tx, before.inv_id);
       if (before.inv_approval_date && values.inv_date.getTime() > before.inv_approval_date.getTime()) {
         throw httpError(400, "La fecha de la factura no puede ser posterior a su aprobación.");
       }
@@ -2063,6 +2065,24 @@ const assertContractAdmitsCancel = async (tx, invoice, action = "cancelInvoice")
 };
 
 /**
+ * 409 si la factura libera glosas (DEC-085, migración 0127): anularla o
+ * eliminarla dejaría liberadas glosas cuya corrección ya no cuenta en su
+ * extracto. Con la factura bloqueada: liberar también la bloquea.
+ */
+const assertReleasesNoGlosses = async (tx, invId, action) => {
+  const count = await tx.tbl_invoice_glosses.count({ where: { igl_release_inv_id: invId, sta_id: { not: DELETED_STATUS } } });
+  if (count > 0) throw httpError(409, `La factura libera ${count} glosa(s) de otras facturas: no se puede ${action}.`);
+};
+
+/** 409 si la factura libera glosas o tiene glosas liberadas por otra: su proveedor no cambia. */
+const assertNoReleasedGlossLinks = async (tx, invId) => {
+  const count = await tx.tbl_invoice_glosses.count({
+    where: { sta_id: { not: DELETED_STATUS }, OR: [{ igl_release_inv_id: invId }, { inv_id: invId, igl_release_inv_id: { not: null } }] },
+  });
+  if (count > 0) throw httpError(409, "La factura está enlazada a glosas liberadas: la glosa y la factura que la libera son del mismo proveedor, que no cambia.");
+};
+
+/**
  * Aprobar (ADR-0020, decisión 7): la factura empieza a contar. Bloquea
  * contrato → factura y revalida bajo bloqueo el estado de los dos. La fecha
  * de aprobación no es futura ni anterior a la factura. Anticipo,
@@ -2155,6 +2175,7 @@ export const cancelInvoice = async ({ invId, input, useBy, granted, scope, ctx =
         const reason = await reasonsService.assertAssignable(tx, reaId);
         if (reason.rea_scope !== REASON_SCOPES.INVOICE_CANCEL) throw httpError(400, "El motivo seleccionado no es de anulación de factura.");
         await assertContractAdmitsCancel(tx, before);
+        await assertReleasesNoGlosses(tx, before.inv_id, "anular");
         const balanceChanges = await revalidateOnCancel(tx, before);
 
         await tx.tbl_invoices.update({ where: { inv_id: before.inv_id }, data: { inv_state: rule.to, inv_update_by: Number(useBy) } });
@@ -2209,6 +2230,7 @@ export const deleteInvoice = async ({ invId, input, useBy, granted, scope, ctx =
       throw httpError(403, "La factura está aprobada: eliminarla exige el permiso de eliminar facturas aprobadas.");
     }
     await assertContractAdmitsCancel(tx, before, "deleteInvoice");
+    await assertReleasesNoGlosses(tx, before.inv_id, "eliminar");
     const balanceChanges = await revalidateOnCancel(tx, before);
 
     await tx.tbl_invoices.update({

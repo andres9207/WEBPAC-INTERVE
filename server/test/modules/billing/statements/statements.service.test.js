@@ -187,26 +187,29 @@ describe("reporte (documento de alcance, punto 7)", () => {
     expect(report.withoutVoucher).toEqual([{ invId: 2, number: "F-2", providerName: "Acme", menuName: "Contrato mayor" }]);
   });
 
-  it("total pagado: las facturas más las glosas levantadas en el extracto, menos las liberadas en él (DEC-085)", async () => {
+  it("total pagado: las facturas más las glosas levantadas en el extracto que suman; las liberadas no restan (DEC-085, 0127)", async () => {
     // Anticipo registrado por el máximo (5.052.000) y glosa por lo pagado de más (48.000).
     state.invoices = [invoice({ value: "5052000.00", vat: null, total: "5052000.00" })];
     state.glosses = {
       raised: [
-        { iglId: 1, field: "advance", value: "48000.00" },
-        { iglId: 2, field: "other", value: "-30.00", creditNote: true },
+        { iglId: 1, field: "advance", value: "48000.00", affectsTotal: true },
+        { iglId: 2, field: "other", value: "-30.00", creditNote: true, affectsTotal: true },
+        // Un pendiente que llegará en otra factura: no suma.
+        { iglId: 4, field: "advance", value: "900.00", affectsTotal: false },
       ],
-      released: [{ iglId: 3, field: "advance", value: "50.00" }],
+      // La libera una factura de este extracto, que ya cuenta en el total.
+      released: [{ iglId: 3, field: "advance", value: "50.00", affectsTotal: true }],
     };
 
     const { glosses, totals } = await service.getStatementReport({ stmId: 40, scope: OWN });
 
-    expect(glosses).toMatchObject({ raisedValue: "47970.00", releasedValue: "50.00" });
-    // Por campo, en el orden del catálogo.
+    expect(glosses).toMatchObject({ raisedValue: "48870.00", releasedValue: "50.00" });
+    // Por campo, en el orden del catálogo; `net` es lo que suma al total.
     expect(glosses.byField).toEqual([
-      { field: "advance", name: "ANTICIPO", raised: "48000.00", released: "50.00", net: "47950.00" },
+      { field: "advance", name: "ANTICIPO", raised: "48900.00", released: "50.00", net: "48000.00" },
       { field: "other", name: "OTRO", raised: "-30.00", released: "0.00", net: "-30.00" },
     ]);
-    expect(totals).toMatchObject({ total: "5052000.00", glossesNet: "47920.00", paidTotal: "5099920.00" });
+    expect(totals).toMatchObject({ total: "5052000.00", glossesNet: "47970.00", paidTotal: "5099970.00" });
   });
 });
 
@@ -239,21 +242,22 @@ describe("extractos escritos en las facturas (solo lectura)", () => {
     expect(page.results[0]).toMatchObject({ total: "0.00", approvedCount: 0 });
   });
 
-  it("el total pagado de cada extracto suma sus glosas levantadas y resta las liberadas, por obra y texto", async () => {
+  it("el total pagado de cada extracto suma sus glosas levantadas que suman, por obra y texto; las liberadas no restan", async () => {
     state.invoiceGroups = [group(8, "EXT-1", 1, "2026-09-01", "2026-09-01"), group(8, "EXT-2", 1, "2026-10-01", "2026-10-01")];
     state.works = [{ wrk_id: 8, wrk_code: "OB-8", wrk_name: "Vía" }];
     state.invoices = [invoice({}), invoice({ statement: "EXT-2", total: "70.00" })];
     state.pageGlosses = [
-      { wrkId: 8, value: "10.00", statement: "ext-1", releaseStatement: "EXT-2" },
-      { wrkId: 8, value: "5.00", statement: "EXT-1", releaseStatement: null },
-      { wrkId: 9, value: "999.00", statement: "EXT-1", releaseStatement: null },
+      { wrkId: 8, value: "10.00", affectsTotal: true, statement: "ext-1", releaseStatement: "EXT-2" },
+      { wrkId: 8, value: "5.00", affectsTotal: true, statement: "EXT-1", releaseStatement: null },
+      { wrkId: 8, value: "7.00", affectsTotal: false, statement: "EXT-1", releaseStatement: null },
+      { wrkId: 9, value: "999.00", affectsTotal: true, statement: "EXT-1", releaseStatement: null },
     ];
 
     const page = await service.paginationStatementGroups({ scope: OWN, rows: 10, first: 0, sortField: "number", sortOrder: 1 });
 
     expect(page.results.map((g) => [g.number, g.total, g.glossesNet, g.paidTotal])).toEqual([
       ["EXT-1", "100.00", "15.00", "115.00"],
-      ["EXT-2", "70.00", "-10.00", "60.00"],
+      ["EXT-2", "70.00", "0.00", "70.00"],
     ]);
   });
 

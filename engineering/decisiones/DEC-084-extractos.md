@@ -27,7 +27,7 @@ Decidido por el usuario el 2026-10-26 ("como acta del WebPAC"), a partir del doc
 
 ## Pendiente
 
-- Un extracto con glosas y sin facturas (por ejemplo, uno escrito solo para liberar una glosa) no aparece en la pantalla, que agrupa por las facturas.
+- Un extracto con glosas y sin facturas no aparece en la pantalla, que agrupa por las facturas. Desde la migración 0127 una glosa se libera con una factura con extracto (DEC-085), así que el extracto de una liberación siempre tiene facturas; solo queda el caso de un extracto escrito en una glosa que ninguna factura usa.
 
 ## Qué implica
 

@@ -2,16 +2,20 @@ import { jest } from "@jest/globals";
 import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
 
 // Glosas de facturas (DEC-085): de la obra de su factura, con valor distinto
-// de cero (con signo) y descripción; se levantan en un extracto y se liberan
-// en otro, con observación y la fecha del servidor. El extracto es texto,
-// como el de la factura (migración 0125). Abiertas se editan y se eliminan;
-// liberadas solo se consultan. No en una factura anulada. Bajo el bloqueo de
-// la factura y con bitácora.
+// de cero (con signo) y descripción; se levantan en un extracto (texto,
+// migración 0125), sumando o no a su total, y se liberan con la factura que
+// las corrige (migración 0127), con observación y la fecha del servidor.
+// Abiertas se editan y se eliminan; liberadas solo se consultan. No en una
+// factura anulada. Bajo el bloqueo de la factura y con bitácora.
 
-const state = { invoice: null, gloss: null, ref: null };
+const state = { invoice: null, releaser: null, gloss: null, ref: null };
 
 const prismaMock = {
-  tbl_invoices: { findUnique: jest.fn(async () => state.invoice) },
+  // La factura de la glosa (70) o la que la libera (71).
+  tbl_invoices: {
+    findUnique: jest.fn(async ({ where }) => (where.inv_id === 71 ? state.releaser : state.invoice)),
+    findMany: jest.fn(async () => []),
+  },
   tbl_invoice_glosses: {
     // Por clave de idempotencia (la búsqueda del reintento), la referencia previa al bloqueo, o la fila bloqueada.
     findUnique: jest.fn(async ({ where, select }) => {
@@ -49,8 +53,9 @@ const openRow = (overrides = {}) => ({
   igl_field: "value",
   igl_code: "01",
   igl_value: "35000.00",
+  igl_affects_total: true,
   igl_description: "Mayor valor cobrado",
-  igl_release_statement: null,
+  igl_release_inv_id: null,
   igl_release_date: null,
   igl_release_observation: null,
   sta_id: 1,
@@ -69,7 +74,8 @@ const create = (input) =>
 
 beforeEach(() => {
   jest.clearAllMocks();
-  state.invoice = { inv_id: 70, wrk_id: 8, inv_type: "NORMAL", inv_state: "APPROVED", sta_id: 1 };
+  state.invoice = { inv_id: 70, wrk_id: 8, prv_id: 77, inv_type: "NORMAL", inv_state: "APPROVED", inv_statement: "Acta 4", sta_id: 1 };
+  state.releaser = { inv_id: 71, wrk_id: 8, prv_id: 77, inv_type: "ADVANCE", inv_state: "REGISTERED", inv_statement: "Acta 5", sta_id: 1 };
   state.gloss = openRow();
   state.ref = { inv_id: 70, sta_id: 1 };
 });
@@ -84,6 +90,12 @@ describe("levantar", () => {
     expect(data.igl_value.toFixed(2)).toBe("35000.00");
     expect(auditRows().find((r) => r.aud_field === "igl_value")).toMatchObject({ aud_entity: "GLOSA_FACTURA", aud_new_value: "35000.00" });
     expect(auditRows().find((r) => r.aud_field === "igl_statement")).toMatchObject({ aud_new_value: "Acta 4" });
+  });
+
+  it("suma al total del extracto salvo que se diga que no (un pendiente que llegará en otra factura)", async () => {
+    await create();
+    await create({ affectsTotal: false });
+    expect(prismaMock.tbl_invoice_glosses.create.mock.calls.map((c) => c[0].data.igl_affects_total)).toEqual([true, false]);
   });
 
   it("admite un valor negativo, como en WebPAC, pero no cero (400)", async () => {
@@ -151,39 +163,98 @@ describe("vista previa del valor y el % (DEC-092)", () => {
 });
 
 describe("liberar", () => {
-  const release = (releaseStatement, observation = "Se descontó en el acta 5") =>
-    service.releaseGloss({ iglId: 50, input: { releaseStatement, observation }, useBy: 9, scope: SCOPE, ctx });
+  const release = (releaseInvId = 71, observation = "Llegó la nota crédito") =>
+    service.releaseGloss({ iglId: 50, input: { releaseInvId, observation }, useBy: 9, scope: SCOPE, ctx });
 
-  it("en otro extracto, con la fecha del servidor, bloqueando la factura", async () => {
-    await expect(release(" Acta 5 ")).resolves.toEqual({ message: "Glosa liberada correctamente", iglId: 50 });
+  it("con otra factura del mismo proveedor y obra, con la fecha del servidor, bloqueando las dos facturas", async () => {
+    await expect(release()).resolves.toEqual({ message: "Glosa liberada correctamente", iglId: 50 });
 
     expect(lockedTables()).toEqual([expect.stringMatching(/tbl_invoices/)]);
     const { data } = prismaMock.tbl_invoice_glosses.update.mock.calls[0][0];
-    expect(data).toMatchObject({ igl_release_statement: "Acta 5", igl_release_observation: "Se descontó en el acta 5", igl_release_by: 9 });
+    expect(data).toMatchObject({ igl_release_inv_id: 71, igl_release_observation: "Llegó la nota crédito", igl_release_by: 9 });
     expect(data.igl_release_date.getTime()).toBe(todayDateOnly().getTime());
+    expect(auditRows().find((r) => r.aud_field === "igl_release_inv_id")).toMatchObject({ aud_new_value: "71" });
   });
 
-  it("no en el mismo extracto, sin distinguir mayúsculas ni tildes (400), ni sin extracto (400)", async () => {
-    const same = { statusCode: 400, message: "La glosa se libera en un extracto posterior, no en el que se levantó." };
-    await expect(release("acta 4")).rejects.toMatchObject(same);
-    state.gloss = openRow({ igl_statement: "Extracción 4" });
-    await expect(release("EXTRACCION 4")).rejects.toMatchObject(same);
-    await expect(release("  ")).rejects.toMatchObject({ statusCode: 400, message: "Escribe el extracto en que se libera la glosa." });
+  it("no con su propia factura ni sin factura (400)", async () => {
+    await expect(release(70)).rejects.toMatchObject({ statusCode: 400, message: "La glosa se libera con otra factura, no con la suya." });
+    await expect(release(0)).rejects.toMatchObject({ statusCode: 400, message: "Elige la factura con la que se libera la glosa." });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("la factura que libera es del mismo proveedor y obra (400), no anulada (409), con extracto (400) y existe (404)", async () => {
+    state.releaser.prv_id = 78;
+    await expect(release()).rejects.toMatchObject({ statusCode: 400, message: "La factura que libera la glosa debe ser del mismo proveedor y de la misma obra." });
+    state.releaser.prv_id = 77;
+    state.releaser.wrk_id = 9;
+    await expect(release()).rejects.toMatchObject({ statusCode: 400 });
+    state.releaser.wrk_id = 8;
+    state.releaser.inv_state = "CANCELLED";
+    await expect(release()).rejects.toMatchObject({ statusCode: 409, message: "La factura que libera la glosa está anulada." });
+    state.releaser.inv_state = "APPROVED";
+    state.releaser.inv_statement = null;
+    await expect(release()).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("no tiene extracto") });
+    state.releaser = { inv_id: 71, sta_id: 3 };
+    await expect(release()).rejects.toMatchObject({ statusCode: 404, message: "No se encontró la factura que libera la glosa." });
     expect(prismaMock.tbl_invoice_glosses.update).not.toHaveBeenCalled();
   });
 
-  it("una glosa levantada sin extracto se libera en cualquiera", async () => {
+  it("no con una factura del extracto en que se levantó, sin distinguir mayúsculas ni tildes (400)", async () => {
+    const same = { statusCode: 400, message: expect.stringContaining("extracto posterior") };
+    state.releaser.inv_statement = "acta 4";
+    await expect(release()).rejects.toMatchObject(same);
+    state.gloss = openRow({ igl_statement: "Extracción 4" });
+    state.releaser.inv_statement = "EXTRACCION 4";
+    await expect(release()).rejects.toMatchObject(same);
+    // Levantada sin extracto: cualquier factura con extracto la libera.
     state.gloss = openRow({ igl_statement: null });
-    await expect(release("Acta 4")).resolves.toMatchObject({ iglId: 50 });
+    await expect(release()).resolves.toMatchObject({ iglId: 50 });
   });
 
   it("una liberada solo se consulta: no se libera, edita ni elimina de nuevo (409)", async () => {
-    state.gloss = openRow({ igl_release_statement: "Acta 5", igl_release_date: new Date("2026-10-20T00:00:00Z") });
-    await expect(release("Acta 6")).rejects.toMatchObject({ statusCode: 409, message: "La glosa ya se liberó: solo se consulta." });
+    state.gloss = openRow({ igl_release_inv_id: 71, igl_release_date: new Date("2026-10-20T00:00:00Z") });
+    await expect(release()).rejects.toMatchObject({ statusCode: 409, message: "La glosa ya se liberó: solo se consulta." });
     await expect(service.deleteGloss({ iglId: 50, useBy: 9, scope: SCOPE, ctx })).rejects.toMatchObject({ statusCode: 409 });
     await expect(
       service.updateGloss({ iglId: 50, input: { statement: "Acta 4", field: "value", value: "1", description: "x" }, useBy: 9, scope: SCOPE, ctx })
     ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it("la liberada muestra la factura que la libera y su extracto", async () => {
+    prismaMock.tbl_invoice_glosses.findMany.mockResolvedValueOnce([
+      openRow({
+        igl_release_inv_id: 71,
+        igl_release_date: new Date("2026-10-20T00:00:00Z"),
+        release_invoice: { inv_number: "NC-001", inv_type: "SIMPLE", inv_statement: "Acta 5" },
+      }),
+    ]);
+    const [row] = await service.listGlosses({ invId: 70, scope: SCOPE });
+    expect(row).toMatchObject({ open: false, releaseInvId: 71, releaseInvoiceNumber: "NC-001", releaseStatement: "Acta 5", affectsTotal: true });
+  });
+});
+
+describe("facturas con que se libera (selector)", () => {
+  it("del mismo proveedor y obra, otras, no eliminadas ni anuladas y con extracto, con búsqueda", async () => {
+    state.ref = { inv_id: 70, sta_id: 1, igl_statement: "Acta 4" };
+    prismaMock.tbl_invoices.findMany.mockResolvedValueOnce([
+      { inv_id: 71, inv_number: "NC-001", inv_type: "SIMPLE", inv_statement: "Acta 5", inv_date: new Date("2026-10-20T00:00:00Z") },
+      { inv_id: 72, inv_number: "F-9", inv_type: "NORMAL", inv_statement: "acta 4", inv_date: new Date("2026-10-01T00:00:00Z") },
+    ]);
+    const options = await service.selectReleaseInvoices({ iglId: 50, search: " NC ", scope: SCOPE });
+    expect(options[0]).toEqual(expect.objectContaining({ value: 71, number: "NC-001", statement: "Acta 5", date: "2026-10-20" }));
+    expect(options[0]).not.toHaveProperty("disabled");
+    // La del extracto en que se levantó se ve, deshabilitada.
+    expect(options[1]).toMatchObject({ value: 72, disabled: true, description: expect.stringContaining("extracto en que se levantó") });
+    expect(assertInvoiceVisible).toHaveBeenCalledWith({ scope: SCOPE }, 70);
+    expect(prismaMock.tbl_invoices.findMany.mock.calls[0][0].where).toEqual({
+      wrk_id: 8,
+      prv_id: 77,
+      inv_id: { not: 70 },
+      sta_id: { not: 3 },
+      inv_state: { not: "CANCELLED" },
+      inv_statement: { not: null },
+      OR: [{ inv_number: { contains: "NC" } }, { inv_statement: { contains: "NC" } }],
+    });
   });
 });
 
@@ -213,10 +284,11 @@ describe("editar y eliminar", () => {
 });
 
 describe("glosas de un extracto (reporte)", () => {
-  it("las levantadas y las liberadas en la obra y el texto, de facturas no eliminadas", async () => {
+  it("las levantadas en el extracto y las liberadas por una factura suya, de la obra y de facturas no eliminadas", async () => {
     await service.statementGlosses({ wrkId: "8", number: "Acta 4" });
     const wheres = prismaMock.tbl_invoice_glosses.findMany.mock.calls.map((c) => c[0].where);
     expect(wheres[0]).toMatchObject({ wrk_id: 8, igl_statement: "Acta 4", sta_id: { not: 3 }, tbl_invoices: { sta_id: { not: 3 } } });
-    expect(wheres[1]).toMatchObject({ wrk_id: 8, igl_release_statement: "Acta 4" });
+    // Las liberadas: por el extracto de la factura que las libera.
+    expect(wheres[1]).toMatchObject({ wrk_id: 8, release_invoice: { is: { inv_statement: "Acta 4" } } });
   });
 });

@@ -30,8 +30,8 @@ import { GLOSS_FIELD_NAMES } from "../invoices/glossFields.js";
  *   su texto (migraciones 0124 y 0125).
  * - El reporte totaliza sus facturas por menú (tipo de proveedor) y señala
  *   las aprobadas sin comprobante de egreso. Las anuladas no suman (DEC-052).
- *   El total pagado suma las glosas levantadas en él y resta las liberadas
- *   en él (DEC-085).
+ *   El total pagado suma las glosas levantadas en él que suman al total; las
+ *   liberadas en él no restan, porque las libera una factura suya (DEC-085).
  */
 
 const NOT_FOUND = "No se encontró el extracto.";
@@ -354,28 +354,34 @@ export const getStatementReport = async ({ stmId, scope }) => {
   return buildReport(statement, invoices, glosses);
 };
 
+/** Valor de las glosas levantadas que suman al total del extracto (las de una diferencia de pago). */
+const affectingValueOf = (raised) => sumOf(raised.filter((g) => g.affectsTotal), "value");
+
 /**
- * Total pagado del extracto (DEC-085): el total de sus facturas, más las
- * glosas levantadas en él (lo pagado por encima de lo que la factura
- * admite), menos las liberadas en él.
+ * Total pagado del extracto (DEC-085): el total de sus facturas más las
+ * glosas levantadas en él que suman al total (lo pagado difiere de lo
+ * registrado). Las liberadas en él no restan: las libera una factura suya,
+ * que ya cuenta en el total (migración 0127).
  */
-const paidTotalOf = (total, raisedValue, releasedValue) => {
-  const net = decimal(raisedValue).minus(decimal(releasedValue));
-  return { glossesNet: moneyText(net), paidTotal: moneyText(decimal(total).plus(net)) };
-};
+const paidTotalOf = (total, affectingValue) => ({ glossesNet: moneyText(affectingValue), paidTotal: moneyText(decimal(total).plus(decimal(affectingValue))) });
 
 /**
  * Glosas del extracto por campo de la factura (DEC-085), en el orden del
- * catálogo: cuánto se levantó, cuánto se liberó y el neto, que es lo que
- * suma al total pagado.
+ * catálogo: cuánto se levantó, cuánto se liberó y cuánto suma al total
+ * pagado (las levantadas que suman).
  */
 const glossesByField = ({ raised, released }) => {
   const order = Object.keys(GLOSS_FIELD_NAMES);
   const present = [...new Set([...raised, ...released].map((g) => g.field))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
   return present.map((field) => {
-    const raisedValue = sumOf(raised.filter((g) => g.field === field), "value");
-    const releasedValue = sumOf(released.filter((g) => g.field === field), "value");
-    return { field, name: GLOSS_FIELD_NAMES[field] ?? field, raised: raisedValue, released: releasedValue, net: moneyText(decimal(raisedValue).minus(decimal(releasedValue))) };
+    const own = (list) => list.filter((g) => g.field === field);
+    return {
+      field,
+      name: GLOSS_FIELD_NAMES[field] ?? field,
+      raised: sumOf(own(raised), "value"),
+      released: sumOf(own(released), "value"),
+      net: affectingValueOf(own(raised)),
+    };
   });
 };
 
@@ -397,7 +403,7 @@ const buildReport = (statement, invoices, glosses) => {
     amountColumns: amountColumnsOf(invoices),
     amountTotals: amountTotalsOf(invoices),
     byMenu: [...menus.values()].map(({ invoices: own, ...menu }) => ({ ...menu, ...totalsOf(own) })),
-    totals: { ...totals, ...paidTotalOf(totals.total, raisedValue, releasedValue) },
+    totals: { ...totals, ...paidTotalOf(totals.total, affectingValueOf(glosses.raised)) },
     cancelled: invoices.filter((i) => i.state === INVOICE_STATES.CANCELLED).length,
     withoutVoucher: withoutVoucher.map((i) => ({ invId: i.invId, number: i.number, providerName: i.providerName, menuName: i.menuName })),
     // Glosas levantadas en el extracto y liberadas en él (DEC-085), con su valor total.
@@ -440,7 +446,9 @@ const GLOSS_COLUMNS = [
   { header: "Código", value: (r) => r.code },
   { header: "Descripción", value: (r) => r.description, width: 3 },
   { header: "Valor", value: (r) => r.value, kind: "money" },
+  { header: "Suma al total", value: (r) => (r.affectsTotal ? "Sí" : "No") },
   { header: "Levantada en", value: (r) => r.statement },
+  { header: "Liberada con", value: (r) => r.releaseInvoiceNumber },
   { header: "Liberada en", value: (r) => r.releaseStatement },
 ];
 
@@ -448,7 +456,7 @@ const GLOSS_FIELD_COLUMNS = [
   { header: "Campo", value: (r) => r.name, width: 2 },
   { header: "Levantadas", value: (r) => r.raised, kind: "money" },
   { header: "Liberadas", value: (r) => r.released, kind: "money" },
-  { header: "Neto", value: (r) => r.net, kind: "money" },
+  { header: "Suma al total", value: (r) => r.net, kind: "money" },
 ];
 
 /** El reporte del extracto en Excel o PDF (DEC-070), con las mismas cifras de la pantalla. */
@@ -475,7 +483,7 @@ const renderReport = (report, format, fields) => {
         { label: "Facturas", value: String(report.invoices.length) },
         { label: "Aprobadas sin comprobante de egreso", value: String(report.withoutVoucher.length) },
         { label: "Total de las facturas", value: totals.total, kind: "money" },
-        { label: "Glosas (levantadas − liberadas)", value: totals.glossesNet, kind: "money" },
+        { label: "Glosas que suman al total", value: totals.glossesNet, kind: "money" },
         { label: "Total pagado", value: totals.paidTotal, kind: "money" },
       ],
     },
@@ -610,12 +618,12 @@ export const paginationStatementGroups = async ({ search, wrkId, number, rows, f
   const results = page.map((g) => {
     const own = byGroup.get(groupKey(g.wrkId, g.number)) ?? [];
     const totals = totalsOf(own);
-    const { raised, released } = glossesOf(g.wrkId, g.number);
+    const { raised } = glossesOf(g.wrkId, g.number);
     return {
       ...g,
       value: totals.value,
       total: totals.total,
-      ...paidTotalOf(totals.total, sumOf(raised, "value"), sumOf(released, "value")),
+      ...paidTotalOf(totals.total, affectingValueOf(raised)),
       approvedCount: own.filter(isApproved).length,
       withoutVoucher: own.filter((i) => isApproved(i) && !i.voucherNumber).length,
     };

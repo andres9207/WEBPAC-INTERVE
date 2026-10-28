@@ -31,6 +31,7 @@ import CancelContractDialog from './components/CancelContractDialog';
 import { FIELD_TAB, toForm, toPayload } from './components/contractForm';
 import useContractForm from './components/useContractForm';
 import ContractInvoicesTab from 'views/billing/invoices/components/ContractInvoicesTab';
+import { useInvoicesCount } from 'views/billing/invoices/components/InvoicesTab';
 import { contractsApi, exportContractAPI } from 'api/requests/contractsApi';
 import { contractFileName } from './ContractsPage';
 import { useAuth } from 'contexts/AuthContext';
@@ -174,6 +175,7 @@ function ContractView() {
   }, [socket, isNew, load]);
 
   const policiesDraft = useWatch({ control, name: 'policies' });
+  const invoicesCount = useInvoicesCount({ ctrId });
 
   const close = () => navigate(returnTo);
   // Cerrar con la X, Escape o el fondo pide confirmar si hay cambios sin guardar.
@@ -256,6 +258,7 @@ function ContractView() {
         history: contract.history.length,
         suspensions: contract.suspensions.length,
         policies: contract.currentPolicies,
+        invoices: invoicesCount,
         documents: 0
       };
 
