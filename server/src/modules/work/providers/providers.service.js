@@ -25,7 +25,8 @@ import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/
  *   proveedor, guardados con él por diferencial. Los tipos del maestro solo
  *   se proponen al asignarlo a una obra: en cada obra trabaja con los tipos
  *   de su asignación, cualquiera de ellos (DEC-066). Cambiar los del maestro
- *   no toca obras, contratos ni facturas.
+ *   no toca obras, contratos ni facturas. Con una obra elegida en el
+ *   encabezado, la ficha del proveedor edita los de esa obra (DEC-090).
  * - Cambiar la identificación de un proveedor existente exige su propio
  *   permiso (ADR-0012, regla 5): el controller pasa los permisos efectivos.
  * - Asignar, editar la asignación (con sus tipos) y desasignar tienen
@@ -285,13 +286,15 @@ export const getProvider = async ({ prvId, scope }) => {
 // ─── Identidad ───────────────────────────────────────────────────────────────
 
 // Lo que se devuelve del proveedor que ya tiene la identidad: lo justo para
-// que el cliente ofrezca usarlo (ADR-0012, decisión 7).
+// que el cliente ofrezca usarlo (ADR-0012, decisión 7). Sus tipos del
+// maestro se proponen al asignarlo a la obra (DEC-066).
 const EXISTING_SELECT = {
   prv_id: true,
   prv_name: true,
   prv_identification: true,
   sta_id: true,
   tbl_identity_documents: { select: { idd_code: true } },
+  tbl_provider_classifications: { select: { pvt_id: true } },
 };
 
 const toExistingDto = (row) => ({
@@ -300,6 +303,7 @@ const toExistingDto = (row) => ({
   identityCode: row.tbl_identity_documents?.idd_code ?? null,
   identification: row.prv_identification,
   staId: row.sta_id,
+  pvtIds: (row.tbl_provider_classifications ?? []).map((c) => c.pvt_id).sort((a, b) => a - b),
 });
 
 const findByIdentity = (client, { iddId, identification, excludeId = null }) =>
@@ -600,25 +604,48 @@ const findTypeIds = async (db, prvId) =>
 // Editar fija la cabecera, los tipos y los contactos: repetirlo deja lo
 // mismo, así que se puede reintentar ante un interbloqueo. Los tipos del
 // maestro no tocan las asignaciones a obras ni sus contratos (DEC-066).
-const updateProvider = async ({ prvId, values, pvtIds, contacts, useBy, granted, ctx }) =>
+//
+// Con `wrkId` (una obra elegida en el encabezado, DEC-090), `pvtIds` son los
+// tipos del proveedor en esa obra: van a su asignación, con las reglas de
+// editarla y el permiso de asignar; los del maestro no cambian. Los datos de
+// la empresa (cabecera y contactos) siguen yendo al maestro y exigen el
+// permiso de editar solo si cambian. Sin `wrkId` ("Ver todo"), todo es del
+// maestro y exige el permiso de editar.
+const updateProvider = async ({ prvId, values, pvtIds, contacts, useBy, granted, wrkId = null, ctx }) =>
   withLockedTransaction(
-    { PROVEEDOR: prvId, ...masterLocksOf(values, pvtIds, contacts) },
+    { ...(wrkId ? { OBRA: wrkId } : {}), PROVEEDOR: prvId, ...masterLocksOf(values, pvtIds, contacts) },
     async (tx) => {
       const id = Number(prvId);
       const before = await tx.tbl_providers.findUnique({ where: { prv_id: id }, select: { ...HEADER_SELECT, sta_id: true } });
       if (!before || before.sta_id === DELETED_STATUS) throw httpError(404, "No se encontró el proveedor.");
+
+      const currentContacts = await contactsHelper.findCurrent(tx, id);
+      const contactDiff = contactsHelper.diff(currentContacts, contacts);
+      const currentIds = await findTypeIds(tx, id);
+      const companyChanged = diffFields(before, values, HEADER_COLUMNS).length > 0 || contactsHelper.hasChanges(contactDiff);
+      if ((companyChanged || !wrkId) && !granted.has(CAN.edit)) {
+        throw httpError(403, "No tienes permiso para modificar los datos del proveedor.");
+      }
 
       const identityChanged = before.idd_id !== values.idd_id || before.prv_identification !== values.prv_identification;
       if (identityChanged && !granted.has(CAN.changeIdentity)) {
         throw httpError(403, "No tienes permiso para cambiar la identificación del proveedor.");
       }
 
-      const currentContacts = await contactsHelper.findCurrent(tx, id);
-      const contactDiff = contactsHelper.diff(currentContacts, contacts);
-      const currentIds = await findTypeIds(tx, id);
+      // Tipos de la asignación a la obra (DEC-066, DEC-090).
+      let assignment = null;
+      if (wrkId) {
+        const row = await findLockedAssignment(tx, { wrkId, prvId: id });
+        const workIds = await findAssignmentTypeIds(tx, { wrkId, prvId: id });
+        if (workIds.join(",") !== pvtIds.join(",")) {
+          if (!granted.has(CAN.assignWork)) throw httpError(403, "No tienes permiso para cambiar los tipos del proveedor en la obra.");
+          assignment = { row, workIds };
+        }
+      }
 
       await assertIdentification(tx, values, before);
-      await assertProviderTypes(tx, pvtIds, currentIds);
+      if (assignment) await assertProviderTypes(tx, pvtIds, assignment.workIds);
+      else if (!wrkId) await assertProviderTypes(tx, pvtIds, currentIds);
       await contactsHelper.assertAddressTypes(tx, contacts, currentContacts);
 
       if (identityChanged) {
@@ -626,14 +653,23 @@ const updateProvider = async ({ prvId, values, pvtIds, contacts, useBy, granted,
         if (existing) throw duplicateError(existing);
       }
 
-      await tx.tbl_providers.update({ where: { prv_id: id }, data: { ...values, prv_update_by: useBy } });
-
-      const changes = diffFields({ ...before, pvt_ids: currentIds }, { ...values, pvt_ids: pvtIds }, AUDITED_HEADER);
-      if (changes.length > 0) {
-        await writeAudit(tx, { entity: AUDIT_ENTITIES.PROVIDER, recordId: id, operation: AUDIT_OPERATIONS.UPDATE, ctx, changes });
+      if (companyChanged || !wrkId) {
+        await tx.tbl_providers.update({ where: { prv_id: id }, data: { ...values, prv_update_by: useBy } });
+        const masterIds = wrkId ? currentIds : pvtIds;
+        const changes = diffFields({ ...before, pvt_ids: currentIds }, { ...values, pvt_ids: masterIds }, AUDITED_HEADER);
+        if (changes.length > 0) {
+          await writeAudit(tx, { entity: AUDIT_ENTITIES.PROVIDER, recordId: id, operation: AUDIT_OPERATIONS.UPDATE, ctx, changes });
+        }
+        if (!wrkId) await applyProviderTypes(tx, { prvId: id, currentIds, pvtIds });
+        await contactsHelper.apply(tx, { ownerId: id, diff: contactDiff, useBy });
       }
-      await applyProviderTypes(tx, { prvId: id, currentIds, pvtIds });
-      await contactsHelper.apply(tx, { ownerId: id, diff: contactDiff, useBy });
+
+      if (assignment) {
+        const { row, workIds } = assignment;
+        await applyAssignmentTypes(tx, { wrkId, prvId: id, currentIds: workIds, pvtIds });
+        await tx.tbl_work_providers.update({ where: { wkp_id: row.wkp_id }, data: { wkp_update_by: useBy } });
+        await auditAssignment(tx, { operation: AUDIT_OPERATIONS.UPDATE, before: { ...row, pvt_ids: workIds }, after: { ...row, pvt_ids: pvtIds }, ctx });
+      }
 
       return { message: "Proveedor modificado correctamente", prvId: id };
     },
@@ -659,7 +695,8 @@ const translateDuplicate = async (err, values, excludeId = null) => {
  * Alcance por obra (DEC-047): editar exige que el proveedor esté en la obra
  * del alcance. Sin "ver todo", crear lo asigna a una obra del alcance (la
  * pedida, o la del alcance con fecha de hoy): un proveedor sin obra no lo
- * vería nadie más que quien ve todo.
+ * vería nadie más que quien ve todo. Con una obra elegida, editar cambia los
+ * tipos del proveedor en esa obra, no los del maestro (DEC-090).
  */
 export const saveProvider = async ({ prvId, input, useBy, granted, scope, ctx = { useId: useBy }, idempotencyKey }) => {
   const values = headerValuesOf(input);
@@ -670,8 +707,9 @@ export const saveProvider = async ({ prvId, input, useBy, granted, scope, ctx = 
 
   if (Number(prvId) > 0) {
     await assertProviderInScope(scope, prvId);
+    const wrkId = scope && !scope.all ? scope.wrkId : null;
     try {
-      return await updateProvider({ prvId, values, pvtIds, contacts, useBy: Number(useBy), granted, ctx });
+      return await updateProvider({ prvId, values, pvtIds, contacts, useBy: Number(useBy), granted, wrkId, ctx });
     } catch (err) {
       return translateDuplicate(err, values, prvId);
     }

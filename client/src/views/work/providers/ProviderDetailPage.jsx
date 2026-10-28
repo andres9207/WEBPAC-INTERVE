@@ -64,6 +64,11 @@ import { STATUS } from 'utils/constants';
  *   izquierda y no una pestaña; en pantallas chicas vuelve a ser la pestaña.
  *   Lee el mismo `provider` que se recarga al guardar y al asignar, editar o
  *   desasignar una obra. Al crear no se muestra.
+ * - Con una obra elegida en el encabezado (DEC-090), el selector de tipos es
+ *   el de esa obra: se editan con el permiso de asignar y el maestro no
+ *   cambia. Los demás datos son de la empresa: sin el permiso de editar, de
+ *   solo lectura. Al crear, si el documento ya existe, se usa ese proveedor:
+ *   se abre si ya está en la obra o se asigna a ella.
  */
 
 const TABS = [
@@ -91,16 +96,21 @@ function ProviderView() {
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
   const perms = permissionsCatalog.work?.providers;
-  const canEdit = isNew || canDo(perms?.edit);
-  const identityLocked = !isNew && !canDo(perms?.changeIdentity);
   const canViewWorks = canDo(permissionsCatalog.work?.works?.view);
   const canAssign = canDo(perms?.assignWork);
   // Asignar a otra obra solo con "Ver todo" en el encabezado (DEC-047): con
   // una obra elegida, se trabaja dentro de ella y el proveedor se asigna desde
   // la pestaña Proveedores de esa obra.
-  const { activeWork } = useWorkScope();
+  const { activeWork, works: myWorks } = useWorkScope();
   const canAssignNew = canAssign && activeWork === ALL_WORKS;
   const canUnassign = canDo(perms?.unassignWork);
+  // Con una obra elegida, los tipos son los de esa obra (DEC-090).
+  const workMode = activeWork !== ALL_WORKS && activeWork != null;
+  const workLabel = myWorks.find((w) => w.value === activeWork)?.label ?? 'la obra';
+  const canEditCompany = isNew || canDo(perms?.edit);
+  const canEditTypes = isNew || (workMode ? canAssign : canDo(perms?.edit));
+  const canEdit = canEditCompany || canEditTypes;
+  const identityLocked = !isNew && (!canEditCompany || !canDo(perms?.changeIdentity));
 
   const [idempotencyKey] = useState(() => (isNew ? newIdempotencyKey() : null));
   const [provider, setProvider] = useState(null);
@@ -134,7 +144,9 @@ function ProviderView() {
       try {
         const { data } = await providersApi.getById({ prvId });
         setProvider(data);
-        if (resetForm) reset(toForm(data));
+        // Con una obra elegida, el formulario lleva los tipos de esa obra (DEC-090).
+        const workTypeIds = workMode ? (data.works.find((w) => w.wrkId === activeWork)?.workTypes ?? []).map((t) => t.pvtId) : null;
+        if (resetForm) reset(workTypeIds ? { ...toForm(data), pvtIds: workTypeIds } : toForm(data));
       } catch (err) {
         showError(err.response?.data?.message || 'Error al cargar el proveedor');
         if (err.response?.status === 404) navigate(returnTo, { replace: true });
@@ -142,7 +154,7 @@ function ProviderView() {
         setLoading(false);
       }
     },
-    [prvId, reset, navigate, returnTo]
+    [prvId, reset, navigate, returnTo, workMode, activeWork]
   );
 
   useEffect(() => {
@@ -162,6 +174,33 @@ function ProviderView() {
   const existing = conflict ?? found;
 
   useEffect(() => setConflict(null), [iddId, identification]);
+
+  // Documento ya registrado. Con una obra elegida, al crear, se usa ese
+  // proveedor (DEC-090): si ya está en la obra se abre; si no, se asigna a ella
+  // con los tipos de su maestro propuestos. Fuera de la obra, el alcance no lo deja ver.
+  const [assignExisting, setAssignExisting] = useState(null);
+  const openExisting = async () => {
+    if (!(isNew && workMode)) {
+      navigate(`/work/providers/${existing.prvId}`);
+      return;
+    }
+    try {
+      await providersApi.getById({ prvId: existing.prvId });
+      navigate(`/work/providers/${existing.prvId}`, { replace: true });
+    } catch (err) {
+      if (err.response?.status !== 404) showError(err.response?.data?.message || 'Error al abrir el proveedor');
+      else if (existing.staId !== STATUS.ACTIVE)
+        showError(`${existing.name} está inactivo: actívalo con «Ver todo» para asignarlo a la obra.`);
+      else if (!canAssign) showError('No tienes permiso para asignar proveedores a obras.');
+      else setAssignExisting(existing);
+    }
+  };
+  const existingAssigned = () => {
+    const assigned = assignExisting.prvId;
+    setAssignExisting(null);
+    refresh?.();
+    navigate(`/work/providers/${assigned}`, { replace: true });
+  };
 
   const close = () => navigate(returnTo);
   // Cerrar con la X, Escape o el fondo pide confirmar si hay cambios sin guardar.
@@ -211,13 +250,20 @@ function ProviderView() {
   const hidden = (key) => ({ display: tab === key ? 'block' : 'none' });
 
   const tabBadge = provider
-    ? { contacts: canEdit ? contacts.length : provider.contacts.length, works: provider.worksCount }
+    ? { contacts: canEditCompany ? contacts.length : provider.contacts.length, works: provider.worksCount }
     : { contacts: contacts.length };
 
   const active = provider?.staId === STATUS.ACTIVE;
   const documentText = provider ? `${provider.identityCode ?? ''} ${provider.identification}` : '';
-  // Uno o varios tipos (DEC-041).
-  const typesText = provider?.providerTypes.join(', ') ?? '';
+  // Uno o varios tipos (DEC-041). Con una obra elegida, los de esa obra (DEC-090).
+  const masterTypesText = provider?.providerTypes.join(', ') ?? '';
+  const workTypeNames = workMode ? (provider?.works.find((w) => w.wrkId === activeWork)?.workTypes ?? []).map((t) => t.name) : null;
+  const typesText = workTypeNames ? workTypeNames.join(', ') : masterTypesText;
+  const typesLabel = workTypeNames
+    ? 'Tipos en esta obra'
+    : provider?.providerTypes.length === 1
+      ? 'Tipo de proveedor'
+      : 'Tipos de proveedor';
 
   const changeStatus = async () => {
     const { data } = await providersApi.changeStatus({ prvId: provider.prvId, staId: active ? STATUS.INACTIVE : STATUS.ACTIVE });
@@ -315,7 +361,7 @@ function ProviderView() {
               }
             ]}
             items={[
-              [provider.providerTypes.length === 1 ? 'Tipo de proveedor' : 'Tipos de proveedor', typesText],
+              [typesLabel, typesText],
               ['Tipo de servicio', provider.serviceType],
               ['Correo', provider.email]
             ]}
@@ -418,9 +464,11 @@ function ProviderView() {
             {[
               { label: 'Documento', value: documentText, hint: provider.identityName },
               {
-                label: provider.providerTypes.length === 1 ? 'Tipo de proveedor' : 'Tipos de proveedor',
+                label: typesLabel,
                 value: typesText,
-                hint: 'Se proponen al asignarlo a una obra; en cada obra trabaja con los suyos'
+                hint: workTypeNames
+                  ? `En el maestro: ${masterTypesText}`
+                  : 'Se proponen al asignarlo a una obra; en cada obra trabaja con los suyos'
               },
               {
                 label: 'Obras',
@@ -450,7 +498,7 @@ function ProviderView() {
                     ['Tipo de identificación', provider.identityName],
                     ['Número de documento', provider.identification],
                     [
-                      'Tipos de proveedor',
+                      workTypeNames ? 'Tipos del maestro' : 'Tipos de proveedor',
                       <Stack key="types" direction="row" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                         {provider.providerTypes.map((name) => (
                           <Chip key={name} label={name} size="small" />
@@ -478,42 +526,47 @@ function ProviderView() {
       )}
 
       {/* Pestañas del formulario: montadas siempre, para que sus campos se validen aunque no estén a la vista. */}
-      {canEdit ? (
-        <>
-          <Box sx={hidden('data')}>
-            <ProviderDataForm
+      {canEdit && (
+        <Box sx={hidden('data')}>
+          <ProviderDataForm
+            control={control}
+            loaded={provider}
+            identityLocked={identityLocked}
+            companyLocked={!canEditCompany}
+            typesLocked={!canEditTypes}
+            workTypes={workMode && !isNew ? (provider?.works.find((w) => w.wrkId === activeWork)?.workTypes ?? []) : null}
+            workLabel={workMode ? workLabel : null}
+            identityFormat={identityFormat}
+            onIdentityOptions={setIdentityOptions}
+            existing={existing}
+            existingActionLabel={isNew && workMode ? 'Usar este proveedor' : 'Ver proveedor'}
+            onViewExisting={openExisting}
+          />
+        </Box>
+      )}
+      {canEditCompany ? (
+        <Box sx={hidden('contacts')}>
+          <FormSection
+            title="Contactos"
+            subtitle="Son de la empresa y valen para todas sus obras. Uno puede marcarse como principal."
+            onAdd={() => setAddingContact(true)}
+            addLabel="Agregar contacto"
+          >
+            <Controller
+              name="contacts"
               control={control}
-              loaded={provider}
-              identityLocked={identityLocked}
-              identityFormat={identityFormat}
-              onIdentityOptions={setIdentityOptions}
-              existing={existing}
-              onViewExisting={() => navigate(`/work/providers/${existing.prvId}`)}
+              render={({ field, fieldState }) => (
+                <ContactsEditor
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={fieldState.error}
+                  adding={addingContact}
+                  onAddingChange={setAddingContact}
+                />
+              )}
             />
-          </Box>
-          <Box sx={hidden('contacts')}>
-            <FormSection
-              title="Contactos"
-              subtitle="Son de la empresa y valen para todas sus obras. Uno puede marcarse como principal."
-              onAdd={() => setAddingContact(true)}
-              addLabel="Agregar contacto"
-            >
-              <Controller
-                name="contacts"
-                control={control}
-                render={({ field, fieldState }) => (
-                  <ContactsEditor
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={fieldState.error}
-                    adding={addingContact}
-                    onAddingChange={setAddingContact}
-                  />
-                )}
-              />
-            </FormSection>
-          </Box>
-        </>
+          </FormSection>
+        </Box>
       ) : (
         tab === 'contacts' && (
           <ContactsList
@@ -637,6 +690,16 @@ function ProviderView() {
           assignment={assignDialog?.assignment ?? null}
           onClose={() => setAssignDialog(null)}
           onSaved={assignmentSaved}
+        />
+      )}
+
+      {workMode && (
+        <WorkProviderDialog
+          open={Boolean(assignExisting)}
+          wrkId={activeWork}
+          preset={assignExisting}
+          onClose={() => setAssignExisting(null)}
+          onSaved={existingAssigned}
         />
       )}
 

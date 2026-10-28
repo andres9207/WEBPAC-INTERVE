@@ -66,16 +66,18 @@ export const saveProviderController = handle(async (req) => {
   // Cambiar la identificación y asignar a una obra tienen permiso propio: el
   // service decide cuál exige según lo que realmente pasa.
   const granted = new Set(await getEffectivePermissionIds({ useId, proId }));
+  const scope = await workScopeOf(req);
   const result = await providersService.saveProvider({
     prvId: req.body.prvId,
     input: pick(req.body, INPUT_FIELDS),
     useBy: useId,
     granted,
-    scope: await workScopeOf(req),
+    scope,
     ctx: auditContext(req),
     idempotencyKey: req.get(IDEMPOTENCY_HEADER),
   });
-  if (req.body.assignment) notifyAssignment();
+  // Con una obra elegida, editar puede cambiar los tipos de su asignación (DEC-090).
+  if (req.body.assignment || (Number(req.body.prvId) > 0 && scope && !scope.all)) notifyAssignment();
   else notifyProviders();
   return result;
 });

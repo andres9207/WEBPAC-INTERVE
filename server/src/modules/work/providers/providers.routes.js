@@ -64,11 +64,14 @@ providersRoutes.get(
   selectAssignableWorksController
 );
 // save_provider sirve crear (prvId 0) y editar. Cambiar la identificación y
-// crear asignando a una obra los exige el service, según lo que cambia.
+// crear asignando a una obra los exige el service, según lo que cambia. Con
+// una obra elegida, editar los tipos del proveedor en ella pide el permiso de
+// asignar, y los datos de la empresa el de editar (DEC-090): la ruta admite
+// cualquiera de los dos y el service decide según lo que cambia.
 providersRoutes.post(
   "/save_provider",
   verifyToken,
-  requirePermission((req) => (Number(req.body.prvId) > 0 ? can.edit : can.create)),
+  requirePermission((req) => (Number(req.body.prvId) > 0 ? [can.edit, can.assignWork] : can.create)),
   saveProviderSchema,
   validate,
   saveProviderController
