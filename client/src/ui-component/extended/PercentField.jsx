@@ -13,22 +13,29 @@ import TextField from '@mui/material/TextField';
  * (`DEBOUNCE_MS`) o al salir del campo, para no validar a medio escribir. Un
  * decimal sin terminar ("2,") se muestra, pero al formulario llega sin la
  * coma ("2"): no es un error, falta el siguiente dígito.
+ *
+ * `signed`: admite negativos (un "-" al inicio) y más de tres enteros, para
+ * el % de un importe que no es una tasa (p. ej. la glosa, DEC-092).
  */
 const DEBOUNCE_MS = 400;
 
-const toValue = (text) =>
-  text
+const toValue = (text, signed = false) => {
+  const sign = signed && text.trim().startsWith('-') ? '-' : '';
+  const digits = text
     .replace(/[^\d,.]/g, '')
     .replace(',', '.')
     .replace(/(\..*)\./g, '$1')
-    .replace(/^(\d{0,3})\d*/, '$1')
+    .replace(signed ? /^(\d{0,16})\d*/ : /^(\d{0,3})\d*/, '$1')
     .replace(/(\.\d{0,2}).*/, '$1');
+  return sign + digits;
+};
 
 const toText = (value) => String(value ?? '').replace('.', ',');
 
-const complete = (value) => value.replace(/\.$/, '');
+// Sin el punto final ni un signo solo.
+const complete = (value) => value.replace(/\.$/, '').replace(/^-$/, '');
 
-export default function PercentField({ value, onChange, onBlur, label, required, error, helperText, disabled }) {
+export default function PercentField({ value, onChange, onBlur, label, required, error, helperText, disabled, signed = false }) {
   const [text, setText] = useState(toText(value));
   const timer = useRef(null);
   // Último valor entregado al formulario: un `value` distinto viene de fuera
@@ -51,15 +58,15 @@ export default function PercentField({ value, onChange, onBlur, label, required,
   };
 
   const handleChange = (e) => {
-    const raw = toValue(e.target.value);
+    const raw = toValue(e.target.value, signed);
     setText(toText(raw));
     clearTimeout(timer.current);
     timer.current = setTimeout(() => emit(raw), DEBOUNCE_MS);
   };
 
   const handleBlur = () => {
-    if (timer.current) emit(toValue(text));
-    setText(toText(complete(toValue(text))));
+    if (timer.current) emit(toValue(text, signed));
+    setText(toText(complete(toValue(text, signed))));
     onBlur?.();
   };
 
@@ -93,5 +100,6 @@ PercentField.propTypes = {
   required: PropTypes.bool,
   error: PropTypes.string,
   helperText: PropTypes.string,
-  disabled: PropTypes.bool
+  disabled: PropTypes.bool,
+  signed: PropTypes.bool
 };

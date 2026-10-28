@@ -7,8 +7,8 @@ import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, writeAudit } from "../../../common/services/audit.service.js";
 import { INVOICE_STATES } from "./invoiceTerms.js";
-import { GLOSS_FIELD_NAMES, glossFieldFor } from "./glossFields.js";
-import { assertInvoiceVisible } from "./invoices.service.js";
+import { GLOSS_FIELD_NAMES, glossFieldFor, glossPair } from "./glossFields.js";
+import { assertInvoiceVisible, getInvoice } from "./invoices.service.js";
 
 /**
  * Glosas de facturas (DEC-085; documento de alcance, punto 6): errores
@@ -163,6 +163,18 @@ const findLockedOpen = async (tx, iglId) => {
 };
 
 const locksFor = (invId) => ({ FACTURA: Number(invId) });
+
+/**
+ * Vista previa de una glosa (DEC-092): el importe del campo en la factura y
+ * la glosa en valor y en % de ese importe, escrita en cualquiera de los dos
+ * (`value` o `pct`). Solo lectura; se guarda el valor.
+ */
+export const previewGloss = async ({ invId, field, value, pct, scope }) => {
+  const invoice = await getInvoice({ invId, scope });
+  const option = invoice.glossFields.find((f) => f.value === text(field));
+  if (!option) throw httpError(400, "La factura no tiene ese campo: elige uno de su Detalle u Otro.");
+  return { amount: option.amount ?? null, ...glossPair({ amount: option.amount, value, pct }) };
+};
 
 /** Glosas de una factura: las abiertas primero, la más reciente primero. */
 export const listGlosses = async ({ invId, scope }) => {

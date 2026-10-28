@@ -138,5 +138,10 @@ export const invoiceGlossesApi = {
   update: (params) => httpCliente.post('billing/invoices/update_invoice_gloss', params),
   /** @param {{ iglId, releaseStatement, observation }} params */
   release: (params) => httpCliente.post('billing/invoices/release_invoice_gloss', params),
-  remove: (iglId) => httpCliente.post('billing/invoices/delete_invoice_gloss', { iglId })
+  remove: (iglId) => httpCliente.post('billing/invoices/delete_invoice_gloss', { iglId }),
+  /**
+   * Valor y % de la glosa mientras se escribe (DEC-092): el importe del campo en la factura y los dos lados.
+   * @param {{ invId, field, value, pct }} params  `value` o `pct`, el que se escribió.
+   */
+  preview: (params) => httpCliente.post('billing/invoices/preview_invoice_gloss', params)
 };

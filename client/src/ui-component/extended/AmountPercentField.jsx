@@ -38,7 +38,8 @@ export default function AmountPercentField({
   required = false,
   disabled = false,
   error,
-  helperText
+  helperText,
+  signed = false
 }) {
   const [draft, setDraft] = useState(null);
   const altFocused = useRef(false);
@@ -83,10 +84,10 @@ export default function AmountPercentField({
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
       <Box sx={{ flex: 3, minWidth: 0 }}>
-        <MoneyField {...money} label={label} disabled={disabled} />
+        <MoneyField {...money} label={label} disabled={disabled} signed={signed} />
       </Box>
       <Box sx={{ flex: 2, minWidth: 0 }}>
-        <PercentField {...percent} label="%" disabled={disabled} />
+        <PercentField {...percent} label="%" disabled={disabled} signed={signed} />
       </Box>
     </Stack>
   );
@@ -105,5 +106,7 @@ AmountPercentField.propTypes = {
   required: PropTypes.bool,
   disabled: PropTypes.bool,
   error: PropTypes.string,
-  helperText: PropTypes.string
+  helperText: PropTypes.string,
+  /** Admite negativos en los dos lados (p. ej. la glosa, DEC-092). */
+  signed: PropTypes.bool
 };

@@ -149,6 +149,13 @@ export const INVOICE_ADVANCE_FILTER_OPTIONS = [
   { value: 'PENDING_ADVANCE', label: 'Anticipo por aprobar' },
   { value: 'PENDING_AMORTIZATION', label: 'Amortización por aprobar' }
 ];
+// Filtro "Pago" del listado de facturas (DEC-091, VOUCHER_FILTERS del servidor):
+// con o sin número de comprobante de egreso. Con la pestaña "Aprobada", sin
+// comprobante es lo pendiente de pago.
+export const INVOICE_VOUCHER_FILTER_OPTIONS = [
+  { value: 'WITH', label: 'Con comprobante de egreso' },
+  { value: 'WITHOUT', label: 'Sin comprobante de egreso' }
+];
 export const CONTRACT_ADVANCE_FILTER_OPTIONS = [
   { value: 'WITH_ADVANCE', label: 'Con anticipo pactado' },
   { value: 'TO_INVOICE', label: 'Anticipo por facturar' },

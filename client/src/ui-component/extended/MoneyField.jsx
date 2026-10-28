@@ -10,7 +10,8 @@ import { moneyInputText, parseMoneyInput } from 'utils/formatNumber';
  * valor del formulario es el texto que recibe el servidor ("1234567.50"):
  * nunca pasa por Number. Al salir del campo completa los dos decimales.
  *
- * `prefix`: "$" para importes; vacío para cantidades.
+ * `prefix`: "$" para importes; vacío para cantidades. `signed`: admite
+ * negativos (un "-" al inicio).
  */
 export default function MoneyField({
   value,
@@ -21,10 +22,13 @@ export default function MoneyField({
   error,
   helperText,
   disabled = false,
-  prefix = '$'
+  prefix = '$',
+  signed = false
 }) {
   const completeDecimals = () => {
-    if (value) {
+    // Solo el signo, sin número: vacío.
+    if (value === '-') onChange('');
+    else if (value) {
       const [integer, decimals = ''] = String(value).split('.');
       const full = `${integer}.${decimals.padEnd(2, '0')}`;
       if (full !== value) onChange(full);
@@ -35,7 +39,7 @@ export default function MoneyField({
   return (
     <TextField
       value={moneyInputText(value)}
-      onChange={(e) => onChange(parseMoneyInput(e.target.value))}
+      onChange={(e) => onChange(parseMoneyInput(e.target.value, { signed }))}
       onBlur={completeDecimals}
       label={label}
       required={required}
@@ -68,5 +72,6 @@ MoneyField.propTypes = {
   error: PropTypes.string,
   helperText: PropTypes.string,
   disabled: PropTypes.bool,
-  prefix: PropTypes.string
+  prefix: PropTypes.string,
+  signed: PropTypes.bool
 };

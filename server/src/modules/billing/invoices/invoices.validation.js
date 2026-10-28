@@ -10,7 +10,7 @@ import {
   percentRule,
   exportFormatRule,
 } from "../../../common/utils/validation.utils.js";
-import { INVOICE_STATES, INVOICE_TYPES, hasContract } from "./invoiceTerms.js";
+import { INVOICE_STATES, INVOICE_TYPES, VOUCHER_FILTERS, hasContract } from "./invoiceTerms.js";
 import { SIMPLE_PAIRS } from "./simpleInvoiceTerms.js";
 import { INVOICE_ADVANCE_FILTERS } from "./advanceFilters.js";
 import { CONTRACT_PAIRS } from "./contractInvoiceTerms.js";
@@ -59,6 +59,7 @@ export const paginationInvoicesSchema = [
   ...["vatPctFrom", "vatPctTo"].map((field) => percentRule(field, `filtro ${field}`, { optional: true })),
   // Anticipo, amortización y lo por aprobar de los dos.
   body("advance").optional({ values: "falsy" }).isIn(Object.values(INVOICE_ADVANCE_FILTERS)).withMessage("El filtro de anticipo no es válido."),
+  body("voucher").optional({ values: "falsy" }).isIn(Object.values(VOUCHER_FILTERS)).withMessage("El filtro de pago no es válido."),
 ];
 
 const menuQuery = () => query("pvtId").isInt({ min: 1 }).withMessage("pvtId es obligatorio: el menú de facturas.");
@@ -314,3 +315,21 @@ export const releaseInvoiceGlossSchema = [
 ];
 
 export const deleteInvoiceGlossSchema = [requiredId("iglId")];
+
+// Vista previa del valor y el % de una glosa (DEC-092): con signo, el valor o el %.
+const signedNumber = (name, label) =>
+  body(name)
+    .optional({ values: "falsy" })
+    .customSanitizer((value) => (typeof value === "number" ? String(value) : value))
+    .isString()
+    .bail()
+    .trim()
+    .matches(/^-?\d{1,16}(\.\d+)?$/)
+    .withMessage(`${label} debe ser un número, con punto decimal.`);
+
+export const previewInvoiceGlossSchema = [
+  requiredId("invId"),
+  body("field").trim().notEmpty().withMessage("Elige el campo de la factura.").isLength({ max: 30 }).withMessage("Campo no válido."),
+  signedNumber("value", "El valor"),
+  signedNumber("pct", "El porcentaje"),
+];

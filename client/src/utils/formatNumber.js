@@ -50,11 +50,13 @@ export function moneyInputText(raw) {
 
 // Lo que el usuario escribe ("1.234.567,5") → texto para el servidor
 // ("1234567.5"). Punto = miles, coma = decimal, hasta dos decimales.
-export function parseMoneyInput(text) {
+// `signed`: admite un "-" al inicio (p. ej. la glosa, DEC-092); solo, queda "-".
+export function parseMoneyInput(text, { signed = false } = {}) {
+    const sign = signed && String(text ?? "").trim().startsWith("-") ? "-" : "";
     const clean = String(text ?? "").replace(/[^\d,]/g, "");
     const comma = clean.indexOf(",");
-    if (comma < 0) return clean.replace(/^0+(?=\d)/, "");
+    if (comma < 0) return sign + clean.replace(/^0+(?=\d)/, "");
     const integer = clean.slice(0, comma).replace(/^0+(?=\d)/, "") || "0";
     const decimals = clean.slice(comma + 1).replace(/,/g, "").slice(0, 2);
-    return `${integer}.${decimals}`;
+    return `${sign}${integer}.${decimals}`;
 }

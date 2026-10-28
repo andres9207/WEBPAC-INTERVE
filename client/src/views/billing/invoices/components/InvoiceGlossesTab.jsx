@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -13,6 +13,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { IconCheck, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
 
+import AmountPercentField from 'ui-component/extended/AmountPercentField';
 import BaseDialog from 'ui-component/extended/BaseDialog';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
 import { invoiceGlossesApi } from 'api/requests/invoicesApi';
@@ -34,6 +35,10 @@ import { newIdempotencyKey } from 'utils/idempotency';
  * registra lo pagado por encima de lo que la factura admite. No bloquean la
  * aprobación. Abiertas se editan y se eliminan; liberadas, solo se
  * consultan. Las reglas las repite el servidor.
+ *
+ * Al elegir el campo se ve su importe en la factura, y el valor de la glosa
+ * se escribe en pesos o como % de ese importe, con signo (DEC-092, como
+ * DEC-065 "Valor y porcentaje"): el servidor convierte y se guarda el valor.
  */
 
 const TEXT_MAX = 1000;
@@ -44,13 +49,49 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState(null);
   const releasing = mode === 'release';
-  const { control, handleSubmit, reset } = useForm({
+  const { control, handleSubmit, reset, setValue } = useForm({
     defaultValues: { statement: '', field: '', code: '', value: '', description: '', releaseStatement: '', observation: '' }
   });
+
+  // Importe del campo y el otro lado (el %), del servidor; lo escrito en % hasta que lo convierte.
+  const [fieldName, value] = useWatch({ control, name: ['field', 'value'] });
+  const [altPct, setAltPct] = useState(null);
+  const [pair, setPair] = useState({});
+  const fieldOption = (invoice.glossFields ?? []).find((option) => option.value === fieldName);
+
+  useEffect(() => {
+    if (!open || releasing || !fieldName) {
+      setPair({});
+      return undefined;
+    }
+    let cancelled = false;
+    const sent = altPct;
+    const timer = setTimeout(
+      () =>
+        invoiceGlossesApi
+          .preview({ invId: invoice.invId, field: fieldName, value: sent !== null ? '' : (value ?? ''), pct: sent ?? '' })
+          .then(({ data }) => {
+            if (cancelled) return;
+            setPair(data);
+            // Lo escrito en % pasa al valor, que es lo que se guarda.
+            if (sent !== null) {
+              setValue('value', data.value ?? '', { shouldDirty: true, shouldValidate: true });
+              setAltPct((current) => (current === sent ? null : current));
+            }
+          })
+          .catch((err) => !cancelled && showError(err.response?.data?.message || 'Error al calcular la glosa')),
+      350
+    );
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [open, releasing, fieldName, value, altPct, invoice.invId, setValue]);
 
   useEffect(() => {
     if (!open) return;
     setIdempotencyKey(mode === 'create' ? newIdempotencyKey() : null);
+    setAltPct(null);
     reset({
       // Una glosa nueva propone el extracto de la factura.
       statement: gloss ? (gloss.statement ?? '') : (invoice.statement ?? ''),
@@ -140,6 +181,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
                 <TextField
                   {...field}
                   label="Extracto en que se libera"
+                  size="small"
                   fullWidth
                   required
                   error={!!fieldState.error}
@@ -158,6 +200,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
                   label="Observación"
                   multiline
                   minRows={3}
+                  size="small"
                   fullWidth
                   required
                   error={!!fieldState.error}
@@ -177,6 +220,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
                 <TextField
                   {...field}
                   label="Extracto en que se levanta"
+                  size="small"
                   fullWidth
                   error={!!fieldState.error}
                   helperText={fieldState.error?.message ?? 'En su reporte, la glosa suma al total pagado.'}
@@ -193,20 +237,27 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
                   {...field}
                   select
                   label="Campo de la factura"
+                  size="small"
                   fullWidth
                   required
                   error={!!fieldState.error}
-                  helperText={fieldState.error?.message ?? 'Sobre qué campo del Detalle es la glosa.'}
+                  helperText={
+                    fieldState.error?.message ??
+                    (fieldOption?.amount != null
+                      ? `En la factura: ${fMoneyText(fieldOption.amount)}. La glosa es en cuánto se equivocó.`
+                      : 'Sobre qué campo del Detalle es la glosa.')
+                  }
                 >
                   {(invoice.glossFields ?? []).map((option) => (
                     <MenuItem key={option.value} value={option.value}>
-                      {option.label}
+                      {option.amount != null ? `${option.label} · ${fMoneyText(option.amount)}` : option.label}
                     </MenuItem>
                   ))}
                 </TextField>
               )}
             />
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            {/* El valor con su % necesita más ancho que el código. */}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: 'flex-start' }}>
               <Controller
                 name="code"
                 control={control}
@@ -215,7 +266,9 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
                   <TextField
                     {...field}
                     label="Código"
+                    size="small"
                     fullWidth
+                    sx={{ flex: { sm: 1 } }}
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
                     slotProps={{ htmlInput: { maxLength: 20 } }}
@@ -228,21 +281,31 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
                 rules={{
                   validate: (value) =>
                     !VALUE_PATTERN.test(value.trim())
-                      ? 'Un número con punto decimal; negativo si es nota crédito (lo que el proveedor devuelve).'
+                      ? 'Escribe el valor; negativo si es nota crédito (lo que el proveedor devuelve).'
                       : Number(value) === 0
                         ? 'No puede ser cero.'
                         : true
                 }}
                 render={({ field, fieldState }) => (
-                  <TextField
-                    {...field}
-                    label="Valor"
-                    fullWidth
-                    required
-                    error={!!fieldState.error}
-                    helperText={fieldState.error?.message}
-                    slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-                  />
+                  <Box sx={{ width: '100%', flex: { sm: 2 } }}>
+                    <AmountPercentField
+                      storedAs="money"
+                      signed
+                      value={field.value}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      derived={pair.pct ?? ''}
+                      onAltChange={setAltPct}
+                      label="Valor"
+                      required
+                      error={fieldState.error?.message}
+                      helperText={
+                        fieldOption && fieldOption.amount == null
+                          ? 'Este campo no tiene importe en la factura: escribe el valor.'
+                          : 'Negativo si es nota crédito. El % es del valor del campo.'
+                      }
+                    />
+                  </Box>
                 )}
               />
             </Stack>
@@ -257,6 +320,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
                   placeholder="Qué error se halló en la factura"
                   multiline
                   minRows={3}
+                  size="small"
                   fullWidth
                   required
                   error={!!fieldState.error}

@@ -29,7 +29,8 @@ const prismaMock = {
 
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
 const assertInvoiceVisible = jest.fn(async () => undefined);
-jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.service.js", () => ({ assertInvoiceVisible }));
+const getInvoice = jest.fn();
+jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.service.js", () => ({ assertInvoiceVisible, getInvoice }));
 
 const service = await import("../../../../src/modules/billing/invoices/invoiceGlosses.service.js");
 const { todayDateOnly } = await import("../../../../src/common/utils/term.utils.js");
@@ -127,6 +128,25 @@ describe("campo de la factura", () => {
       ["VALOR", false],
       ["IVA", true],
     ]);
+  });
+});
+
+describe("vista previa del valor y el % (DEC-092)", () => {
+  const glossFields = [
+    { value: "vat", label: "IVA", amount: "190.00" },
+    { value: "other", label: "OTRO", amount: null },
+  ];
+
+  it("da el importe del campo y la glosa en valor y en %, en el alcance de la factura", async () => {
+    getInvoice.mockResolvedValue({ glossFields });
+    await expect(service.previewGloss({ invId: 7, field: "vat", pct: "10", scope: "S" })).resolves.toEqual({ amount: "190.00", value: "19.00", pct: "10.00" });
+    expect(getInvoice).toHaveBeenCalledWith({ invId: 7, scope: "S" });
+    await expect(service.previewGloss({ invId: 7, field: "other", value: "-5" })).resolves.toEqual({ amount: null, value: "-5.00", pct: null });
+  });
+
+  it("un campo que la factura no tiene responde 400", async () => {
+    getInvoice.mockResolvedValue({ glossFields });
+    await expect(service.previewGloss({ invId: 7, field: "freight", value: "1" })).rejects.toMatchObject({ statusCode: 400 });
   });
 });
 

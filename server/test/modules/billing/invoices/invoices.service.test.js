@@ -889,6 +889,14 @@ describe("listado", () => {
     expect(prismaMock.tbl_invoices.groupBy.mock.calls.at(-1)[0].where.AND).toContainEqual(condition);
   });
 
+  test.each([
+    ["WITHOUT", { OR: [{ inv_voucher_number: null }, { inv_voucher_number: "" }] }],
+    ["WITH", { NOT: [{ inv_voucher_number: null }, { inv_voucher_number: "" }] }],
+  ])("filtro Pago %s (DEC-091), también en los conteos de las pestañas", async (voucher, condition) => {
+    await service.paginationInvoices({ voucher });
+    expect(prismaMock.tbl_invoices.groupBy.mock.calls.at(-1)[0].where.AND).toContainEqual(condition);
+  });
+
   test("filtra por etapa, nombre del contrato y rangos de valor, descuento y % IVA en el detalle de cada tipo, también en los conteos", async () => {
     await service.paginationInvoices({ wksId: "5", contractName: "obra gris", valueFrom: "500", valueTo: "2000.5", discountTo: "0", vatPctFrom: "19" });
 

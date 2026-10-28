@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-10-26 · **Tipo:** Obligatoria · **ADR:** [0020](../adr/0020-facturacion.md)
 
+> **Ampliada por [DEC-092](DEC-092-glosa-valor-campo-porcentaje.md) (2026-10-28):** el diálogo muestra el importe del campo en la factura y el valor se escribe en pesos o en % de ese importe.
+
 Decidido por el usuario el 2026-10-26, a partir del documento de alcance de Intervé (punto 6: "generación de glosas, errores hallados durante el registro de facturas recibidas, que se deben poder controlar hasta su liberación en un extracto posterior"). Ningún ADR trataba las glosas. **Revisada el 2026-10-27** por pedido del usuario: la glosa registra lo pagado por encima de lo que la factura admite y suma al total pagado del extracto; el extracto de la glosa es texto, como el de la factura (migración 0125).
 
 ## Contexto

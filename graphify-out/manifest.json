@@ -2238,9 +2238,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/providers/ProviderDetailPage.jsx": {
-    "mtime": 1792768223.5862446,
-    "seen": 1792768422.661575,
-    "ast_hash": "1d51bd8e27ef5e26d284831c933f38e4",
+    "mtime": 1793197152.8692155,
+    "seen": 1793197736.4695888,
+    "ast_hash": "efd3990dda8a6f840689aa52182a38a2",
     "semantic_hash": ""
   },
   "client/src/views/work/providers/ProvidersPage.jsx": {
@@ -2298,21 +2298,21 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/providers/providers.controller.js": {
-    "mtime": 1792772443.1680045,
-    "seen": 1792773239.3449013,
-    "ast_hash": "f656a100f5872053df4ee7625769cab6",
+    "mtime": 1793196950.1287482,
+    "seen": 1793197736.469915,
+    "ast_hash": "3f29c6d0b90d7dc3366885cd543e1008",
     "semantic_hash": ""
   },
   "server/src/modules/work/providers/providers.routes.js": {
-    "mtime": 1790974098.3982706,
-    "seen": 1790975759.7719522,
-    "ast_hash": "71bfeeb08c6fefb6ef46e05174dce207",
+    "mtime": 1793196933.442145,
+    "seen": 1793197736.4699156,
+    "ast_hash": "a48d55b12142c3e6151e894e1c901b25",
     "semantic_hash": ""
   },
   "server/src/modules/work/providers/providers.service.js": {
-    "mtime": 1792772443.1690013,
-    "seen": 1792773239.3449037,
-    "ast_hash": "0a32a6240e2713a1a1e74b71008087e1",
+    "mtime": 1793196944.1613586,
+    "seen": 1793197736.4699166,
+    "ast_hash": "e96431d5942b2811305f2efec7f839bd",
     "semantic_hash": ""
   },
   "server/src/modules/work/providers/providers.validation.js": {
@@ -2328,9 +2328,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/work/providers/providers.service.test.js": {
-    "mtime": 1792772443.1700013,
-    "seen": 1792773239.3449988,
-    "ast_hash": "8ed222f855d49658bd1dff5b65ebcb55",
+    "mtime": 1793197008.1102898,
+    "seen": 1793197736.4700167,
+    "ast_hash": "a1748db03f66da49cb1ad52d523a4e24",
     "semantic_hash": ""
   },
   "client/src/views/work/works/components/WorkCard.jsx": {
@@ -3294,9 +3294,9 @@
     "semantic_hash": ""
   },
   "client/src/views/work/providers/components/ProviderDataForm.jsx": {
-    "mtime": 1793045656.1681197,
-    "seen": 1793053308.3511207,
-    "ast_hash": "d5c744935b0fdc35e08d59c634969533",
+    "mtime": 1793197119.791063,
+    "seen": 1793197736.4695926,
+    "ast_hash": "605d40d8858510e77394e714b93d9e8a",
     "semantic_hash": ""
   },
   "client/src/views/work/providers/components/providerForm.js": {

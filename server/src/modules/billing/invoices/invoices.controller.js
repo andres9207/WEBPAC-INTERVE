@@ -78,7 +78,7 @@ const listFiltersOf = (req) => {
   const { search, state, pvtId, type, wrkId, prvId, ctrId, sortField, sortOrder } = req.body;
   const { number, voucherNumber, statement, contractNumber, providerName, dateFrom, dateTo, approvalDateFrom, approvalDateTo } = req.body;
   const { wksId, contractName, valueFrom, valueTo, discountFrom, discountTo, vatPctFrom, vatPctTo } = req.body;
-  const { advance } = req.body;
+  const { advance, voucher } = req.body;
   return {
     search,
     state,
@@ -105,6 +105,7 @@ const listFiltersOf = (req) => {
     vatPctFrom,
     vatPctTo,
     advance,
+    voucher,
     sortField,
     sortOrder,
   };
@@ -312,6 +313,11 @@ export const deleteInvoiceFollowUpController = followUpAction(followUpsService.d
 
 // ─── Glosas (DEC-085) ────────────────────────────────────────────────────────
 // Ver lo protege la ruta con ver facturas; operar, además con gestionar glosas.
+
+export const previewInvoiceGlossController = handle(async (req) => {
+  const { invId, field, value, pct } = req.body;
+  return glossesService.previewGloss({ invId, field, value, pct, scope: await workScopeOf(req) });
+});
 
 export const listInvoiceGlossesController = handle(async (req) => glossesService.listGlosses({ invId: req.query.invId, scope: await workScopeOf(req) }));
 

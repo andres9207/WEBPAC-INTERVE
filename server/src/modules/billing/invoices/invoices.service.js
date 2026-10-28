@@ -32,11 +32,13 @@ import {
   STATE_ALLOWS,
   STATE_NAMES,
   TYPE_NAMES,
+  VOUCHER_FILTER_NAMES,
   assertTransition,
   cancelTransitionFor,
   hasContract,
   historyRow,
   stateAllows,
+  voucherWhere,
 } from "./invoiceTerms.js";
 import {
   advanceBalances,
@@ -1088,7 +1090,8 @@ const countByState = async (where) => {
  * campo (DEC-048). Las columnas de importes también: `wksId` (la etapa
  * de la factura o la de su contrato), `contractName` y los rangos de valor,
  * descuento y % IVA (`valueFrom`…`vatPctTo`), en la tabla de detalle de cada
- * tipo; el IVA y el total se calculan y no se filtran.
+ * tipo; el IVA y el total se calculan y no se filtran. `voucher`: con o sin
+ * comprobante de egreso (DEC-091).
  * Los conteos respetan todos los filtros menos el estado.
  *
  * `scope`: alcance por obra de la petición (DEC-047). El filtro de obra va en
@@ -1136,6 +1139,7 @@ const invoiceListQuery = ({
   vatPctFrom,
   vatPctTo,
   advance,
+  voucher,
   sortField,
   sortOrder,
   scope,
@@ -1168,6 +1172,7 @@ const invoiceListQuery = ({
       amountRange(DISCOUNT_COLUMNS, discountFrom, discountTo),
       amountRange(VAT_PCT_COLUMNS, vatPctFrom, vatPctTo),
       invoiceAdvanceWhere(advance),
+      voucherWhere(voucher),
     ]),
   };
   return { baseWhere, where: { ...baseWhere, ...(state ? { inv_state: state } : {}) }, orderBy };
@@ -1290,6 +1295,7 @@ const exportFilterLines = async ({
   vatPctFrom,
   vatPctTo,
   advance,
+  voucher,
 }) => {
   const [work, provider, stage] = await Promise.all([
     positiveId(wrkId) ? prisma.tbl_works.findUnique({ where: { wrk_id: positiveId(wrkId) }, select: { wrk_code: true, wrk_name: true } }) : null,
@@ -1315,6 +1321,7 @@ const exportFilterLines = async ({
     ["Descuento", range(discountFrom, discountTo)],
     ["IVA %", range(vatPctFrom, vatPctTo)],
     ["Anticipo", advance ? (INVOICE_ADVANCE_FILTER_NAMES[advance] ?? advance) : ""],
+    ["Pago", voucher ? (VOUCHER_FILTER_NAMES[voucher] ?? voucher) : ""],
   ].filter(([, value]) => value);
   return [`Filtros: ${lines.map(([label, value]) => `${label}: ${value}`).join(" · ")}`];
 };
@@ -1417,6 +1424,7 @@ export const getInvoice = async ({ invId, scope }) => {
 
   const contract = row.tbl_contracts;
   const contractAction = INVOICE_ACTIONS[row.inv_type];
+  const amounts = amountsDto(row);
   return {
     invId: row.inv_id,
     type: row.inv_type,
@@ -1437,8 +1445,8 @@ export const getInvoice = async ({ invId, scope }) => {
     // las glosas lo proponen.
     statement: row.inv_statement,
     stmId: statement?.stm_id ?? null,
-    // Campos que admite una glosa de esta factura (DEC-085).
-    glossFields: glossFieldsFor(row.inv_type),
+    // Campos que admite una glosa de esta factura (DEC-085), con su importe en ella (DEC-092).
+    glossFields: glossFieldsFor(row.inv_type, amounts),
     statementDate: dateOnlyText(statement?.stm_date),
     description: row.inv_description,
     providerName: row.tbl_providers?.prv_name ?? null,
@@ -1454,7 +1462,7 @@ export const getInvoice = async ({ invId, scope }) => {
     contractAdmits: contract ? contractAllows(contract.ctr_state, contractAction) : true,
     // Importes del detalle (DEC-044): null si el tipo no los tiene o la
     // factura se registró sin ellos.
-    amounts: amountsDto(row),
+    amounts,
     state: row.inv_state,
     stateName: STATE_NAMES[row.inv_state] ?? row.inv_state,
     // Qué admite el estado actual: el cliente lo cruza con los permisos. Con

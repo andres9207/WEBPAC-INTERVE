@@ -28,6 +28,7 @@ import {
   closeInvoiceFollowUpSchema,
   deleteInvoiceFollowUpSchema,
   listInvoiceGlossesSchema,
+  previewInvoiceGlossSchema,
   createInvoiceGlossSchema,
   updateInvoiceGlossSchema,
   releaseInvoiceGlossSchema,
@@ -59,6 +60,7 @@ import {
   closeInvoiceFollowUpController,
   deleteInvoiceFollowUpController,
   listInvoiceGlossesController,
+  previewInvoiceGlossController,
   createInvoiceGlossController,
   updateInvoiceGlossController,
   releaseInvoiceGlossController,
@@ -145,6 +147,8 @@ invoicesRoutes.post("/delete_invoice_follow_up", verifyToken, canView, canManage
 
 // Glosas (DEC-085): verlas con ver facturas; levantar, editar, liberar y eliminar, además con gestionar glosas.
 const canManageGlosses = requirePermission(can.manageGlosses);
+// Valor y % de una glosa mientras se escribe (DEC-092): solo calcula, con el permiso de ver.
+invoicesRoutes.post("/preview_invoice_gloss", verifyToken, canView, previewInvoiceGlossSchema, validate, previewInvoiceGlossController);
 invoicesRoutes.get("/list_invoice_glosses", verifyToken, canView, listInvoiceGlossesSchema, validate, listInvoiceGlossesController);
 invoicesRoutes.post("/create_invoice_gloss", verifyToken, canView, canManageGlosses, createInvoiceGlossSchema, validate, createInvoiceGlossController);
 invoicesRoutes.post("/update_invoice_gloss", verifyToken, canView, canManageGlosses, updateInvoiceGlossSchema, validate, updateInvoiceGlossController);

@@ -115,6 +115,26 @@ export const stateAllows = (state, action) => (STATE_ALLOWS[state] ?? []).includ
  */
 export const NOTE_COLUMNS = Object.freeze(["inv_statement", "inv_description", "inv_voucher_number"]);
 
+/**
+ * Filtro "Pago" del listado (DEC-091): con o sin número de comprobante de
+ * egreso. El vacío cuenta como sin comprobante.
+ */
+export const VOUCHER_FILTERS = Object.freeze({ WITH: "WITH", WITHOUT: "WITHOUT" });
+
+export const VOUCHER_FILTER_NAMES = Object.freeze({
+  [VOUCHER_FILTERS.WITH]: "Con comprobante de egreso",
+  [VOUCHER_FILTERS.WITHOUT]: "Sin comprobante de egreso",
+});
+
+const NO_VOUCHER = [{ inv_voucher_number: null }, { inv_voucher_number: "" }];
+
+/** Condición Prisma del pago, o null sin filtro. */
+export const voucherWhere = (voucher) => {
+  if (voucher === VOUCHER_FILTERS.WITHOUT) return { OR: NO_VOUCHER };
+  if (voucher === VOUCHER_FILTERS.WITH) return { NOT: NO_VOUCHER };
+  return null;
+};
+
 /** Fila del historial de estado para una transición declarada (con el tx del evento). */
 export const historyRow = ({ invId, transition, fromState = null, useBy, reaId = null, observation = null }) => {
   const rule = assertTransition(transition, fromState);
