@@ -762,15 +762,15 @@
     "semantic_hash": ""
   },
   "client/src/utils/constants.js": {
-    "mtime": 1793134915.1519537,
-    "seen": 1793135123.732141,
-    "ast_hash": "861aa6c5a61ea924f3d23befc925d8ed",
+    "mtime": 1793198260.1749196,
+    "seen": 1793200061.306467,
+    "ast_hash": "edfc5c33709ced38d9e6dcc712583575",
     "semantic_hash": ""
   },
   "client/src/utils/formatNumber.js": {
-    "mtime": 1791306239.0056658,
-    "seen": 1791318406.0594914,
-    "ast_hash": "7c27c1d099d064b764b84f00fae85e4b",
+    "mtime": 1793198836.2745707,
+    "seen": 1793200061.3064692,
+    "ast_hash": "efb26f246f805d72ca68a33cca9fe467",
     "semantic_hash": ""
   },
   "client/src/utils/formatTime.js": {
@@ -2166,9 +2166,9 @@
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/MoneyField.jsx": {
-    "mtime": 1790886048.2110565,
-    "seen": 1790886317.659074,
-    "ast_hash": "c1b01f558e3f13f67bfa1aed6e482099",
+    "mtime": 1793198836.2776284,
+    "seen": 1793200061.306454,
+    "ast_hash": "f772fc6777d808c386b65652d660c6f5",
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/SearchSelect.jsx": {
@@ -2352,9 +2352,9 @@
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/PercentField.jsx": {
-    "mtime": 1793137614.9647098,
-    "seen": 1793138491.239279,
-    "ast_hash": "815a6d6bb11a77120464948ac1d1beea",
+    "mtime": 1793198836.2835865,
+    "seen": 1793200061.306455,
+    "ast_hash": "50e045f0f87ba91a83a019ec2ce55de2",
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/RouteDialog.jsx": {
@@ -2676,9 +2676,9 @@
     "semantic_hash": ""
   },
   "client/src/api/requests/invoicesApi.js": {
-    "mtime": 1793133654.758355,
-    "seen": 1793134215.2279768,
-    "ast_hash": "06ae40b5439b4d5f87b7a23b824dc97f",
+    "mtime": 1793198872.1992054,
+    "seen": 1793200061.3063009,
+    "ast_hash": "93ff6f7f6cfb93b5b6229f0c50cee152",
     "semantic_hash": ""
   },
   "client/src/menu-items/billing.js": {
@@ -2700,9 +2700,9 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/InvoicesPage.jsx": {
-    "mtime": 1793129950.355654,
-    "seen": 1793131673.415826,
-    "ast_hash": "06f63f50534d97f45f416da2fffe8830",
+    "mtime": 1793198286.2203963,
+    "seen": 1793200061.3064914,
+    "ast_hash": "27db7e7cb57be2487c147af090dcab01",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/ApproveInvoiceDialog.jsx": {
@@ -2754,33 +2754,33 @@
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/invoiceTerms.js": {
-    "mtime": 1793129835.2845418,
-    "seen": 1793131673.4162574,
-    "ast_hash": "e73ff18275cdf979683e652e13b7c5d1",
+    "mtime": 1793198203.7566888,
+    "seen": 1793200061.3068328,
+    "ast_hash": "9271bab69569e148b48a0d70c70e18e9",
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/invoices.controller.js": {
-    "mtime": 1793134358.1228087,
-    "seen": 1793135123.7325435,
-    "ast_hash": "b12f217beaa3904fdfef3ca2dd536bc9",
+    "mtime": 1793198753.2461772,
+    "seen": 1793200061.3068337,
+    "ast_hash": "2da649365f2a8be04a762e715e12a0c4",
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/invoices.routes.js": {
-    "mtime": 1793021768.3388932,
-    "seen": 1793023448.6981335,
-    "ast_hash": "4efdc7421403dcab97f14be2e02b6bcc",
+    "mtime": 1793198753.248132,
+    "seen": 1793200061.3068347,
+    "ast_hash": "79783430e217805739c934a1f4de0dba",
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/invoices.service.js": {
-    "mtime": 1793135624.9544764,
-    "seen": 1793137104.8579655,
-    "ast_hash": "c968f574422fb5a0ad3473c148cfa3b0",
+    "mtime": 1793198736.7793515,
+    "seen": 1793200061.3068354,
+    "ast_hash": "ebbc5ee7ca007baafc0dd82450337165",
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/invoices.validation.js": {
-    "mtime": 1793134358.121257,
-    "seen": 1793135123.7325466,
-    "ast_hash": "1c00f4f14c6e01b7946f6540770eb1e5",
+    "mtime": 1793198753.243141,
+    "seen": 1793200061.3068364,
+    "ast_hash": "8bedb1163f8b483cb39fca0f5d4386e1",
     "semantic_hash": ""
   },
   "server/test/modules/billing/invoices/invoiceTerms.test.js": {
@@ -2796,9 +2796,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/billing/invoices/invoices.service.test.js": {
-    "mtime": 1793133038.3369646,
-    "seen": 1793133138.9114342,
-    "ast_hash": "ebf2bfea3be757a9d75ed1b5a4bf73d6",
+    "mtime": 1793198233.1168115,
+    "seen": 1793200061.3069544,
+    "ast_hash": "9923dd11c8b884c4958c18de971648c5",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/InvoicesTab.jsx": {
@@ -3744,9 +3744,9 @@
     "semantic_hash": ""
   },
   "client/src/ui-component/extended/AmountPercentField.jsx": {
-    "mtime": 1793137772.9033754,
-    "seen": 1793138491.2392166,
-    "ast_hash": "4270cfc755520c2a1afb64d5704d5e89",
+    "mtime": 1793198836.2865872,
+    "seen": 1793200061.306421,
+    "ast_hash": "fe0ac2b8116bdc714cad2b5ff7304879",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/ContractTaxesSection.jsx": {
@@ -3882,9 +3882,9 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/InvoiceGlossesTab.jsx": {
-    "mtime": 1793134461.583076,
-    "seen": 1793135123.7321784,
-    "ast_hash": "ea2d760e7965a8650bbd95e8d37e7c61",
+    "mtime": 1793200004.372431,
+    "seen": 1793200061.3065023,
+    "ast_hash": "1c3a8bd8f8dc2302cbe4bc8127530141",
     "semantic_hash": ""
   },
   "client/src/views/billing/statements/StatementsPage.jsx": {
@@ -3954,9 +3954,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/invoiceGlosses.service.js": {
-    "mtime": 1793134358.121257,
-    "seen": 1793135123.7325404,
-    "ast_hash": "5dab15a634ef9c8291b6c2d16fe0e478",
+    "mtime": 1793198753.245169,
+    "seen": 1793200061.3068306,
+    "ast_hash": "3ba7acda4b9fe1d218b883d5769a4bfb",
     "semantic_hash": ""
   },
   "server/src/modules/billing/statements/statements.controller.js": {
@@ -4002,9 +4002,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/billing/invoices/invoiceGlosses.service.test.js": {
-    "mtime": 1793134383.864051,
-    "seen": 1793135123.732665,
-    "ast_hash": "aa5a1d46b39cfdb8a7645cb5f3d0c352",
+    "mtime": 1793198790.7294266,
+    "seen": 1793200061.3069506,
+    "ast_hash": "d812716eb8361af3f553b7d22dcd0376",
     "semantic_hash": ""
   },
   "server/test/modules/billing/statements/statements.service.test.js": {
@@ -4098,15 +4098,15 @@
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/glossFields.js": {
-    "mtime": 1793134308.448774,
-    "seen": 1793135123.7325366,
-    "ast_hash": "08454c2be34dc0887ada5fa633799f8a",
+    "mtime": 1793198726.9100635,
+    "seen": 1793200061.3068275,
+    "ast_hash": "c44111a7331a462ee308e9c67e4fc5ba",
     "semantic_hash": ""
   },
   "server/test/modules/billing/invoices/glossFields.test.js": {
-    "mtime": 1793134367.7127852,
-    "seen": 1793135123.7326608,
-    "ast_hash": "13153dd336c4f6ca9799ac7c8d51adc8",
+    "mtime": 1793198767.9884126,
+    "seen": 1793200061.306948,
+    "ast_hash": "555093a560f86a18fd4284edf1baab48",
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/statementAmounts.js": {
