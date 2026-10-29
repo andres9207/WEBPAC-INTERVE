@@ -1,5 +1,6 @@
 # Integración continua (DEC-095): en cada push y PR a main y develop valida
-# que el servidor pase sus tests y que el cliente pase el lint y compile.
+# que el servidor pase el lint (DEC-097) y sus tests, y que el cliente pase el
+# lint y compile.
 # Instala con `npm ci` sobre los package-lock.json versionados, igual que el
 # servidor de Hostinger (npm install). La versión de Node sale del campo
 # "volta" de cada package.json, la misma que en local.
@@ -22,7 +23,7 @@ permissions:
 
 jobs:
   server:
-    name: Servidor · tests
+    name: Servidor · lint y tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -48,6 +49,9 @@ jobs:
 
       - name: Validar el esquema de Prisma
         run: npx prisma validate
+
+      - name: Lint
+        run: npm run lint
 
       - name: Tests
         run: npm test -- --ci

@@ -44,7 +44,7 @@ const duplicateMessage = (err) => UNIQUE_CONSTRAINT_MESSAGES[uniqueConstraintNam
 const isMySqlCode = (code) =>
   typeof code === "string" && (code.startsWith("ER_") || code === "PROTOCOL_CONNECTION_LOST");
 
-const errorMiddleware = (err, req, res, next) => {
+const errorMiddleware = (err, req, res, _next) => {
   // Registrar el error para depuración
   console.error(`[ERROR]: ${err.stack || err.message}`);
 

@@ -335,11 +335,21 @@ export default function DataTable({
                       />
                     </TableCell>
                   )}
-                  {visibleColumns.map((col) => (
-                    <TableCell key={col.id} align={col.align || 'left'} sx={stickySx(col)}>
-                      {getCellValue(row, col, index)}
-                    </TableCell>
-                  ))}
+                  {visibleColumns.map((col) => {
+                    // `rowSpan(row)`: la celda ocupa varias filas (p. ej. el proveedor de un grupo); 0, la cubre otra.
+                    const span = col.rowSpan ? col.rowSpan(row) : 1;
+                    if (span === 0) return null;
+                    return (
+                      <TableCell
+                        key={col.id}
+                        align={col.align || 'left'}
+                        rowSpan={span > 1 ? span : undefined}
+                        sx={{ ...stickySx(col), ...(span > 1 && { verticalAlign: 'middle', borderRight: 1, borderColor: 'divider' }) }}
+                      >
+                        {getCellValue(row, col, index)}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))
             )}
@@ -366,7 +376,9 @@ DataTable.propTypes = {
       cardFooter: PropTypes.bool,
       render: PropTypes.func,
       cardRender: PropTypes.func,
-      tableRender: PropTypes.func
+      tableRender: PropTypes.func,
+      /** Solo en la tabla: cuántas filas ocupa la celda desde esta; 0, ninguna (la cubre la de una fila anterior). */
+      rowSpan: PropTypes.func
     })
   ).isRequired,
   rows: PropTypes.array.isRequired,

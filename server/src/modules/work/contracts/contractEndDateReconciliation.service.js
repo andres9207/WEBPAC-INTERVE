@@ -1,4 +1,3 @@
-import { prisma } from "../../../common/configs/prismaClient.js";
 import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import { withTransaction } from "../../../common/services/transaction.service.js";

@@ -80,12 +80,35 @@ const LIST_SELECT = {
 // Obras a las que está asignado, todas (no solo las del alcance): solo con el permiso de ver todas las obras.
 const WORKS_COUNT_SELECT = { _count: { select: { tbl_work_providers: true } } };
 
-const toListDto = (row) => ({
+/**
+ * Tipos de la columna "Tipos" del listado (DEC-066): con una obra elegida, los
+ * de su asignación en esa obra (con los que se firman sus contratos y facturas
+ * allí); con "Ver todo", los del maestro más los de sus obras, sin repetir.
+ */
+const listWorkTypesSelect = (scope) => ({
+  tbl_work_providers: {
+    where: { ...scopeWhere(scope), tbl_works: { sta_id: { not: DELETED_STATUS } } },
+    select: { tbl_work_provider_types: WORK_TYPES_SELECT },
+  },
+});
+const listTypeNames = (row, scope) => {
+  const inWorks = (row.tbl_work_providers ?? []).flatMap((a) => typeNamesOf(a.tbl_work_provider_types));
+  const names = scope?.all ? [...typeNamesOf(row.tbl_provider_classifications), ...inWorks] : inWorks;
+  return [...new Set(names)].sort((a, b) => a.localeCompare(b, "es"));
+};
+
+/** Filtro por tipo, con la misma regla que la columna: en la obra elegida, o en el maestro o en alguna obra. */
+const typeFilterWhere = (scope, pvtId) => {
+  const inWorks = { tbl_work_providers: { some: { ...scopeWhere(scope), tbl_work_provider_types: { some: { pvt_id: pvtId } } } } };
+  return scope?.all ? { OR: [{ tbl_provider_classifications: { some: { pvt_id: pvtId } } }, inWorks] } : inWorks;
+};
+
+const toListDto = (row, scope) => ({
   prvId: row.prv_id,
   name: row.prv_name,
   identityCode: row.tbl_identity_documents?.idd_code ?? null,
   identification: row.prv_identification,
-  providerTypes: typeNamesOf(row.tbl_provider_classifications),
+  providerTypes: listTypeNames(row, scope),
   serviceType: row.prv_service_type,
   worksCount: row._count?.tbl_work_providers ?? null,
   staId: row.sta_id,
@@ -162,7 +185,7 @@ export const paginationProviders = async ({
   scope,
   withWorksCount = false,
 }) => {
-  const select = withWorksCount ? { ...LIST_SELECT, ...WORKS_COUNT_SELECT } : LIST_SELECT;
+  const select = { ...LIST_SELECT, ...listWorkTypesSelect(scope), ...(withWorksCount ? WORKS_COUNT_SELECT : {}) };
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
@@ -173,7 +196,7 @@ export const paginationProviders = async ({
     ...filtersWhere([
       containsFilter(name, (c) => ({ prv_name: c })),
       containsFilter(identification, (c) => ({ prv_identification: c })),
-      idFilter(pvtId, (id) => ({ tbl_provider_classifications: { some: { pvt_id: id } } })),
+      idFilter(pvtId, (id) => typeFilterWhere(scope, id)),
       idFilter(wrkId, (id) => ({ tbl_work_providers: { some: { wrk_id: id } } })),
     ]),
   };
@@ -183,7 +206,7 @@ export const paginationProviders = async ({
     paginate(prisma.tbl_providers, { where, select, orderBy }, { first, rows }),
     countByStatus(prisma.tbl_providers, baseWhere),
   ]);
-  return { ...page, results: page.results.map(toListDto), statusCounts };
+  return { ...page, results: page.results.map((row) => toListDto(row, scope)), statusCounts };
 };
 
 // ─── Detalle ─────────────────────────────────────────────────────────────────

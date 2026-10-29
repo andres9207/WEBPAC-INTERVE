@@ -1645,7 +1645,6 @@ describe("retenido contractual (DEC-051)", () => {
 // Obra 8 = la del registro; obra 9 = otra. Fuera del alcance, 404 sin tocar nada.
 const OWN = Object.freeze({ all: false, wrkId: 8 });
 const OTHER = Object.freeze({ all: false, wrkId: 9 });
-const NONE = Object.freeze({ all: false, wrkId: null });
 
 describe("IVA y retenciones de la normal y la liquidación (DEC-075)", () => {
   const detailUpsert = () => prismaMock.tbl_invoice_liquidation_details.upsert.mock.calls[0][0];

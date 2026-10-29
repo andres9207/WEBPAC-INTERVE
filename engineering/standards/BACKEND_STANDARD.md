@@ -34,6 +34,6 @@ camelCase con el sufijo de su capa (`works.service.js`, `money.utils.js`), y el 
 
 ## Estilo
 
-- JavaScript ESM sin linter configurado. Se replica el estilo del módulo de referencia: `async`/`await`, errores con `new Error(msg)` + `.statusCode`, objetos de configuración en `UPPER_SNAKE_CASE` (`PROFILE_SORT_FIELDS`).
+- JavaScript ESM con ESLint y las reglas recomendadas (`npm run lint`, [DEC-097](../decisiones/DEC-097-linter-servidor.md)); algo que se descarta a propósito lleva `_` delante o va en `...resto`. Se replica el estilo del módulo de referencia: `async`/`await`, errores con `new Error(msg)` + `.statusCode`, objetos de configuración en `UPPER_SNAKE_CASE` (`PROFILE_SORT_FIELDS`).
 - Comentarios que explican el **porqué** de una decisión no obvia, con referencia al ADR o DEC. No se comenta lo que el código ya dice.
 - Carpetas vestigiales (`src/images`, `src/socket`, `src/utils`, `src/webhooks`, `common/templates`) no reciben código nuevo.

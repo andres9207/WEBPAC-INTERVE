@@ -93,7 +93,6 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 | Modo oscuro sin revisión visual: la paleta y los componentes se pasaron a claves del tema, pero el contraste del oscuro no se midió pantalla por pantalla en el navegador, ni los colores de los gráficos (validados en DEC-052 y DEC-063 sobre fondo claro) contra el fondo oscuro | Media | DEC-073 |
 | Tests del cliente: no hay runner configurado | Media | `client/CLAUDE.md` |
 | Tests del servidor intermitentes: en la suite completa, a veces una suite no carga (sin test fallido ni mensaje; el 2026-10-27, `document.service` y luego `invoices.service`) y pasa al repetir. Posible carga de módulos ESM (`--experimental-vm-modules`) con varios workers. Probar `--runInBand` o subir el timeout para confirmarlo | Baja | Revisión 2026-10-27 |
-| Linter del servidor: no hay | Baja | `server/CLAUDE.md` |
 
 ## Seguridad (hallazgos sin corregir)
 

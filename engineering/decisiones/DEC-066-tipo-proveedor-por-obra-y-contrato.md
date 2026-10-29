@@ -31,6 +31,7 @@ Decidido por el usuario el 2026-10-19. Reemplaza lo que [DEC-056](DEC-056-menu-f
 - **Factura simple:** además de lo de DEC-058, la asignación del proveedor a la obra debe tener un tipo de menú `SIMPLE` (400). El formulario solo ofrece esos proveedores, y desde el proveedor, esas obras.
 - **Quitar un tipo de una asignación:** 409 si algún contrato de la obra (también eliminado) se firmó bajo él, o si era el último de menú simples y el proveedor tiene facturas simples en la obra.
 - **Se retira:** la prohibición de mezclar menús (`assertNotMixed`), el menú calculado del proveedor (`providerViewOf`, `resolveProviderView`, `providerViewWhere`), el cambio de menú con decisión (`applyProviderViewChanges`, `INVOICE_VIEW_CHANGE`, `invoiceMove`) y el diálogo del cliente (`useInvoiceViewChange`). La unión de tipos de DEC-053 (`mergeTypeRows`) también.
+- **Listado de proveedores** (2026-10-29, pedido del usuario): la columna "Tipos" y el filtro de tipo, con una obra elegida en el encabezado, son los de la asignación en esa obra; con "Ver todo", los del maestro más los de sus obras (sin repetir). Antes eran solo los del maestro, y no se veía un tipo agregado en la obra.
 - **Bloqueo:** asignar y editar la asignación bloquean obra → proveedor → tipos pedidos. Crear y editar un contrato bloquean además su tipo de proveedor.
 
 ## Descartado

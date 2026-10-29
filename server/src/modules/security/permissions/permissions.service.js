@@ -182,7 +182,7 @@ const auditPermissionChanges = async (tx, { entity, recordId, granted, revoked, 
   }
 };
 
-export const updateProfilePermissions = async ({ permissions, proId, actingProId, ctx = {} }) => {
+export const updateProfilePermissions = async ({ permissions, proId, ctx = {} }) => {
   if (!permissions || !proId) {
     const error = new Error(
       "Los permisos (permissions) y el perfil (proId) son obligatorios"
@@ -194,8 +194,8 @@ export const updateProfilePermissions = async ({ permissions, proId, actingProId
   // Decisión del usuario (2026-10-23, SECURITY.md): quien tiene el permiso de
   // asignar permisos a perfiles puede modificar también los de su propio
   // perfil. Lo único que nadie hace sobre sí mismo es eliminarse
-  // (users.service.js). `actingProId` ya no decide nada; se sigue recibiendo
-  // del controller (de req.user) por si la regla vuelve.
+  // (users.service.js). `actingProId` ya no decide nada: el controller lo sigue enviando
+  // (de req.user) por si la regla vuelve, y aquí se ignora.
 
   await withLockedTransaction({ PERFIL: proId }, async (tx) => {
     const currentPermissions = await tx.tbl_profile_permissions.findMany({

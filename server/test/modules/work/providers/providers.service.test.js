@@ -701,13 +701,56 @@ describe("consultas", () => {
     const filters = [
       { prv_name: { contains: "acer" } },
       { prv_identification: { contains: "900" } },
-      { tbl_provider_classifications: { some: { pvt_id: 3 } } },
+      // Con una obra elegida, el tipo es el de su asignación en esa obra (DEC-066), como la columna Tipos.
+      { tbl_work_providers: { some: { wrk_id: { in: [8] }, tbl_work_provider_types: { some: { pvt_id: 3 } } } } },
       { tbl_work_providers: { some: { wrk_id: 9 } } },
     ];
     const where = prismaMock.tbl_providers.findMany.mock.calls[0][0].where;
     expect(where.tbl_work_providers).toEqual({ some: { wrk_id: { in: [8] } } });
     expect(where.AND).toEqual([...filters, { sta_id: 2 }]);
     expect(prismaMock.tbl_providers.groupBy.mock.calls[0][0].where.AND).toEqual(filters);
+  });
+
+  it("con \"Ver todo\", el filtro de tipo busca en el maestro o en alguna obra", async () => {
+    prismaMock.tbl_providers.findMany.mockResolvedValue([]);
+    prismaMock.tbl_providers.count.mockResolvedValue(0);
+    prismaMock.tbl_providers.groupBy.mockResolvedValue([]);
+
+    await service.paginationProviders({ pvtId: 3, scope: { all: true } });
+
+    expect(prismaMock.tbl_providers.findMany.mock.calls[0][0].where.AND).toEqual([
+      {
+        OR: [
+          { tbl_provider_classifications: { some: { pvt_id: 3 } } },
+          { tbl_work_providers: { some: { tbl_work_provider_types: { some: { pvt_id: 3 } } } } },
+        ],
+      },
+    ]);
+  });
+
+  it("columna Tipos: con una obra elegida, los de su asignación en ella; con \"Ver todo\", los del maestro y los de sus obras, sin repetir", async () => {
+    const type = (name) => ({ tbl_provider_types: { pvt_name: name } });
+    const row = {
+      prv_id: 1,
+      prv_name: "4S Safety",
+      tbl_provider_classifications: [type("Simple")],
+      tbl_work_providers: [{ tbl_work_provider_types: [type("Simple"), type("Subcontratista"), type("Contrato mayor")] }],
+    };
+    prismaMock.tbl_providers.findMany.mockResolvedValue([row]);
+    prismaMock.tbl_providers.count.mockResolvedValue(1);
+    prismaMock.tbl_providers.groupBy.mockResolvedValue([]);
+
+    const inWork = await service.paginationProviders({ scope: { all: false, wrkId: 8 } });
+    expect(inWork.results[0].providerTypes).toEqual(["Contrato mayor", "Simple", "Subcontratista"]);
+    // Las asignaciones se leen solo en el alcance y de obras no eliminadas.
+    expect(prismaMock.tbl_providers.findMany.mock.calls[0][0].select.tbl_work_providers.where).toEqual({
+      wrk_id: { in: [8] },
+      tbl_works: { sta_id: { not: 3 } },
+    });
+
+    prismaMock.tbl_providers.findMany.mockResolvedValue([{ ...row, tbl_provider_classifications: [type("Proveedor")] }]);
+    const all = await service.paginationProviders({ scope: { all: true } });
+    expect(all.results[0].providerTypes).toEqual(["Contrato mayor", "Proveedor", "Simple", "Subcontratista"]);
   });
 
   it("la verificación por documento es exacta y no encuentra eliminados", async () => {

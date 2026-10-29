@@ -1122,7 +1122,6 @@ describe("solicitud de AIU del contrato (ADR-0026, P13; DEC-046)", () => {
 // Obra 8 = la del registro; obra 9 = otra. Fuera del alcance, 404 sin tocar nada.
 const OWN = Object.freeze({ all: false, wrkId: 8 });
 const OTHER = Object.freeze({ all: false, wrkId: 9 });
-const NONE = Object.freeze({ all: false, wrkId: null });
 
 describe("alcance por obra (DEC-047)", () => {
   it("el listado filtra por la obra del alcance", async () => {

@@ -114,6 +114,7 @@ Seguir los estándares y el patrón existente. No duplicar lógica, no crear abs
 | Qué | Cómo, hoy |
 | --- | --- |
 | Tests del servidor | `cd server && npm test` (Jest, unitarios con mocks). Ver [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
+| Lint del servidor | `cd server && npm run lint` ([DEC-097](decisiones/DEC-097-linter-servidor.md)) |
 | Lint del cliente | `cd client && npm run lint` |
 | Build del cliente | `cd client && npm run build` |
 | CI | Los tres anteriores corren en GitHub Actions en cada push y PR a `main` y `develop` (`.github/workflows/ci.yml`, [DEC-095](decisiones/DEC-095-ci-health-check.md)). Una dependencia nueva se agrega con `npm install` y se versiona su `package-lock.json` |
@@ -123,7 +124,7 @@ Seguir los estándares y el patrón existente. No duplicar lógica, no crear abs
 
 Para workflows además: transiciones válidas, inválidas, sin permiso, reintento con la misma clave, concurrencia y fallo parcial (rollback).
 
-El servidor no tiene linter y el cliente no tiene tests (ver [deuda](debt/TECHNICAL_DEBT.md)). Si algo no se pudo verificar, se dice en el reporte.
+El cliente no tiene tests (ver [deuda](debt/TECHNICAL_DEBT.md)). Si algo no se pudo verificar, se dice en el reporte.
 
 ## 9. Revisar
 

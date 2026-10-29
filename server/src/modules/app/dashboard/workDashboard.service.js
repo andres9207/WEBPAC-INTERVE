@@ -21,7 +21,6 @@ import {
   POLICY_VALIDITY,
   POLICY_VALIDITY_NAMES,
   contractPolicyStatus,
-  contractsWithoutPoliciesWhere,
   decidingPolicy,
   policyValidity,
   uncoveredConcepts,

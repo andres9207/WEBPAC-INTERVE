@@ -12,6 +12,7 @@ yarn build          # prisma generate
 yarn pm2:start      # pm2 start ecosystem.config.cjs (producción, ver ecosystem.config.cjs)
 yarn test           # jest (unitarios, con mocks — sin BD real)
 yarn test:watch     # jest --watch
+npm run lint        # eslint . (DEC-097; el CI lo exige)
 yarn db:seed        # prisma db seed (siembra/repara tbl_pages, tbl_permissions y los permisos del superadmin)
 yarn db:seed:demo   # datos de demostración para desarrollo (ver "Datos de demostración")
 yarn db:check-invariants  # intenta violar I6 a I15 contra la BD y exige que las rechace su restricción; todo se revierte (database/migrations/README.md)
@@ -213,4 +214,4 @@ Las tablas de MySQL usan prefijos y columnas con prefijos cortos que coinciden c
 
 ## Estilo de código
 
-El código del servidor es JavaScript ESM plano sin linter configurado; los controllers/services existentes en cada módulo siguen los patrones try/catch + `next(err)` (controllers) o acceso vía Prisma con errores lanzados con `.statusCode` (services) mostrados arriba — replícalos para mantener consistencia.
+El código del servidor es JavaScript ESM plano con ESLint (`npm run lint`, reglas recomendadas, [DEC-097](../engineering/decisiones/DEC-097-linter-servidor.md)); los controllers/services existentes en cada módulo siguen los patrones try/catch + `next(err)` (controllers) o acceso vía Prisma con errores lanzados con `.statusCode` (services) mostrados arriba — replícalos para mantener consistencia.

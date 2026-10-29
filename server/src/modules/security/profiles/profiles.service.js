@@ -132,7 +132,6 @@ const persistProfile = async ({
   name,
   staId,
   modules,
-  previousModules,
   useBy,
   ctx = { useId: useBy },
   idempotencyData = {},

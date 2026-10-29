@@ -52,7 +52,12 @@ const invoiceRowsOf = (report) => {
   const byId = new Map(report.invoices.map((invoice) => [invoice.invId, invoice]));
   return [
     ...report.byProvider.flatMap((group, index) => [
-      ...group.invIds.map((invId, i) => ({ ...byId.get(invId), groupLabel: i === 0 ? group.providerName : '' })),
+      // La primera factura lleva el proveedor y ocupa todas las filas del grupo (`groupSpan`); las demás, 0.
+      ...group.invIds.map((invId, i) => ({
+        ...byId.get(invId),
+        groupLabel: group.providerName,
+        groupSpan: i === 0 ? group.invIds.length : 0
+      })),
       { kind: 'subtotal', invId: `subtotal-${index}`, label: 'Subtotal', ...group.subtotal }
     ]),
     { kind: 'total', invId: 'total', label: 'Total', amounts: report.amountTotals, glossesValue: report.invoiceGlossesTotal }
@@ -73,6 +78,8 @@ const invoiceColumnsOf = (amountColumns) => [
   {
     id: 'providerName',
     label: 'Proveedor',
+    // Una sola celda para todas las facturas del proveedor, como en el Excel (DEC-070).
+    rowSpan: (row) => (isInvoice(row) ? row.groupSpan : 1),
     render: onlyInvoice((row) =>
       row.groupLabel ? (
         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
