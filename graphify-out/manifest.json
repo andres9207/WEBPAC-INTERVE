@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "client/src/routes/MainRoutes.jsx": {
-    "mtime": 1793134915.1534576,
-    "seen": 1793135123.7320397,
-    "ast_hash": "f2d5e5bea4bdfc6f2a51de292cbf0aa0",
+    "mtime": 1793307333.1913633,
+    "seen": 1793307840.894838,
+    "ast_hash": "84b99808716076d2dac638e3c577df5f",
     "semantic_hash": ""
   },
   "client/src/routes/PrivateRoute.jsx": {
@@ -762,9 +762,9 @@
     "semantic_hash": ""
   },
   "client/src/utils/constants.js": {
-    "mtime": 1793284950.930699,
-    "seen": 1793290613.366015,
-    "ast_hash": "4a362b4424fe21495fbdb120198d3beb",
+    "mtime": 1793307659.3227038,
+    "seen": 1793307840.8954155,
+    "ast_hash": "c282f87ee20ceedd6a835550713bfc0a",
     "semantic_hash": ""
   },
   "client/src/utils/formatNumber.js": {
@@ -2688,21 +2688,21 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/InvoiceDetailPage.jsx": {
-    "mtime": 1793200445.2562048,
-    "seen": 1793201107.57529,
-    "ast_hash": "a7f22189153f3765d151b575cd2aaebc",
+    "mtime": 1793307334.9032955,
+    "seen": 1793307840.8955817,
+    "ast_hash": "9a59718048ecf61d8d6783fc9368d22d",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/InvoiceFormPage.jsx": {
-    "mtime": 1793304476.9740665,
-    "seen": 1793305155.2586322,
-    "ast_hash": "4efa5ca998b1e469b9b155bb932739a0",
+    "mtime": 1793307335.0046816,
+    "seen": 1793307840.8955894,
+    "ast_hash": "3067e94ab0a01d34be144fb10dc47530",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/InvoicesPage.jsx": {
-    "mtime": 1793200632.9700103,
-    "seen": 1793201107.5752919,
-    "ast_hash": "4c74fc6a942e06bd7072f35b411a19e2",
+    "mtime": 1793307333.1913633,
+    "seen": 1793307840.8955967,
+    "ast_hash": "1c14d079cc875316325c9272b2a29181",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/ApproveInvoiceDialog.jsx": {
@@ -2754,9 +2754,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/invoiceTerms.js": {
-    "mtime": 1793200599.5095258,
-    "seen": 1793201107.575669,
-    "ast_hash": "3b6e76a21792faf08706f2be3cd2983a",
+    "mtime": 1793307659.3227038,
+    "seen": 1793307840.8983982,
+    "ast_hash": "f6d2078c5b2e8473c3896063a6de8235",
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/invoices.controller.js": {
@@ -2796,9 +2796,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/billing/invoices/invoices.service.test.js": {
-    "mtime": 1793304198.8856077,
-    "seen": 1793305155.2591324,
-    "ast_hash": "7f57f85865e95074a9babc8a20f46e6f",
+    "mtime": 1793307659.330976,
+    "seen": 1793307840.8992422,
+    "ast_hash": "608803ea540a5dbfa3c0fcdd16899d0d",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/InvoicesTab.jsx": {

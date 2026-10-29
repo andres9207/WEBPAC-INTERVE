@@ -1,24 +1,24 @@
 # Graph Report - WEBPAC-INTERVE  (2026-10-29)
 
 ## Corpus Check
-- 702 files · ~416,718 words
+- 702 files · ~417,779 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 11 file(s) not represented in the graph (top: (none) 6, .template 1, .css 1)
 
 ## Summary
-- 4477 nodes · 12690 edges · 246 communities (134 shown, 112 thin omitted)
+- 4478 nodes · 12709 edges · 241 communities (127 shown, 114 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 166 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `b78e5671`
+- Built from commit: `7ec12403`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - overrides/index.js
 - dependencies
-- fMoneyText
+- PoliciesTab.jsx
 - providers.routes.js
 - dependencies
 - server/package.json
@@ -26,13 +26,13 @@
 - constants.js
 - workScopeOf
 - InvoiceFormPage.jsx
-- ConceptDialog.jsx
+- ContractDetailPage.jsx
 - WorksPage.jsx
 - auth.routes.js
 - statements.service.js
 - client/package.json
 - @mui/material
-- ContractsPage.jsx
+- expirationNotice.service.js
 - workDashboard.service.js
 - invoices.service.test.js
 - compilerOptions
@@ -40,51 +40,51 @@
 - invoices.service.js
 - contractInvoiceTerms.js
 - `tbl_users`
-- simpleInvoiceTerms.js
-- contracts.service.test.js
+- users.service.js
+- authjwt.middleware.js
 - contractSuspensions.service.test.js
-- App.jsx
-- policyTypes.service.js
+- themes/index.jsx
+- contractPolicies.service.js
 - invoices.controller.test.js
 - invoiceGlosses.service.js
 - menu-items/index.js
-- withAlpha
+- SimpleBar.jsx
 - showError
 - `tbl_contract_concepts`
 - client_src_assets_images_logo_interve
 - providers.service.test.js
-- WorkChartsTab.jsx
+- fMoneyText
 - contracts.controller.js
 - cron/index.js
 - works.service.js
-- useGetMenuMaster
+- useMenuCollapse.js
 - devDependencies
 - GeneralDashboard.jsx
 - MainLayout/index.jsx
 - scripts
 - AuthenticationRoutes.jsx
 - `tbl_contracts`
-- StatementsPage.jsx
+- StatementReportDialog.jsx
 - app.js
 - decimal
 - dateOnlyText
 - `tbl_contract_type_fields`
-- glossFields.js
+- runIdempotent
 - transaction.mock.js
 - scripts
-- WorkSummaryTab.jsx
+- App.jsx
 - AuthForgotPassword.jsx
 - compilerOptions
 - excelJS.js
-- MainCard
+- transaction.service.js
 - permission
 - devDependencies
 - ref_fs
 - prisma-drift.mjs
 - seed.demo.js
-- providerTypes.routes.js
+- auth.service.test.js
 - `tbl_contract_status_history`
-- invoiceTerms.js
+- status.constants.js
 - `tbl_status`
 - useAuth
 - `tbl_permissions`
@@ -95,25 +95,25 @@
 - notifications.service.js
 - `tbl_works`
 - `tbl_policies`
-- ContractDetailPage.jsx
+- WorkDetailPage.jsx
 - export.service.js
 - works.service.test.js
 - error.middleware.js
-- getEffectivePermissionIds
+- app.service.js
 - `tbl_providers`
-- advanceFilters.js
+- serviceWorker.jsx
 - balanceReconciliation.service.js
-- session.service.js
+- auth.service.js
 - handleFirebase.js
-- useConfig.js
+- ImageList.jsx
 - `tbl_providers`
-- WorkCosts.jsx
+- workScope.service.test.js
 - ci-summary.mjs
 - contracts.controller.test.js
-- AdvanceBars.jsx
-- contractPolicies.service.js
+- browserslist
+- contractConcepts.service.js
 - MenuList/index.jsx
-- eslint.config.js
+- eslint.config.mjs
 - `tbl_work_stages`
 - `tbl_contracts`
 - `tbl_reasons`
@@ -130,22 +130,19 @@
 - seed.js
 - `tbl_users`
 - balanceReconciliation.service.test.js
-- contractEndDateReconciliation.service.test.js
+- volta
 - winston.config.js
-- DocumentManagement.jsx
+- formatTime.js
 - client_src_assets_images_interve
 - invariants.check.js
 - authjwt.middleware.test.js
 - contractPolicies.service.test.js
 - invoiceEvidence.service.test.js
-- workDashboard.utils.js
-- ForgotPassword.jsx
+- EasyCrop.jsx
 - decisionReferences.guard.test.js
-- SearchSection/index.jsx
 - dashboardDetail.service.test.js
-- dashboard.service.test.js
 - session.service.test.js
-- validation.utils.js
+- main.routes.js
 - ref_jest_globals
 - contracts.service.js
 - `tbl_invoices`
@@ -156,7 +153,7 @@
 - invoiceGlosses.service.test.js
 - invoiceFollowUps.service.test.js
 - uniqueConstraints.constants.test.js
-- contractFields.js
+- providerTypeFields.service.js
 - transaction.service.test.js
 - extends
 - `tbl_works`
@@ -165,9 +162,7 @@
 - contractLiquidation.service.test.js
 - `tbl_users`
 - `tbl_work_stages`
-- contractCancellation.service.test.js
 - master.service.test.js
-- contractNotifications.service.test.js
 - DebouncedInput.jsx
 
 ## God Nodes (most connected - your core abstractions)
@@ -180,40 +175,40 @@
 7. `writeAudit()` - 81 edges
 8. `useAuth()` - 79 edges
 9. `withLockedTransaction()` - 77 edges
-10. `fMoneyText()` - 71 edges
+10. `fMoneyText()` - 72 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `getUserPermissions()` --calls--> `getEffectivePermissionIds()`  [EXTRACTED]
+  server/src/modules/app/general/app.service.js → server/src/common/services/effectivePermissions.service.js
+- `selectWorkManagers()` --calls--> `userFullName()`  [EXTRACTED]
+  server/src/modules/work/works/works.service.js → server/src/common/utils/user.utils.js
 - `selectContractFilterStages()` --calls--> `scopeWhere()`  [EXTRACTED]
   server/src/modules/work/contracts/contracts.service.js → server/src/common/services/workScope.service.js
-- `getInvoiceFormOptions()` --calls--> `getContractFormOptions()`  [EXTRACTED]
-  server/src/modules/billing/invoices/invoices.service.js → server/src/modules/work/contracts/contracts.service.js
-- `createMasterRouter()` --indirect_call--> `verifyToken()`  [INFERRED]
-  server/src/common/utils/masterRouter.utils.js → server/src/common/middlewares/authjwt.middleware.js
-- `UserDialog` --indirect_call--> `ChipMultiSelect()`  [INFERRED]
-  client/src/views/security/users/components/UserDialog.jsx → client/src/ui-component/extended/ChipMultiSelect.jsx
-- `glossRules()` --calls--> `optionalText()`  [EXTRACTED]
-  server/src/modules/billing/invoices/invoices.validation.js → server/src/common/utils/validation.utils.js
+- `deleteModuleDoc()` --calls--> `withLockedTransaction()`  [EXTRACTED]
+  server/src/modules/app/documents/document.service.js → server/src/common/services/transaction.service.js
+- `percentQuery()` --calls--> `decimal()`  [EXTRACTED]
+  server/src/modules/billing/invoices/invoices.validation.js → server/src/common/utils/money.utils.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (246 total, 112 thin omitted)
+## Communities (241 total, 114 thin omitted)
 
 ### Community 0 - "overrides/index.js"
 Cohesion: 0.08
-Nodes (24): Avatar(), Button(), CardActions(), CardContent(), CardHeader(), Checkbox(), DataGrid(), DatePicker() (+16 more)
+Nodes (26): Alert(), Avatar(), Button(), CardActions(), CardContent(), CardHeader(), Checkbox(), Chip() (+18 more)
 
 ### Community 1 - "dependencies"
 Cohesion: 0.04
 Nodes (45): dependencies, axios, @azure/identity, bcrypt, compression, cookie-parser, cors, cross-env (+37 more)
 
-### Community 2 - "fMoneyText"
-Cohesion: 0.08
-Nodes (44): contractPoliciesApi, getInsurersSelectAPI, getPolicyTypesSelectAPI, InvoiceDetailPage, AlertChips(), CONTRACT_STATE_TABS, fMoneyText(), fPercentText() (+36 more)
+### Community 2 - "PoliciesTab.jsx"
+Cohesion: 0.13
+Nodes (20): contractPoliciesApi, getInsurersSelectAPI, getPolicyTypesSelectAPI, complete(), PercentField(), toText(), toValue(), ADR-0018 (+12 more)
 
 ### Community 3 - "providers.routes.js"
 Cohesion: 0.08
-Nodes (36): canViewAllWorks(), resolveWorkScope(), ASSIGNMENT_FIELDS, assignProviderController, changeProviderStatusController, checkIdentificationController, deleteProviderController, exportProvidersController (+28 more)
+Nodes (35): canViewAllWorks(), ASSIGNMENT_FIELDS, assignProviderController, changeProviderStatusController, checkIdentificationController, deleteProviderController, exportProvidersController, getProviderController (+27 more)
 
 ### Community 4 - "dependencies"
 Cohesion: 0.05
@@ -224,28 +219,28 @@ Cohesion: 0.05
 Nodes (39): @azure/identity, cross-env, dayjs, excel4node, fs-extra, generic-pool, isomorphic-fetch, jest (+31 more)
 
 ### Community 6 - "providers.service.js"
-Cohesion: 0.05
-Nodes (84): defineContacts(), FIELDS, httpError(), ADR-0009, optionalText(), DIAN_WEIGHTS, formatFor(), GENERIC_FORMAT (+76 more)
+Cohesion: 0.07
+Nodes (68): applyAssignmentTypes(), applyProviderTypes(), assertAssignmentDate(), assertProviderAssignable(), assertProviderInScope(), assertProviderTypes(), assertTypeIds(), assertWorkAssignable() (+60 more)
 
 ### Community 7 - "constants.js"
 Cohesion: 0.06
-Nodes (43): getInvoiceFilterProvidersAPI(), getInvoiceFilterStagesAPI(), invoicesApi, client_src_hooks_useinvoicemenus_usecanviewinvoices, client_src_hooks_useinvoicemenus_useinvoicemenu, SocketContext, TooltipLongText(), CONTRACT_ALERT_OPTIONS (+35 more)
+Nodes (46): exportInvoicesAPI(), getInvoiceFilterProvidersAPI(), getInvoiceFilterStagesAPI(), client_src_hooks_useinvoicemenus, client_src_hooks_useinvoicemenus_usecanviewinvoices, client_src_hooks_useinvoicemenus_useinvoicemenu, SocketContext, LinkedFilterNotice() (+38 more)
 
 ### Community 8 - "workScopeOf"
 Cohesion: 0.04
-Nodes (87): workScopeOf(), server_src_modules_billing_invoices_invoicemenus_getinvoicemenu, approveInvoiceController, cancelInvoiceController, closeInvoiceFollowUpController, createInvoiceGlossController, deleteInvoiceController, deleteInvoiceFollowUpController (+79 more)
+Nodes (90): workScopeOf(), CONTRACT_PAIRS, CONTRACT_TAX_FIELDS, server_src_modules_billing_invoices_invoicemenus_getinvoicemenu, approveInvoiceController, cancelInvoiceController, closeInvoiceFollowUpController, createInvoiceGlossController (+82 more)
 
 ### Community 9 - "InvoiceFormPage.jsx"
-Cohesion: 0.07
-Nodes (55): exportInvoicesAPI(), getContractAdvanceAPI(), getInvoiceContractsSelectAPI(), getInvoiceFormOptionsAPI(), getInvoiceProvidersSelectAPI(), getInvoiceWorksSelectAPI(), invoiceFollowUpsApi, invoiceGlossesApi (+47 more)
+Cohesion: 0.06
+Nodes (63): getContractAdvanceAPI(), getInvoiceContractsSelectAPI(), getInvoiceFormOptionsAPI(), getInvoiceProvidersSelectAPI(), getInvoiceWorksSelectAPI(), invoiceFollowUpsApi, invoiceGlossesApi, invoicesApi (+55 more)
 
-### Community 10 - "ConceptDialog.jsx"
-Cohesion: 0.07
-Nodes (50): getContractFieldsAPI(), getContractFormOptionsAPI(), getContractWorksSelectAPI(), previewContractConceptAPI(), previewContractEndDateAPI(), useEndDatePreview(), AmountPercentField(), isZero() (+42 more)
+### Community 10 - "ContractDetailPage.jsx"
+Cohesion: 0.04
+Nodes (86): contractConceptsApi, contractLiquidationApi, contractsApi, exportContractAPI(), exportContractsAPI(), getContractFieldsAPI(), getContractFilterProvidersAPI(), getContractFilterStagesAPI() (+78 more)
 
 ### Community 11 - "WorksPage.jsx"
-Cohesion: 0.07
-Nodes (37): constructionCompaniesApi, getConstructionCompaniesSelectAPI, getContractTypesSelectAPI, ADR-0019, getProviderTypeFieldsAPI(), saveProviderTypeFieldsAPI(), getSupervisionTypesSelectAPI, supervisionTypesApi (+29 more)
+Cohesion: 0.05
+Nodes (51): getAddressTypesSelectAPI, getStatusesByScopeAPI(), getConstructionCompaniesSelectAPI, getContractTypesSelectAPI, ADR-0019, getProviderTypeFieldsAPI(), saveProviderTypeFieldsAPI(), getSupervisionTypesSelectAPI (+43 more)
 
 ### Community 12 - "auth.routes.js"
 Cohesion: 0.09
@@ -253,87 +248,87 @@ Nodes (29): THEME_MODES, forgotPasswordController(), getSettlementController(), 
 
 ### Community 13 - "statements.service.js"
 Cohesion: 0.06
-Nodes (80): renderDocument(), capitalize(), createMasterService(), httpError(), ADR-0003, ADR-0004, ADR-0013, ADR-0027 (+72 more)
+Nodes (82): renderDocument(), capitalize(), createMasterService(), httpError(), ADR-0003, ADR-0004, ADR-0013, ADR-0027 (+74 more)
 
 ### Community 14 - "client/package.json"
-Cohesion: 0.05
-Nodes (43): asWarnings(), compat, __dirname, __filename, isOff(), browserslist, development, production (+35 more)
+Cohesion: 0.08
+Nodes (25): axios, eslint, @eslint/js, eslint-plugin-sonarjs, moment, name, packageManager, private (+17 more)
 
 ### Community 15 - "@mui/material"
-Cohesion: 0.04
-Nodes (84): getAddressTypesSelectAPI, getStatusesByScopeAPI(), deleteProfileAPI(), paginationProfilesAPI(), deleteUserAPI(), paginationUsersAPI(), filterParams(), isEmptyValue() (+76 more)
+Cohesion: 0.05
+Nodes (70): deleteProfileAPI(), paginationProfilesAPI(), deleteUserAPI(), paginationUsersAPI(), filterParams(), isEmptyValue(), NO_FILTERS, useListFilters() (+62 more)
 
-### Community 16 - "ContractsPage.jsx"
-Cohesion: 0.08
-Nodes (35): contractConceptsApi, contractLiquidationApi, contractsApi, exportContractAPI(), exportContractsAPI(), getContractFilterProvidersAPI(), getContractFilterStagesAPI(), getContractMenuAPI() (+27 more)
+### Community 16 - "expirationNotice.service.js"
+Cohesion: 0.10
+Nodes (33): AUDIT_OPERATIONS, BUSINESS_RULES, DEFAULT_EXPIRING_DAYS, MAX_RULE_DAYS, MIN_RULE_DAYS, getBusinessRulesController, saveBusinessRulesController, FIELD_BY_KEY (+25 more)
 
 ### Community 17 - "workDashboard.service.js"
-Cohesion: 0.10
-Nodes (50): moneyText(), ratioPercent(), sumMoney(), progressLevel(), termProgress(), ADVANCE_LEVELS, advanceBar(), advanceLevel() (+42 more)
+Cohesion: 0.11
+Nodes (44): moneyText(), sumMoney(), ADVANCE_LEVELS, advanceBar(), advanceLevel(), alertsOf(), balancesOf(), byProviderTypeBlock() (+36 more)
 
 ### Community 18 - "invoices.service.test.js"
 Cohesion: 0.05
-Nodes (35): condition(), ADR-0017, ADR-0018, ADR-0020, ADR-0021, ADR-0024, ADR-0025, LIQUIDATION_CONDITIONS (+27 more)
+Nodes (36): ADR-0024, ADR-0027, condition(), ADR-0017, ADR-0018, ADR-0020, ADR-0021, ADR-0024 (+28 more)
 
 ### Community 19 - "compilerOptions"
 Cohesion: 0.10
 Nodes (20): compilerOptions, allowJs, allowSyntheticDefaultImports, baseUrl, esModuleInterop, forceConsistentCasingInFileNames, isolatedModules, jsx (+12 more)
 
 ### Community 20 - "permissions.constants.js"
-Cohesion: 0.04
-Nodes (54): ADR-0011, ADR-0016, ADR-0017, ADR-0018, ADR-0019, ADR-0020, ADR-0024, ADR-0025 (+46 more)
+Cohesion: 0.06
+Nodes (42): ADR-0011, ADR-0016, ADR-0017, ADR-0018, ADR-0019, ADR-0020, ADR-0025, ADR-0026 (+34 more)
 
 ### Community 21 - "invoices.service.js"
-Cohesion: 0.04
-Nodes (105): ADR-0013, ADR-0021, ADR-0023, findExportRows(), renderExport(), server_src_modules_billing_invoices_invoicemenus_issimplemode, server_src_modules_billing_invoices_invoicemenus_simple_type_where, adjustableAmount() (+97 more)
+Cohesion: 0.03
+Nodes (148): ADR-0021, ADR-0023, renderExport(), toMoney(), isBillingType(), composeContractInvoice(), hasContractTaxes(), server_src_modules_billing_invoices_invoicemenus_simple_type_where (+140 more)
 
 ### Community 22 - "contractInvoiceTerms.js"
 Cohesion: 0.10
-Nodes (32): server_src_common_utils_money_utils_percentfor, assertContractTotal(), blank(), composeContractInvoice(), composeWith(), CONTRACT_FORMULA_VERSION, CONTRACT_PAIRS, CONTRACT_TAX_FIELDS (+24 more)
+Nodes (37): server_src_common_utils_money_utils_percentfor, percentOf(), percentText(), toPercent(), assertContractTotal(), blank(), composeWith(), CONTRACT_FORMULA_VERSION (+29 more)
 
 ### Community 23 - "`tbl_users`"
 Cohesion: 0.18
 Nodes (15): `tbl_documents`, `tbl_notifications`, `tbl_page_permissions`, `tbl_pages`, `tbl_password_resets`, `tbl_permissions`, `tbl_profile_permissions`, `tbl_profiles` (+7 more)
 
-### Community 24 - "simpleInvoiceTerms.js"
-Cohesion: 0.15
-Nodes (15): previewSimpleInvoice(), blank(), FORMULAS, hasSimpleAmounts(), httpError(), ADR-0023, ADR-0026, SIMPLE_FIELDS (+7 more)
+### Community 24 - "users.service.js"
+Cohesion: 0.10
+Nodes (22): ADR-0004, DIAN_WEIGHTS, GENERIC_FORMAT, IDENTIFICATION_FORMATS, identificationError(), ADR-0008, assertAssignableProfile(), assertIdentification() (+14 more)
 
-### Community 25 - "contracts.service.test.js"
-Cohesion: 0.17
-Nodes (9): ctx, input(), ADR-0015, ADR-0017, OTHER, OWN, prismaMock, state (+1 more)
+### Community 25 - "authjwt.middleware.js"
+Cohesion: 0.15
+Nodes (14): jsonwebtoken, socket.io, authenticateHandshake(), getCookieValue(), init(), allowedHosts, isOriginAllowed(), setIO() (+6 more)
 
 ### Community 26 - "contractSuspensions.service.test.js"
-Cohesion: 0.06
-Nodes (23): CONFIGURABLE_FIELDS, CONTRACT_FIELDS_CATALOG, fieldId(), KEY_TO_ID, typeFieldRows(), ADR-0006, row(), ctx (+15 more)
+Cohesion: 0.05
+Nodes (28): CONTRACT_FIELDS_CATALOG, KEY_TO_ID, typeFieldRows(), ctx, prismaMock, state, ctx, ADR-0016 (+20 more)
 
-### Community 27 - "App.jsx"
-Cohesion: 0.11
-Nodes (19): refreshSession(), App(), ThemedToastContainer(), config, CSS_VAR_PREFIX, DASHBOARD_PATH, DEFAULT_THEME_MODE, AuthContext (+11 more)
+### Community 27 - "themes/index.jsx"
+Cohesion: 0.13
+Nodes (15): config, CSS_VAR_PREFIX, DASHBOARD_PATH, DEFAULT_THEME_MODE, ConfigContext, ConfigProvider(), useLocalStorage(), createCustomShadow() (+7 more)
 
-### Community 28 - "policyTypes.service.js"
-Cohesion: 0.22
-Nodes (11): insuredValue(), ADR-0019, ADR-0026, POLICY_BASE_NAMES, POLICY_BASES, policyBaseValue(), configurePolicyTypeBase(), httpError() (+3 more)
+### Community 28 - "contractPolicies.service.js"
+Cohesion: 0.04
+Nodes (81): findExportRows(), insuredValue(), ADR-0019, ADR-0026, POLICY_BASE_NAMES, POLICY_BASES, policyBaseValue(), server_src_modules_billing_invoices_invoicemenus_iscontractmode (+73 more)
 
 ### Community 29 - "invoices.controller.test.js"
 Cohesion: 0.05
 Nodes (30): mockReq(), emit, fieldsServiceMock, mockDelete, mockSave, emit, followUpsMock, getEffectivePermissionIds (+22 more)
 
 ### Community 30 - "invoiceGlosses.service.js"
-Cohesion: 0.13
-Nodes (38): assertReleaser(), auditable(), findLockedOpenGloss(), httpError(), ADR-0027, RELEASE_AUDITED, writeGlossRelease(), assertFieldsFor() (+30 more)
+Cohesion: 0.11
+Nodes (43): AUDIT_ENTITIES, glossTotal(), assertReleaser(), auditable(), findLockedOpenGloss(), httpError(), ADR-0027, RELEASE_AUDITED (+35 more)
 
 ### Community 31 - "menu-items/index.js"
 Cohesion: 0.10
 Nodes (14): admin, icons, billing, dashboard, icons, menuItems, icons, other (+6 more)
 
-### Community 32 - "withAlpha"
-Cohesion: 0.15
-Nodes (16): getTimeAgo(), ListItemWrapper(), NotificationList(), typeConfig, Alert(), Chip(), buildPalette(), defaultColor (+8 more)
+### Community 32 - "SimpleBar.jsx"
+Cohesion: 0.47
+Nodes (5): RootStyle, SimpleBarScroll(), SimpleBarStyle, react-device-detect, simplebar-react
 
 ### Community 33 - "showError"
 Cohesion: 0.05
-Nodes (98): getBusinessRulesAPI(), saveBusinessRulesAPI(), cancelContractAPI(), suspendContractAPI(), invoiceTransitionsApi, configurePolicyTypeBaseAPI(), getModulesAPI(), getProfilesAPI() (+90 more)
+Nodes (101): getBusinessRulesAPI(), saveBusinessRulesAPI(), cancelContractAPI(), suspendContractAPI(), getIdentityDocumentsSelectAPI, invoiceTransitionsApi, configurePolicyTypeBaseAPI(), getModulesAPI() (+93 more)
 
 ### Community 34 - "`tbl_contract_concepts`"
 Cohesion: 0.50
@@ -343,89 +338,85 @@ Nodes (3): `tbl_status`, `tbl_users`, `tbl_contract_concepts`
 Cohesion: 0.12
 Nodes (15): ALL, contact(), ctx, existingRow, input(), ADR-0012, NONE, OTHER (+7 more)
 
-### Community 37 - "WorkChartsTab.jsx"
-Cohesion: 0.15
-Nodes (29): invoiceRows(), CardTitle(), clickableChartSx, CONTRACT_NOUN, ContractsByState(), dayOf(), DonutBreakdown(), drillLinkSx (+21 more)
+### Community 37 - "fMoneyText"
+Cohesion: 0.05
+Nodes (111): useSchemePalette(), MainCard(), AlertChips(), contractAlertOptions(), fMoneyText(), fPercentText(), ADVANCE_LEVELS, AdvanceBar() (+103 more)
 
 ### Community 38 - "contracts.controller.js"
 Cohesion: 0.05
-Nodes (80): auditContext(), moneyRule(), optionalDate(), percentRule(), contractTaxOnlyRules(), simpleAmountRules(), getContractMenu(), CONTRACT_REPORTS (+72 more)
+Nodes (83): auditContext(), getEffectivePermissionIds(), moneyRule(), optionalDate(), percentRule(), getDashboardDetailController, getDashboardSummaryController, getWorkDashboardController (+75 more)
 
 ### Community 39 - "cron/index.js"
 Cohesion: 0.11
-Nodes (18): ref_http, node-cron, app, server, describeTarget(), testConnection(), STATUS_IDS, verifyStatusCatalog() (+10 more)
+Nodes (17): ref_http, node-cron, app, server, describeTarget(), testConnection(), verifyStatusCatalog(), cronJobs (+9 more)
 
 ### Community 40 - "works.service.js"
 Cohesion: 0.06
-Nodes (63): ADR-0007, INACTIVE_STATUS, assertInScope(), selectStatements(), applyManagers(), applyStages(), assertCollectionPermissions(), assertCollections() (+55 more)
-
-### Community 41 - "useGetMenuMaster"
-Cohesion: 0.28
-Nodes (11): endpoints, handlerDrawerOpen(), initialState, useGetMenuMaster(), setParentOpenedMenu(), useMenuCollapse(), Header(), ThemeModeSection() (+3 more)
+Nodes (65): ADR-0007, ADR-0009, INACTIVE_STATUS, assertInScope(), PROGRESS_WARNING, defineContacts(), FIELDS, httpError() (+57 more)
 
 ### Community 42 - "devDependencies"
 Cohesion: 0.14
 Nodes (14): devDependencies, eslint, @eslint/compat, eslint-config-prettier, @eslint/eslintrc, @eslint/js, eslint-plugin-jsx-a11y, eslint-plugin-prettier (+6 more)
 
 ### Community 44 - "GeneralDashboard.jsx"
-Cohesion: 0.05
-Nodes (42): getDashboardDetailAPI(), getDashboardSummaryAPI(), getWorkDashboardAPI(), ADR-0002, getMyWorksSelectAPI(), genericRequest, instance, NO_REFRESH_URLS (+34 more)
+Cohesion: 0.07
+Nodes (51): getDashboardDetailAPI(), getDashboardSummaryAPI(), getWorkDashboardAPI(), ADR-0002, paginationStatementGroupsAPI(), getMyWorksSelectAPI(), pickWork(), useWorkFilterField() (+43 more)
 
 ### Community 45 - "MainLayout/index.jsx"
-Cohesion: 0.20
-Nodes (12): Footer(), MainLayout(), MainLayoutContent(), ScopedOutlet(), MainContentStyled, Sidebar(), closedMixin(), MiniDrawerStyled (+4 more)
+Cohesion: 0.15
+Nodes (23): endpoints, handlerDrawerOpen(), initialState, useGetMenuMaster(), useConfig(), Footer(), Header(), ThemeModeSection() (+15 more)
 
 ### Community 46 - "scripts"
 Cohesion: 0.11
 Nodes (19): scripts, build, cron:run, db:check-invariants, db:measure-dashboard, db:seed, db:seed:demo, db:seed:volume (+11 more)
 
 ### Community 48 - "AuthenticationRoutes.jsx"
-Cohesion: 0.19
-Nodes (10): MinimalLayout(), AuthenticationRoutes, LoginPage, ErrorBoundary(), ErrorMessage(), isStaleDeployError(), router, MainRoutes (+2 more)
+Cohesion: 0.10
+Nodes (21): client_src_assets_images_interadminpro, MinimalLayout(), AuthenticationRoutes, ForgotPasswordPage, LoginPage, ErrorBoundary(), ErrorMessage(), isStaleDeployError() (+13 more)
 
 ### Community 49 - "`tbl_contracts`"
 Cohesion: 0.12
 Nodes (14): `tbl_contracts`, `tbl_users`, `tbl_contract_status_history`, `tbl_contracts`, `tbl_users`, `tbl_invoices`, `tbl_reasons`, `tbl_users` (+6 more)
 
-### Community 50 - "StatementsPage.jsx"
-Cohesion: 0.09
-Nodes (30): exportStatementGroupAPI(), getStatementGroupReportAPI(), paginationStatementGroupsAPI(), StatementsPage, download(), downloadExport(), errorMessage(), EXPORT_FORMATS (+22 more)
+### Community 50 - "StatementReportDialog.jsx"
+Cohesion: 0.15
+Nodes (20): exportStatementGroupAPI(), getStatementGroupReportAPI(), download(), downloadExport(), errorMessage(), EXPORT_FORMATS, ExportButton(), ExportDialog() (+12 more)
 
 ### Community 51 - "app.js"
 Cohesion: 0.13
 Nodes (13): compression, cookie-parser, cors, express-fileupload, express-rate-limit, helmet, __dirname, cleanData() (+5 more)
 
 ### Community 52 - "decimal"
-Cohesion: 0.07
-Nodes (58): @prisma/client, decimal(), HUNDRED, isBlank(), MONEY_SCALE, PERCENT_SCALE, percentOf(), RATIO_SCALE (+50 more)
+Cohesion: 0.06
+Nodes (69): decimal(), HUNDRED, isBlank(), MONEY_SCALE, PERCENT_SCALE, RATIO_SCALE, ratioPercent(), ratioText() (+61 more)
 
 ### Community 53 - "dateOnlyText"
-Cohesion: 0.06
-Nodes (84): scopeWhere(), dateOnlyText(), todayDateOnly(), getRuleValues(), policyExpiringDays(), contractsBlock(), finishedWorksToLiquidate(), getDashboardSummary() (+76 more)
+Cohesion: 0.09
+Nodes (48): scopeWhere(), dateOnlyText(), todayDateOnly(), policyExpiringDays(), contractsBlock(), finishedWorksToLiquidate(), getDashboardSummary(), invoicesBlock() (+40 more)
 
 ### Community 54 - "`tbl_contract_type_fields`"
 Cohesion: 0.20
 Nodes (7): `tbl_contract_fields`, `tbl_contract_types`, `tbl_users`, `tbl_contract_type_fields`, `tbl_contract_types`, `tbl_users`, `tbl_contract_type_field_versions`
 
-### Community 55 - "glossFields.js"
-Cohesion: 0.20
-Nodes (12): CONTRACT_LINES, BY_TYPE, byCatalog(), CATALOG_ORDER, fieldAmount(), GLOSS_FIELD_NAMES, GLOSS_LINES_SELECT, glossFieldFor() (+4 more)
+### Community 55 - "runIdempotent"
+Cohesion: 0.16
+Nodes (16): canonical(), EXCLUDED_FROM_FINGERPRINT, findReplay(), idempotencyMisuse(), keyReused(), requestFingerprint(), runIdempotent(), deleteModuleDoc() (+8 more)
 
 ### Community 56 - "transaction.mock.js"
-Cohesion: 0.05
-Nodes (34): lockedIdsOf(), transactionRawMocks(), ADR-0009, prismaMock, ctx, prismaMock, state, ADR-0004 (+26 more)
+Cohesion: 0.04
+Nodes (39): lockedIdsOf(), transactionRawMocks(), ADR-0009, prismaMock, ctx, prismaMock, state, ADR-0004 (+31 more)
 
 ### Community 57 - "scripts"
 Cohesion: 0.25
 Nodes (8): scripts, build, dev, lint, lint:fix, prettier, preview, start
 
-### Community 58 - "WorkSummaryTab.jsx"
-Cohesion: 0.20
-Nodes (20): contractRows(), daysOpenText(), followUpRows(), followUpsDrill(), useDrillDown(), initialsOf(), MANAGER_ROLE_NAMES, plural() (+12 more)
+### Community 58 - "App.jsx"
+Cohesion: 0.27
+Nodes (8): refreshSession(), App(), ThemedToastContainer(), AuthContext, NavigationScroll(), SocketProvider(), @mui/x-date-pickers, react-toastify
 
 ### Community 59 - "AuthForgotPassword.jsx"
-Cohesion: 0.15
-Nodes (20): forgotPasswordAPI(), loginAPI(), logoutAPI(), restorePasswordAPI(), updateThemeModeAPI(), validateCodeAPI(), verifyTokenAPI(), AuthProvider() (+12 more)
+Cohesion: 0.16
+Nodes (19): forgotPasswordAPI(), loginAPI(), logoutAPI(), restorePasswordAPI(), updateThemeModeAPI(), validateCodeAPI(), verifyTokenAPI(), AuthProvider() (+11 more)
 
 ### Community 60 - "compilerOptions"
 Cohesion: 0.29
@@ -435,9 +426,9 @@ Nodes (6): compilerOptions, allowSyntheticDefaultImports, composite, module, mod
 Cohesion: 0.29
 Nodes (6): styleData, styleDataCenter, styleDataFill, styleMoney, styleSubTitles, styleTitle
 
-### Community 62 - "MainCard"
-Cohesion: 0.25
-Nodes (14): MainCard(), AlertsCard(), Empty(), LatestInvoicesCard(), num, QuickAccessCard(), UpcomingPoliciesCard(), VALIDITY_COLORS (+6 more)
+### Community 62 - "transaction.service.js"
+Cohesion: 0.27
+Nodes (9): buildLockPlan(), ISOLATION_LEVEL, ADR-0027, LOCK_ORDER, LOCK_WAIT_TIMEOUT_SECONDS, LOCKABLE, MAX_DEADLOCK_RETRIES, toSortedIds() (+1 more)
 
 ### Community 64 - "permission"
 Cohesion: 0.33
@@ -456,16 +447,16 @@ Cohesion: 0.18
 Nodes (11): columnList(), database, dbForeignKeys, equivalent, isNoise(), prisma, real, rows (+3 more)
 
 ### Community 70 - "seed.demo.js"
-Cohesion: 0.04
-Nodes (78): ADR-0002, ref_node_crypto, ADDRESS_TYPE, CANCEL_REASONS, CONTRACT_TYPES, CONTRACTS, demoKey(), ensure() (+70 more)
+Cohesion: 0.06
+Nodes (41): ADR-0002, ref_node_crypto, ADDRESS_TYPE, CANCEL_REASONS, CONTRACT_TYPES, CONTRACTS, demoKey(), ensure() (+33 more)
 
-### Community 71 - "providerTypes.routes.js"
-Cohesion: 0.18
-Nodes (12): FIELD_ATTRIBUTES, getProviderTypeFieldsController, pickField(), saveProviderTypeFieldsController, getProviderTypeFieldsSchema, saveProviderTypeFieldsSchema, providerTypesRoutes, assertModeUnchangedInUse() (+4 more)
+### Community 71 - "auth.service.test.js"
+Cohesion: 0.22
+Nodes (6): activeUser, mockComparePassword, mockHashPassword, mockRevokeSession, mockSendEmail, prismaMock
 
-### Community 88 - "invoiceTerms.js"
+### Community 88 - "status.constants.js"
 Cohesion: 0.09
-Nodes (30): AUDIT_SELECT, getInvoiceEvidence(), groupOperations(), httpError(), isApproval(), ADR-0013, ADR-0027, snapshotOf() (+22 more)
+Nodes (30): ref_node_fs, captured, explain(), main(), measure(), parseParams(), percentile(), plain() (+22 more)
 
 ### Community 89 - "`tbl_status`"
 Cohesion: 0.13
@@ -473,11 +464,11 @@ Nodes (9): `tbl_users`, `tbl_identity_documents`, `tbl_users`, `tbl_provider_typ
 
 ### Community 94 - "useAuth"
 Cohesion: 0.02
-Nodes (102): addressTypesApi, contractTypesApi, identityDocumentsApi, insurersApi, getPermissionsCatalogAPI(), policyTypesApi, exportProvidersAPI(), providerTypesApi (+94 more)
+Nodes (101): addressTypesApi, constructionCompaniesApi, contractTypesApi, identityDocumentsApi, insurersApi, getPermissionsCatalogAPI(), policyTypesApi, exportProvidersAPI() (+93 more)
 
 ### Community 100 - "works.routes.js"
-Cohesion: 0.09
-Nodes (33): managedWhere(), selectMyWorks(), changeWorkStateController, changeWorkStatusController, deleteWorkController, exportWorksController, getWorkController, INPUT_FIELDS (+25 more)
+Cohesion: 0.07
+Nodes (40): sendExport(), managedWhere(), resolveWorkScope(), selectMyWorks(), handleExport(), handleExport(), handleExport(), handleExport() (+32 more)
 
 ### Community 104 - "`tbl_provider_types`"
 Cohesion: 0.32
@@ -503,53 +494,53 @@ Nodes (14): `tbl_status`, `tbl_users`, `tbl_contract_types`, `tbl_status`, `tbl_
 Cohesion: 0.13
 Nodes (12): `tbl_users`, `tbl_reasons`, `tbl_users`, `tbl_contract_suspensions`, `tbl_contract_concepts`, `tbl_reasons`, `tbl_policies`, `tbl_contract_concepts` (+4 more)
 
-### Community 116 - "ContractDetailPage.jsx"
+### Community 116 - "WorkDetailPage.jsx"
 Cohesion: 0.07
-Nodes (66): getIdentityDocumentsSelectAPI, changeWorkStateAPI(), getWorkManagersSelectAPI(), previewWorkEndDateAPI(), ContactsList(), ADR-0009, DataList(), Figure() (+58 more)
+Nodes (63): changeWorkStateAPI(), getWorkManagersSelectAPI(), previewWorkEndDateAPI(), worksApi, InvoiceDetailPage, ContactsList(), ADR-0009, DataList() (+55 more)
 
 ### Community 117 - "export.service.js"
-Cohesion: 0.06
-Nodes (57): exceljs, pdfkit, addFieldsSheet(), addSheetFooter(), addSheetHeading(), addTableSheet(), buildExcel(), buildExcelDocument() (+49 more)
+Cohesion: 0.09
+Nodes (45): pdfkit, addFieldsSheet(), addSheetFooter(), addSheetHeading(), addTableSheet(), buildExcel(), buildExcelDocument(), buildPdf() (+37 more)
 
 ### Community 118 - "works.service.test.js"
-Cohesion: 0.17
-Nodes (9): ALL, ctx, existingWork, ADR-0011, NONE, OTHER, OWN, prismaMock (+1 more)
+Cohesion: 0.06
+Nodes (21): exceljs, COLUMNS, ROWS, concept(), contract(), prismaMock, contract, contractBalances (+13 more)
 
 ### Community 119 - "error.middleware.js"
 Cohesion: 0.19
 Nodes (18): DUPLICATE_FALLBACK_MESSAGE, INTERNAL_UNIQUE_CONSTRAINTS, UNIQUE_CONSTRAINT_MESSAGES, concurrencyError(), duplicateMessage(), errorMiddleware(), isMySqlCode(), ADR-0012 (+10 more)
 
-### Community 120 - "getEffectivePermissionIds"
-Cohesion: 0.06
-Nodes (38): ref_node_fs, captured, explain(), main(), measure(), parseParams(), percentile(), plain() (+30 more)
+### Community 120 - "app.service.js"
+Cohesion: 0.07
+Nodes (29): assertModeUnchangedInUse(), httpError(), ADR-0010, providerTypesConfig, providerTypesService, getMenu(), getPagesMenu(), getSessionInfo() (+21 more)
 
-### Community 123 - "advanceFilters.js"
-Cohesion: 0.11
-Nodes (21): amortizes, CONTRACT_ADVANCE_FILTER_NAMES, CONTRACT_ADVANCE_FILTERS, INVOICE_ADVANCE_FILTER_NAMES, INVOICE_ADVANCE_FILTERS, INVOICE_WHERE, invoiceAdvanceWhere(), isAdvance (+13 more)
+### Community 123 - "serviceWorker.jsx"
+Cohesion: 0.60
+Nodes (5): checkValidServiceWorker(), isLocalhost, register(), registerValidSW(), unregister()
 
 ### Community 124 - "balanceReconciliation.service.js"
 Cohesion: 0.30
 Nodes (10): findUsersWithPermission(), deliverReconciliationReport(), RECONCILIATION_NOTIFICATION_LINES, reportEmails(), insertNotification(), balanceViolations(), CHECKS, findBalanceViolations() (+2 more)
 
-### Community 125 - "session.service.js"
-Cohesion: 0.06
-Nodes (49): jsonwebtoken, socket.io, authenticateHandshake(), getCookieValue(), init(), allowedHosts, isOriginAllowed(), getIO() (+41 more)
+### Community 125 - "auth.service.js"
+Cohesion: 0.05
+Nodes (54): bcrypt, ref_crypto, REDACTED, baseCookieOptions, createSession(), disconnectSessionSockets(), DURATION_UNITS_MS, ADR-0001 (+46 more)
 
 ### Community 129 - "handleFirebase.js"
 Cohesion: 0.24
 Nodes (6): app, firebaseConfig, storage, deleteFile(), extractFilePathFromURL(), firebase
 
-### Community 130 - "useConfig.js"
-Cohesion: 0.33
-Nodes (7): useConfig(), ElevationScroll(), HorizontalBar(), ImageList(), srcset(), getImageUrl(), ImagePath
+### Community 130 - "ImageList.jsx"
+Cohesion: 0.53
+Nodes (4): ImageList(), srcset(), getImageUrl(), ImagePath
 
 ### Community 131 - "`tbl_providers`"
 Cohesion: 0.12
 Nodes (13): `tbl_status`, `tbl_users`, `tbl_providers`, `tbl_users`, `tbl_provider_contacts`, `tbl_status`, `tbl_users`, `tbl_work_providers` (+5 more)
 
-### Community 132 - "WorkCosts.jsx"
-Cohesion: 0.22
-Nodes (10): CardTitle(), clickableChartSx, drillLinkSx, INVOICE_NOUN, ADR-0002, MENU_COLORS, menuColor(), num (+2 more)
+### Community 132 - "workScope.service.test.js"
+Cohesion: 0.40
+Nodes (4): hasEffectivePermission, prismaMock, state, user
 
 ### Community 133 - "ci-summary.mjs"
 Cohesion: 0.17
@@ -559,29 +550,29 @@ Nodes (20): args, buildSection(), cell(), COLORS, kb(), lineLink(), lintSection(
 Cohesion: 0.12
 Nodes (14): conceptsServiceMock, contractIdsByAdvance, contractsServiceMock, emit, exportContractReport, exportContractSummary, exportPolicyReport, getEffectivePermissionIds (+6 more)
 
-### Community 136 - "AdvanceBars.jsx"
-Cohesion: 0.18
-Nodes (20): useSchemePalette(), ADVANCE_LEVELS, AdvanceBar(), AdvanceFilter(), AdvanceLegend(), matchesAdvanceFilter(), matchesAdvanceLegend(), num (+12 more)
+### Community 136 - "browserslist"
+Cohesion: 0.67
+Nodes (3): browserslist, development, production
 
-### Community 137 - "contractPolicies.service.js"
-Cohesion: 0.06
-Nodes (106): main(), newOperationId(), canonical(), EXCLUDED_FROM_FINGERPRINT, findReplay(), idempotencyMisuse(), keyReused(), requestFingerprint() (+98 more)
+### Community 137 - "contractConcepts.service.js"
+Cohesion: 0.07
+Nodes (83): main(), newOperationId(), withContractAiu(), CANCEL_TARGET, cancelContract(), ADR-0027, text(), activeSequence() (+75 more)
 
 ### Community 140 - "MenuList/index.jsx"
-Cohesion: 0.31
-Nodes (8): getMenuAPI(), getIconByName(), menuEntries(), MenuList(), client_src_menu_items_billing_setbillingmenus, contracts, setContractMenus(), work
+Cohesion: 0.24
+Nodes (10): getMenuAPI(), ElevationScroll(), HorizontalBar(), getIconByName(), menuEntries(), MenuList(), client_src_menu_items_billing_setbillingmenus, contracts (+2 more)
 
-### Community 142 - "eslint.config.js"
-Cohesion: 0.40
-Nodes (5): ref_eslint_js, ref_eslint_plugin_sonarjs, globals, asWarnings(), isOff()
+### Community 142 - "eslint.config.mjs"
+Cohesion: 0.12
+Nodes (18): asWarnings(), compat, __dirname, __filename, isOff(), @eslint/compat, @eslint/eslintrc, ref_eslint_js (+10 more)
 
 ### Community 151 - "src/index.jsx"
-Cohesion: 0.15
-Nodes (14): client_src_assets_scss_style, container, root, reportWebVitals(), checkValidServiceWorker(), isLocalhost, register(), registerValidSW() (+6 more)
+Cohesion: 0.20
+Nodes (9): client_src_assets_scss_style, container, root, reportWebVitals(), @fontsource/inter, @fontsource/poppins, @fontsource/roboto, react-dom (+1 more)
 
 ### Community 153 - "statements.routes.js"
-Cohesion: 0.08
-Nodes (35): sendExport(), exportFormatRule(), handleExport(), STATEMENT_GLOSS_FILTERS, STATEMENT_VOUCHER_FILTERS, changeStatementStatusController, deleteStatementController, exportStatementController (+27 more)
+Cohesion: 0.06
+Nodes (49): express-validator, EDITABLE_STATUS_VALUES, createMasterSchemas(), contactsRules(), emailRule(), exportFormatRule(), idArray(), idempotencyKeyRule() (+41 more)
 
 ### Community 154 - "mailerService.js"
 Cohesion: 0.17
@@ -592,8 +583,8 @@ Cohesion: 0.33
 Nodes (5): DB_TIMEOUT_MS, getHealth(), SERVICE_NAME, withTimeout(), prismaMock
 
 ### Community 156 - "NotificationSection/index.jsx"
-Cohesion: 0.50
-Nodes (7): getNotificationCountAPI(), markAllAsReadAPI(), markAsReadAPI(), paginationNotificationsAPI(), inActiveWork(), NotificationSection(), targetOf()
+Cohesion: 0.19
+Nodes (16): getNotificationCountAPI(), markAllAsReadAPI(), markAsReadAPI(), paginationNotificationsAPI(), inActiveWork(), NotificationSection(), targetOf(), getTimeAgo() (+8 more)
 
 ### Community 157 - "importCase.guard.test.js"
 Cohesion: 0.20
@@ -604,28 +595,28 @@ Cohesion: 0.26
 Nodes (7): ref_path, imagesDir, logoDoblamos, logoPavasStay, plantilla2, plantilla3, plantilla1
 
 ### Community 175 - "seed.js"
-Cohesion: 0.11
-Nodes (16): ADDRESS_TYPES, CONTRACT_FIELDS, IDENTITY_DOCUMENTS, PAGES, PERMISSIONS, PERMISSIONS_NO_PAGE, POLICY_TYPES, PROVIDER_TYPES (+8 more)
+Cohesion: 0.14
+Nodes (12): ADDRESS_TYPES, CONTRACT_FIELDS, IDENTITY_DOCUMENTS, PAGES, PERMISSIONS, PERMISSIONS_NO_PAGE, POLICY_TYPES, PROVIDER_TYPES (+4 more)
 
 ### Community 176 - "`tbl_users`"
 Cohesion: 0.20
 Nodes (10): idx_invoices_contract_type_state, `tbl_invoice_advance_details`, `tbl_invoice_liquidation_details`, `tbl_invoice_retention_refund_details`, `tbl_invoice_simple_details`, `tbl_invoice_follow_ups`, `tbl_invoice_gloss_fields`, `tbl_invoice_glosses` (+2 more)
 
 ### Community 178 - "balanceReconciliation.service.test.js"
-Cohesion: 0.15
-Nodes (9): CONCEPTS, contracts, findUsersWithPermission, insertNotification, logger, prismaMock, recipients, sendEmail (+1 more)
+Cohesion: 0.14
+Nodes (10): @prisma/client, CONCEPTS, contracts, findUsersWithPermission, insertNotification, logger, prismaMock, recipients (+2 more)
 
-### Community 179 - "contractEndDateReconciliation.service.test.js"
-Cohesion: 0.22
-Nodes (7): contracts, findUsersWithPermission, insertNotification, logger, prismaMock, recipients, sendEmail
+### Community 179 - "volta"
+Cohesion: 0.67
+Nodes (3): volta, node, yarn
 
 ### Community 181 - "winston.config.js"
 Cohesion: 0.29
 Nodes (6): moment-timezone, morgan, winston, customFormat, logger, httpLogger
 
-### Community 183 - "DocumentManagement.jsx"
-Cohesion: 0.32
-Nodes (11): deleteFileByPath(), uploadFile(), deleteDocApi(), paginationDocsApi(), saveDocApi(), showPromise(), DocumentManagement(), FileRow() (+3 more)
+### Community 183 - "formatTime.js"
+Cohesion: 0.10
+Nodes (20): deleteFileByPath(), uploadFile(), deleteDocApi(), paginationDocsApi(), saveDocApi(), showPromise(), DocumentManagement(), FileRow() (+12 more)
 
 ### Community 190 - "invariants.check.js"
 Cohesion: 0.21
@@ -643,49 +634,33 @@ Nodes (5): ctx, ADR-0018, ADR-0019, prismaMock, state
 Cohesion: 0.40
 Nodes (3): prismaMock, state, user
 
-### Community 197 - "workDashboard.utils.js"
-Cohesion: 0.15
-Nodes (12): Metric(), barPercent(), CONTRACT_STATE_CHART_COLORS, DASHBOARD_PATH, GLOSS_CHART_COLORS, INVOICE_TYPE_COLORS, MENU_CHART_COLORS, menuColor() (+4 more)
-
-### Community 198 - "ForgotPassword.jsx"
-Cohesion: 0.19
-Nodes (12): client_src_assets_images_interadminpro, LogoSection(), ForgotPasswordPage, AppBar(), ElevationScroll(), CONTENT, IMAGE, Logo() (+4 more)
-
 ### Community 199 - "decisionReferences.guard.test.js"
 Cohesion: 0.29
 Nodes (6): citations, DECISIONS, files(), ROOT, SELF, SOURCES
-
-### Community 201 - "SearchSection/index.jsx"
-Cohesion: 0.52
-Nodes (5): HeaderAvatar(), MobileSearch(), SearchSection(), Transitions(), material-ui-popup-state
 
 ### Community 202 - "dashboardDetail.service.test.js"
 Cohesion: 0.25
 Nodes (4): ALL, EVERYTHING, OWN, prismaMock
 
-### Community 203 - "dashboard.service.test.js"
-Cohesion: 0.29
-Nodes (4): ALL, ADR-0002, OWN, prismaMock
-
 ### Community 204 - "session.service.test.js"
 Cohesion: 0.22
 Nodes (5): dbUser, mockDisconnectSockets, mockIn, prismaMock, user
 
-### Community 206 - "validation.utils.js"
-Cohesion: 0.06
-Nodes (44): ADR-0009, express-validator, EDITABLE_STATUS_VALUES, requirePermission(), validate(), hasEffectivePermission(), createMasterControllers(), createMasterRouter() (+36 more)
+### Community 206 - "main.routes.js"
+Cohesion: 0.04
+Nodes (64): express, supertest, getIO(), verifyToken(), requirePermission(), validate(), hasEffectivePermission(), IDEMPOTENCY_HEADER (+56 more)
 
 ### Community 211 - "ref_jest_globals"
-Cohesion: 0.05
-Nodes (21): ref_jest_globals, prismaMock, mockValidationResult, prismaMock, txMock, prismaMock, payload, hasEffectivePermission (+13 more)
+Cohesion: 0.04
+Nodes (25): ref_jest_globals, prismaMock, mockValidationResult, prismaMock, payload, ALL, ADR-0002, OWN (+17 more)
 
 ### Community 212 - "contracts.service.js"
-Cohesion: 0.03
-Nodes (113): ADR-0006, ADR-0027, percentText(), addTerm(), daysInMonth(), PROGRESS_CRITICAL, PROGRESS_WARNING, TERM_UNITS (+105 more)
+Cohesion: 0.04
+Nodes (82): ADR-0006, addTerm(), daysInMonth(), PROGRESS_CRITICAL, progressLevel(), TERM_UNITS, termProgress(), toDateOnly() (+74 more)
 
 ### Community 217 - "writeAudit"
-Cohesion: 0.03
-Nodes (114): ADR-0004, bcrypt, ref_crypto, AUDIT_ENTITIES, AUDIT_OPERATIONS, auditMisuse(), buildRows(), diffFields() (+106 more)
+Cohesion: 0.07
+Nodes (49): ADR-0013, auditMisuse(), buildRows(), diffFields(), ADR-0001, ADR-0027, protect(), SENSITIVE_FIELDS (+41 more)
 
 ### Community 218 - "`tbl_statements`"
 Cohesion: 0.18
@@ -707,9 +682,9 @@ Nodes (6): assertInvoiceVisible, ctx, prismaMock, SCOPE, state, today
 Cohesion: 0.20
 Nodes (11): created, DATABASE, declared, dropped, droppedTables, inDatabase, MIGRATIONS, names() (+3 more)
 
-### Community 224 - "contractFields.js"
-Cohesion: 0.13
-Nodes (15): AIU_FIELDS, enforceFields(), fromColumn(), hasValue(), httpError(), isBlank(), ADR-0006, ADR-0026 (+7 more)
+### Community 224 - "providerTypeFields.service.js"
+Cohesion: 0.07
+Nodes (36): AIU_FIELDS, CONFIGURABLE_FIELDS, enforceFields(), FIELD_GROUPS, fromColumn(), hasValue(), httpError(), isBlank() (+28 more)
 
 ### Community 226 - "transaction.service.test.js"
 Cohesion: 0.23
@@ -723,37 +698,29 @@ Nodes (4): eslintConfig, extends, react-app, react-app/jest
 Cohesion: 0.22
 Nodes (6): contractBalances, ctx, ADR-0017, notifyWorkManagers, state, tx
 
-### Community 241 - "contractCancellation.service.test.js"
-Cohesion: 0.25
-Nodes (4): ctx, notifyWorkManagers, prismaMock, state
-
 ### Community 242 - "master.service.test.js"
 Cohesion: 0.33
 Nodes (4): baseConfig, config, prismaMock, service
 
-### Community 243 - "contractNotifications.service.test.js"
-Cohesion: 0.25
-Nodes (6): CONTRACT, insertNotification, ADR-0027, logger, prismaMock, state
-
 ## Knowledge Gaps
-- **1224 isolated node(s):** `url`, `database`, `prisma`, `statements`, `rows` (+1219 more)
-  These have ≤1 connection - possible missing edges. (Counts symbols only; 1674 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **112 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **1220 isolated node(s):** `STATUS_TABS`, `CONTRACT_ALERT_OPTIONS`, `CONTRACT_INVOICE_TYPES`, `TERM_UNIT_NAMES`, `CONTRACT_TYPES` (+1215 more)
+  These have ≤1 connection - possible missing edges. (Counts symbols only; 1670 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **114 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
+- **Why does `ADR-0017` connect `permissions.constants.js` to `seed.demo.js`, `constants.js`?**
+  _High betweenness centrality (0.188) - this node is a cross-community bridge._
 - **Why does `ADR-0019` connect `permissions.constants.js` to `constants.js`?**
-  _High betweenness centrality (0.258) - this node is a cross-community bridge._
-- **Why does `lodash` connect `DebouncedInput.jsx` to `writeAudit`, `server/package.json`?**
-  _High betweenness centrality (0.102) - this node is a cross-community bridge._
-- **Why does `@mui/material` connect `@mui/material` to `useConfig.js`, `fMoneyText`, `WorkCosts.jsx`, `constants.js`, `AdvanceBars.jsx`, `InvoiceFormPage.jsx`, `ConceptDialog.jsx`, `WorksPage.jsx`, `MenuList/index.jsx`, `client/package.json`, `ContractsPage.jsx`, `App.jsx`, `NotificationSection/index.jsx`, `withAlpha`, `showError`, `WorkChartsTab.jsx`, `useGetMenuMaster`, `GeneralDashboard.jsx`, `MainLayout/index.jsx`, `AuthenticationRoutes.jsx`, `StatementsPage.jsx`, `DocumentManagement.jsx`, `WorkSummaryTab.jsx`, `AuthForgotPassword.jsx`, `MainCard`, `ForgotPassword.jsx`, `SearchSection/index.jsx`, `useAuth`, `InputLabel.jsx`, `ContractDetailPage.jsx`, `DebouncedInput.jsx`?**
-  _High betweenness centrality (0.083) - this node is a cross-community bridge._
-- **What connects `url`, `database`, `prisma` to the rest of the system?**
-  _1224 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _High betweenness centrality (0.101) - this node is a cross-community bridge._
+- **Why does `@mui/material` connect `@mui/material` to `overrides/index.js`, `ImageList.jsx`, `PoliciesTab.jsx`, `constants.js`, `InvoiceFormPage.jsx`, `ContractDetailPage.jsx`, `WorksPage.jsx`, `MenuList/index.jsx`, `client/package.json`, `themes/index.jsx`, `NotificationSection/index.jsx`, `SimpleBar.jsx`, `showError`, `fMoneyText`, `GeneralDashboard.jsx`, `MainLayout/index.jsx`, `AuthenticationRoutes.jsx`, `StatementReportDialog.jsx`, `formatTime.js`, `App.jsx`, `AuthForgotPassword.jsx`, `EasyCrop.jsx`, `useAuth`, `InputLabel.jsx`, `WorkDetailPage.jsx`, `DebouncedInput.jsx`?**
+  _High betweenness centrality (0.085) - this node is a cross-community bridge._
+- **What connects `STATUS_TABS`, `CONTRACT_ALERT_OPTIONS`, `CONTRACT_INVOICE_TYPES` to the rest of the system?**
+  _1220 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `overrides/index.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.08325624421831637 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0784313725490196 - nodes in this community are weakly interconnected._
 - **Should `dependencies` be split into smaller, more focused modules?**
   _Cohesion score 0.044444444444444446 - nodes in this community are weakly interconnected._
-- **Should `fMoneyText` be split into smaller, more focused modules?**
-  _Cohesion score 0.07896575821104122 - nodes in this community are weakly interconnected._
+- **Should `PoliciesTab.jsx` be split into smaller, more focused modules?**
+  _Cohesion score 0.13405797101449277 - nodes in this community are weakly interconnected._
