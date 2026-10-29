@@ -319,6 +319,7 @@ const moneyDisplay = (text) => {
   if (text === "") return "";
   const negative = text.startsWith("-");
   const [integer, decimals = ""] = text.replace("-", "").split(".");
+  // eslint-disable-next-line sonarjs/super-linear-regex -- la entrada son los dígitos de un importe, cortos y del servidor (DEC-099)
   const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return `${negative ? "-" : ""}${grouped},${decimals.padEnd(2, "0").slice(0, 2)}`;
 };

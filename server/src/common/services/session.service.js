@@ -38,6 +38,7 @@ const DURATION_UNITS_MS = { s: 1000, m: 60 * 1000, h: 60 * 60 * 1000, d: 24 * 60
  * en vez de dejar sesiones con una vida inesperada.
  */
 export const parseDuration = (value) => {
+  // eslint-disable-next-line sonarjs/super-linear-regex -- solo lee JWT_REFRESH_EXPIRES_IN, nunca datos del usuario (DEC-099)
   const match = /^\s*(\d+)\s*([smhd]?)\s*$/i.exec(String(value));
   if (!match || Number(match[1]) <= 0) {
     throw new Error(

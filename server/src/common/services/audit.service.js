@@ -55,10 +55,13 @@ export const AUDIT_OPERATIONS = Object.freeze({
   ACCOUNT_LOCKED: "CUENTA_BLOQUEADA",
   LOGOUT: "LOGOUT",
   SESSION_REVOKED: "SESION_REVOCADA",
+  // Nombres de eventos de la bitácora, no contraseñas (DEC-099).
+  /* eslint-disable sonarjs/no-hardcoded-passwords */
   PASSWORD_CHANGED: "CONTRASENA_CAMBIADA",
   PASSWORD_RESET_REQUESTED: "RECUPERACION_SOLICITADA",
   PASSWORD_RESET_CODE_FAILED: "CODIGO_RECUPERACION_FALLIDO",
   PASSWORD_RESET: "CONTRASENA_RESTAURADA",
+  /* eslint-enable sonarjs/no-hardcoded-passwords */
 });
 
 export const REDACTED = "[oculto]";

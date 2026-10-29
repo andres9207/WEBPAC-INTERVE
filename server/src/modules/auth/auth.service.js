@@ -42,6 +42,7 @@ const LOGIN_FAILED_MESSAGE =
 // Hash bcrypt de relleno: cuando el usuario no existe se compara igual contra
 // este valor, para que esa rama tarde lo mismo que una contraseña incorrecta
 // (sin esto, la diferencia de tiempo delata qué usuarios existen).
+// eslint-disable-next-line sonarjs/no-hardcoded-passwords -- hash ficticio a propósito, no es una credencial (DEC-099)
 const DUMMY_PASSWORD_HASH = "$2b$10$ZDe4JB2rJnuJZbnHIZdfzOBwyrMa6nKuxsLqF5nZTjrThMwFBQoji";
 
 const loginFailed = () => {

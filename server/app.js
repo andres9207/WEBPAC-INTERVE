@@ -17,6 +17,7 @@ import mainRoutes from "./src/modules/main.routes.js";
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// eslint-disable-next-line sonarjs/x-powered-by -- helmet lo oculta (hidePoweredBy, helmet.middleware.js) (DEC-099)
 const app = express();
 app.set('trust proxy', 1);
 

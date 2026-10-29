@@ -143,6 +143,7 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
+| `client/src/utils/authFunctions.js` no lo importa nadie, y su `generatePassword` arma contraseñas con `Math.random`, que no es seguro para eso (lo señaló `sonarjs/pseudo-random`, [DEC-099](../decisiones/DEC-099-code-smells-sonarjs.md)). Borrarlo, o pasar a `crypto.getRandomValues` si algún día se usa. `getContrastingTextColor`, del mismo archivo, tampoco se usa | Baja | DEC-099 |
 | El gestor de paquetes es npm ([DEC-095](../decisiones/DEC-095-ci-health-check.md)): el CI y Hostinger instalan con `npm ci` / `npm install` sobre los `package-lock.json`. Quedan restos de Yarn: `client/yarn.lock` y `server/yarn.lock` (formato v1, desactualizados), `.yarnrc.yml` y `.yarn/` en los dos proyectos, el campo `volta.yarn` de los `package.json` y los comandos `yarn …` de `server/CLAUDE.md`, `client/CLAUDE.md`, `TESTING_STANDARD.md` y las filas de despliegue de arriba (`yarn db:seed` → `npm run db:seed`). Borrarlos es borrar archivos: pedir aprobación y hacerlo en un cambio aparte. Mientras tanto, los scripts se corren con `npm run <script>` | Media | Sesión 2026-10-26, DEC-095 |
 | Retirar `DB_HOST`/`DB_USER`/`DB_NAME`/`DB_PASSWORD` de `server/.env.template` y la dependencia `mysql2` de `server/package.json`. Ya no los usa nada (hay cambios sin confirmar en `.env.template`) | Baja | `decisiones/README.md` |
 | `server/process.env.NODE_ENV`: archivo suelto en la raíz del servidor, sin uso aparente | Baja | Descubrimiento |

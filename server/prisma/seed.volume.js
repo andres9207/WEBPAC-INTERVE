@@ -80,6 +80,7 @@ const nit = (digits) => `${digits}-${nitCheckDigit(digits)}`;
 const concept = (directCost) => ({ directCost, adminPct: "8", contingencyPct: "2", profitPct: "5", vatPct: "19", advancePct: "15", retentionPct: "5" });
 
 const volumeKey = (name) => {
+  // eslint-disable-next-line sonarjs/hashing -- genera claves de idempotencia, no protege nada (DEC-099)
   const hex = createHash("sha1").update(`webpac-interve-volume:${name}`).digest("hex");
   const variant = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;

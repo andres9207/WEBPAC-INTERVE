@@ -158,6 +158,7 @@ const RETRY_BASE_DELAY_MS = 25;
 // Espera corta y aleatoria antes de reintentar: si las dos transacciones del
 // interbloqueo reintentan a la vez, lo más probable es que vuelvan a chocar.
 const backoff = (attempt) =>
+  // eslint-disable-next-line sonarjs/pseudo-random -- solo dispersa la espera entre reintentos (DEC-099)
   new Promise((resolve) => setTimeout(resolve, RETRY_BASE_DELAY_MS * attempt + Math.random() * RETRY_BASE_DELAY_MS));
 
 const runTransaction = (fn) =>

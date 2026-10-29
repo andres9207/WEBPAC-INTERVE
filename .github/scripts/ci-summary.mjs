@@ -112,7 +112,8 @@ const lintSection = (eslint) => {
     for (const m of file.messages) {
       if (m.severity === 2) errors += 1;
       else warnings += 1;
-      const rule = m.ruleId ?? "(error de sintaxis)";
+      // Sin regla: un error de sintaxis (fatal) o una directiva eslint-disable que ya no hace falta.
+      const rule = m.ruleId ?? (m.fatal ? "(error de sintaxis)" : "(directiva eslint-disable sin uso)");
       const entry = byRule.get(rule) ?? { errors: 0, warnings: 0 };
       entry[m.severity === 2 ? "errors" : "warnings"] += 1;
       byRule.set(rule, entry);

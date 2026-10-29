@@ -7,6 +7,7 @@ import js from '@eslint/js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FlatCompat } from '@eslint/eslintrc';
+import sonarjs from 'eslint-plugin-sonarjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,6 +16,18 @@ const compat = new FlatCompat({
   recommendedConfig: js.configs.recommended,
   allConfig: js.configs.all
 });
+
+// Code smells con sonarjs (DEC-099), solo como advertencias: se ven en el
+// resumen del CI y no lo bloquean. La configuración recomendada también lista
+// reglas apagadas: esas siguen apagadas.
+const isOff = (value) => ['off', 0].includes(Array.isArray(value) ? value[0] : value);
+const asWarnings = (rules) =>
+  Object.fromEntries(
+    Object.entries(rules).map(([rule, value]) => [
+      rule,
+      isOff(value) ? 'off' : Array.isArray(value) ? ['warn', ...value.slice(1)] : 'warn'
+    ])
+  );
 
 export default [
   ...fixupConfigRules(compat.extends('prettier')),
@@ -80,6 +93,17 @@ export default [
       ],
 
       'prettier/prettier': 'warn',
+    }
+  },
+  {
+    plugins: { sonarjs },
+    rules: {
+      ...asWarnings(sonarjs.configs.recommended.rules),
+      // Los pendientes viven en engineering/debt/TECHNICAL_DEBT.md, no en el código.
+      'sonarjs/todo-tag': 'off',
+      // Duplican no-unused-vars, que ya es error.
+      'sonarjs/no-unused-vars': 'off',
+      'sonarjs/unused-import': 'off'
     }
   },
   {
