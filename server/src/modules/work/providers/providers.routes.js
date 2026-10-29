@@ -5,6 +5,7 @@ import { validate } from "../../../common/middlewares/validate.middleware.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
 import {
   paginationProvidersSchema,
+  exportProvidersSchema,
   getProviderSchema,
   checkIdentificationSchema,
   selectProvidersSchema,
@@ -19,6 +20,7 @@ import {
 } from "./providers.validation.js";
 import {
   paginationProvidersController,
+  exportProvidersController,
   getProviderController,
   checkIdentificationController,
   selectProvidersController,
@@ -39,6 +41,16 @@ const can = PERMISSIONS.work.providers;
 const providersRoutes = express.Router();
 
 providersRoutes.post("/pagination_providers", verifyToken, requirePermission(can.view), paginationProvidersSchema, validate, paginationProvidersController);
+// Reporte del listado en Excel o PDF (DEC-070): exige además ver proveedores.
+providersRoutes.post(
+  "/export_providers",
+  verifyToken,
+  requirePermission(can.view),
+  requirePermission(can.export),
+  exportProvidersSchema,
+  validate,
+  exportProvidersController
+);
 providersRoutes.get("/get_provider", verifyToken, requirePermission(can.view), getProviderSchema, validate, getProviderController);
 // Verificación reactiva del documento en el formulario: coincidencia exacta
 // del par (tipo, número). Con el permiso de ver, que ya da el listado: no

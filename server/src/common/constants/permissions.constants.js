@@ -139,6 +139,8 @@ export const PERMISSIONS = {
       changeIdentity: 65,
       assignWork: 66,
       unassignWork: 67,
+      // Reporte del listado en Excel o PDF (DEC-070).
+      export: 125,
     },
     // Contratos (DEC-035). El valor inicial se crea con el contrato. Crear
     // otrosí, crear el de liquidación (cambia el estado) y modificar un

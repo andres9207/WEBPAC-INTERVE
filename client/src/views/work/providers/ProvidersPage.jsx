@@ -6,7 +6,7 @@ import { IconPlus, IconSearch } from '@tabler/icons-react';
 import MasterPage from 'ui-component/extended/MasterPage';
 import WorkProviderDialog from './components/WorkProviderDialog';
 import useLinkedFilters from 'hooks/useLinkedFilters';
-import { providersApi } from 'api/requests/providersApi';
+import { exportProvidersAPI, providersApi } from 'api/requests/providersApi';
 import { getProviderTypesSelectAPI } from 'api/requests/providerTypesApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkFilterField, useWorkScope } from 'contexts/WorkScopeContext';
@@ -69,6 +69,8 @@ const describeNothing = () => null;
 export default function ProvidersPage() {
   const { permissionsCatalog, hasPermission } = useAuth();
   const perms = permissionsCatalog.work?.providers;
+  // Reporte de lo que muestra la tabla, sin paginar (DEC-070): con una obra elegida, sus proveedores.
+  const exportOptions = useMemo(() => ({ permission: perms?.export, request: exportProvidersAPI, fileName: 'proveedores' }), [perms]);
   const canDo = (perId) => perId != null && hasPermission(perId);
   // viewAll: el permiso de ver todas las obras, según el servidor (select_my_works, DEC-047).
   const { activeWork, viewAll } = useWorkScope();
@@ -115,6 +117,7 @@ export default function ProvidersPage() {
         initialStatus={linked.initialStatus}
         reloadKey={reloadKey}
         createOptions={createOptions}
+        exportOptions={exportOptions}
       />
       <Outlet context={outletContext} />
       {workId !== null && (

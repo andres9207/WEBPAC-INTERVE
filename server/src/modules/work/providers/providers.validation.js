@@ -7,6 +7,7 @@ import {
   idempotencyKeyRule,
   emailRule,
   contactsRules,
+  exportFormatRule,
 } from "../../../common/utils/validation.utils.js";
 import { EDITABLE_STATUS_VALUES } from "../../../common/constants/status.constants.js";
 
@@ -42,6 +43,9 @@ export const paginationProvidersSchema = [
   optionalId("pvtId"),
   optionalId("wrkId"),
 ];
+
+// Reporte del listado (DEC-070): los mismos filtros, sin paginar, y el formato.
+export const exportProvidersSchema = [...paginationProvidersSchema, exportFormatRule()];
 
 export const getProviderSchema = [query("prvId").isInt({ min: 1 }).withMessage("prvId es obligatorio y debe ser un entero positivo.")];
 

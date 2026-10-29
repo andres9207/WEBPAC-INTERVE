@@ -3,6 +3,7 @@ import { auditContext } from "../../../common/services/audit.service.js";
 import { getEffectivePermissionIds } from "../../../common/services/effectivePermissions.service.js";
 import { IDEMPOTENCY_HEADER } from "../../../common/services/idempotency.service.js";
 import { canViewAllWorks, workScopeOf } from "../../../common/services/workScope.service.js";
+import { sendExport } from "../../../common/services/export.service.js";
 import * as providersService from "./providers.service.js";
 
 // Solo leen la petición y delegan. El autor y sus permisos salen de req.user
@@ -45,6 +46,31 @@ export const paginationProvidersController = handle(async (req) => {
     scope: await workScopeOf(req),
     // El conteo de obras abarca todas las del proveedor: solo con el permiso de ver todas las obras.
     withWorksCount: await canViewAllWorks(req.user),
+  });
+});
+
+// Reporte (DEC-070): el archivo va como descarga, no como JSON.
+const handleExport = (fn) => async (req, res, next) => {
+  try {
+    sendExport(res, await fn(req));
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const exportProvidersController = handleExport(async (req) => {
+  const { search, staId, name, identification, pvtId, wrkId, sortField, sortOrder, format } = req.body;
+  return providersService.exportProviders({
+    search,
+    staId,
+    name,
+    identification,
+    pvtId,
+    wrkId,
+    sortField,
+    sortOrder,
+    format,
+    scope: await workScopeOf(req),
   });
 });
 

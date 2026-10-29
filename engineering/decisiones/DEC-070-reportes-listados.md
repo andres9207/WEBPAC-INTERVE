@@ -35,6 +35,14 @@ Pedido del usuario, con el listado de facturas de un extracto del sistema que se
 - **Dónde aplica**: facturas por menú (subtotal y total de valor, descuento, IVA y total, sin las anuladas), contratos (valor vigente), control de contratos y de anticipos y retenidos (los totales de cada reporte, contando cada contrato una vez), control de pólizas (valor asegurado), el extracto (sus importes sin las anuladas y una columna **Glosas**: las levantadas en el extracto sobre cada factura) y el reporte de un contrato (solo la obra: es de un proveedor). El de obras no tiene proveedor: sin grupos.
 - **En pantalla**, el reporte del extracto agrupa igual: el proveedor en la primera columna, en la primera de sus facturas, y su subtotal, con lo que calcula el servidor (`byProvider`); siempre abiertos, sin plegar.
 
+## Reporte de proveedores (2026-10-29)
+
+Pedido del usuario, con el reporte "PROVEEDORES" del sistema que se migra. `export_providers`, con el permiso 125 (migración 0128) además del de ver.
+
+- **Columnas** del sistema que se migra: nombre, dirección, identificación (tipo y número), teléfono (fijo y celular), fax, tipo de servicio y email; y **Tipos**, con la regla de la columna del listado (DEC-066).
+- **Una fila por contacto** (el principal primero); nombre, identificación, tipo de servicio y tipos van una vez para todos sus contactos, combinados en Excel (`groupKey`). Email: el del contacto o, si no tiene, el del proveedor. Sin contactos, una fila con el email del proveedor.
+- **Alcance por obra** (DEC-047), como el listado: con una obra elegida, sus proveedores y "Obra: código — nombre" bajo el título (`heading` de `renderExport`); con "Ver todo", todos, sin obra.
+
 ## Descartado
 
 - **Quitar el tope del listado o un parámetro `all: true`:** abriría cualquier listado a devolver la tabla entera; el estándar lo prohíbe.

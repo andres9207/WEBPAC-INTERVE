@@ -923,3 +923,80 @@ describe("alcance por obra (DEC-047)", () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });
+
+describe("exportProviders: reporte del listado (DEC-070)", () => {
+  const sheetValues = async (file) => {
+    const { default: ExcelJS } = await import("exceljs");
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.buffer);
+    const sheet = workbook.worksheets[0];
+    const values = [];
+    sheet.eachRow((row, n) => values.push({ n, cells: row.values.slice(1) }));
+    return { sheet, values };
+  };
+  const provider = (overrides = {}) => ({
+    prv_id: 1,
+    prv_name: "Aceros SAS",
+    prv_identification: "900123",
+    prv_service_type: "Suministro de acero",
+    prv_email: "info@aceros.co",
+    sta_id: 1,
+    tbl_identity_documents: { idd_code: "NIT" },
+    tbl_provider_classifications: [],
+    tbl_work_providers: [{ tbl_work_provider_types: [{ tbl_provider_types: { pvt_name: "Subcontratista" } }] }],
+    tbl_provider_contacts: [
+      { prc_address: "Cra 1 # 2-3", prc_phone: "6041234", prc_mobile: "3001234567", prc_fax: "6045678", prc_email: null, prc_main: true },
+      { prc_address: "Calle 9", prc_phone: null, prc_mobile: null, prc_fax: null, prc_email: "ventas@aceros.co", prc_main: false },
+    ],
+    ...overrides,
+  });
+
+  it("con una obra elegida: la obra en el encabezado y una fila por contacto, con lo del proveedor combinado", async () => {
+    prismaMock.tbl_providers.count.mockResolvedValue(2);
+    prismaMock.tbl_providers.findMany.mockResolvedValue([provider(), provider({ prv_id: 2, prv_name: "Bloques", tbl_provider_contacts: [] })]);
+    prismaMock.tbl_works.findUnique.mockResolvedValue({ wrk_code: "IEFL", wrk_name: "Flor de loto" });
+
+    const file = await service.exportProviders({ format: "xlsx", staId: 1, scope: { all: false, wrkId: 8 } });
+
+    const args = prismaMock.tbl_providers.findMany.mock.calls.at(-1)[0];
+    expect(args.where.tbl_work_providers).toEqual({ some: { wrk_id: { in: [8] } } });
+    expect(args).not.toHaveProperty("take");
+    // Los contactos, el principal primero.
+    expect(args.select.tbl_provider_contacts.orderBy).toEqual([{ prc_main: "desc" }, { prc_id: "asc" }]);
+
+    const { sheet, values } = await sheetValues(file);
+    const firsts = values.map((v) => v.cells[0]);
+    expect(firsts).toContain("Obra: IEFL — Flor de loto");
+    expect(firsts).toContain("Filtros: Estado: Activos");
+    const header = values.find((v) => v.cells[0] === "Nombre").n;
+    expect(sheet.getRow(header).values.slice(1)).toEqual(["Nombre", "Dirección", "Identificación", "Teléfono", "Fax", "Tipo servicio", "Email", "Tipos"]);
+    const table = values.filter((v) => v.n > header && v.n <= header + 3).map((v) => v.cells);
+    expect(table[0]).toEqual(["Aceros SAS", "Cra 1 # 2-3", "NIT 900123", "6041234 / 3001234567", "6045678", "Suministro de acero", "info@aceros.co", "Subcontratista"]);
+    // El segundo contacto: su email; lo del proveedor, en la celda combinada.
+    expect(table[1].slice(1, 2)).toEqual(["Calle 9"]);
+    expect(table[1][6]).toBe("ventas@aceros.co");
+    expect(sheet.getCell(header + 2, 1).isMerged).toBe(true);
+    expect(sheet.getCell(header + 2, 2).isMerged).toBe(false);
+    // Sin contactos: una fila con el email del proveedor.
+    expect(table[2][0]).toBe("Bloques");
+    expect(table[2][6]).toBe("info@aceros.co");
+  });
+
+  it("con \"Ver todo\" no hay obra en el encabezado; sale en PDF", async () => {
+    prismaMock.tbl_providers.count.mockResolvedValue(1);
+    prismaMock.tbl_providers.findMany.mockResolvedValue([provider()]);
+    prismaMock.tbl_works.findUnique.mockClear();
+
+    const file = await service.exportProviders({ format: "pdf", scope: { all: true } });
+
+    expect(prismaMock.tbl_works.findUnique).not.toHaveBeenCalled();
+    expect(file.buffer.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+
+  it("más filas que el tope: 422 sin leerlas", async () => {
+    prismaMock.tbl_providers.count.mockResolvedValue(5001);
+    prismaMock.tbl_providers.findMany.mockClear();
+    await expect(service.exportProviders({ format: "xlsx", scope: { all: true } })).rejects.toMatchObject({ statusCode: 422 });
+    expect(prismaMock.tbl_providers.findMany).not.toHaveBeenCalled();
+  });
+});

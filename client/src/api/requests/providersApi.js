@@ -12,6 +12,14 @@ import { idempotencyConfig } from 'utils/idempotency';
 export const providersApi = createMasterApi('work/providers', { entity: 'provider', plural: 'providers' });
 
 /**
+ * Reporte del listado en Excel o PDF (DEC-070): los mismos filtros de la tabla, sin paginar.
+ * @param {object} params  filtros, pestaña, búsqueda y orden del listado
+ * @param {'xlsx'|'pdf'} format
+ */
+export const exportProvidersAPI = (params, format) =>
+  httpCliente.post('work/providers/export_providers', { ...params, format }, { responseType: 'blob' });
+
+/**
  * ¿Ya hay un proveedor con este documento? Coincidencia exacta del par.
  * @param {{ iddId: number, identification: string, excludeId?: number }} params
  */

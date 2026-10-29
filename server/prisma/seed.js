@@ -178,6 +178,8 @@ const PERMISSIONS = [
   { per_id: 123, per_name: "Gestionar glosas", pag_id: 18, per_order: 15 },
   // database/migrations/0121_seed_works_export_permission.sql (DEC-070)
   { per_id: 124, per_name: "Exportar obras", pag_id: 14, per_order: 10 },
+  // database/migrations/0128_seed_providers_export_permission.sql (DEC-070)
+  { per_id: 125, per_name: "Exportar proveedores", pag_id: 15, per_order: 9 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver

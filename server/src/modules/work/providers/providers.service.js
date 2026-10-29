@@ -4,6 +4,7 @@ import { paginate, MAX_ROWS, countByStatus, containsFilter, idFilter, filtersWhe
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { dateOnlyText, toDateOnly, todayDateOnly } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
+import { findExportRows, renderExport } from "../../../common/services/export.service.js";
 import { assertInScope, scopeWhere } from "../../../common/services/workScope.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, newOperationId, writeAudit } from "../../../common/services/audit.service.js";
@@ -163,6 +164,25 @@ export const assertProviderInScope = async (scope, prvId) => {
   if (!found) throw httpError(404, NOT_FOUND);
 };
 
+// Filtros, orden y alcance del listado: los mismos para la página y para el reporte (DEC-070).
+const providerListQuery = ({ search, staId, name, identification, pvtId, wrkId, sortField, sortOrder, scope }) => {
+  const order = Number(sortOrder) === 1 ? "asc" : "desc";
+  const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
+  const baseWhere = {
+    sta_id: { not: DELETED_STATUS },
+    ...providerScopeWhere(scope),
+    ...searchWhereOf(search),
+    ...filtersWhere([
+      containsFilter(name, (c) => ({ prv_name: c })),
+      containsFilter(identification, (c) => ({ prv_identification: c })),
+      idFilter(pvtId, (id) => typeFilterWhere(scope, id)),
+      idFilter(wrkId, (id) => ({ tbl_work_providers: { some: { wrk_id: id } } })),
+    ]),
+  };
+  const where = staId ? { ...baseWhere, AND: [...(baseWhere.AND ?? []), { sta_id: Number(staId) }] } : baseWhere;
+  return { baseWhere, where, orderBy };
+};
+
 /**
  * `scope`: alcance por obra de la petición (DEC-047): solo los proveedores de
  * esa obra. `name`, `identification`, `pvtId` (uno de sus tipos) y `wrkId`
@@ -186,27 +206,91 @@ export const paginationProviders = async ({
   withWorksCount = false,
 }) => {
   const select = { ...LIST_SELECT, ...listWorkTypesSelect(scope), ...(withWorksCount ? WORKS_COUNT_SELECT : {}) };
-  const order = Number(sortOrder) === 1 ? "asc" : "desc";
-  const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
-
-  const baseWhere = {
-    sta_id: { not: DELETED_STATUS },
-    ...providerScopeWhere(scope),
-    ...searchWhereOf(search),
-    ...filtersWhere([
-      containsFilter(name, (c) => ({ prv_name: c })),
-      containsFilter(identification, (c) => ({ prv_identification: c })),
-      idFilter(pvtId, (id) => typeFilterWhere(scope, id)),
-      idFilter(wrkId, (id) => ({ tbl_work_providers: { some: { wrk_id: id } } })),
-    ]),
-  };
-  const where = staId ? { ...baseWhere, AND: [...(baseWhere.AND ?? []), { sta_id: Number(staId) }] } : baseWhere;
+  const { baseWhere, where, orderBy } = providerListQuery({ search, staId, name, identification, pvtId, wrkId, sortField, sortOrder, scope });
 
   const [page, statusCounts] = await Promise.all([
     paginate(prisma.tbl_providers, { where, select, orderBy }, { first, rows }),
     countByStatus(prisma.tbl_providers, baseWhere),
   ]);
   return { ...page, results: page.results.map((row) => toListDto(row, scope)), statusCounts };
+};
+
+// ─── Reporte (DEC-070) ───────────────────────────────────────────────────────
+
+// Contactos del reporte: el principal primero (ADR-0009).
+const EXPORT_CONTACTS_SELECT = {
+  select: { prc_address: true, prc_phone: true, prc_mobile: true, prc_fax: true, prc_email: true, prc_main: true },
+  orderBy: [{ prc_main: "desc" }, { prc_id: "asc" }],
+};
+
+/**
+ * Columnas del reporte, las del sistema que se migra y los tipos. Una fila por
+ * contacto: lo del proveedor (`group`) va una vez para todos sus contactos,
+ * combinado en Excel.
+ */
+const EXPORT_COLUMNS = [
+  { header: "Nombre", value: (r) => r.name, width: 2, group: true },
+  { header: "Dirección", value: (r) => r.address, width: 1.8 },
+  { header: "Identificación", value: (r) => [r.identityCode, r.identification].filter(Boolean).join(" "), width: 1.1, group: true },
+  { header: "Teléfono", value: (r) => r.phone },
+  { header: "Fax", value: (r) => r.fax, width: 0.8 },
+  { header: "Tipo servicio", value: (r) => r.serviceType, width: 1.6, group: true },
+  { header: "Email", value: (r) => r.email, width: 1.6 },
+  { header: "Tipos", value: (r) => r.providerTypes.join(", "), width: 1.4, group: true },
+];
+
+/**
+ * Filas del reporte: una por contacto, con el email del contacto o, si no
+ * tiene, el del proveedor; sin contactos, una con el email del proveedor.
+ */
+const exportRowsOf = (row, scope) => {
+  const provider = { ...toListDto(row, scope), key: row.prv_id };
+  const contacts = row.tbl_provider_contacts ?? [];
+  if (contacts.length === 0) return [{ ...provider, email: row.prv_email }];
+  return contacts.map((c) => ({
+    ...provider,
+    address: c.prc_address,
+    phone: [c.prc_phone, c.prc_mobile].filter(Boolean).join(" / "),
+    fax: c.prc_fax,
+    email: c.prc_email || row.prv_email,
+  }));
+};
+
+const STATUS_FILTER_NAMES = { [ACTIVE_STATUS]: "Activos", [INACTIVE_STATUS]: "Inactivos" };
+
+/** Encabezado del reporte: la obra del alcance (con "Ver todo", ninguna) y las líneas de los filtros. */
+const exportHeadingOf = async ({ search, staId, name, identification, pvtId, wrkId, scope }) => {
+  const workOf = (id) => (Number(id) > 0 ? prisma.tbl_works.findUnique({ where: { wrk_id: Number(id) }, select: { wrk_code: true, wrk_name: true } }) : null);
+  const [scopedWork, filterWork, type] = await Promise.all([
+    scope?.all ? null : workOf(scope?.wrkId),
+    workOf(wrkId),
+    Number(pvtId) > 0 ? prisma.tbl_provider_types.findUnique({ where: { pvt_id: Number(pvtId) }, select: { pvt_name: true } }) : null,
+  ]);
+  const workText = (w) => (w ? [w.wrk_code, w.wrk_name].filter(Boolean).join(" — ") : null);
+  const lines = [
+    ["Estado", STATUS_FILTER_NAMES[Number(staId)] ?? "Todos"],
+    ["Búsqueda", text(search)],
+    ["Razón social contiene", text(name)],
+    ["Documento contiene", text(identification)],
+    ["Tipo", type?.pvt_name],
+    ["Obra asignada", workText(filterWork)],
+  ].filter(([, value]) => value);
+  const heading = workText(scopedWork) ?? (scope?.all ? null : workText(filterWork));
+  return { heading: heading ? `Obra: ${heading}` : null, filters: [`Filtros: ${lines.map(([label, value]) => `${label}: ${value}`).join(" · ")}`] };
+};
+
+/**
+ * Reporte del listado en Excel o PDF (DEC-070; ADR-0012, exportación): los
+ * mismos filtros, pestaña, búsqueda, orden y alcance que la tabla, sin
+ * paginar. Con una obra elegida, sus proveedores y la obra en el encabezado;
+ * con "Ver todo", todos. Los tipos, con la regla de la columna del listado.
+ */
+export const exportProviders = async ({ format, ...filters }) => {
+  const { where, orderBy } = providerListQuery(filters);
+  const select = { ...LIST_SELECT, prv_email: true, ...listWorkTypesSelect(filters.scope), tbl_provider_contacts: EXPORT_CONTACTS_SELECT };
+  const rows = (await findExportRows(prisma.tbl_providers, { where, select, orderBy })).flatMap((row) => exportRowsOf(row, filters.scope));
+  const { heading, filters: lines } = await exportHeadingOf(filters);
+  return renderExport({ format, title: "Proveedores", heading, filters: lines, columns: EXPORT_COLUMNS, rows, groupKey: (r) => r.key });
 };
 
 // ─── Detalle ─────────────────────────────────────────────────────────────────

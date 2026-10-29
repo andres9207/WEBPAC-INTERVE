@@ -284,10 +284,10 @@ const addFieldsSheet = (workbook, title, lines, sections, heading) => {
   sheet.getColumn(2).width = 70;
 };
 
-const buildExcel = async ({ title, filters, columns, rows, groupKey, rowGroups, totals }) => {
+const buildExcel = async ({ title, heading, filters, columns, rows, groupKey, rowGroups, totals }) => {
   const workbook = new ExcelJS.Workbook();
   workbook.created = new Date();
-  addTableSheet(workbook, { title, filters, columns, rows, groupKey, rowGroups, totals });
+  addTableSheet(workbook, { title, heading, filters, columns, rows, groupKey, rowGroups, totals });
   return Buffer.from(await workbook.xlsx.writeBuffer());
 };
 
@@ -527,9 +527,9 @@ const pdfBuffer = (draw) =>
     doc.end();
   });
 
-const buildPdf = ({ title, filters, columns, rows, groupKey, rowGroups, totals }) =>
+const buildPdf = ({ title, heading, filters, columns, rows, groupKey, rowGroups, totals }) =>
   pdfBuffer((doc) => {
-    pdfHeading(doc, title, filters, rows.length, sharedHeading(rows, rowGroups));
+    pdfHeading(doc, title, filters, rows.length, heading ?? sharedHeading(rows, rowGroups));
     drawTable(doc, { columns, rows, groupKey, rowGroups, totals });
   });
 
@@ -554,10 +554,11 @@ const renderWith = async (format, builders, input) => {
  * Archivo del reporte de un listado: `{ buffer, contentType, extension }`.
  * `filters`: las líneas que describen los filtros aplicados, para el
  * encabezado. `groupKey`, `rowGroups` y `totals`: filas agrupadas, grupos por
- * proveedor y fila de totales (ver arriba).
+ * proveedor y fila de totales (ver arriba). `heading`: en negrita bajo el
+ * título (p. ej. la obra del alcance), si las filas no la dan.
  */
-export const renderExport = ({ format, title, filters = [], columns, rows, groupKey = null, rowGroups = null, totals = null }) =>
-  renderWith(format, { xlsx: buildExcel, pdf: buildPdf }, { title, filters, columns, rows, groupKey, rowGroups, totals });
+export const renderExport = ({ format, title, heading = null, filters = [], columns, rows, groupKey = null, rowGroups = null, totals = null }) =>
+  renderWith(format, { xlsx: buildExcel, pdf: buildPdf }, { title, heading, filters, columns, rows, groupKey, rowGroups, totals });
 
 /**
  * Archivo del reporte de un registro, por secciones. Sección de campos:
