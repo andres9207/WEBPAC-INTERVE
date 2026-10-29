@@ -16,7 +16,12 @@ Pedido por el usuario el 2026-10-29: ver en un gráfico cuántas pruebas pasaron
 - **Fuentes de datos:** los JSON que ya escriben Jest (`--json --outputFile`) y ESLint (`-f json -o`), en `$RUNNER_TEMP`, y los archivos de `client/dist/assets`.
 - **El lint corre una sola vez, en JSON.** Si falla, se repite con `--quiet` en el formato legible, para que el log muestre los errores.
 - **El paso Resumen corre aunque un paso anterior haya fallado** (`!cancelled()`). Si falta un reporte, el resumen dice qué falta.
-- **Los gráficos son Mermaid** (`pie`), con colores fijos: verde, rojo y gris para los tests. Se omiten las porciones en cero. Los números están también en tablas.
+- **Los gráficos son Mermaid** (`pie`), con colores fijos: verde, rojo y gris para los tests. Se omiten las porciones en cero. Los números están también en tablas. El texto (título, leyenda y porcentajes) va en colores que se leen en el tema claro y en el oscuro de GitHub.
+- **Lint por tipo, en español** (pedido del usuario, 2026-10-29). El gráfico y la tabla usan nombres como "Negaciones innecesarias" o "Condiciones ternarias anidadas", con la regla al lado. El catálogo de nombres y explicaciones está en `RULES` del script; una regla que no está ahí se muestra con su identificador.
+- **Detalle por tipo:** un desplegable por regla con qué significa, cómo se corrige y los archivos con sus líneas.
+  - En GitHub, cada línea enlaza al archivo en el commit revisado.
+  - En complejidad cognitiva, cada línea lleva cuánto mide la función, y la tabla va de la más compleja a la menos.
+  - Tope de 25 archivos por regla y 10 líneas por archivo, porque el resumen de un paso admite hasta 1 MiB. El resto se ve con `npm run lint`.
 
 ## Descartado
 

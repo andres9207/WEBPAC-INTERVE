@@ -224,9 +224,10 @@ const EXPORT_CONTACTS_SELECT = {
 };
 
 /**
- * Columnas del reporte, las del sistema que se migra y los tipos. Una fila por
+ * Columnas del reporte: las del sistema que se migra, los tipos y los datos
+ * generales del proveedor (correo institucional y observación). Una fila por
  * contacto: lo del proveedor (`group`) va una vez para todos sus contactos,
- * combinado en Excel.
+ * combinado en Excel; Email es el del contacto.
  */
 const EXPORT_COLUMNS = [
   { header: "Nombre", value: (r) => r.name, width: 2, group: true },
@@ -237,22 +238,21 @@ const EXPORT_COLUMNS = [
   { header: "Tipo servicio", value: (r) => r.serviceType, width: 1.6, group: true },
   { header: "Email", value: (r) => r.email, width: 1.6 },
   { header: "Tipos", value: (r) => r.providerTypes.join(", "), width: 1.4, group: true },
+  { header: "Correo institucional", value: (r) => r.institutionalEmail, width: 1.6, group: true },
+  { header: "Observación", value: (r) => r.observation, width: 2, group: true },
 ];
 
-/**
- * Filas del reporte: una por contacto, con el email del contacto o, si no
- * tiene, el del proveedor; sin contactos, una con el email del proveedor.
- */
+/** Filas del reporte: una por contacto; sin contactos, una con solo los datos del proveedor. */
 const exportRowsOf = (row, scope) => {
-  const provider = { ...toListDto(row, scope), key: row.prv_id };
+  const provider = { ...toListDto(row, scope), key: row.prv_id, institutionalEmail: row.prv_email, observation: row.prv_observation };
   const contacts = row.tbl_provider_contacts ?? [];
-  if (contacts.length === 0) return [{ ...provider, email: row.prv_email }];
+  if (contacts.length === 0) return [provider];
   return contacts.map((c) => ({
     ...provider,
     address: c.prc_address,
     phone: [c.prc_phone, c.prc_mobile].filter(Boolean).join(" / "),
     fax: c.prc_fax,
-    email: c.prc_email || row.prv_email,
+    email: c.prc_email,
   }));
 };
 
@@ -287,7 +287,13 @@ const exportHeadingOf = async ({ search, staId, name, identification, pvtId, wrk
  */
 export const exportProviders = async ({ format, ...filters }) => {
   const { where, orderBy } = providerListQuery(filters);
-  const select = { ...LIST_SELECT, prv_email: true, ...listWorkTypesSelect(filters.scope), tbl_provider_contacts: EXPORT_CONTACTS_SELECT };
+  const select = {
+    ...LIST_SELECT,
+    prv_email: true,
+    prv_observation: true,
+    ...listWorkTypesSelect(filters.scope),
+    tbl_provider_contacts: EXPORT_CONTACTS_SELECT,
+  };
   const rows = (await findExportRows(prisma.tbl_providers, { where, select, orderBy })).flatMap((row) => exportRowsOf(row, filters.scope));
   const { heading, filters: lines } = await exportHeadingOf(filters);
   return renderExport({ format, title: "Proveedores", heading, filters: lines, columns: EXPORT_COLUMNS, rows, groupKey: (r) => r.key });

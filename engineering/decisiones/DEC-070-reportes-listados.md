@@ -39,8 +39,8 @@ Pedido del usuario, con el listado de facturas de un extracto del sistema que se
 
 Pedido del usuario, con el reporte "PROVEEDORES" del sistema que se migra. `export_providers`, con el permiso 125 (migración 0128) además del de ver.
 
-- **Columnas** del sistema que se migra: nombre, dirección, identificación (tipo y número), teléfono (fijo y celular), fax, tipo de servicio y email; y **Tipos**, con la regla de la columna del listado (DEC-066).
-- **Una fila por contacto** (el principal primero); nombre, identificación, tipo de servicio y tipos van una vez para todos sus contactos, combinados en Excel (`groupKey`). Email: el del contacto o, si no tiene, el del proveedor. Sin contactos, una fila con el email del proveedor.
+- **Columnas** del sistema que se migra: nombre, dirección, identificación (tipo y número), teléfono (fijo y celular), fax, tipo de servicio y email (del contacto); **Tipos**, con la regla de la columna del listado (DEC-066), y los datos generales del proveedor: **correo institucional** y **observación**.
+- **Una fila por contacto** (el principal primero); nombre, identificación, tipo de servicio, tipos, correo institucional y observación van una vez para todos sus contactos, combinados en Excel (`groupKey`). Email es solo el del contacto: el del proveedor va en "Correo institucional". Sin contactos, una fila con los datos del proveedor.
 - **Alcance por obra** (DEC-047), como el listado: con una obra elegida, sus proveedores y "Obra: código — nombre" bajo el título (`heading` de `renderExport`); con "Ver todo", todos, sin obra.
 
 ## Descartado

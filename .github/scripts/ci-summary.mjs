@@ -15,10 +15,48 @@ import { gzipSync } from "zlib";
 
 const COLORS = { ok: "#2e7d32", fail: "#c62828", skip: "#9e9e9e" };
 const RULE_COLORS = ["#1565c0", "#ef6c00", "#6a1b9a", "#00838f", "#ad1457", "#9e9e9e"];
+// Texto legible en el tema claro y en el oscuro de GitHub.
+const TEXT_COLORS = { pieTitleTextColor: "#8b949e", pieLegendTextColor: "#8b949e", pieSectionTextColor: "#ffffff", pieStrokeColor: "#ffffff" };
 const TOP_RULES = 5;
 const SLOWEST_SUITES = 5;
 const MAX_FAILURES = 20;
 const LARGEST_ASSETS = 8;
+// Tope del detalle por regla: el resumen de un paso admite hasta 1 MiB.
+const MAX_FILES_PER_RULE = 25;
+const MAX_LINES_PER_FILE = 10;
+
+// Nombre en español y cómo corregir cada regla (DEC-098). Una regla que no
+// está aquí se muestra con su identificador.
+const RULES = {
+  "sonarjs/no-nested-conditional": ["Condiciones ternarias anidadas", "Un ternario dentro de otro (`a ? b : c ? d : e`). Pasarlo a `if`/`else` o a una función con nombre."],
+  "sonarjs/no-inverted-boolean-check": ["Negaciones innecesarias", "`!(a === b)` se escribe `a !== b`; `!(a > b)`, `a <= b`."],
+  "sonarjs/no-nested-template-literals": ["Plantillas de texto anidadas", "Un `${…}` con otra plantilla adentro. Calcular la parte interna en una variable antes."],
+  "sonarjs/cognitive-complexity": ["Funciones demasiado complejas", "Muchos `if`, ciclos y anidamiento (más de 15 puntos). Dividir en funciones pequeñas con nombre. Entre paréntesis, cuánto mide cada una."],
+  "sonarjs/misplaced-loop-counter": ["Contador de ciclo mal ubicado", "El `for` actualiza una variable distinta de la que compara. Revisar la condición o usar `while`."],
+  "sonarjs/no-nested-functions": ["Funciones anidadas en exceso", "Funciones dentro de funciones a más de 4 niveles. Sacar las internas."],
+  "sonarjs/no-nested-assignment": ["Asignaciones dentro de expresiones", "`if ((x = f()))`: asignar en una línea propia."],
+  "sonarjs/concise-regex": ["Expresiones regulares mejorables", "Hay una forma más corta: `[0-9]` es `\\d`."],
+  "sonarjs/super-linear-regex": ["Expresiones regulares lentas", "Con ciertas entradas tardan mucho (ReDoS). Revisar si reciben texto del usuario."],
+  "sonarjs/slow-regex": ["Expresiones regulares lentas", "Con ciertas entradas tardan mucho (ReDoS). Revisar si reciben texto del usuario."],
+  "sonarjs/anchor-precedence": ["Anclas ambiguas en expresiones regulares", "`^a|b$` no significa `^(a|b)$`: agrupar."],
+  "sonarjs/pseudo-random": ["Números aleatorios no seguros", "`Math.random` no sirve para claves ni contraseñas: usar `crypto`."],
+  "sonarjs/hashing": ["Hash débil", "MD5 y SHA-1 no protegen datos: usar SHA-256 o bcrypt."],
+  "sonarjs/no-hardcoded-passwords": ["Posible contraseña en el código", "Las credenciales van en variables de entorno."],
+  "sonarjs/no-hardcoded-ip": ["Dirección IP en el código", "Moverla a configuración."],
+  "sonarjs/no-clear-text-protocols": ["Protocolo sin cifrar", "Usar `https` en lugar de `http`."],
+  "sonarjs/x-powered-by": ["Cabecera X-Powered-By expuesta", "Ocultarla (helmet lo hace)."],
+  "sonarjs/no-small-switch": ["`switch` con muy pocos casos", "Con uno o dos casos, un `if` es más claro."],
+  "sonarjs/no-all-duplicated-branches": ["Ramas idénticas", "Todas las ramas hacen lo mismo: la condición sobra."],
+  "sonarjs/no-dead-store": ["Valores asignados que nunca se usan", "La variable se sobrescribe antes de leerse."],
+  "sonarjs/prefer-native-lodash-alternative": ["lodash donde basta JavaScript", "Usar el método nativo (`Array.prototype.map`, `Object.keys`…)."],
+  "sonarjs/no-default-utility-imports": ["Import completo de una librería de utilidades", "Importar solo la función que se usa."],
+  "prettier/prettier": ["Formato (Prettier)", "Espacios, comillas y saltos de línea. `npm run lint:fix` lo corrige."],
+  "react-hooks/exhaustive-deps": ["Dependencias faltantes en hooks", "El arreglo de dependencias de `useEffect`/`useCallback` no lista todo lo que usa."],
+  "no-unused-vars": ["Variables sin usar", "Quitarlas, o nombrarlas con `_` si se descartan a propósito (DEC-097)."],
+  "(directiva eslint-disable sin uso)": ["Directivas eslint-disable que sobran", "La línea ya no tiene el hallazgo: quitar el comentario."],
+  "(error de sintaxis)": ["Errores de sintaxis", "El archivo no se pudo analizar."],
+};
+const ruleName = (rule) => RULES[rule]?.[0] ?? rule;
 
 const [, , job, ...rest] = process.argv;
 const args = Object.fromEntries(rest.flatMap((value, i) => (value.startsWith("--") ? [[value.slice(2), rest[i + 1]]] : [])));
@@ -33,6 +71,13 @@ const readJson = (path) => {
   }
 };
 
+const repoPath = (path) => relative(repoRoot, path).replaceAll("\\", "/");
+
+// En GitHub, enlace a la línea en el commit revisado; en local, solo el número.
+const { GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_SHA } = process.env;
+const lineLink = (path, line) =>
+  GITHUB_REPOSITORY && GITHUB_SHA ? `[${line}](${GITHUB_SERVER_URL ?? "https://github.com"}/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/${path}#L${line})` : String(line);
+
 const number = (n) => n.toLocaleString("es-CO");
 const kb = (bytes) => `${(bytes / 1024).toLocaleString("es-CO", { maximumFractionDigits: 1 })} kB`;
 const seconds = (ms) => `${(ms / 1000).toLocaleString("es-CO", { maximumFractionDigits: 1 })} s`;
@@ -45,7 +90,7 @@ const table = (headers, rows) =>
 const pie = (title, slices) => {
   const shown = slices.filter(([, value]) => value > 0);
   if (shown.length === 0) return "";
-  const vars = Object.fromEntries(shown.map(([, , color], i) => [`pie${i + 1}`, color]));
+  const vars = { ...TEXT_COLORS, ...Object.fromEntries(shown.map(([, , color], i) => [`pie${i + 1}`, color])) };
   return [
     "```mermaid",
     `%%{init: {"theme": "base", "themeVariables": ${JSON.stringify(vars)}}}%%`,
@@ -109,13 +154,17 @@ const lintSection = (eslint) => {
   const byRule = new Map();
   const files = new Set();
   for (const file of eslint) {
+    const path = repoPath(file.filePath);
     for (const m of file.messages) {
       if (m.severity === 2) errors += 1;
       else warnings += 1;
       // Sin regla: un error de sintaxis (fatal) o una directiva eslint-disable que ya no hace falta.
       const rule = m.ruleId ?? (m.fatal ? "(error de sintaxis)" : "(directiva eslint-disable sin uso)");
-      const entry = byRule.get(rule) ?? { errors: 0, warnings: 0 };
+      const entry = byRule.get(rule) ?? { errors: 0, warnings: 0, files: new Map() };
       entry[m.severity === 2 ? "errors" : "warnings"] += 1;
+      // La complejidad cognitiva dice cuánto mide la función: "from 24 to the 15 allowed".
+      const score = rule === "sonarjs/cognitive-complexity" ? Number(/from (\d+)/.exec(m.message)?.[1]) || null : null;
+      entry.files.set(path, [...(entry.files.get(path) ?? []), { line: m.line ?? 1, score }]);
       byRule.set(rule, entry);
       files.add(file.filePath);
     }
@@ -132,12 +181,44 @@ const lintSection = (eslint) => {
   const others = rules.slice(TOP_RULES).reduce((sum, r) => sum + r.total, 0);
   out.push(
     pie(
-      "Hallazgos por regla",
-      [...top.map((r, i) => [r.rule, r.total, RULE_COLORS[i]]), ["Otras", others, RULE_COLORS[TOP_RULES]]],
+      "Hallazgos por tipo",
+      [...top.map((r, i) => [ruleName(r.rule), r.total, RULE_COLORS[i]]), ["Otros", others, RULE_COLORS[TOP_RULES]]],
     ),
-    table(["Regla", "Errores", "Advertencias"], rules.slice(0, 10).map((r) => [`\`${r.rule}\``, number(r.errors), number(r.warnings)])),
+    table(
+      ["Hallazgo", "Regla", "Errores", "Advertencias", "Archivos"],
+      rules.map((r) => [ruleName(r.rule), `\`${r.rule}\``, number(r.errors), number(r.warnings), number(r.files.size)]),
+    ),
+    "#### Detalle por tipo",
+    ...rules.map(ruleDetail),
   );
   return out.filter(Boolean).join("\n\n");
+};
+
+// Un desplegable por regla: qué es, cómo se corrige y en qué archivos y
+// líneas está. En GitHub, cada línea enlaza al archivo en el commit revisado.
+const ruleDetail = (r) => {
+  const hint = RULES[r.rule]?.[1];
+  // Primero los archivos con más hallazgos; en complejidad, la función más compleja.
+  const worst = (hits) => Math.max(...hits.map((h) => h.score ?? 0));
+  const byCount = [...r.files].sort((a, b) => worst(b[1]) - worst(a[1]) || b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  const rows = byCount.slice(0, MAX_FILES_PER_RULE).map(([path, lines]) => {
+    const shown = lines
+      .slice(0, MAX_LINES_PER_FILE)
+      .map(({ line, score }) => (score ? `${lineLink(path, line)} (${score})` : lineLink(path, line)))
+      .join(", ");
+    const more = lines.length > MAX_LINES_PER_FILE ? ` y ${lines.length - MAX_LINES_PER_FILE} más` : "";
+    return [`\`${path}\``, number(lines.length), shown + more];
+  });
+  const hidden = byCount.length - MAX_FILES_PER_RULE;
+  return [
+    `<details><summary><b>${ruleName(r.rule)}</b>: ${number(r.total)} en ${number(r.files.size)} ${r.files.size === 1 ? "archivo" : "archivos"}</summary>\n`,
+    hint ? `${hint} Regla \`${r.rule}\`.` : `Regla \`${r.rule}\`.`,
+    table(["Archivo", "Hallazgos", "Líneas"], rows),
+    hidden > 0 ? `…y ${number(hidden)} archivos más. Para verlos todos: \`npm run lint\` en local.` : "",
+    "\n</details>",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 };
 
 const buildSection = (dist) => {

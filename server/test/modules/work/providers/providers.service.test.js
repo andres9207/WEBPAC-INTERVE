@@ -940,6 +940,7 @@ describe("exportProviders: reporte del listado (DEC-070)", () => {
     prv_identification: "900123",
     prv_service_type: "Suministro de acero",
     prv_email: "info@aceros.co",
+    prv_observation: "Entrega en obra",
     sta_id: 1,
     tbl_identity_documents: { idd_code: "NIT" },
     tbl_provider_classifications: [],
@@ -969,17 +970,42 @@ describe("exportProviders: reporte del listado (DEC-070)", () => {
     expect(firsts).toContain("Obra: IEFL — Flor de loto");
     expect(firsts).toContain("Filtros: Estado: Activos");
     const header = values.find((v) => v.cells[0] === "Nombre").n;
-    expect(sheet.getRow(header).values.slice(1)).toEqual(["Nombre", "Dirección", "Identificación", "Teléfono", "Fax", "Tipo servicio", "Email", "Tipos"]);
+    expect(sheet.getRow(header).values.slice(1)).toEqual([
+      "Nombre",
+      "Dirección",
+      "Identificación",
+      "Teléfono",
+      "Fax",
+      "Tipo servicio",
+      "Email",
+      "Tipos",
+      "Correo institucional",
+      "Observación",
+    ]);
     const table = values.filter((v) => v.n > header && v.n <= header + 3).map((v) => v.cells);
-    expect(table[0]).toEqual(["Aceros SAS", "Cra 1 # 2-3", "NIT 900123", "6041234 / 3001234567", "6045678", "Suministro de acero", "info@aceros.co", "Subcontratista"]);
+    // El contacto principal sin email: la columna Email va vacía; los datos generales, en sus columnas.
+    expect(table[0]).toEqual([
+      "Aceros SAS",
+      "Cra 1 # 2-3",
+      "NIT 900123",
+      "6041234 / 3001234567",
+      "6045678",
+      "Suministro de acero",
+      "",
+      "Subcontratista",
+      "info@aceros.co",
+      "Entrega en obra",
+    ]);
     // El segundo contacto: su email; lo del proveedor, en la celda combinada.
     expect(table[1].slice(1, 2)).toEqual(["Calle 9"]);
     expect(table[1][6]).toBe("ventas@aceros.co");
     expect(sheet.getCell(header + 2, 1).isMerged).toBe(true);
+    expect(sheet.getCell(header + 2, 9).isMerged).toBe(true);
     expect(sheet.getCell(header + 2, 2).isMerged).toBe(false);
-    // Sin contactos: una fila con el email del proveedor.
+    // Sin contactos: una fila con los datos del proveedor.
     expect(table[2][0]).toBe("Bloques");
-    expect(table[2][6]).toBe("info@aceros.co");
+    expect(table[2][6]).toBe("");
+    expect(table[2][8]).toBe("info@aceros.co");
   });
 
   it("con \"Ver todo\" no hay obra en el encabezado; sale en PDF", async () => {
