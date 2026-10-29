@@ -4188,9 +4188,9 @@
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1793293702.0000181,
-    "seen": 1793294006.5049007,
-    "ast_hash": "738ff474859aa224b48c34baae8ca982",
+    "mtime": 1793294381.9623928,
+    "seen": 1793294638.1041546,
+    "ast_hash": "2fce9c0bcec37666ed1e13ae3973ee07",
     "semantic_hash": ""
   },
   "client/src/contexts/AuthContext.jsx": {
@@ -4209,6 +4209,12 @@
     "mtime": 1793293656.6375175,
     "seen": 1793294006.504607,
     "ast_hash": "471ab57deee3edbbed6853c30f8e7e51",
+    "semantic_hash": ""
+  },
+  ".github/scripts/ci-summary.mjs": {
+    "mtime": 1793294357.4474454,
+    "seen": 1793294638.103355,
+    "ast_hash": "87ac87d338b9e26a487cbdbd38bc6a7b",
     "semantic_hash": ""
   }
 }
