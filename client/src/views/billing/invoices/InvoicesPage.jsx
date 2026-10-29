@@ -36,8 +36,9 @@ import {
 // El nombre y la forma de facturar del menú los da el servidor; la forma
 // decide columnas, filtros y formulario. Reutiliza el listado de MasterPage
 // con pestañas por el estado del ciclo de vida (registrada, aprobada,
-// anulada). Detalle, alta y edición son rutas hijas que se abren en un modal
-// sobre el listado (DEC-034) y reciben el menú por el contexto del Outlet. El
+// anulada). Alta y expediente (que también edita) son rutas hijas que se abren
+// en un modal sobre el listado (DEC-034, DEC-057) y reciben el menú por el
+// contexto del Outlet. El
 // tipo de factura es uno de los filtros en los menús de contrato (DEC-048):
 // las pestañas cuentan dentro de él.
 
@@ -242,8 +243,8 @@ export default function InvoicesPage() {
   const navigation = useMemo(
     () => ({
       create: () => navigate(invoicePath(pvtId, 'new')),
-      view: (row) => navigate(invoicePath(pvtId, row.invId)),
-      edit: (row) => navigate(invoicePath(pvtId, row.invId, 'edit'))
+      // Un solo botón (DEC-057): el expediente, con los datos de la factura en una pestaña.
+      view: (row) => navigate(invoicePath(pvtId, row.invId))
     }),
     [navigate, pvtId]
   );

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import PropTypes from 'prop-types';
+import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { format } from 'date-fns';
 
@@ -38,10 +39,13 @@ import { INVOICE_MODE_TYPES, INVOICE_TYPE_OPTIONS, invoicePath, isBillingInvoice
 import { ALL_WORKS } from 'utils/workScope';
 
 /**
- * Registro y edición de una factura (ADR-0020, DEC-042), en un modal sobre el
- * listado de su menú (DEC-074) con dirección propia `…/new` y
- * `…/:invId/edit` (DEC-034). El menú (su tipo de proveedor, su nombre y su
- * forma de facturar) llega por el contexto del Outlet.
+ * Registro y edición de una factura (ADR-0020, DEC-042). `InvoiceForm` tiene
+ * el formulario; registrar es un modal sobre el listado de su menú (DEC-074)
+ * con dirección propia `…/new` (DEC-034), y editar, la pestaña "Datos de la
+ * factura" de su expediente (InvoiceDetailPage, DEC-057). El menú (su tipo de
+ * proveedor, su nombre y su forma de facturar) llega por el contexto del
+ * Outlet; al editar, la forma sale de la factura (también se edita desde el
+ * tablero, sin menú).
  *
  * - La forma del menú decide los tipos: la simple registra solo la simple,
  *   que pide la obra, una etapa de ella (si la obra tiene etapas, DEC-069) y
@@ -151,7 +155,9 @@ const toPayload = (invId, form, sendAmounts, pvtId) => ({
   ...(sendAmounts && hasAmounts(form.type) ? amountsPayload(form) : {}),
   ...(sendAmounts && isSimple(form.type) ? Object.fromEntries(SIMPLE_AMOUNT_FIELDS.map((field) => [field, form[field]])) : {}),
   // Solo al registrar: las glosas que libera y su observación.
-  ...(!invId && form.releaseGlosses.length > 0 ? { releaseGlosses: form.releaseGlosses, releaseObservation: text(form.releaseObservation) } : {})
+  ...(!invId && form.releaseGlosses.length > 0
+    ? { releaseGlosses: form.releaseGlosses, releaseObservation: text(form.releaseObservation) }
+    : {})
 });
 
 /**
@@ -246,13 +252,17 @@ const readOnlyField = (label, value) => (
   <TextField label={label} value={value ?? ''} size="small" fullWidth slotProps={{ input: { readOnly: true } }} />
 );
 
-export default function InvoiceFormPage() {
-  const { invId: invIdParam } = useParams();
-  const invId = Number(invIdParam) || 0;
-  const isEdit = invId > 0;
-  const navigate = useNavigate();
-  const { refresh, pvtId, menu } = useOutletContext() ?? {};
-  const listPath = invoicePath(pvtId);
+/**
+ * Formulario de una factura. Sin `invoice`, registra una nueva; con ella, la
+ * edita (la recibe del expediente, que la recarga). `children` recibe el
+ * contenido y los controles de guardado, para que cada vista los ponga en su
+ * modal. `onSaved(data)`: después de guardar. `active`: sin él (sin permiso
+ * de editar), no pide nada al servidor.
+ */
+export function InvoiceForm({ invoice = null, onSaved, active = true, children }) {
+  const invId = invoice?.invId ?? 0;
+  const isEdit = Boolean(invoice);
+  const { pvtId, menu } = useOutletContext() ?? {};
   const typeOptions = INVOICE_TYPE_OPTIONS.filter((o) => (INVOICE_MODE_TYPES[menu?.mode] ?? []).includes(o.value));
   // Un menú de forma simple tiene un solo tipo: no se elige.
   const fixedType = typeOptions.length === 1 ? typeOptions[0].value : '';
@@ -271,59 +281,57 @@ export default function InvoiceFormPage() {
   const presetPrvId = Number(searchParams.get('prvId')) || '';
 
   const [idempotencyKey] = useState(() => (isEdit ? null : newIdempotencyKey()));
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isEdit);
   const [saving, setSaving] = useState(false);
-  const [loaded, setLoaded] = useState(null);
+  const loaded = invoice;
   // Contrato elegido: su proveedor y su obra se muestran aunque una búsqueda nueva no lo traiga.
   const [pickedContract, setPickedContract] = useState(null);
   const [options, setOptions] = useState({ stages: [], providers: [] });
   const [loadingOptions, setLoadingOptions] = useState(false);
-  const [confirmLeave, setConfirmLeave] = useState(false);
   // Saldos del contrato (tarjetas) y composición de la simple (panel Detalle): los calcula el servidor (DEC-065).
   const [balances, setBalances] = useState(null);
   const [preview, setPreview] = useState(null);
 
   // Se valida al escribir: un error (también el que deja la conversión de valor a %) se va al corregir el campo.
-  const { control, handleSubmit, reset, setValue, clearErrors, formState } = useForm({ defaultValues: EMPTY_FORM, mode: 'onChange' });
+  const { control, handleSubmit, reset, setValue, clearErrors, formState } = useForm({
+    defaultValues: invoice ? toForm(invoice) : EMPTY_FORM,
+    mode: 'onChange'
+  });
   const { errors, isDirty } = formState;
 
+  // Nueva: los valores iniciales, con lo que llega del expediente de origen.
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const invoice = isEdit ? (await invoicesApi.getById({ invId })).data : null;
-        setLoaded(invoice);
-        reset(
-          invoice
-            ? toForm(invoice)
-            : {
-                ...EMPTY_FORM,
-                date: today(),
-                type: presetType,
-                ctrId: presetType && !isSimple(presetType) ? presetCtrId : '',
-                wrkId: isSimple(presetType) ? presetWrkId : '',
-                prvId: isSimple(presetType) ? presetPrvId : '',
-                // IVA general por defecto, como en los conceptos del contrato; se puede cambiar.
-                vatPct: isSimple(presetType) || isBillingInvoiceType(presetType) ? DEFAULT_VAT_PCT : ''
-              }
-        );
-      } catch (err) {
-        showError(err.response?.data?.message || 'Error al cargar la factura');
-        navigate(listPath, { replace: true });
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [isEdit, invId, reset, navigate, listPath, presetType, presetCtrId, presetWrkId, presetPrvId]);
+    if (isEdit) return;
+    reset({
+      ...EMPTY_FORM,
+      date: today(),
+      type: presetType,
+      ctrId: presetType && !isSimple(presetType) ? presetCtrId : '',
+      wrkId: isSimple(presetType) ? presetWrkId : '',
+      prvId: isSimple(presetType) ? presetPrvId : '',
+      // IVA general por defecto, como en los conceptos del contrato; se puede cambiar.
+      vatPct: isSimple(presetType) || isBillingInvoiceType(presetType) ? DEFAULT_VAT_PCT : ''
+    });
+    setLoading(false);
+  }, [isEdit, reset, presetType, presetCtrId, presetWrkId, presetPrvId]);
+
+  // Editando: la factura recargada (otro acto, otro usuario) no pisa lo que se está escribiendo; al guardar, sí.
+  const dirtyRef = useRef(false);
+  dirtyRef.current = isDirty;
+  const forceResetRef = useRef(false);
+  useEffect(() => {
+    if (!invoice || (dirtyRef.current && !forceResetRef.current)) return;
+    forceResetRef.current = false;
+    reset(toForm(invoice));
+  }, [invoice, reset]);
 
   const [type, ctrId, prvId, wrkId, value, number] = useWatch({
     control,
     name: ['type', 'ctrId', 'prvId', 'wrkId', 'value', 'number']
   });
   const simple = isSimple(type);
-  // Menús de contrato: proveedor, contrato y tipo, en ese orden; el tipo no filtra los anteriores.
-  const contractView = !fixedType;
+  // Menús de contrato: proveedor, contrato y tipo, en ese orden; el tipo no filtra los anteriores. Al editar, lo dice la factura.
+  const contractView = isEdit ? !isSimple(loaded.type) : !fixedType;
   // Proveedor del contrato que llega desde su expediente: vuelve en el selector aunque el tope lo deje fuera.
   const presetContractPrvId = presetCtrId && contractView ? prvId : '';
 
@@ -374,7 +382,7 @@ export default function InvoiceFormPage() {
 
   // Etapas y proveedores de la obra (simple); al editar, también los actuales aunque estén inactivos.
   useEffect(() => {
-    if (!simple || !wrkId) {
+    if (!active || !simple || !wrkId) {
       setOptions({ stages: [], providers: [] });
       return undefined;
     }
@@ -387,7 +395,7 @@ export default function InvoiceFormPage() {
     return () => {
       cancelled = true;
     };
-  }, [simple, wrkId, loaded]);
+  }, [active, simple, wrkId, loaded]);
 
   // Saldos del contrato elegido (anticipo pactado, retenido por devolver): deciden qué tipos se ofrecen.
   // Se guardan con su contrato: al cambiarlo, los del anterior no cuentan.
@@ -463,17 +471,14 @@ export default function InvoiceFormPage() {
     if (!presetPrvId) setValue('prvId', '', { shouldDirty: true });
   };
 
-  const leave = () => navigate(listPath);
-  const requestLeave = () => (isDirty ? setConfirmLeave(true) : leave());
-
   const onSubmit = async (form) => {
     setSaving(true);
     try {
       const sendAmounts = !isEdit || loaded.allowedActions.includes('edit');
       const { data } = await invoicesApi.save(toPayload(invId, form, sendAmounts, pvtId), isEdit ? undefined : idempotencyKey);
       showSuccess(data.message || 'Guardado correctamente.');
-      refresh?.();
-      navigate(invoicePath(pvtId, data.invId ?? invId));
+      forceResetRef.current = true;
+      await onSaved?.(data);
     } catch (err) {
       showError(err.response?.data?.message || 'Error al guardar la factura');
     } finally {
@@ -491,14 +496,14 @@ export default function InvoiceFormPage() {
   const taxField = useContractTaxFields({
     control,
     setValue,
-    enabled: !loading && isBillingInvoiceType(type),
+    enabled: active && !loading && isBillingInvoiceType(type),
     readOnly: lockDocument || blocked,
     required: fullEdit,
     onPreview: setPreview,
     onError: showError
   });
 
-  if (loading) return <RouteDialog onClose={leave} loading />;
+  if (loading) return children({ loading: true });
 
   // El aviso general, solo tras intentar guardar: mientras se escribe basta el mensaje de cada campo.
   const hasErrors = formState.isSubmitted && Object.keys(errors).length > 0;
@@ -511,228 +516,49 @@ export default function InvoiceFormPage() {
   const menuPvtId = Number(loaded?.pvtId ?? pvtId);
   const simpleProviders = options.providers.filter((p) => (p.simpleTypes ?? []).includes(menuPvtId) || p.value === loaded?.prvId);
 
-  return (
-    <RouteDialog
-      onClose={requestLeave}
-      closeLabel="Cerrar sin guardar"
-      labelledBy="invoice-form-title"
-      onSubmit={handleSubmit(onSubmit)}
-      header={
-        <>
-          <Typography id="invoice-form-title" variant="h3" component="h2">
-            {isEdit ? `Editar factura ${loaded?.number ?? ''}` : simple ? 'Nueva factura simple' : 'Nueva factura'}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {isEdit
-              ? `${loaded.typeName} · ${loaded.providerName} · ${loaded.stateName}`
-              : 'Registra el documento del proveedor. Los campos con * son obligatorios.'}
-          </Typography>
-        </>
-      }
-      footer={
-        <>
-          <Box sx={{ flexGrow: 1 }} />
-          <Button onClick={requestLeave} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button type="submit" variant="contained" color="secondary" disabled={saving || blocked || inactiveWork || !type}>
-            {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Registrar'}
-          </Button>
-        </>
-      }
-    >
-      <Stack spacing={2}>
-        {blocked && <Alert severity="warning">La factura está anulada: no admite cambios.</Alert>}
-        {isEdit && !blocked && lockDocument && (
-          <Alert severity="info">
-            La factura está aprobada: solo se modifican el extracto, la descripción y el número de comprobante. Para corregir otro dato,
-            anúlala y regístrala de nuevo.
-          </Alert>
-        )}
-        {inactiveWork && (
-          <Alert severity="warning">
-            La obra {headerWork.label} está inactiva: no admite facturas nuevas. Elige otra obra en el selector del encabezado.
-          </Alert>
-        )}
-        {hasErrors && (
-          <Alert severity="error" role="alert">
-            Revisa los campos marcados antes de guardar.
-          </Alert>
-        )}
-        {hasAmounts(type) && balances && <ContractBalanceCards balances={balances} type={type} />}
+  const content = (
+    <Stack spacing={2}>
+      {blocked && <Alert severity="warning">La factura está anulada: no admite cambios.</Alert>}
+      {isEdit && !blocked && lockDocument && (
+        <Alert severity="info">
+          La factura está aprobada: solo se modifican el extracto, la descripción y el número de comprobante. Para corregir otro dato,
+          anúlala y regístrala de nuevo.
+        </Alert>
+      )}
+      {inactiveWork && (
+        <Alert severity="warning">
+          La obra {headerWork.label} está inactiva: no admite facturas nuevas. Elige otra obra en el selector del encabezado.
+        </Alert>
+      )}
+      {hasErrors && (
+        <Alert severity="error" role="alert">
+          Revisa los campos marcados antes de guardar.
+        </Alert>
+      )}
+      {hasAmounts(type) && balances && <ContractBalanceCards balances={balances} type={type} />}
 
-        <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
-          <Grid size={{ xs: 12, md: 8 }}>
-            <Stack spacing={2}>
-              <FormSection
-                title={contractView ? 'Origen y tipo' : 'Obra y proveedor'}
-                subtitle={
-                  contractView
-                    ? 'Elige el proveedor y uno de sus contratos. El tipo de factura es Normal por defecto; la ayuda del campo dice qué falta para los demás. No cambian después de registrar.'
-                    : 'La factura simple se imputa a la obra, sin contrato, y a una de sus etapas si la obra las tiene. El proveedor debe estar asignado a la obra. La obra no cambia después de registrar.'
-                }
-              >
-                <Grid container spacing={2}>
-                  {!contractView && <Grid size={{ xs: 12, md: 4 }}>{readOnlyField('Tipo', typeOptions[0].label)}</Grid>}
+      <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
+        <Grid size={{ xs: 12, md: 8 }}>
+          <Stack spacing={2}>
+            <FormSection
+              title={contractView ? 'Origen y tipo' : 'Obra y proveedor'}
+              subtitle={
+                contractView
+                  ? 'Elige el proveedor y uno de sus contratos. El tipo de factura es Normal por defecto; la ayuda del campo dice qué falta para los demás. No cambian después de registrar.'
+                  : 'La factura simple se imputa a la obra, sin contrato, y a una de sus etapas si la obra las tiene. El proveedor debe estar asignado a la obra. La obra no cambia después de registrar.'
+              }
+            >
+              <Grid container spacing={2}>
+                {!contractView && (
+                  <Grid size={{ xs: 12, md: 4 }}>{readOnlyField('Tipo', isEdit ? loaded.typeName : typeOptions[0]?.label)}</Grid>
+                )}
 
-                  {contractView && (
-                    <>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        {isEdit ? (
-                          readOnlyField('Proveedor', loaded.providerName)
-                        ) : (
-                          <Controller
-                            name="prvId"
-                            control={control}
-                            rules={{ required: 'Selecciona el proveedor.' }}
-                            render={({ field, fieldState }) => (
-                              <SearchSelect
-                                value={field.value}
-                                onChange={changeProvider}
-                                onSearch={providerOptions.setSearch}
-                                options={providerOptions.items}
-                                loading={providerOptions.loading}
-                                label="Proveedor"
-                                required
-                                placeholder="Razón social o identificación"
-                                error={fieldState.error?.message}
-                                helperText={
-                                  providerOptions.loaded && !providerOptions.search && providerOptions.items.length === 0
-                                    ? 'Ningún proveedor tiene contratos en un estado que admita facturas'
-                                    : 'Solo proveedores con contratos que hoy admiten facturas'
-                                }
-                              />
-                            )}
-                          />
-                        )}
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        {isEdit ? (
-                          readOnlyField('Contrato', `${loaded.contractNumber} — ${loaded.contractName}`)
-                        ) : (
-                          <Controller
-                            name="ctrId"
-                            control={control}
-                            rules={{ required: 'Selecciona el contrato.' }}
-                            render={({ field, fieldState }) => (
-                              <SearchSelect
-                                value={field.value}
-                                onChange={changeContract}
-                                onOptionChange={setPickedContract}
-                                onSearch={contractOptions.setSearch}
-                                options={prvId ? contractOptions.items : []}
-                                loading={contractOptions.loading}
-                                disabled={!prvId}
-                                label="Contrato"
-                                required
-                                placeholder="Número, nombre u obra"
-                                error={fieldState.error?.message}
-                                helperText={
-                                  !prvId
-                                    ? 'Elige primero el proveedor'
-                                    : contractOptions.loaded && !contractOptions.search && contractOptions.items.length === 0
-                                      ? 'El proveedor no tiene contratos en un estado que admita facturas'
-                                      : 'Contratos del proveedor que hoy admiten facturas'
-                                }
-                              />
-                            )}
-                          />
-                        )}
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        {isEdit ? (
-                          readOnlyField('Tipo', loaded.typeName)
-                        ) : (
-                          <Controller
-                            name="type"
-                            control={control}
-                            render={({ field }) => (
-                              <SearchSelect
-                                value={field.value}
-                                onChange={(value) => value && changeType(value)}
-                                options={typeChoices.options}
-                                loading={Boolean(contract) && !contractBalances}
-                                disabled={!contract || !contractBalances}
-                                disableClearable
-                                label="Tipo de factura"
-                                helperText={!contract ? 'Elige primero el contrato' : undefined}
-                              />
-                            )}
-                          />
-                        )}
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        {/* Con una obra fija en el encabezado, los contratos son de ella: se muestra desde el inicio. */}
-                        {readOnlyField(
-                          'Obra',
-                          isEdit ? `${loaded.workCode} — ${loaded.workName}` : (contract?.workName ?? headerWork?.label)
-                        )}
-                      </Grid>
-                    </>
-                  )}
-
-                  {simple && (
-                    <>
-                      <Grid size={{ xs: 12, md: 8 }}>
-                        {isEdit || headerWork ? (
-                          readOnlyField('Obra', isEdit ? `${loaded.workCode} — ${loaded.workName}` : headerWork.label)
-                        ) : (
-                          <Controller
-                            name="wrkId"
-                            control={control}
-                            rules={{ required: 'Selecciona la obra.' }}
-                            render={({ field, fieldState }) => (
-                              <SearchSelect
-                                value={field.value}
-                                onChange={changeWork}
-                                onSearch={workOptions.setSearch}
-                                options={workOptions.items}
-                                loading={workOptions.loading}
-                                placeholder="Código o nombre"
-                                label="Obra"
-                                required
-                                error={fieldState.error?.message}
-                                helperText={
-                                  workOptions.loaded && !workOptions.search && workOptions.items.length === 0
-                                    ? presetPrvId
-                                      ? 'El proveedor no está asignado a ninguna obra activa que veas'
-                                      : 'No hay obras activas que veas'
-                                    : presetPrvId
-                                      ? 'Obras activas a las que está asignado el proveedor'
-                                      : 'Solo obras activas'
-                                }
-                              />
-                            )}
-                          />
-                        )}
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <Controller
-                          name="wksId"
-                          control={control}
-                          rules={{ validate: (value) => !stageRequired || Boolean(value) || 'Selecciona la etapa.' }}
-                          render={({ field, fieldState }) => (
-                            <SearchSelect
-                              value={field.value}
-                              onChange={field.onChange}
-                              options={options.stages}
-                              loading={loadingOptions}
-                              disabled={!wrkId || withoutStages || lockDocument || blocked}
-                              label="Etapa"
-                              required={stageRequired}
-                              error={fieldState.error?.message}
-                              helperText={
-                                !wrkId
-                                  ? 'Elige primero la obra'
-                                  : withoutStages
-                                    ? 'La obra no tiene etapas activas: la factura se registra sin etapa'
-                                    : ''
-                              }
-                            />
-                          )}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
+                {contractView && (
+                  <>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      {isEdit ? (
+                        readOnlyField('Proveedor', loaded.providerName)
+                      ) : (
                         <Controller
                           name="prvId"
                           control={control}
@@ -740,214 +566,437 @@ export default function InvoiceFormPage() {
                           render={({ field, fieldState }) => (
                             <SearchSelect
                               value={field.value}
-                              onChange={field.onChange}
-                              options={simpleProviders}
-                              loading={loadingOptions}
-                              disabled={!wrkId || lockDocument || blocked}
+                              onChange={changeProvider}
+                              onSearch={providerOptions.setSearch}
+                              options={providerOptions.items}
+                              loading={providerOptions.loading}
                               label="Proveedor"
                               required
+                              placeholder="Razón social o identificación"
                               error={fieldState.error?.message}
                               helperText={
-                                !wrkId
-                                  ? 'Elige primero la obra'
-                                  : noOptions && simpleProviders.length === 0
-                                    ? `Ningún proveedor trabaja en esta obra como ${menu?.name ?? 'este tipo'}: asígnalo antes`
-                                    : `Proveedores activos que trabajan en la obra como ${menu?.name ?? 'este tipo'}`
+                                providerOptions.loaded && !providerOptions.search && providerOptions.items.length === 0
+                                  ? 'Ningún proveedor tiene contratos en un estado que admita facturas'
+                                  : 'Solo proveedores con contratos que hoy admiten facturas'
                               }
                             />
                           )}
                         />
-                      </Grid>
-                    </>
-                  )}
-                </Grid>
-              </FormSection>
+                      )}
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      {isEdit ? (
+                        readOnlyField('Contrato', `${loaded.contractNumber} — ${loaded.contractName}`)
+                      ) : (
+                        <Controller
+                          name="ctrId"
+                          control={control}
+                          rules={{ required: 'Selecciona el contrato.' }}
+                          render={({ field, fieldState }) => (
+                            <SearchSelect
+                              value={field.value}
+                              onChange={changeContract}
+                              onOptionChange={setPickedContract}
+                              onSearch={contractOptions.setSearch}
+                              options={prvId ? contractOptions.items : []}
+                              loading={contractOptions.loading}
+                              disabled={!prvId}
+                              label="Contrato"
+                              required
+                              placeholder="Número, nombre u obra"
+                              error={fieldState.error?.message}
+                              helperText={
+                                !prvId
+                                  ? 'Elige primero el proveedor'
+                                  : contractOptions.loaded && !contractOptions.search && contractOptions.items.length === 0
+                                    ? 'El proveedor no tiene contratos en un estado que admita facturas'
+                                    : 'Contratos del proveedor que hoy admiten facturas'
+                              }
+                            />
+                          )}
+                        />
+                      )}
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      {isEdit ? (
+                        readOnlyField('Tipo', loaded.typeName)
+                      ) : (
+                        <Controller
+                          name="type"
+                          control={control}
+                          render={({ field }) => (
+                            <SearchSelect
+                              value={field.value}
+                              onChange={(value) => value && changeType(value)}
+                              options={typeChoices.options}
+                              loading={Boolean(contract) && !contractBalances}
+                              disabled={!contract || !contractBalances}
+                              disableClearable
+                              label="Tipo de factura"
+                              helperText={!contract ? 'Elige primero el contrato' : undefined}
+                            />
+                          )}
+                        />
+                      )}
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      {/* Con una obra fija en el encabezado, los contratos son de ella: se muestra desde el inicio. */}
+                      {readOnlyField(
+                        'Obra',
+                        isEdit ? `${loaded.workCode} — ${loaded.workName}` : (contract?.workName ?? headerWork?.label)
+                      )}
+                    </Grid>
+                  </>
+                )}
 
-              <FormSection title="Documento">
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                    <Controller
-                      name="number"
-                      control={control}
-                      rules={{ validate: (value) => text(value) !== '' || 'El número es requerido.' }}
-                      render={({ field, fieldState }) => (
-                        <TextField
-                          {...field}
-                          label="N.º de factura"
-                          required
-                          size="small"
-                          fullWidth
-                          disabled={lockDocument || blocked}
-                          error={Boolean(fieldState.error)}
-                          helperText={fieldState.error?.message ?? 'Único por proveedor'}
-                          slotProps={{ htmlInput: { maxLength: 50, autoComplete: 'off' } }}
+                {simple && (
+                  <>
+                    <Grid size={{ xs: 12, md: 8 }}>
+                      {isEdit || headerWork ? (
+                        readOnlyField('Obra', isEdit ? `${loaded.workCode} — ${loaded.workName}` : headerWork.label)
+                      ) : (
+                        <Controller
+                          name="wrkId"
+                          control={control}
+                          rules={{ required: 'Selecciona la obra.' }}
+                          render={({ field, fieldState }) => (
+                            <SearchSelect
+                              value={field.value}
+                              onChange={changeWork}
+                              onSearch={workOptions.setSearch}
+                              options={workOptions.items}
+                              loading={workOptions.loading}
+                              placeholder="Código o nombre"
+                              label="Obra"
+                              required
+                              error={fieldState.error?.message}
+                              helperText={
+                                workOptions.loaded && !workOptions.search && workOptions.items.length === 0
+                                  ? presetPrvId
+                                    ? 'El proveedor no está asignado a ninguna obra activa que veas'
+                                    : 'No hay obras activas que veas'
+                                  : presetPrvId
+                                    ? 'Obras activas a las que está asignado el proveedor'
+                                    : 'Solo obras activas'
+                              }
+                            />
+                          )}
                         />
                       )}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                    <Controller
-                      name="date"
-                      control={control}
-                      rules={{
-                        required: 'La fecha de la factura es requerida.',
-                        validate: (value) => value <= today() || 'No puede ser futura.'
-                      }}
-                      render={({ field, fieldState }) => (
-                        <DateField
-                          value={field.value ?? ''}
-                          onChange={field.onChange}
-                          label="Fecha de la factura"
-                          required
-                          readOnly={lockDocument || blocked}
-                          error={fieldState.error?.message}
-                        />
-                      )}
-                    />
-                  </Grid>
-                  {/* Solo se muestra: la fija el acto Aprobar (ApproveInvoiceDialog), no el formulario. */}
-                  <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                    <DateField
-                      value={loaded?.approvalDate ?? ''}
-                      label="Fecha de aprobación"
-                      disabled
-                      helperText={loaded?.approvalDate ? undefined : 'Se fija al aprobar'}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <Controller
-                      name="voucherNumber"
-                      control={control}
-                      render={({ field }) => (
-                        <TextField
-                          {...field}
-                          label="N.º de comprobante"
-                          size="small"
-                          fullWidth
-                          disabled={blocked}
-                          slotProps={{ htmlInput: { maxLength: 50, autoComplete: 'off' } }}
-                        />
-                      )}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <Controller
-                      name="statement"
-                      control={control}
-                      render={({ field }) => (
-                        <TextField
-                          {...field}
-                          label="Extracto"
-                          size="small"
-                          fullWidth
-                          disabled={blocked}
-                          slotProps={{ htmlInput: { maxLength: 20, autoComplete: 'off' } }}
-                        />
-                      )}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 8 }}>
-                    <Controller
-                      name="description"
-                      control={control}
-                      rules={{ maxLength: { value: 500, message: 'Máximo 500 caracteres.' } }}
-                      render={({ field, fieldState }) => (
-                        <TextField
-                          {...field}
-                          label="Descripción"
-                          size="small"
-                          fullWidth
-                          multiline
-                          minRows={2}
-                          disabled={blocked}
-                          error={Boolean(fieldState.error)}
-                          helperText={fieldState.error?.message}
-                        />
-                      )}
-                    />
-                  </Grid>
-                </Grid>
-              </FormSection>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Controller
+                        name="wksId"
+                        control={control}
+                        rules={{ validate: (value) => !stageRequired || Boolean(value) || 'Selecciona la etapa.' }}
+                        render={({ field, fieldState }) => (
+                          <SearchSelect
+                            value={field.value}
+                            onChange={field.onChange}
+                            options={options.stages}
+                            loading={loadingOptions}
+                            disabled={!wrkId || withoutStages || lockDocument || blocked}
+                            label="Etapa"
+                            required={stageRequired}
+                            error={fieldState.error?.message}
+                            helperText={
+                              !wrkId
+                                ? 'Elige primero la obra'
+                                : withoutStages
+                                  ? 'La obra no tiene etapas activas: la factura se registra sin etapa'
+                                  : ''
+                            }
+                          />
+                        )}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Controller
+                        name="prvId"
+                        control={control}
+                        rules={{ required: 'Selecciona el proveedor.' }}
+                        render={({ field, fieldState }) => (
+                          <SearchSelect
+                            value={field.value}
+                            onChange={field.onChange}
+                            options={simpleProviders}
+                            loading={loadingOptions}
+                            disabled={!wrkId || lockDocument || blocked}
+                            label="Proveedor"
+                            required
+                            error={fieldState.error?.message}
+                            helperText={
+                              !wrkId
+                                ? 'Elige primero la obra'
+                                : noOptions && simpleProviders.length === 0
+                                  ? `Ningún proveedor trabaja en esta obra como ${menu?.name ?? 'este tipo'}: asígnalo antes`
+                                  : `Proveedores activos que trabajan en la obra como ${menu?.name ?? 'este tipo'}`
+                            }
+                          />
+                        )}
+                      />
+                    </Grid>
+                  </>
+                )}
+              </Grid>
+            </FormSection>
 
-              {simple && (
-                <FormSection
-                  title="Importes"
-                  subtitle="Valor y % IVA son obligatorios; los demás, vacíos, valen 0. El panel Detalle se calcula en el servidor con la misma fórmula que al guardar."
-                >
-                  <SimpleAmountsSection
+            <FormSection title="Documento">
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Controller
+                    name="number"
                     control={control}
-                    setValue={setValue}
-                    readOnly={lockDocument || blocked}
-                    required={!isEdit || Boolean(loaded?.amounts)}
-                    onPreview={setPreview}
-                    onError={showError}
+                    rules={{ validate: (value) => text(value) !== '' || 'El número es requerido.' }}
+                    render={({ field, fieldState }) => (
+                      <TextField
+                        {...field}
+                        label="N.º de factura"
+                        required
+                        size="small"
+                        fullWidth
+                        disabled={lockDocument || blocked}
+                        error={Boolean(fieldState.error)}
+                        helperText={fieldState.error?.message ?? 'Único por proveedor'}
+                        slotProps={{ htmlInput: { maxLength: 50, autoComplete: 'off' } }}
+                      />
+                    )}
                   />
-                </FormSection>
-              )}
-              {hasAmounts(type) && (
-                <AdvanceAmountsSection
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Controller
+                    name="date"
+                    control={control}
+                    rules={{
+                      required: 'La fecha de la factura es requerida.',
+                      validate: (value) => value <= today() || 'No puede ser futura.'
+                    }}
+                    render={({ field, fieldState }) => (
+                      <DateField
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        label="Fecha de la factura"
+                        required
+                        readOnly={lockDocument || blocked}
+                        error={fieldState.error?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+                {/* Solo se muestra: la fija el acto Aprobar (ApproveInvoiceDialog), no el formulario. */}
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <DateField
+                    value={loaded?.approvalDate ?? ''}
+                    label="Fecha de aprobación"
+                    disabled
+                    helperText={loaded?.approvalDate ? undefined : 'Se fija al aprobar'}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <Controller
+                    name="voucherNumber"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="N.º de comprobante"
+                        size="small"
+                        fullWidth
+                        disabled={blocked}
+                        slotProps={{ htmlInput: { maxLength: 50, autoComplete: 'off' } }}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <Controller
+                    name="statement"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Extracto"
+                        size="small"
+                        fullWidth
+                        disabled={blocked}
+                        slotProps={{ htmlInput: { maxLength: 20, autoComplete: 'off' } }}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 8 }}>
+                  <Controller
+                    name="description"
+                    control={control}
+                    rules={{ maxLength: { value: 500, message: 'Máximo 500 caracteres.' } }}
+                    render={({ field, fieldState }) => (
+                      <TextField
+                        {...field}
+                        label="Descripción"
+                        size="small"
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        disabled={blocked}
+                        error={Boolean(fieldState.error)}
+                        helperText={fieldState.error?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+              </Grid>
+            </FormSection>
+
+            {simple && (
+              <FormSection
+                title="Importes"
+                subtitle="Valor y % IVA son obligatorios; los demás, vacíos, valen 0. El panel Detalle se calcula en el servidor con la misma fórmula que al guardar."
+              >
+                <SimpleAmountsSection
                   control={control}
                   setValue={setValue}
-                  type={type}
-                  ctrId={ctrId}
-                  invId={isEdit ? invId : undefined}
                   readOnly={lockDocument || blocked}
-                  canAdjustRetention={canAdjustRetention}
-                  onBalances={setBalances}
+                  required={!isEdit || Boolean(loaded?.amounts)}
+                  onPreview={setPreview}
                   onError={showError}
-                  taxField={isBillingInvoiceType(type) ? taxField : undefined}
                 />
-              )}
-              <ReleaseGlossesSection
+              </FormSection>
+            )}
+            {hasAmounts(type) && (
+              <AdvanceAmountsSection
                 control={control}
                 setValue={setValue}
-                ctrId={simple ? undefined : ctrId}
-                wrkId={simple ? wrkId : undefined}
-                prvId={simple ? prvId : undefined}
-                invoiceNumber={number}
-                enabled={!isEdit && canManageGlosses && Boolean(type)}
+                type={type}
+                ctrId={ctrId}
+                invId={isEdit ? invId : undefined}
+                readOnly={lockDocument || blocked}
+                canAdjustRetention={canAdjustRetention}
+                onBalances={setBalances}
+                onError={showError}
+                taxField={isBillingInvoiceType(type) ? taxField : undefined}
               />
-            </Stack>
-          </Grid>
-          {type && (
-            <Grid size={{ xs: 12, md: 4 }} sx={{ alignSelf: { md: 'stretch' } }}>
-              {simple ? (
-                <InvoiceDetailPanel
-                  lines={preview?.lines ?? []}
-                  total={preview?.total ?? ''}
-                  warning={preview && !preview.valid && value ? preview.message : undefined}
-                  note="TOTAL es el neto a pagar: descuenta las retenciones y el pronto pago."
-                />
-              ) : (
-                <InvoiceDetailPanel
-                  {...(isBillingInvoiceType(type)
-                    ? {
-                        // Normal y liquidación (DEC-075): la composición del servidor.
-                        lines: preview?.lines ?? [],
-                        total: preview?.total ?? '',
-                        warning: preview && !preview.valid && value ? preview.message : undefined,
-                        note: 'TOTAL es el neto a pagar: descuenta las retenciones, la amortización, el retenido y el descuento de materiales.'
-                      }
-                    : {
-                        lines: [{ key: 'value', label: type === 'ADVANCE' ? 'ANTICIPO' : 'DEVOLUCIÓN RETENIDO', value }],
-                        total: value,
-                        note: 'El anticipo y la devolución de retenido no llevan IVA ni retenciones tributarias.'
-                      })}
-                />
-              )}
-            </Grid>
-          )}
+            )}
+            <ReleaseGlossesSection
+              control={control}
+              setValue={setValue}
+              ctrId={simple ? undefined : ctrId}
+              wrkId={simple ? wrkId : undefined}
+              prvId={simple ? prvId : undefined}
+              invoiceNumber={number}
+              enabled={!isEdit && canManageGlosses && Boolean(type)}
+            />
+          </Stack>
         </Grid>
-      </Stack>
+        {type && (
+          <Grid size={{ xs: 12, md: 4 }} sx={{ alignSelf: { md: 'stretch' } }}>
+            {simple ? (
+              <InvoiceDetailPanel
+                lines={preview?.lines ?? []}
+                total={preview?.total ?? ''}
+                warning={preview && !preview.valid && value ? preview.message : undefined}
+                note="TOTAL es el neto a pagar: descuenta las retenciones y el pronto pago."
+              />
+            ) : (
+              <InvoiceDetailPanel
+                {...(isBillingInvoiceType(type)
+                  ? {
+                      // Normal y liquidación (DEC-075): la composición del servidor.
+                      lines: preview?.lines ?? [],
+                      total: preview?.total ?? '',
+                      warning: preview && !preview.valid && value ? preview.message : undefined,
+                      note: 'TOTAL es el neto a pagar: descuenta las retenciones, la amortización, el retenido y el descuento de materiales.'
+                    }
+                  : {
+                      lines: [{ key: 'value', label: type === 'ADVANCE' ? 'ANTICIPO' : 'DEVOLUCIÓN RETENIDO', value }],
+                      total: value,
+                      note: 'El anticipo y la devolución de retenido no llevan IVA ni retenciones tributarias.'
+                    })}
+              />
+            )}
+          </Grid>
+        )}
+      </Grid>
+    </Stack>
+  );
 
-      <ConfirmDialog
-        open={confirmLeave}
-        onClose={() => setConfirmLeave(false)}
-        onConfirm={leave}
-        title="Descartar cambios"
-        message="Hay cambios sin guardar en la factura. ¿Salir sin guardarlos?"
-        confirmLabel="Descartar"
-      />
-    </RouteDialog>
+  return children({
+    loading: false,
+    content,
+    simple,
+    isDirty,
+    saving,
+    hasErrors,
+    save: handleSubmit(onSubmit),
+    discard: () => reset(),
+    saveDisabled: saving || blocked || inactiveWork || !type
+  });
+}
+
+InvoiceForm.propTypes = {
+  invoice: PropTypes.object,
+  onSaved: PropTypes.func,
+  active: PropTypes.bool,
+  children: PropTypes.func.isRequired
+};
+
+/** Registrar una factura: el formulario en un modal sobre el listado (`…/new`). */
+export default function InvoiceFormPage() {
+  const navigate = useNavigate();
+  const { refresh, pvtId } = useOutletContext() ?? {};
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const leave = () => navigate(invoicePath(pvtId));
+
+  // Registrada, se abre su expediente: el resumen al lado y sus pestañas.
+  const saved = (data) => {
+    refresh?.();
+    navigate(invoicePath(pvtId, data.invId));
+  };
+
+  return (
+    <InvoiceForm onSaved={saved}>
+      {(form) => {
+        if (form.loading) return <RouteDialog onClose={leave} loading />;
+        const requestLeave = () => (form.isDirty ? setConfirmLeave(true) : leave());
+        return (
+          <RouteDialog
+            onClose={requestLeave}
+            closeLabel="Cerrar sin guardar"
+            labelledBy="invoice-form-title"
+            onSubmit={form.save}
+            header={
+              <>
+                <Typography id="invoice-form-title" variant="h3" component="h2">
+                  {form.simple ? 'Nueva factura simple' : 'Nueva factura'}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Registra el documento del proveedor. Los campos con * son obligatorios.
+                </Typography>
+              </>
+            }
+            footer={
+              <>
+                <Box sx={{ flexGrow: 1 }} />
+                <Button onClick={requestLeave} disabled={form.saving}>
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="contained" color="secondary" disabled={form.saveDisabled}>
+                  {form.saving ? 'Guardando…' : 'Registrar'}
+                </Button>
+              </>
+            }
+          >
+            {form.content}
+            <ConfirmDialog
+              open={confirmLeave}
+              onClose={() => setConfirmLeave(false)}
+              onConfirm={leave}
+              title="Descartar cambios"
+              message="Hay cambios sin guardar en la factura. ¿Salir sin guardarlos?"
+              confirmLabel="Descartar"
+            />
+          </RouteDialog>
+        );
+      }}
+    </InvoiceForm>
   );
 }

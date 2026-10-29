@@ -1040,9 +1040,27 @@ describe("listado", () => {
     const stateCount = prismaMock.tbl_invoices.groupBy.mock.calls.at(-1)[0].where;
     expect(stateCount.AND[0]).not.toHaveProperty("inv_state");
     expect(stateCount.AND[1]).toEqual(openGlosses);
-    const alertCounts = prismaMock.tbl_invoices.count.mock.calls.slice(-2).map(([args]) => args.where);
+    const alertCounts = prismaMock.tbl_invoices.count.mock.calls.slice(-4).map(([args]) => args.where);
     expect(alertCounts.every((where) => where.AND[0].inv_state === "APPROVED")).toBe(true);
-    expect(result.alertCounts).toEqual({ OPEN_GLOSSES: 4, GLOSSES: 4 });
+    expect(result.alertCounts).toEqual({ PENDING_PAYMENT: 4, PAID: 4, OPEN_GLOSSES: 4, GLOSSES: 4 });
+  });
+
+  test("alertas de pago (DEC-101): con extracto, pendiente sin comprobante y pagada con él; sin las anuladas", async () => {
+    prismaMock.tbl_invoices.count.mockResolvedValue(2);
+    const noStatement = [{ inv_statement: null }, { inv_statement: "" }];
+    const noVoucher = [{ inv_voucher_number: null }, { inv_voucher_number: "" }];
+
+    await service.paginationInvoices({ alert: "PENDING_PAYMENT", rows: 10, first: 0 });
+    expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where.AND[1]).toEqual({
+      inv_state: { not: "CANCELLED" },
+      AND: [{ NOT: noStatement }, { OR: noVoucher }],
+    });
+
+    await service.paginationInvoices({ alert: "PAID", rows: 10, first: 0 });
+    expect(prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0].where.AND[1]).toEqual({
+      inv_state: { not: "CANCELLED" },
+      AND: [{ NOT: noStatement }, { NOT: noVoucher }],
+    });
   });
 
   test("filtra por etapa, nombre del contrato y rangos de valor, descuento y % IVA en el detalle de cada tipo, también en los conteos", async () => {

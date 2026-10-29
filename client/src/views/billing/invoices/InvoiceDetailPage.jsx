@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -13,8 +13,9 @@ import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 
 import SubCard from 'ui-component/cards/SubCard';
-import { DataList, Figure, Pending } from 'ui-component/extended/DetailBlocks';
-import RouteDialog from 'ui-component/extended/RouteDialog';
+import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
+import { DataList, Figure, Pending, SummaryAside } from 'ui-component/extended/DetailBlocks';
+import RouteDialog, { useRouteDialogAside } from 'ui-component/extended/RouteDialog';
 import StatusChip from 'ui-component/extended/StatusChip';
 import ApproveInvoiceDialog from './components/ApproveInvoiceDialog';
 import CancelInvoiceDialog from './components/CancelInvoiceDialog';
@@ -29,16 +30,18 @@ import { INVOICE_STATE_COLORS, invoicePath, isBillingInvoiceType } from 'utils/c
 import InvoiceDetailPanel from './components/InvoiceDetailPanel';
 import InvoiceFollowUpsTab from './components/InvoiceFollowUpsTab';
 import InvoiceGlossesTab from './components/InvoiceGlossesTab';
+import { InvoiceForm } from './InvoiceFormPage';
 
 /**
  * Expediente de una factura (DEC-042), en un modal sobre el listado de su
  * menú con dirección propia `/billing/invoices/:pvtId/:invId` (DEC-034,
- * DEC-074). Abierta desde otro menú, se lleva al suyo. Identidad, estado,
- * datos del documento e historial de estado. El estado no se edita: lo
- * cambian Aprobar y Anular, cada una con su diálogo y su permiso, ofrecidas
- * según `allowedActions` del servidor. Importes: los del anticipo, la
- * liquidación (DEC-044) y el retenido (DEC-051); IVA y retenciones
- * tributarias llegan con la fase B.
+ * DEC-074). Abierta desde otro menú, se lleva al suyo. Una sola vista
+ * (DEC-057): el resumen en una columna a la izquierda (en pantallas chicas,
+ * la pestaña Resumen) y, en pestañas, los datos de la factura, que se editan
+ * ahí con su propio Guardar (InvoiceForm; `…/:invId/edit` abre en ella), los
+ * importes, el historial, el seguimiento y las glosas. El estado no se edita:
+ * lo cambian Aprobar y Anular, cada una con su diálogo y su permiso,
+ * ofrecidas según `allowedActions` del servidor.
  */
 
 const pct = fPercentText;
@@ -248,8 +251,10 @@ InvoiceAmounts.propTypes = { invoice: PropTypes.object.isRequired };
 
 const TABS = [
   { key: 'summary', label: 'Resumen' },
-  { key: 'history', label: 'Historial de estado' },
+  // El formulario de la factura (DEC-057): registrada, entera; aprobada, extracto, descripción y comprobante (DEC-080).
+  { key: 'data', label: 'Datos de la factura' },
   { key: 'amounts', label: 'Importes' },
+  { key: 'history', label: 'Historial de estado' },
   // Lo que se está trabajando sobre la factura (DEC-076).
   { key: 'followUps', label: 'Seguimiento' },
   // Errores hallados al registrarla, hasta su liberación en un extracto posterior (DEC-085).
@@ -259,6 +264,7 @@ const TABS = [
 export default function InvoiceDetailPage() {
   const { invId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const socket = useSocket();
   // `returnTo`: abierto sobre otra pantalla (el tablero), sin menú propio;
   // cerrar vuelve a ella. Sin él, la factura vive en el listado de su menú.
@@ -267,11 +273,20 @@ export default function InvoiceDetailPage() {
   const { permissionsCatalog, hasPermission } = useAuth();
   const canDo = (perId) => perId != null && hasPermission(perId);
   const perms = permissionsCatalog.billing?.invoices;
+  // Con el permiso de editar, la pestaña de datos; lo que admite la decide el estado (`allowedActions`).
+  const canEditData = canDo(perms?.edit);
 
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('summary');
+  const [tab, setTab] = useState(() => (canEditData && location.pathname.endsWith('/edit') ? 'data' : 'summary'));
   const [dialog, setDialog] = useState(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+
+  // Con el resumen al lado no hay pestaña Resumen: se abre en los datos (o en Importes, sin permiso de editar).
+  const asideMode = useRouteDialogAside();
+  useEffect(() => {
+    if (asideMode && tab === 'summary') setTab(canEditData ? 'data' : 'amounts');
+  }, [asideMode, tab, canEditData]);
   // Cuántos seguimientos tiene: lo cuenta la pestaña al cargarlos (antes, sin número).
   const [followUpCount, setFollowUpCount] = useState(null);
   const [openGlosses, setOpenGlosses] = useState(null);
@@ -327,247 +342,352 @@ export default function InvoiceDetailPage() {
   const canApprove = canDo(perms?.approve) && allows('approve');
   // Anular una aprobada exige además el permiso reforzado (ADR-0020).
   const canCancel = canDo(perms?.cancel) && (allows('cancel') || (allows('cancelApproved') && canDo(perms?.cancelApproved)));
-  const canEdit = canDo(perms?.edit) && allows('editNotes');
   // Eliminar una aprobada exige además el permiso reforzado (DEC-068).
   const canDelete = canDo(perms?.delete) && (allows('delete') || (allows('deleteApproved') && canDo(perms?.deleteApproved)));
+  const visibleTabs = TABS.filter((t) => (t.key !== 'data' || canEditData) && (t.key !== 'summary' || !asideMode));
+
+  // Guardados los datos: se recarga la factura (también el resumen) y el listado.
+  const saved = async () => {
+    await load();
+    refresh?.();
+  };
 
   return (
-    <RouteDialog
-      onClose={close}
-      labelledBy="invoice-title"
-      header={
-        <>
-          <Stack direction="row" sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-            <Typography id="invoice-title" variant="h3" component="h2">
-              Factura {invoice.number}
-            </Typography>
-            <StatusChip staId={invoice.state} label={invoice.stateName} scope={null} colorMap={INVOICE_STATE_COLORS} />
-            <Chip size="small" variant="outlined" label={invoice.typeName} />
-          </Stack>
-          <Typography variant="body2" color="text.secondary">
-            {[
-              invoice.providerName,
-              invoice.workCode && `${invoice.workCode} ${invoice.workName}`,
-              invoice.contractNumber && `Contrato ${invoice.contractNumber}`
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Modificada el {fDateTime(invoice.updatedAt)} por {invoice.updatedByName ?? '—'}
-          </Typography>
-        </>
-      }
-      tabs={
-        <Tabs
-          value={tab}
-          onChange={(_, value) => setTab(value)}
-          variant="scrollable"
-          scrollButtons="auto"
-          aria-label="Partes de la factura"
-        >
-          {TABS.map((t) => (
-            <Tab
-              key={t.key}
-              value={t.key}
-              label={
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <span>{t.label}</span>
-                  {t.key === 'history' && <Chip label={invoice.history.length} size="small" color="default" />}
-                  {/* Del detalle de la factura hasta que la pestaña carga su lista (DEC-093). */}
-                  {t.key === 'followUps' && (followUpCount ?? invoice.followUpsCount) > 0 && (
-                    <Chip label={followUpCount ?? invoice.followUpsCount} size="small" color="default" />
-                  )}
-                  {t.key === 'glosses' && (openGlosses ?? invoice.openGlossesCount) > 0 && (
-                    <Chip label={openGlosses ?? invoice.openGlossesCount} size="small" color="warning" />
-                  )}
+    <InvoiceForm invoice={invoice} onSaved={saved} active={canEditData}>
+      {(form) => {
+        const dirty = canEditData && form.isDirty;
+        // Cerrar con la X, Escape o el fondo pide confirmar si hay cambios sin guardar.
+        const requestClose = () => (dirty ? setConfirmLeave(true) : close());
+        const showSave = canEditData && tab === 'data' && allows('editNotes');
+        return (
+          <RouteDialog
+            onClose={requestClose}
+            closeLabel={dirty ? 'Cerrar sin guardar' : 'Cerrar'}
+            labelledBy="invoice-title"
+            aside={asideMode ? <InvoiceAside invoice={invoice} panel={panel} /> : undefined}
+            header={
+              <>
+                <Stack direction="row" sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
+                  <Typography id="invoice-title" variant="h3" component="h2">
+                    Factura {invoice.number}
+                  </Typography>
+                  <StatusChip staId={invoice.state} label={invoice.stateName} scope={null} colorMap={INVOICE_STATE_COLORS} />
+                  <Chip size="small" variant="outlined" label={invoice.typeName} />
                 </Stack>
-              }
-            />
-          ))}
-        </Tabs>
-      }
-      footer={
-        <>
-          {canCancel && (
-            <Button variant="outlined" color="error" onClick={() => setDialog('cancel')}>
-              Anular
-            </Button>
-          )}
-          {canDelete && (
-            <Button variant="text" color="error" onClick={() => setDialog('delete')}>
-              Eliminar
-            </Button>
-          )}
-          <Box sx={{ flexGrow: 1 }} />
-          <Button variant="outlined" color="inherit" onClick={close}>
-            Cerrar
-          </Button>
-          {canEdit && (
-            <Button variant="outlined" color="secondary" onClick={() => navigate(invoicePath(invoice.pvtId, invoice.invId, 'edit'))}>
-              {allows('edit') ? 'Editar factura' : 'Editar extracto, descripción y comprobante'}
-            </Button>
-          )}
-          {canApprove && (
-            <Button variant="contained" color="success" onClick={() => setDialog('approve')} disabled={!invoice.contractAdmits}>
-              Aprobar
-            </Button>
-          )}
-        </>
-      }
-    >
-      {tab === 'summary' && (
-        <Stack spacing={2}>
-          {invoice.state === 'REGISTERED' && !invoice.contractAdmits && (
-            <Alert severity="warning">
-              El contrato está {invoice.contractStateName?.toLowerCase()}: hoy no admite facturas de {invoice.typeName.toLowerCase()}. No se
-              puede aprobar mientras siga así; se puede anular.
-            </Alert>
-          )}
-          {invoice.state === 'CANCELLED' && (
-            <Alert severity="info">Factura anulada: queda en el historial, fuera de todo cálculo, y su número sigue ocupado.</Alert>
-          )}
-          <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
-            <Grid size={{ xs: 12, md: panel ? 8 : 12 }}>
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12, md: panel ? 12 : 6 }}>
-                  <SubCard title="Documento">
-                    <DataList
-                      items={[
-                        ['Número', invoice.number],
-                        ['Tipo', invoice.typeName],
-                        ['Fecha de la factura', fDateOnly(invoice.date)],
-                        ['Fecha de aprobación', invoice.approvalDate ? fDateOnly(invoice.approvalDate) : 'Sin aprobar'],
-                        ['Número de comprobante', invoice.voucherNumber],
-                        // Texto libre (DEC-084); la fecha, si ya existe el extracto de la obra con ese número.
-                        [
-                          'Extracto',
-                          invoice.statement &&
-                            [invoice.statement, invoice.statementDate && fDateOnly(invoice.statementDate)].filter(Boolean).join(' · ')
-                        ],
-                        ['Descripción', invoice.description]
-                      ]}
-                    />
-                  </SubCard>
-                </Grid>
-                <Grid size={{ xs: 12, md: panel ? 12 : 6 }}>
-                  <SubCard title={invoice.ctrId ? 'Proveedor, obra y contrato' : 'Proveedor y obra'}>
-                    <DataList
-                      items={[
-                        ['Proveedor', `${invoice.providerName} · ${invoice.providerIdentification}`],
-                        // La simple se imputa a una etapa de la obra, sin contrato (DEC-058).
-                        ['Obra', `${invoice.workCode} — ${invoice.workName}`],
-                        ['Etapa', invoice.stageName],
-                        ...(invoice.ctrId
-                          ? [
-                              ['Contrato', `${invoice.contractNumber} — ${invoice.contractName}`],
-                              ['Estado del contrato', invoice.contractStateName],
-                              // La liquidación se asocia al otrosí de liquidación del contrato (DEC-059).
-                              ...(invoice.amounts?.liquidationConcept
-                                ? [
-                                    [
-                                      'Otrosí de liquidación',
-                                      [
-                                        invoice.amounts.liquidationConcept.number && `N.º ${invoice.amounts.liquidationConcept.number}`,
-                                        `desde ${fDateOnly(invoice.amounts.liquidationConcept.startDate)}`
-                                      ]
-                                        .filter(Boolean)
-                                        .join(' · ')
-                                    ]
-                                  ]
-                                : [])
-                            ]
-                          : [['Contrato', 'Sin contrato (factura simple)']]),
-                        ['Registrada', `${fDateTime(invoice.createdAt)} por ${invoice.createdByName ?? '—'}`]
-                      ]}
-                    />
-                    {invoice.ctrId && (
-                      <Button size="small" sx={{ mt: 1 }} onClick={() => navigate(`/work/contracts/${invoice.ctrId}`)}>
-                        Ver contrato
-                      </Button>
-                    )}
-                  </SubCard>
-                </Grid>
-              </Grid>
-            </Grid>
-            {panel && (
-              <Grid size={{ xs: 12, md: 4 }} sx={{ alignSelf: { md: 'stretch' } }}>
-                <InvoiceDetailPanel {...panel} />
-              </Grid>
-            )}
-          </Grid>
-        </Stack>
-      )}
-
-      {tab === 'history' && (
-        <Box
-          component="ol"
-          sx={{ listStyle: 'none', p: 0, m: 0, border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}
-        >
-          {invoice.history.map((h, i) => (
-            <Stack
-              key={h.ishId}
-              component="li"
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={{ xs: 0.5, sm: 2 }}
-              sx={{ px: 2, py: 1.5, borderBottom: i < invoice.history.length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}
-            >
-              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 150 }}>
-                {fDateTime(h.createdAt)}
-              </Typography>
-              <Box sx={{ flexGrow: 1 }}>
-                <Typography variant="subtitle1">
-                  {h.fromStateName ? `${h.fromStateName} → ${h.toStateName}` : `Creada en ${h.toStateName.toLowerCase()}`}
+                <Typography variant="body2" color="text.secondary">
+                  {[
+                    invoice.providerName,
+                    invoice.workCode && `${invoice.workCode} ${invoice.workName}`,
+                    invoice.contractNumber && `Contrato ${invoice.contractNumber}`
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  {h.origin === 'AUTOMATIC' ? 'Automática' : 'Manual'} · {h.createdByName ?? '—'}
-                  {h.reasonName ? ` · Motivo: ${h.reasonName}` : ''}
-                  {h.observation ? ` · ${h.observation}` : ''}
+                  Modificada el {fDateTime(invoice.updatedAt)} por {invoice.updatedByName ?? '—'}
                 </Typography>
+              </>
+            }
+            tabs={
+              <Tabs
+                value={tab}
+                onChange={(_, value) => setTab(value)}
+                variant="scrollable"
+                scrollButtons="auto"
+                aria-label="Partes de la factura"
+              >
+                {visibleTabs.map((t) => (
+                  <Tab
+                    key={t.key}
+                    value={t.key}
+                    label={
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Box component="span" sx={t.key === 'data' && form.hasErrors ? { color: 'error.main' } : undefined}>
+                          {t.label}
+                          {t.key === 'data' && form.hasErrors && ' *'}
+                          {t.key === 'data' && dirty && (
+                            <Box component="span" title="Cambios sin guardar" sx={{ color: 'secondary.main' }}>
+                              {' •'}
+                            </Box>
+                          )}
+                        </Box>
+                        {t.key === 'history' && <Chip label={invoice.history.length} size="small" color="default" />}
+                        {/* Del detalle de la factura hasta que la pestaña carga su lista (DEC-093). */}
+                        {t.key === 'followUps' && (followUpCount ?? invoice.followUpsCount) > 0 && (
+                          <Chip label={followUpCount ?? invoice.followUpsCount} size="small" color="default" />
+                        )}
+                        {t.key === 'glosses' && (openGlosses ?? invoice.openGlossesCount) > 0 && (
+                          <Chip label={openGlosses ?? invoice.openGlossesCount} size="small" color="warning" />
+                        )}
+                      </Stack>
+                    }
+                  />
+                ))}
+              </Tabs>
+            }
+            footer={
+              <>
+                {canCancel && (
+                  <Button variant="outlined" color="error" onClick={() => setDialog('cancel')}>
+                    Anular
+                  </Button>
+                )}
+                {canDelete && (
+                  <Button variant="text" color="error" onClick={() => setDialog('delete')}>
+                    Eliminar
+                  </Button>
+                )}
+                <Box sx={{ flexGrow: 1 }} />
+                {showSave && dirty && (
+                  <Button color="inherit" onClick={form.discard} disabled={form.saving}>
+                    Descartar cambios
+                  </Button>
+                )}
+                <Button variant="outlined" color="inherit" onClick={requestClose} disabled={form.saving}>
+                  Cerrar
+                </Button>
+                {showSave && (
+                  <Button variant="contained" color="secondary" onClick={form.save} disabled={form.saveDisabled || !dirty}>
+                    {form.saving ? 'Guardando…' : 'Guardar cambios'}
+                  </Button>
+                )}
+                {/* Se aprueba lo guardado: con cambios sin guardar, primero guardarlos o descartarlos. */}
+                {canApprove && (
+                  <Button
+                    variant="contained"
+                    color="success"
+                    onClick={() => setDialog('approve')}
+                    disabled={!invoice.contractAdmits || dirty}
+                    title={dirty ? 'Guarda o descarta los cambios antes de aprobar' : undefined}
+                  >
+                    Aprobar
+                  </Button>
+                )}
+              </>
+            }
+          >
+            {tab === 'summary' && (
+              <Stack spacing={2}>
+                {invoice.state === 'REGISTERED' && !invoice.contractAdmits && (
+                  <Alert severity="warning">
+                    El contrato está {invoice.contractStateName?.toLowerCase()}: hoy no admite facturas de {invoice.typeName.toLowerCase()}.
+                    No se puede aprobar mientras siga así; se puede anular.
+                  </Alert>
+                )}
+                {invoice.state === 'CANCELLED' && (
+                  <Alert severity="info">Factura anulada: queda en el historial, fuera de todo cálculo, y su número sigue ocupado.</Alert>
+                )}
+                <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
+                  <Grid size={{ xs: 12, md: panel ? 8 : 12 }}>
+                    <Grid container spacing={2}>
+                      <Grid size={{ xs: 12, md: panel ? 12 : 6 }}>
+                        <SubCard title="Documento">
+                          <DataList
+                            items={[
+                              ['Número', invoice.number],
+                              ['Tipo', invoice.typeName],
+                              ['Fecha de la factura', fDateOnly(invoice.date)],
+                              ['Fecha de aprobación', invoice.approvalDate ? fDateOnly(invoice.approvalDate) : 'Sin aprobar'],
+                              ['Número de comprobante', invoice.voucherNumber],
+                              // Texto libre (DEC-084); la fecha, si ya existe el extracto de la obra con ese número.
+                              [
+                                'Extracto',
+                                invoice.statement &&
+                                  [invoice.statement, invoice.statementDate && fDateOnly(invoice.statementDate)].filter(Boolean).join(' · ')
+                              ],
+                              ['Descripción', invoice.description]
+                            ]}
+                          />
+                        </SubCard>
+                      </Grid>
+                      <Grid size={{ xs: 12, md: panel ? 12 : 6 }}>
+                        <SubCard title={invoice.ctrId ? 'Proveedor, obra y contrato' : 'Proveedor y obra'}>
+                          <DataList
+                            items={[
+                              ['Proveedor', `${invoice.providerName} · ${invoice.providerIdentification}`],
+                              // La simple se imputa a una etapa de la obra, sin contrato (DEC-058).
+                              ['Obra', `${invoice.workCode} — ${invoice.workName}`],
+                              ['Etapa', invoice.stageName],
+                              ...(invoice.ctrId
+                                ? [
+                                    ['Contrato', `${invoice.contractNumber} — ${invoice.contractName}`],
+                                    ['Estado del contrato', invoice.contractStateName],
+                                    // La liquidación se asocia al otrosí de liquidación del contrato (DEC-059).
+                                    ...(invoice.amounts?.liquidationConcept
+                                      ? [
+                                          [
+                                            'Otrosí de liquidación',
+                                            [
+                                              invoice.amounts.liquidationConcept.number &&
+                                                `N.º ${invoice.amounts.liquidationConcept.number}`,
+                                              `desde ${fDateOnly(invoice.amounts.liquidationConcept.startDate)}`
+                                            ]
+                                              .filter(Boolean)
+                                              .join(' · ')
+                                          ]
+                                        ]
+                                      : [])
+                                  ]
+                                : [['Contrato', 'Sin contrato (factura simple)']]),
+                              ['Registrada', `${fDateTime(invoice.createdAt)} por ${invoice.createdByName ?? '—'}`]
+                            ]}
+                          />
+                          {invoice.ctrId && (
+                            <Button size="small" sx={{ mt: 1 }} onClick={() => navigate(`/work/contracts/${invoice.ctrId}`)}>
+                              Ver contrato
+                            </Button>
+                          )}
+                        </SubCard>
+                      </Grid>
+                    </Grid>
+                  </Grid>
+                  {panel && (
+                    <Grid size={{ xs: 12, md: 4 }} sx={{ alignSelf: { md: 'stretch' } }}>
+                      <InvoiceDetailPanel {...panel} />
+                    </Grid>
+                  )}
+                </Grid>
+              </Stack>
+            )}
+
+            {tab === 'history' && (
+              <Box
+                component="ol"
+                sx={{
+                  listStyle: 'none',
+                  p: 0,
+                  m: 0,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 2,
+                  bgcolor: 'background.paper'
+                }}
+              >
+                {invoice.history.map((h, i) => (
+                  <Stack
+                    key={h.ishId}
+                    component="li"
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={{ xs: 0.5, sm: 2 }}
+                    sx={{ px: 2, py: 1.5, borderBottom: i < invoice.history.length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ minWidth: 150 }}>
+                      {fDateTime(h.createdAt)}
+                    </Typography>
+                    <Box sx={{ flexGrow: 1 }}>
+                      <Typography variant="subtitle1">
+                        {h.fromStateName ? `${h.fromStateName} → ${h.toStateName}` : `Creada en ${h.toStateName.toLowerCase()}`}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {h.origin === 'AUTOMATIC' ? 'Automática' : 'Manual'} · {h.createdByName ?? '—'}
+                        {h.reasonName ? ` · Motivo: ${h.reasonName}` : ''}
+                        {h.observation ? ` · ${h.observation}` : ''}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                ))}
               </Box>
-            </Stack>
-          ))}
-        </Box>
-      )}
+            )}
 
-      {tab === 'amounts' && <InvoiceAmounts invoice={invoice} />}
+            {/* Montada siempre: lo escrito y no guardado se conserva al cambiar de pestaña. */}
+            {canEditData && <Box sx={{ display: tab === 'data' ? 'block' : 'none' }}>{form.content}</Box>}
 
-      {tab === 'followUps' && (
-        <InvoiceFollowUpsTab
-          invId={invoice.invId}
-          cancelled={invoice.state === 'CANCELLED'}
-          canManage={canDo(perms?.manageFollowUps)}
-          onCount={setFollowUpCount}
-          onChanged={refresh}
-        />
-      )}
+            {tab === 'amounts' && (
+              <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
+                <Grid size={{ xs: 12, md: panel ? 8 : 12 }}>
+                  <InvoiceAmounts invoice={invoice} />
+                </Grid>
+                {panel && (
+                  <Grid size={{ xs: 12, md: 4 }} sx={{ alignSelf: { md: 'stretch' } }}>
+                    <InvoiceDetailPanel {...panel} />
+                  </Grid>
+                )}
+              </Grid>
+            )}
 
-      {tab === 'glosses' && (
-        <InvoiceGlossesTab
-          invoice={{ invId: invoice.invId, statement: invoice.statement, state: invoice.state, glossFields: invoice.glossFields }}
-          canManage={canDo(perms?.manageGlosses)}
-          onCount={setOpenGlosses}
-        />
-      )}
+            {tab === 'followUps' && (
+              <InvoiceFollowUpsTab
+                invId={invoice.invId}
+                cancelled={invoice.state === 'CANCELLED'}
+                canManage={canDo(perms?.manageFollowUps)}
+                onCount={setFollowUpCount}
+                onChanged={refresh}
+              />
+            )}
 
-      <ApproveInvoiceDialog
-        open={dialog === 'approve'}
-        invoice={{ invId: invoice.invId, number: invoice.number, date: invoice.date }}
-        onClose={closeDialog}
-        onSaved={changed}
-      />
-      <CancelInvoiceDialog
-        open={dialog === 'cancel'}
-        invoice={{ invId: invoice.invId, number: invoice.number, state: invoice.state }}
-        onClose={closeDialog}
-        onSaved={changed}
-      />
-      <DeleteInvoiceDialog
-        open={dialog === 'delete'}
-        invoice={{ invId: invoice.invId, number: invoice.number, state: invoice.state }}
-        onClose={closeDialog}
-        onDeleted={deleted}
-      />
-    </RouteDialog>
+            {tab === 'glosses' && (
+              <InvoiceGlossesTab
+                invoice={{ invId: invoice.invId, statement: invoice.statement, state: invoice.state, glossFields: invoice.glossFields }}
+                canManage={canDo(perms?.manageGlosses)}
+                onCount={setOpenGlosses}
+              />
+            )}
+
+            <ApproveInvoiceDialog
+              open={dialog === 'approve'}
+              invoice={{ invId: invoice.invId, number: invoice.number, date: invoice.date }}
+              onClose={closeDialog}
+              onSaved={changed}
+            />
+            <CancelInvoiceDialog
+              open={dialog === 'cancel'}
+              invoice={{ invId: invoice.invId, number: invoice.number, state: invoice.state }}
+              onClose={closeDialog}
+              onSaved={changed}
+            />
+            <DeleteInvoiceDialog
+              open={dialog === 'delete'}
+              invoice={{ invId: invoice.invId, number: invoice.number, state: invoice.state }}
+              onClose={closeDialog}
+              onDeleted={deleted}
+            />
+            <ConfirmDialog
+              open={confirmLeave}
+              onClose={() => setConfirmLeave(false)}
+              onConfirm={close}
+              title="Descartar cambios"
+              message="Hay cambios sin guardar en la factura. ¿Salir sin guardarlos?"
+              confirmLabel="Descartar"
+            />
+          </RouteDialog>
+        );
+      }}
+    </InvoiceForm>
   );
 }
+
+/** Resumen compacto de la factura, en la columna fija del modal (DEC-057, "Resumen al lado"). */
+function InvoiceAside({ invoice, panel }) {
+  const notice =
+    invoice.state === 'CANCELLED' ? (
+      <Alert severity="info" sx={{ py: 0 }}>
+        Anulada: fuera de todo cálculo
+      </Alert>
+    ) : invoice.state === 'REGISTERED' && !invoice.contractAdmits ? (
+      <Alert severity="warning" sx={{ py: 0 }}>
+        El contrato está {invoice.contractStateName?.toLowerCase()}: no se puede aprobar
+      </Alert>
+    ) : null;
+  return (
+    <SummaryAside
+      notice={notice}
+      figures={[
+        { label: 'Total', value: panel?.total ? fMoneyText(panel.total) : null, hint: panel ? undefined : 'Sin importes registrados' },
+        { label: 'Fecha de la factura', value: fDateOnly(invoice.date) },
+        { label: 'Aprobada el', value: invoice.approvalDate ? fDateOnly(invoice.approvalDate) : 'Sin aprobar' }
+      ]}
+      items={[
+        ['Proveedor', invoice.providerName && `${invoice.providerName} · ${invoice.providerIdentification}`],
+        ['Obra', `${invoice.workCode} — ${invoice.workName}`],
+        ['Etapa', invoice.stageName],
+        ['Contrato', invoice.ctrId ? `${invoice.contractNumber} — ${invoice.contractName}` : 'Sin contrato (factura simple)'],
+        ...(invoice.ctrId ? [['Estado del contrato', invoice.contractStateName]] : []),
+        ['Extracto', invoice.statement],
+        ['Número de comprobante', invoice.voucherNumber],
+        ['Registrada', `${fDateTime(invoice.createdAt)} por ${invoice.createdByName ?? '—'}`]
+      ]}
+    />
+  );
+}
+
+InvoiceAside.propTypes = { invoice: PropTypes.object.isRequired, panel: PropTypes.object };

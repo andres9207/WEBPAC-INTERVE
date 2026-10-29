@@ -157,8 +157,10 @@ export const INVOICE_VOUCHER_FILTER_OPTIONS = [
   { value: 'WITHOUT', label: 'Sin comprobante de egreso' }
 ];
 // Alertas del listado de facturas (DEC-094, INVOICE_ALERTS del servidor): fila de chips con su conteo,
-// combinable con las pestañas de estado.
+// combinable con las pestañas de estado. Las de pago (DEC-101): con extracto, sin comprobante o con él.
 export const INVOICE_ALERT_OPTIONS = [
+  { id: 'PENDING_PAYMENT', name: 'Pendientes de pago', color: 'error' },
+  { id: 'PAID', name: 'Pagadas', color: 'success' },
   { id: 'OPEN_GLOSSES', name: 'Con glosas abiertas', color: 'warning' },
   { id: 'GLOSSES', name: 'Con glosas', color: 'info' }
 ];

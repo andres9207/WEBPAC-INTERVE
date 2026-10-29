@@ -155,16 +155,35 @@ export const glossWhere = (gloss) => {
 /**
  * Alertas del listado (DEC-094): fila de chips con su conteo, aparte de las
  * pestañas de estado y combinable con ellas (como las de contratos, DEC-089).
+ * Las de pago (DEC-101): con extracto y sin comprobante de egreso, pendiente
+ * de pago; con los dos, pagada. Las anuladas no cuentan en ninguna.
  */
-export const INVOICE_ALERTS = Object.freeze({ OPEN_GLOSSES: "OPEN_GLOSSES", GLOSSES: "GLOSSES" });
+export const INVOICE_ALERTS = Object.freeze({
+  PENDING_PAYMENT: "PENDING_PAYMENT",
+  PAID: "PAID",
+  OPEN_GLOSSES: "OPEN_GLOSSES",
+  GLOSSES: "GLOSSES",
+});
 
 export const INVOICE_ALERT_NAMES = Object.freeze({
+  [INVOICE_ALERTS.PENDING_PAYMENT]: "Pendientes de pago",
+  [INVOICE_ALERTS.PAID]: "Pagadas",
   [INVOICE_ALERTS.OPEN_GLOSSES]: "Con glosas abiertas",
   [INVOICE_ALERTS.GLOSSES]: "Con glosas",
 });
 
+const NO_STATEMENT = [{ inv_statement: null }, { inv_statement: "" }];
+
+/** Pago de la factura (DEC-101): con extracto, `paid` con comprobante y, si no, sin él; nunca las anuladas. */
+export const paymentWhere = ({ paid }) => ({
+  inv_state: { not: INVOICE_STATES.CANCELLED },
+  AND: [{ NOT: NO_STATEMENT }, paid ? { NOT: NO_VOUCHER } : { OR: NO_VOUCHER }],
+});
+
 /** Predicado de cada alerta, en el orden de la fila: `[clave, where]`. */
 export const invoiceAlertWheres = () => [
+  [INVOICE_ALERTS.PENDING_PAYMENT, paymentWhere({ paid: false })],
+  [INVOICE_ALERTS.PAID, paymentWhere({ paid: true })],
   [INVOICE_ALERTS.OPEN_GLOSSES, glossWhere(GLOSS_FILTERS.OPEN)],
   [INVOICE_ALERTS.GLOSSES, glossWhere(GLOSS_FILTERS.ANY)],
 ];

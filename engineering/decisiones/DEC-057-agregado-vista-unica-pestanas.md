@@ -52,6 +52,18 @@ Pedido del usuario: en el contrato, la obra y el proveedor, el resumen deja de s
 
 **Descartado:** reflejar en el panel lo que se escribe sin guardar (exigiría pedir al servidor valor y fecha fin mientras se escribe), y una franja plegable arriba en pantallas chicas (el usuario prefirió la pestaña).
 
+## Facturas (2026-10-29)
+
+Pedido del usuario: un solo botón en el listado de facturas, en vez de ver y editar, y el resumen a la izquierda, como en el contrato.
+
+- **El listado solo ofrece "Ver detalle".** `…/:invId` y `…/:invId/edit` montan `InvoiceDetailPage`; la segunda abre en la pestaña de datos.
+- **Columna de resumen a la izquierda** (`InvoiceAside`): total del panel Detalle, fecha de la factura y de aprobación, proveedor, obra, etapa, contrato, extracto, comprobante y quién la registró, con el aviso de anulada o de contrato que no admite su tipo. En pantallas chicas, la pestaña Resumen, como antes.
+- **"Datos de la factura"** es la pestaña de datos: el mismo formulario del registro (`InvoiceForm`, en `InvoiceFormPage.jsx`), con lo que el estado admite (registrada, entera; aprobada, extracto, descripción y comprobante, DEC-080; anulada, nada). Su **Guardar** y "Descartar cambios" aparecen solo en ella, como en el contrato; se marca con `•` mientras tiene cambios. Aprobar, anular, eliminar, seguimiento y glosas siguen siendo actos con su diálogo.
+- **Aprobar con cambios sin guardar** está deshabilitado: se aprueba lo guardado.
+- **Importes** muestra también el panel Detalle, para quien no tiene la pestaña de datos.
+- **Registrar** sigue en su propio modal (`…/new`); al guardar abre el expediente.
+- Sin el permiso de editar, la pestaña de datos no aparece.
+
 ## Dónde
 
-`client/src/views/work/works/` · `client/src/views/work/providers/` · `client/src/views/work/contracts/` · `client/src/routes/MainRoutes.jsx` · [`standards/DESIGN_SYSTEM.md`](../standards/DESIGN_SYSTEM.md)
+`client/src/views/work/works/` · `client/src/views/work/providers/` · `client/src/views/work/contracts/` · `client/src/views/billing/invoices/` · `client/src/routes/MainRoutes.jsx` · [`standards/DESIGN_SYSTEM.md`](../standards/DESIGN_SYSTEM.md)

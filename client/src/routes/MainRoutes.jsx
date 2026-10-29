@@ -145,7 +145,8 @@ const MainRoutes = {
               children: [
                 { path: 'new', element: <InvoiceFormPage /> },
                 { path: ':invId', element: <InvoiceDetailPage /> },
-                { path: ':invId/edit', element: <InvoiceFormPage /> }
+                // El expediente edita en su pestaña de datos (DEC-057).
+                { path: ':invId/edit', element: <InvoiceDetailPage /> }
               ]
             },
             // Extractos de la obra (DEC-084): listado con su reporte en un diálogo. Las
