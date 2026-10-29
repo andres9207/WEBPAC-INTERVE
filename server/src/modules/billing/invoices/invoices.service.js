@@ -1373,7 +1373,32 @@ export const exportInvoices = async ({ format, ...filters }) => {
   const { where, orderBy } = invoiceListQuery(filters);
   const rows = (await findExportRows(prisma.tbl_invoices, { where, select: LIST_SELECT, orderBy })).map(toListDto);
   const columns = isSimpleMode(menu.mode) ? EXPORT_COLUMNS.filter((c) => !c.contract) : EXPORT_COLUMNS;
-  return renderExport({ format, title: `Facturas — ${menu.name}`, filters: await exportFilterLines(filters), columns, rows });
+  return renderExport({
+    format,
+    title: `Facturas — ${menu.name}`,
+    filters: await exportFilterLines(filters),
+    columns,
+    rows,
+    // Como los reportes del sistema que se migra: la obra arriba y las facturas por proveedor, con su subtotal.
+    rowGroups: {
+      heading: REPORT_WORK_HEADING,
+      label: (r) => r.providerName,
+      column: "Proveedor",
+      emptyLabel: "Sin proveedor",
+      subtotal: (own) => invoiceExportTotals(own, "Subtotal"),
+    },
+    totals: rows.length ? invoiceExportTotals(rows, "Total") : null,
+  });
+};
+
+/** Obra de cada fila de un reporte, para su encabezado (`rowGroups.heading` de export.service). */
+const REPORT_WORK_HEADING = { label: "Obra", value: (r) => [r.workCode, r.workName].filter(Boolean).join(" — ") };
+
+/** Suma de los importes del reporte del listado, sin las anuladas (DEC-052); el % IVA no se suma. */
+const invoiceExportTotals = (rows, label) => {
+  const counted = rows.filter((r) => r.state !== INVOICE_STATES.CANCELLED);
+  const sum = (field) => moneyText(sumMoney(counted.map((r) => r[field])));
+  return { number: label, value: sum("value"), discount: sum("discount"), vat: sum("vat"), total: sum("total") };
 };
 
 // ─── Detalle ─────────────────────────────────────────────────────────────────

@@ -32,5 +32,5 @@ El tema solo tenía el esquema claro (`themes/index.jsx`). El oscuro figuraba co
 ## Dónde
 
 - Servidor: `database/migrations/0108_users_theme_mode.sql`, `common/constants/themeMode.constants.js`, `auth.service.js` (`updateThemeMode`, `login`), `app.service.js` (`getSessionInfo`), `auth.routes.js`, `auth.controller.js`, `auth.validation.js`.
-- Cliente: `themes/palette.jsx`, `themes/theme/default.js`, `themes/index.jsx`, `themes/custom-shadows.jsx`, `config.js`, `contexts/authContext.jsx`, `layout/MainLayout/Header/ThemeModeSection`, `hooks/useSchemePalette.js`, `App.jsx` (avisos), `ActionButton.jsx` (el hover invierte los tonos en vez de usar blanco).
+- Cliente: `themes/palette.jsx`, `themes/theme/default.js`, `themes/index.jsx`, `themes/custom-shadows.jsx`, `config.js`, `contexts/AuthContext.jsx`, `layout/MainLayout/Header/ThemeModeSection`, `hooks/useSchemePalette.js`, `App.jsx` (avisos), `ActionButton.jsx` (el hover invierte los tonos en vez de usar blanco).
 - Tests: `test/modules/auth/auth.service.test.js` (`updateThemeMode`), `auth.controller.test.js` (el sujeto sale de `req.user`), `auth.validation.test.js`.

@@ -12,6 +12,10 @@ Express 4 en ESM, Prisma 7. Mapa de carpetas y comandos en [`server/CLAUDE.md`](
 | `*.service.js` | Reglas de negocio, transacciones, acceso a datos, auditoría | Leer `req`; emitir sockets o enviar correos dentro de la transacción |
 | `common/` | Todo lo que comparten dos o más módulos | Lógica de un solo módulo |
 
+## Nombres de archivo
+
+camelCase con el sufijo de su capa (`works.service.js`, `money.utils.js`), y el import con esas mismas mayúsculas: Node en Linux las distingue ([DEC-096](../decisiones/DEC-096-mayusculas-nombres-archivo.md), `test/common/importCase.guard.test.js`).
+
 ## Dónde va cada cosa
 
 | Necesito… | Uso |

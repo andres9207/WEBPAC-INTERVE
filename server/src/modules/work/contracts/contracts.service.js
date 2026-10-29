@@ -1,7 +1,7 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { paginate, MAX_ROWS, containsFilter, idFilter, dateRangeFilter, filtersWhere } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
-import { decimal, moneyText, percentText, toMoney, toPercent } from "../../../common/utils/money.utils.js";
+import { decimal, moneyText, percentText, sumMoney, toMoney, toPercent } from "../../../common/utils/money.utils.js";
 import { addTerm, dateOnlyText, toDateOnly, todayDateOnly } from "../../../common/utils/term.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { assertInScope, inScope, scopeWhere } from "../../../common/services/workScope.service.js";
@@ -19,6 +19,7 @@ import {
   CONCEPT_TYPE_NAMES,
   CONTRACT_ALERT_NAMES,
   POLICY_ALERTS,
+  REPORT_GROUPS,
   STATE_ALLOWS,
   STATE_NAMES,
   assertStateAllows,
@@ -598,7 +599,17 @@ export const exportFilterLines = async ({
 export const exportContracts = async ({ format, ...filters }) => {
   const { where, orderBy } = await contractListQuery(filters);
   const rows = (await findExportRows(prisma.tbl_contracts, { where, select: LIST_SELECT, orderBy })).map(toListDto);
-  return renderExport({ format, title: "Contratos", filters: await exportFilterLines(filters), columns: EXPORT_COLUMNS, rows });
+  const totals = (own, label) => ({ number: label, currentValue: moneyText(sumMoney(own.map((r) => r.currentValue))) });
+  return renderExport({
+    format,
+    title: "Contratos",
+    filters: await exportFilterLines(filters),
+    columns: EXPORT_COLUMNS,
+    rows,
+    // Como los reportes del sistema que se migra: la obra arriba y los contratos por proveedor, con su subtotal.
+    rowGroups: { ...REPORT_GROUPS, column: "Proveedor", subtotal: (own) => totals(own, "Subtotal") },
+    totals: rows.length ? totals(rows, "Total") : null,
+  });
 };
 
 // ─── Detalle ─────────────────────────────────────────────────────────────────

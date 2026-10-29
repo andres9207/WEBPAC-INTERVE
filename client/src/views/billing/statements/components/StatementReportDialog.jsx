@@ -37,10 +37,32 @@ const MENU_COLUMNS = [
   { id: 'total', label: 'Total', align: 'right', render: (row) => fMoneyText(row.total) }
 ];
 
-// Fila final de la tabla de facturas: la suma de cada importe, sin las anuladas.
-const TOTAL_ROW = 'total';
-const isTotal = (row) => row.invId === TOTAL_ROW;
-const onlyInvoice = (render) => (row) => (isTotal(row) ? '' : render(row));
+// Filas de la tabla de facturas que no son una factura: el subtotal de cada
+// proveedor y el total; sus sumas (sin las anuladas) las da el servidor.
+const isTotal = (row) => row.kind === 'subtotal' || row.kind === 'total';
+const isInvoice = (row) => !row.kind;
+const onlyInvoice = (render) => (row) => (isInvoice(row) ? render(row) : '');
+
+/**
+ * Facturas por proveedor (`byProvider` del servidor), como el listado del
+ * sistema que se migra: el proveedor en la primera columna, una sola vez para
+ * todas sus facturas (en la primera), y su subtotal; al final, el total.
+ */
+const invoiceRowsOf = (report) => {
+  const byId = new Map(report.invoices.map((invoice) => [invoice.invId, invoice]));
+  return [
+    ...report.byProvider.flatMap((group, index) => [
+      ...group.invIds.map((invId, i) => ({ ...byId.get(invId), groupLabel: i === 0 ? group.providerName : '' })),
+      { kind: 'subtotal', invId: `subtotal-${index}`, label: 'Subtotal', ...group.subtotal }
+    ]),
+    { kind: 'total', invId: 'total', label: 'Total', amounts: report.amountTotals, glossesValue: report.invoiceGlossesTotal }
+  ];
+};
+
+const amountCell = (row, amount) => {
+  if (amount == null) return '';
+  return isTotal(row) ? <strong>{fMoneyText(amount)}</strong> : fMoneyText(amount);
+};
 
 /**
  * Columnas de la tabla de facturas: su identificación, un importe por columna
@@ -49,11 +71,24 @@ const onlyInvoice = (render) => (row) => (isTotal(row) ? '' : render(row));
  */
 const invoiceColumnsOf = (amountColumns) => [
   {
+    id: 'providerName',
+    label: 'Proveedor',
+    render: onlyInvoice((row) =>
+      row.groupLabel ? (
+        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+          {row.groupLabel}
+        </Typography>
+      ) : (
+        ''
+      )
+    )
+  },
+  {
     id: 'number',
     label: 'Factura',
     render: (row) =>
       isTotal(row) ? (
-        <strong>Total</strong>
+        <strong>{row.label}</strong>
       ) : (
         <Link component={RouterLink} to={statementsPath(row.invId)}>
           {row.number}
@@ -61,7 +96,6 @@ const invoiceColumnsOf = (amountColumns) => [
       )
   },
   { id: 'menuName', label: 'Menú', render: onlyInvoice((row) => row.menuName) },
-  { id: 'providerName', label: 'Proveedor', render: onlyInvoice((row) => row.providerName) },
   { id: 'contractNumber', label: 'Contrato', render: onlyInvoice((row) => row.contractNumber ?? '—') },
   { id: 'date', label: 'Fecha', render: onlyInvoice((row) => fDateOnly(row.date)) },
   { id: 'voucherNumber', label: 'Comprobante', render: onlyInvoice((row) => row.voucherNumber ?? '—') },
@@ -69,12 +103,10 @@ const invoiceColumnsOf = (amountColumns) => [
     id: `amount-${key}`,
     label,
     align: 'right',
-    render: (row) => {
-      const amount = row.amounts?.[key];
-      if (amount == null) return '';
-      return isTotal(row) ? <strong>{fMoneyText(amount)}</strong> : fMoneyText(amount);
-    }
+    render: (row) => amountCell(row, row.amounts?.[key])
   })),
+  // Glosas levantadas en el extracto sobre la factura (DEC-085); el detalle, abajo.
+  { id: 'glossesValue', label: 'Glosas', align: 'right', render: (row) => amountCell(row, row.glossesValue) },
   { id: 'stateName', label: 'Estado', render: onlyInvoice((row) => row.stateName) }
 ];
 
@@ -208,11 +240,7 @@ export default function StatementReportDialog({ statement, canExport, reloadKey 
                 {fMoneyText(totals.vat)} · Total {fMoneyText(totals.total)}
               </Typography>
               <Typography variant="h5">Facturas</Typography>
-              <DataTable
-                columns={invoiceColumnsOf(report.amountColumns)}
-                rows={[...report.invoices, { invId: TOTAL_ROW, amounts: report.amountTotals }]}
-                keyExtractor={(row) => row.invId}
-              />
+              <DataTable columns={invoiceColumnsOf(report.amountColumns)} rows={invoiceRowsOf(report)} keyExtractor={(row) => row.invId} />
             </>
           )}
           {report.glosses.byField.length > 0 && (

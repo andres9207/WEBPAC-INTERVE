@@ -39,6 +39,7 @@ Regla: **reutilizar un patrón existente antes de crear uno nuevo.**
 - Si una tarea parece necesitar un área, una carpeta de primer nivel o un prefijo de URL nuevo: **parar y proponerlo como decisión** (paso 6). No se crea en silencio.
 - `docs/ai-module-generation-reference-csur.md` y `docs/specs/modules/_TEMPLATE-maestro.md` son de **otro proyecto** (CSUR). Sus rutas (`pages/admin`, `/management/`, `routes.js`) no existen aquí: no se usan como referencia.
 - Antes de proponer una ruta, verificar que su carpeta padre existe (`ls`, o `graphify explain` sobre un módulo vecino).
+- **Archivo nuevo: nombre con la convención de sus vecinos e import con las mismas mayúsculas** ([DEC-096](decisiones/DEC-096-mayusculas-nombres-archivo.md)). En el cliente, componentes, páginas y contextos en PascalCase y lo demás en camelCase; en el servidor, camelCase con el sufijo de su capa. Windows no distingue mayúsculas y Linux sí (CI y Hostinger): un error así solo aparece en el build de Linux o en `importCase.guard.test.js`. Para cambiar solo las mayúsculas, `git mv` en dos pasos.
 
 ### Navegar el código con el grafo (graphify)
 

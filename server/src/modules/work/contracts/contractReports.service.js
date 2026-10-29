@@ -1,7 +1,7 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { DELETED_STATUS } from "../../../common/constants/status.constants.js";
 import { findExportRows, renderDocument, renderExport } from "../../../common/services/export.service.js";
-import { conceptAmounts, contractTotals, CONCEPT_TYPES, CONCEPT_TYPE_NAMES, STATE_NAMES, sortConcepts } from "./contractTerms.js";
+import { conceptAmounts, contractTotals, CONCEPT_TYPES, CONCEPT_TYPE_NAMES, REPORT_GROUPS, STATE_NAMES, sortConcepts } from "./contractTerms.js";
 import { moneyText, percentText, ratioPercent, sumMoney } from "../../../common/utils/money.utils.js";
 import { CONCEPT_SELECT, contractListQuery, exportFilterLines, getContract } from "./contracts.service.js";
 import { getContractPolicies } from "./contractPolicies.service.js";
@@ -35,10 +35,13 @@ const REPORT_SELECT = {
   ctr_number: true,
   ctr_name: true,
   ctr_state: true,
-  tbl_works: { select: { wrk_code: true } },
+  tbl_works: { select: { wrk_code: true, wrk_name: true } },
   tbl_providers: { select: { prv_name: true } },
   tbl_contract_concepts: { select: CONCEPT_SELECT },
 };
+
+// Los contratos de las filas de un grupo (un contrato puede ocupar varias filas, una por concepto).
+const contractsOfRows = (rows) => [...new Map(rows.map((row) => [row.key, row])).values()];
 
 const conceptLabel = (concept) =>
   concept.ccp_type === CONCEPT_TYPES.AMENDMENT ? `Otrosí N.º ${concept.ccp_number}` : CONCEPT_TYPE_NAMES[concept.ccp_type];
@@ -51,6 +54,7 @@ const contractOf = (row, balances, visible) => ({
   number: row.ctr_number,
   name: row.ctr_name,
   workCode: row.tbl_works?.wrk_code ?? null,
+  workName: row.tbl_works?.wrk_name ?? null,
   providerName: row.tbl_providers?.prv_name ?? null,
   stateName: STATE_NAMES[row.ctr_state] ?? row.ctr_state,
   total: contractTotals(row.tbl_contract_concepts).value,
@@ -159,6 +163,8 @@ export const exportContractReport = async ({ report, format, seesInvoices, ...fi
     columns: spec.columns,
     rows: spec.rows(contracts),
     groupKey: (row) => row.key,
+    // La obra arriba y los contratos por proveedor, con su subtotal (formato del sistema que se migra).
+    rowGroups: { ...REPORT_GROUPS, column: "Contratista", subtotal: (own) => ({ ...spec.totals(contractsOfRows(own)), number: "Subtotal" }) },
     totals: spec.totals(contracts),
   });
 };
@@ -171,7 +177,7 @@ const POLICY_REPORT_SELECT = {
   ctr_name: true,
   ctr_state: true,
   ctr_end_date: true,
-  tbl_works: { select: { wrk_code: true } },
+  tbl_works: { select: { wrk_code: true, wrk_name: true } },
   tbl_providers: { select: { prv_name: true } },
   tbl_contract_concepts: { select: CONCEPT_SELECT },
   tbl_policies: {
@@ -222,6 +228,7 @@ const policyRows = (row, { today, days }) => {
     number: row.ctr_number,
     name: row.ctr_name,
     workCode: row.tbl_works?.wrk_code ?? null,
+    workName: row.tbl_works?.wrk_name ?? null,
     providerName: row.tbl_providers?.prv_name ?? null,
     contractEndDate: dateOnlyText(row.ctr_end_date),
   };
@@ -268,6 +275,7 @@ export const exportPolicyReport = async ({ format, ...filters }) => {
     columns: POLICY_REPORT_COLUMNS,
     rows: lines,
     groupKey: (row) => row.key,
+    rowGroups: { ...REPORT_GROUPS, column: "Contratista", subtotal: (own) => ({ number: "Subtotal", insuredValue: moneyText(sumMoney(own.map((l) => l.insuredValue))) }) },
     totals: { number: "TOTAL ASEGURADO", insuredValue: moneyText(sumMoney(lines.map((l) => l.insuredValue))) },
   });
 };
@@ -429,9 +437,8 @@ export const exportContractSummary = async ({ ctrId, format, scope, seesInvoices
   const omitted = [!canViewPolicies && "pólizas (sin permiso de verlas)", !seesInvoices && "saldos y facturas (sin acceso a su vista de facturas)"].filter(
     Boolean
   );
-  const lines = [
-    [[contract.workCode, contract.workName].filter(Boolean).join(" "), contract.providerName].filter(Boolean).join(" · "),
-    ...(omitted.length ? [`No se incluyen: ${omitted.join("; ")}.`] : []),
-  ];
-  return renderDocument({ format, title: `Contrato ${contract.number} — ${contract.name}`, lines, sections });
+  // La obra en el encabezado, como los reportes del sistema que se migra; debajo, el proveedor.
+  const heading = `Obra: ${[contract.workCode, contract.workName].filter(Boolean).join(" — ")}`;
+  const lines = [...(contract.providerName ? [`Proveedor: ${contract.providerName}`] : []), ...(omitted.length ? [`No se incluyen: ${omitted.join("; ")}.`] : [])];
+  return renderDocument({ format, title: `Contrato ${contract.number} — ${contract.name}`, heading, lines, sections });
 };

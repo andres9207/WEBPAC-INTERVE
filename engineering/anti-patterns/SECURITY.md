@@ -264,6 +264,11 @@ Migraciones `0011_fk_audit_columns.sql`, `0012_add_delete_columns.sql`, `0013_cr
 - **`paginationProviders` devolvía `worksCount` con todas las asignaciones del proveedor**, no solo las de la obra del alcance: un usuario limitado a su obra sabía en cuántas obras más trabajaba cada proveedor. Ahora el conteo solo se lee y se envía con el permiso de ver todas las obras (91), que decide el controller con `canViewAllWorks`; sin él, `worksCount` es `null` y la columna "Obras" no se muestra (pedido del usuario, 2026-10-23). El detalle del proveedor ya contaba dentro del alcance.
 - Tests en `providers.service.test.js` ("a cuántas obras está asignado…") y `providers.controller.test.js` ("el listado pide el conteo de obras…").
 
+## Rastreador de la plantilla en el cliente (2026-10-29)
+
+- **`client/index.html` cargaba `<script defer src="https://fomo.codedthemes.com/pixel/…">`**, un píxel de seguimiento del autor de la plantilla Berry. Cada vez que alguien abría la aplicación, el navegador avisaba a un tercero y le enviaba la dirección de la página y la IP. Además, ese tercero ejecutaba JavaScript propio con acceso al DOM. Se retiró. El script estaba solo en `index.html`: no aparece en `src/` ni en `public/`.
+- Regla: el cliente no carga scripts de terceros que no pida el proyecto. Al adoptar o actualizar una plantilla, revisar `index.html` en busca de píxeles y analítica.
+
 ## Pendientes
 
 Los hallazgos señalados y todavía no corregidos están en [`debt/TECHNICAL_DEBT.md`](../debt/TECHNICAL_DEBT.md), sección "Seguridad". Este archivo registra solo lo que ya se corrigió.

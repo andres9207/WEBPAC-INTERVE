@@ -197,6 +197,38 @@ describe("reporte (documento de alcance, punto 7)", () => {
     expect(report.withoutVoucher).toEqual([{ invId: 2, number: "F-2", providerName: "Acme", menuName: "Contrato mayor" }]);
   });
 
+  it("las facturas por proveedor, en orden alfabético, con su subtotal sin las anuladas y las glosas levantadas en el extracto sobre cada una", async () => {
+    state.invoices = [
+      invoice({ invId: 1, providerName: "Zeus" }),
+      invoice({ invId: 2, providerName: "Acme", total: "50.00", value: "50.00", vat: null }),
+      invoice({ invId: 3, providerName: "Zeus", state: "CANCELLED" }),
+    ];
+    state.glosses = {
+      raised: [
+        { iglId: 1, invId: 1, field: "value", value: "10.00", affectsTotal: true },
+        { iglId: 2, invId: 1, field: "other", value: "-3.00", creditNote: true, affectsTotal: false },
+      ],
+      released: [],
+    };
+
+    const report = await service.getStatementReport({ stmId: 40, scope: OWN });
+
+    expect(report.byProvider.map((g) => [g.providerName, g.invIds])).toEqual([
+      ["Acme", [2]],
+      ["Zeus", [1, 3]],
+    ]);
+    // La anulada se lista en su grupo pero no suma.
+    expect(report.byProvider[1].subtotal.amounts).toMatchObject({ value: "100.00", vat: "19.00", total: "119.00" });
+    expect(report.byProvider[0].subtotal.amounts).toMatchObject({ value: "50.00", total: "50.00" });
+    expect(report.invoices.map((i) => [i.invId, i.glossesValue])).toEqual([
+      [1, "7.00"],
+      [2, "0.00"],
+      [3, "0.00"],
+    ]);
+    expect(report.byProvider[1].subtotal.glossesValue).toBe("7.00");
+    expect(report.invoiceGlossesTotal).toBe("7.00");
+  });
+
   it("total pagado: las facturas más las glosas levantadas en el extracto que suman; las liberadas no restan (DEC-085, 0127)", async () => {
     // Anticipo registrado por el máximo (5.052.000) y glosa por lo pagado de más (48.000).
     state.invoices = [invoice({ value: "5052000.00", vat: null, total: "5052000.00" })];

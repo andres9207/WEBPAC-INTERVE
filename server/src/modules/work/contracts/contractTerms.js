@@ -428,3 +428,10 @@ export const contractTotals = (concepts) => {
     retention: sumMoney(amounts.map((a) => a.retention)),
   };
 };
+
+// Grupos de los reportes de contratos (export.service): la obra arriba y un grupo por proveedor.
+export const REPORT_GROUPS = Object.freeze({
+  heading: { label: "Obra", value: (r) => [r.workCode, r.workName].filter(Boolean).join(" — ") },
+  label: (r) => r.providerName,
+  emptyLabel: "Sin proveedor",
+});

@@ -83,21 +83,31 @@ describe("exportContractReport — control de contratos", () => {
   it("una fila por concepto vigente, en orden, con el total, lo pagado y su porcentaje agrupados por contrato", async () => {
     const file = await exportContractReport({ report: "control", format: "xlsx", seesInvoices: true, scope: { all: true } });
     const sheet = await sheetOf(file);
-    const { header, rows } = tableOf(sheet, "Nro. contrato");
+    const { header, rows } = tableOf(sheet, "Contratista");
 
-    // Valor inicial antes que el otrosí; el otrosí eliminado no sale.
-    expect(rows).toHaveLength(3);
-    expect(rows[0].slice(0, 6)).toEqual(["C-001", "Suministro de acero", "Aceros SAS", "OB-1", "Valor inicial", 1190000]);
-    expect(rows[1][4]).toBe("Otrosí N.º 1");
-    expect(rows[1][5]).toBe(595000);
+    // El contratista es la primera columna, una sola celda para todas sus filas, y su grupo cierra con
+    // su subtotal; valor inicial antes que el otrosí; el otrosí eliminado no sale.
+    expect(rows).toHaveLength(4);
+    const [initial, amendment, subtotal, totals] = rows;
+    expect(initial.slice(0, 6)).toEqual(["Aceros SAS", "C-001", "Suministro de acero", "OB-1", "Valor inicial", 1190000]);
+    expect(sheet.getCell(header + 1, 1).isMerged).toBe(true);
+    expect(sheet.getCell(header + 2, 1).master.address).toBe(sheet.getCell(header + 1, 1).address);
+    expect(amendment[4]).toBe("Otrosí N.º 1");
+    expect(amendment[5]).toBe(595000);
     // Total 1.785.000; pagado = 150.000 + 600.000 + 10.000.
-    expect(rows[0].slice(6, 8)).toEqual([1785000, 760000]);
-    expect(rows[0][8]).toBeCloseTo(0.4258, 6);
-    expect(rows[2].slice(0, 8)).toEqual(["TOTALES", "", "", "", "", 1785000, 1785000, 760000]);
-    expect(rows[2][8]).toBeCloseTo(0.4258, 6);
+    expect(initial.slice(6, 8)).toEqual([1785000, 760000]);
+    expect(initial[8]).toBeCloseTo(0.4258, 6);
+    // El subtotal cuenta cada contrato una vez, aunque ocupe una fila por concepto.
+    expect(subtotal.slice(0, 8)).toEqual(["", "Subtotal", "", "", "", 1785000, 1785000, 760000]);
+    expect(totals.slice(0, 8)).toEqual(["", "TOTALES", "", "", "", 1785000, 1785000, 760000]);
+    expect(totals[8]).toBeCloseTo(0.4258, 6);
     // Las columnas del contrato, combinadas en las filas de sus conceptos.
-    expect(sheet.getCell(header + 2, 1).isMerged).toBe(true);
-    expect(sheet.getCell(header + 2, 5).isMerged).toBe(false);
+    expect(sheet.getCell(header + 1, 2).isMerged).toBe(true);
+    expect(sheet.getCell(header + 1, 5).isMerged).toBe(false);
+    // La obra, una vez bajo el título: todas las filas son de la misma.
+    const texts = [];
+    sheet.eachRow((row) => texts.push(String(row.getCell(1).value)));
+    expect(texts).toContain("Obra: OB-1");
   });
 
   it("toma los contratos del listado: sus filtros y el alcance, sin paginar", async () => {
@@ -117,7 +127,7 @@ describe("exportContractReport — control de contratos", () => {
   it("sin el permiso de ver facturas, las cifras de facturación van vacías y el encabezado lo dice (DEC-074)", async () => {
     const file = await exportContractReport({ report: "control", format: "xlsx", seesInvoices: false, scope: { all: true } });
     const sheet = await sheetOf(file);
-    const { rows } = tableOf(sheet, "Nro. contrato");
+    const { rows } = tableOf(sheet, "Contratista");
     expect(rows[0][6]).toBe(1785000);
     expect(rows[0][7]).toBe("");
     expect(rows[0][8]).toBe("");
@@ -142,14 +152,17 @@ describe("exportContractReport — anticipos y retenidos", () => {
     prismaMock.tbl_contracts.count.mockResolvedValue(2);
     prismaMock.tbl_contracts.findMany.mockResolvedValue([contract(), contract({ ctr_id: 2, ctr_number: "C-002", tbl_contract_concepts: [] })]);
     const file = await exportContractReport({ report: "advances", format: "xlsx", seesInvoices: true, scope: { all: true } });
-    const { rows } = tableOf(await sheetOf(file), "Nro. contrato");
+    const { rows } = tableOf(await sheetOf(file), "Contratista");
 
     // Pactado 225.000 (15 % de 1.500.000), facturado 150.000, amortizado 90.000;
     // retenido 30.000, devuelto 10.000.
+    // Los dos contratos son del mismo proveedor: una sola celda de contratista para los dos y su subtotal.
+    expect(rows.map((r) => r[0])).toEqual(["Aceros SAS", "Aceros SAS", "", ""]);
+    expect(rows.map((r) => r[1])).toEqual(["C-001", "C-002", "Subtotal", "TOTALES"]);
     expect(rows[0].slice(4)).toEqual([225000, 150000, 90000, 60000, 30000, 10000, 20000]);
     expect(rows[1].slice(4)).toEqual([0, 0, 0, 0, 0, 0, 0]);
-    expect(rows[2][0]).toBe("TOTALES");
     expect(rows[2].slice(4)).toEqual([225000, 150000, 90000, 60000, 30000, 10000, 20000]);
+    expect(rows[3].slice(4)).toEqual([225000, 150000, 90000, 60000, 30000, 10000, 20000]);
   });
 });
 
@@ -174,18 +187,21 @@ describe("exportPolicyReport — control de pólizas", () => {
     ]);
 
     const sheet = await sheetOf(await exportPolicyReport({ format: "xlsx", scope: { all: true } }));
-    const { rows } = tableOf(sheet, "Nro. contrato");
+    const { rows } = tableOf(sheet, "Contratista");
 
     // Valor inicial con póliza; el otrosí N.º 1, sin ninguna; el eliminado no sale.
-    expect(rows).toHaveLength(3);
-    const [policy, uncovered, totals] = rows;
+    expect(rows).toHaveLength(4);
+    const [policy, uncovered, subtotal, totals] = rows;
+    expect(policy[0]).toBe("Aceros SAS");
+    expect(subtotal[1]).toBe("Subtotal");
+    expect(subtotal[11]).toBe(119000);
     expect(policy.slice(5, 9)).toEqual(["Valor inicial", "Cumplimiento", "Seguros del Estado", "P-1"]);
     // 10 % del valor total del concepto (1.190.000).
     expect(policy[11]).toBe(119000);
     // Termina antes que el contrato: no cubre el plazo.
     expect(policy[15]).toBe("No");
     expect(uncovered.slice(5, 7)).toEqual(["Otrosí N.º 1", "Sin póliza vigente"]);
-    expect(totals[0]).toBe("TOTAL ASEGURADO");
+    expect(totals[1]).toBe("TOTAL ASEGURADO");
     expect(totals[11]).toBe(119000);
   });
 });

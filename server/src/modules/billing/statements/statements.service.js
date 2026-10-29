@@ -407,9 +407,15 @@ const buildReport = (statement, invoices, glosses) => {
   const totals = totalsOf(invoices);
   const raisedValue = sumOf(glosses.raised, "value");
   const releasedValue = sumOf(glosses.released, "value");
+  // Valor de las glosas levantadas en el extracto sobre cada factura: la columna Glosas del reporte.
+  const glossesOfInvoice = (invId) => sumOf(glosses.raised.filter((g) => g.invId === invId), "value");
+  const withGlosses = invoices.map((invoice) => ({ ...invoice, glossesValue: glossesOfInvoice(invoice.invId) }));
   return {
     statement,
-    invoices,
+    invoices: withGlosses,
+    // Las facturas por proveedor, como el listado del sistema que se migra: cada uno con su subtotal (sin las anuladas).
+    byProvider: providerGroupsOf(withGlosses),
+    invoiceGlossesTotal: sumOf(withGlosses, "glossesValue"),
     // Todos los importes de las facturas, una columna por importe que alguna tenga, con la suma de cada una.
     amountColumns: amountColumnsOf(invoices),
     amountTotals: amountTotalsOf(invoices),
@@ -445,8 +451,32 @@ const invoiceColumnsOf = (amountColumns) => [
   { header: "Fecha", value: (r) => r.date, kind: "date" },
   { header: "Comprobante", value: (r) => r.voucherNumber },
   ...amountColumns.map(({ key, label }) => ({ header: label, value: (r) => r.amounts?.[key], kind: "money" })),
+  // Glosas levantadas en el extracto sobre la factura (DEC-085); el detalle, en sus tablas.
+  { header: "Glosas", value: (r) => r.glossesValue, kind: "money" },
   { header: "Estado", value: (r) => r.stateName },
 ];
+
+/** Subtotal o total de la tabla de facturas: sus importes sin las anuladas y sus glosas. */
+const invoiceTableTotals = (invoices, label) => ({ menuName: label, amounts: amountTotalsOf(invoices), glossesValue: sumOf(invoices, "glossesValue") });
+
+const PROVIDER_COLLATOR = new Intl.Collator("es", { numeric: true, sensitivity: "base" });
+const NO_PROVIDER = "Sin proveedor";
+
+/** Grupos por proveedor de la tabla de facturas, en orden alfabético: sus facturas (ids) y su subtotal. */
+const providerGroupsOf = (invoices) => {
+  const byName = new Map();
+  for (const invoice of invoices) {
+    const name = invoice.providerName || NO_PROVIDER;
+    if (!byName.has(name)) byName.set(name, []);
+    byName.get(name).push(invoice);
+  }
+  return [...byName.entries()]
+    .sort(([a], [b]) => PROVIDER_COLLATOR.compare(a, b))
+    .map(([providerName, own]) => {
+      const { amounts, glossesValue } = invoiceTableTotals(own, null);
+      return { providerName, invIds: own.map((i) => i.invId), subtotal: { amounts, glossesValue } };
+    });
+};
 
 const GLOSS_COLUMNS = [
   { header: "Factura", value: (r) => r.invoiceNumber },
@@ -514,8 +544,9 @@ const renderReport = (report, format, fields) => {
       title: "Facturas",
       columns: invoiceColumnsOf(report.amountColumns),
       rows: report.invoices,
-      // La suma de cada columna, sin las anuladas.
-      totals: report.invoices.length ? { menuName: "Total", amounts: report.amountTotals } : null,
+      // Por proveedor, como el listado del sistema que se migra; la suma de cada columna, sin las anuladas.
+      rowGroups: { label: (r) => r.providerName, column: "Proveedor", emptyLabel: NO_PROVIDER, subtotal: (own) => invoiceTableTotals(own, "Subtotal") },
+      totals: report.invoices.length ? invoiceTableTotals(report.invoices, "Total") : null,
       empty: "El extracto no tiene facturas.",
     },
     {
@@ -543,7 +574,8 @@ const renderReport = (report, format, fields) => {
     },
   ];
   const lines = report.cancelled > 0 ? [`Las ${report.cancelled} factura(s) anulada(s) se listan pero no suman.`] : [];
-  return renderDocument({ format, title: `Extracto ${statement.number} — ${statement.workCode}`, lines, sections });
+  const heading = `Obra: ${[statement.workCode, statement.workName].filter(Boolean).join(" — ")}`;
+  return renderDocument({ format, title: `Listado de facturas — Extracto ${statement.number}`, heading, lines, sections });
 };
 
 // ─── Extractos escritos en las facturas (solo lectura) ───────────────────────

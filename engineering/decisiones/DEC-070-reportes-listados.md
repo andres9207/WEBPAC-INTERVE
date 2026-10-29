@@ -25,6 +25,16 @@ Se pidió exportar a Excel y PDF los listados de contratos y facturas: lo que mu
 - **`renderExport` admite** filas agrupadas (`groupKey` y columnas con `group`, combinadas en Excel y mostradas una vez por grupo en PDF), una fila de totales que suma el módulo, y columnas de porcentaje.
 - **El handler de un reporte** usa `handleExport` y pasa el alcance como los demás; la regla de alcance de los controllers (`workScope.guard.test.js`) también lo revisa.
 
+## Formato del sistema que se migra: obra arriba y grupos por proveedor (2026-10-29)
+
+Pedido del usuario, con el listado de facturas de un extracto del sistema que se migra: todos sus reportes tienen la obra en el encabezado y las filas agrupadas por proveedor.
+
+- **`rowGroups`** en `export.service` (`renderExport` y las tablas de `renderDocument`): las filas por proveedor (en orden alfabético; dentro, el orden del listado) y una fila de **subtotal** por proveedor que arma el módulo con sus reglas (export.service no suma). Una fila sin proveedor va en "Sin proveedor".
+- **El proveedor, como un row group** (2026-10-29, corrección del usuario con el Excel que esperaba): su columna (`rowGroups.column`: "Proveedor" o "Contratista") pasa a ser la primera y muestra el nombre **una sola vez para todas sus filas**: una celda combinada en Excel, con bordes en las filas del grupo; en el PDF, en la primera fila del grupo y al pasar de página. El subtotal va debajo, con la celda del proveedor vacía. Sin `column`, el nombre va en una fila a todo el ancho antes del grupo (lo que se entregó primero).
+- **Obra**: si todas las filas son de la misma obra, "Obra: código — nombre" va una vez bajo el título; con filas de varias obras ("Ver todo" sin filtro de obra), delante del nombre de cada grupo. Los reportes de un registro (extracto, contrato) la llevan en `heading`.
+- **Dónde aplica**: facturas por menú (subtotal y total de valor, descuento, IVA y total, sin las anuladas), contratos (valor vigente), control de contratos y de anticipos y retenidos (los totales de cada reporte, contando cada contrato una vez), control de pólizas (valor asegurado), el extracto (sus importes sin las anuladas y una columna **Glosas**: las levantadas en el extracto sobre cada factura) y el reporte de un contrato (solo la obra: es de un proveedor). El de obras no tiene proveedor: sin grupos.
+- **En pantalla**, el reporte del extracto agrupa igual: el proveedor en la primera columna, en la primera de sus facturas, y su subtotal, con lo que calcula el servidor (`byProvider`); siempre abiertos, sin plegar.
+
 ## Descartado
 
 - **Quitar el tope del listado o un parámetro `all: true`:** abriría cualquier listado a devolver la tabla entera; el estándar lo prohíbe.
