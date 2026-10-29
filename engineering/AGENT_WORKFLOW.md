@@ -112,9 +112,10 @@ Seguir los estándares y el patrón existente. No duplicar lógica, no crear abs
 
 | Qué | Cómo, hoy |
 | --- | --- |
-| Tests del servidor | `cd server && yarn test` (Jest, unitarios con mocks). Ver [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
-| Lint del cliente | `cd client && yarn lint` |
-| Build del cliente | `cd client && yarn build` |
+| Tests del servidor | `cd server && npm test` (Jest, unitarios con mocks). Ver [`TESTING_STANDARD`](standards/TESTING_STANDARD.md) |
+| Lint del cliente | `cd client && npm run lint` |
+| Build del cliente | `cd client && npm run build` |
+| CI | Los tres anteriores corren en GitHub Actions en cada push y PR a `main` y `develop` (`.github/workflows/ci.yml`, [DEC-095](decisiones/DEC-095-ci-health-check.md)). Una dependencia nueva se agrega con `npm install` y se versiona su `package-lock.json` |
 | Migración | Aplicada contra la BD de desarrollo y `npx prisma db pull` en `server/` |
 | Comportamiento | Probado en vivo: caso válido, caso inválido y el intento de abuso que aplique (id ajeno, permiso faltante) |
 | Invariantes | Las del cambio siguen siendo verdad; si hay mecanismo en BD, existe |

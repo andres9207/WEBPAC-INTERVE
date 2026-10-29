@@ -4,6 +4,7 @@ import appRoutes from "./app/general/app.routes.js";
 import moduleDocsRoutes from "./app/documents/document.routes.js";
 import notificationsRoutes from "./app/notifications/notifications.routes.js";
 import dashboardRoutes from "./app/dashboard/dashboard.routes.js";
+import healthRoutes from "./app/health/health.routes.js";
 
 // security
 import usersRoutes from "./security/users/users.routes.js";
@@ -38,6 +39,7 @@ mainRoutes.use("/auth", authRoutes);
 mainRoutes.use("/app", appRoutes);
 mainRoutes.use("/app/notifications", notificationsRoutes);
 mainRoutes.use("/app/dashboard", dashboardRoutes);
+mainRoutes.use("/app/health", healthRoutes);
 
 // Security
 mainRoutes.use("/security/profiles", profilesRoutes);

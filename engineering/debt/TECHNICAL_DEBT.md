@@ -6,6 +6,8 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
+| Activar en GitHub la protección de `main` y `develop` que exija el CI en verde (jobs «Servidor · tests» y «Cliente · lint y build») antes de fusionar. Es configuración del repositorio, no código; la hace quien administre `andres9207/WEBPAC-INTERVE` | Alta | DEC-095 |
+| Confirmar en Hostinger: la versión de Node (el CI usa la de Volta, 20.20.2), que se instale con `npm ci` sobre el `package-lock.json` versionado en lugar de `npm install`, y la URL pública del health check detrás del proxy (previsiblemente `/interadminpro/api/app/health`). Configurar ahí el monitor que la consulte | Alta | DEC-095 |
 | Aplicar las migraciones `0115` a `0121` **junto con** su código y en orden, y después `npx prisma generate` y `yarn db:seed` (permisos 117 a 124). La `0119` convierte el texto `inv_statement` en extractos y **elimina la columna**: el código anterior la lee. En desarrollo ya están aplicadas (2026-10-26) | Alta | DEC-082 a DEC-085 |
 | Aplicar las migraciones `0011` a `0016` en orden. La `0014` vacía sesiones, códigos de recuperación e intentos de login: va junto con el despliegue, no antes ([DEC-009](../decisiones/DEC-009-zona-horaria.md)). La `0015` y la `0016` van **antes** del código que las usa: sin sus columnas, "olvidé mi contraseña" y crear registros fallan | Alta | `decisiones/README.md` |
 | Despliegue de [DEC-047](../decisiones/DEC-047-alcance-por-obra.md) (alcance por obra, migración `0076`): antes de activarlo en producción, asignar responsables a las obras u otorgar el permiso 91 a quien deba ver todo. Sin eso, esos usuarios dejan de ver obras, proveedores, contratos y facturas. Quien crea una obra sin el permiso 91 no la ve hasta que lo asignen como responsable | Alta | DEC-047 |
@@ -142,7 +144,7 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
-| `server/yarn.lock` está en formato v1 y el proyecto usa Yarn 4 (Volta): `yarn test` y `yarn db:check-invariants` fallan con "This package doesn't seem to be present in your lockfile". Mientras tanto se corren con `npx jest` y `node`. Regenerarlo con `yarn install` reescribe el archivo entero: decidirlo y hacerlo en un cambio aparte | Media | Sesión 2026-10-26 |
+| El gestor de paquetes es npm ([DEC-095](../decisiones/DEC-095-ci-health-check.md)): el CI y Hostinger instalan con `npm ci` / `npm install` sobre los `package-lock.json`. Quedan restos de Yarn: `client/yarn.lock` y `server/yarn.lock` (formato v1, desactualizados), `.yarnrc.yml` y `.yarn/` en los dos proyectos, el campo `volta.yarn` de los `package.json` y los comandos `yarn …` de `server/CLAUDE.md`, `client/CLAUDE.md`, `TESTING_STANDARD.md` y las filas de despliegue de arriba (`yarn db:seed` → `npm run db:seed`). Borrarlos es borrar archivos: pedir aprobación y hacerlo en un cambio aparte. Mientras tanto, los scripts se corren con `npm run <script>` | Media | Sesión 2026-10-26, DEC-095 |
 | Retirar `DB_HOST`/`DB_USER`/`DB_NAME`/`DB_PASSWORD` de `server/.env.template` y la dependencia `mysql2` de `server/package.json`. Ya no los usa nada (hay cambios sin confirmar en `.env.template`) | Baja | `decisiones/README.md` |
 | `server/process.env.NODE_ENV`: archivo suelto en la raíz del servidor, sin uso aparente | Baja | Descubrimiento |
 | `server/logs/*.log` está versionado y cambia en cada ejecución | Baja | Descubrimiento |

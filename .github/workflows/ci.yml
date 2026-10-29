@@ -1,0 +1,83 @@
+# Integración continua (DEC-095): en cada push y PR a main y develop valida
+# que el servidor pase sus tests y que el cliente pase el lint y compile.
+# Instala con `npm ci` sobre los package-lock.json versionados, igual que el
+# servidor de Hostinger (npm install). La versión de Node sale del campo
+# "volta" de cada package.json, la misma que en local.
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+# Un push nuevo a la misma rama o PR cancela la ejecución anterior.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    name: Servidor · tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: server
+    env:
+      # `npm ci` corre `prisma generate` (postinstall) y prisma.config.js lee
+      # DATABASE_URL. Los tests son unitarios con mocks: nunca se conecta.
+      DATABASE_URL: mysql://ci:ci@localhost:3306/ci
+      JWT_SECRET: ci-only-not-a-secret
+      TZ: America/Bogota
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: server/package.json
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Validar el esquema de Prisma
+        run: npx prisma validate
+
+      - name: Tests
+        run: npm test -- --ci
+
+  client:
+    name: Cliente · lint y build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: client
+    env:
+      # Las de client/.env.production que el build necesita (no son secretos).
+      # Las de Firebase y el captcha solo se usan en ejecución.
+      VITE_APP_BASE_NAME: interadminpro
+      VITE_API_URL: /interadminpro/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: client/package.json
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
