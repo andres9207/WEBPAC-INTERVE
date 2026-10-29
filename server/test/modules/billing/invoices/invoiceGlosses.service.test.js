@@ -1,14 +1,16 @@
 import { jest } from "@jest/globals";
 import { transactionRawMocks } from "../../../helpers/transaction.mock.js";
 
-// Glosas de facturas (DEC-085): de la obra de su factura, con valor distinto
-// de cero (con signo) y descripción; se levantan en un extracto (texto,
-// migración 0125), sumando o no a su total, y se liberan con la factura que
-// las corrige (migración 0127), con observación y la fecha del servidor.
-// Abiertas se editan y se eliminan; liberadas solo se consultan. No en una
-// factura anulada. Bajo el bloqueo de la factura y con bitácora.
+// Glosas de facturas (DEC-085): de la obra de su factura, sobre uno o varios
+// campos, cada uno con su valor distinto de cero (con signo, migración 0129),
+// y descripción; el valor de la glosa es la suma, distinta de cero. Se
+// levantan en un extracto (texto, migración 0125), sumando o no a su total,
+// y se liberan con la factura que las corrige (migración 0127), con
+// observación y la fecha del servidor. Abiertas se editan y se eliminan;
+// liberadas solo se consultan. No en una factura anulada. Bajo el bloqueo de
+// la factura y con bitácora.
 
-const state = { invoice: null, releaser: null, gloss: null, ref: null };
+const state = { invoice: null, releaser: null, gloss: null, ref: null, contract: null };
 
 const prismaMock = {
   // La factura de la glosa (70) o la que la libera (71).
@@ -16,6 +18,7 @@ const prismaMock = {
     findUnique: jest.fn(async ({ where }) => (where.inv_id === 71 ? state.releaser : state.invoice)),
     findMany: jest.fn(async () => []),
   },
+  tbl_contracts: { findUnique: jest.fn(async () => state.contract) },
   tbl_invoice_glosses: {
     // Por clave de idempotencia (la búsqueda del reintento), la referencia previa al bloqueo, o la fila bloqueada.
     findUnique: jest.fn(async ({ where, select }) => {
@@ -26,6 +29,7 @@ const prismaMock = {
     create: jest.fn(async () => ({ igl_id: 50 })),
     update: jest.fn(),
   },
+  tbl_invoice_gloss_fields: { create: jest.fn(), update: jest.fn(), deleteMany: jest.fn() },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
   $transaction: jest.fn((fn) => fn({ ...prismaMock })),
@@ -35,6 +39,8 @@ jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () =>
 const assertInvoiceVisible = jest.fn(async () => undefined);
 const getInvoice = jest.fn();
 jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.service.js", () => ({ assertInvoiceVisible, getInvoice }));
+const assertContractInScope = jest.fn(async () => undefined);
+jest.unstable_mockModule("../../../../src/modules/work/contracts/contracts.service.js", () => ({ assertContractInScope }));
 
 const service = await import("../../../../src/modules/billing/invoices/invoiceGlosses.service.js");
 const { todayDateOnly } = await import("../../../../src/common/utils/term.utils.js");
@@ -44,15 +50,14 @@ const ctx = { useId: 9, ip: "1.1.1.1" };
 const SCOPE = Object.freeze({ all: false, wrkId: 8 });
 const auditRows = () => prismaMock.tbl_audit_log.createMany.mock.calls.flatMap((c) => c[0].data);
 const lockedTables = () => prismaMock.$queryRaw.mock.calls.map((call) => call.slice(1).map((v) => v?.strings?.join("") ?? "").join(" "));
+const VALUE_LINE = { field: "value", value: "35000" };
 
 const openRow = (overrides = {}) => ({
   igl_id: 50,
   inv_id: 70,
   wrk_id: 8,
   igl_statement: "Acta 4",
-  igl_field: "value",
-  igl_code: "01",
-  igl_value: "35000.00",
+  tbl_invoice_gloss_fields: [{ igf_id: 500, igf_field: "value", igf_value: "35000.00" }],
   igl_affects_total: true,
   igl_description: "Mayor valor cobrado",
   igl_release_inv_id: null,
@@ -65,12 +70,23 @@ const openRow = (overrides = {}) => ({
 const create = (input) =>
   service.createGloss({
     invId: 70,
-    input: { statement: " Acta 4 ", field: "value", code: " 01 ", value: "35000", description: " Mayor valor cobrado ", ...input },
+    input: { statement: " Acta 4 ", fields: [VALUE_LINE], description: " Mayor valor cobrado ", ...input },
     useBy: 9,
     scope: SCOPE,
     ctx,
     idempotencyKey: KEY,
   });
+
+const update = (input) =>
+  service.updateGloss({
+    iglId: 50,
+    input: { statement: "Acta 4", fields: [VALUE_LINE], description: "Mayor valor cobrado", ...input },
+    useBy: 9,
+    scope: SCOPE,
+    ctx,
+  });
+
+const createdLines = (call = 0) => prismaMock.tbl_invoice_glosses.create.mock.calls[call][0].data.tbl_invoice_gloss_fields.create;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -78,18 +94,38 @@ beforeEach(() => {
   state.releaser = { inv_id: 71, wrk_id: 8, prv_id: 77, inv_type: "ADVANCE", inv_state: "REGISTERED", inv_statement: "Acta 5", sta_id: 1 };
   state.gloss = openRow();
   state.ref = { inv_id: 70, sta_id: 1 };
+  state.contract = { wrk_id: 8, prv_id: 77 };
 });
 
 describe("levantar", () => {
-  it("sobre una factura aprobada (no la bloquea), en el extracto escrito, bloqueando solo la factura y con bitácora", async () => {
+  it("sobre una factura aprobada (no la bloquea), en el extracto escrito, con sus campos, bloqueando solo la factura y con bitácora", async () => {
     await expect(create()).resolves.toEqual({ message: "Glosa registrada correctamente", iglId: 50 });
 
     expect(lockedTables()).toEqual([expect.stringMatching(/tbl_invoices/)]);
     const { data } = prismaMock.tbl_invoice_glosses.create.mock.calls[0][0];
-    expect(data).toMatchObject({ inv_id: 70, wrk_id: 8, igl_statement: "Acta 4", igl_field: "value", igl_code: "01", igl_description: "Mayor valor cobrado", sta_id: 1, igl_idempotency_key: KEY });
-    expect(data.igl_value.toFixed(2)).toBe("35000.00");
-    expect(auditRows().find((r) => r.aud_field === "igl_value")).toMatchObject({ aud_entity: "GLOSA_FACTURA", aud_new_value: "35000.00" });
+    expect(data).toMatchObject({ inv_id: 70, wrk_id: 8, igl_statement: "Acta 4", igl_description: "Mayor valor cobrado", sta_id: 1, igl_idempotency_key: KEY });
+    expect(data).not.toHaveProperty("igl_code");
+    expect(createdLines()).toEqual([expect.objectContaining({ igf_field: "value", igf_create_by: 9, igf_update_by: 9 })]);
+    expect(createdLines()[0].igf_value.toFixed(2)).toBe("35000.00");
+    expect(auditRows().find((r) => r.aud_field === "igf_value:value")).toMatchObject({ aud_entity: "GLOSA_FACTURA", aud_new_value: "35000.00" });
     expect(auditRows().find((r) => r.aud_field === "igl_statement")).toMatchObject({ aud_new_value: "Acta 4" });
+  });
+
+  it("sobre varios campos, cada uno con su valor (0129)", async () => {
+    await create({
+      fields: [
+        { field: "vat", value: "4000" },
+        { field: "withholding", value: "-1000" },
+      ],
+    });
+    expect(createdLines().map((l) => [l.igf_field, l.igf_value.toFixed(2)])).toEqual([
+      ["vat", "4000.00"],
+      ["withholding", "-1000.00"],
+    ]);
+    expect(auditRows().filter((r) => r.aud_field.startsWith("igf_value:")).map((r) => [r.aud_field, r.aud_new_value])).toEqual([
+      ["igf_value:vat", "4000.00"],
+      ["igf_value:withholding", "-1000.00"],
+    ]);
   });
 
   it("suma al total del extracto salvo que se diga que no (un pendiente que llegará en otra factura)", async () => {
@@ -98,11 +134,22 @@ describe("levantar", () => {
     expect(prismaMock.tbl_invoice_glosses.create.mock.calls.map((c) => c[0].data.igl_affects_total)).toEqual([true, false]);
   });
 
-  it("admite un valor negativo, como en WebPAC, pero no cero (400)", async () => {
-    await create({ value: "-961166" });
-    expect(prismaMock.tbl_invoice_glosses.create.mock.calls[0][0].data.igl_value.toFixed(2)).toBe("-961166.00");
+  it("admite valores negativos, como en WebPAC, pero ningún campo en cero ni una suma de cero (400)", async () => {
+    await create({ fields: [{ field: "value", value: "-961166" }] });
+    expect(createdLines()[0].igf_value.toFixed(2)).toBe("-961166.00");
 
-    await expect(create({ value: "0" })).rejects.toMatchObject({ statusCode: 400, message: "El valor de la glosa es requerido y no puede ser cero." });
+    await expect(create({ fields: [{ field: "value", value: "0" }] })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "El valor de la glosa en VALOR es requerido y no puede ser cero.",
+    });
+    await expect(
+      create({
+        fields: [
+          { field: "vat", value: "100" },
+          { field: "withholding", value: "-100" },
+        ],
+      })
+    ).rejects.toMatchObject({ statusCode: 400, message: "La suma de la glosa no puede ser cero." });
   });
 
   it("sin extracto se admite; uno de más de 20 caracteres no (400); una factura anulada no admite glosas (409)", async () => {
@@ -116,30 +163,59 @@ describe("levantar", () => {
   });
 });
 
-describe("campo de la factura", () => {
-  it("obligatorio (400) y de los del Detalle de su tipo (400); Otro siempre", async () => {
-    await expect(create({ field: " " })).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("Elige el campo") });
-    await expect(create({ field: "freight" })).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("no tiene ese campo") });
+describe("campos de la factura", () => {
+  it("al menos uno (400), sin repetir (400) y de los del Detalle de su tipo (400); Otro siempre", async () => {
+    await expect(create({ fields: [] })).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("al menos un campo") });
+    await expect(create({ fields: [{ field: " ", value: "1" }] })).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("Elige el campo") });
+    await expect(
+      create({
+        fields: [
+          { field: "vat", value: "1" },
+          { field: "vat", value: "2" },
+        ],
+      })
+    ).rejects.toMatchObject({ statusCode: 400, message: "El campo IVA está repetido en la glosa." });
+    await expect(create({ fields: [{ field: "freight", value: "1" }] })).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("no tiene ese campo") });
     state.invoice.inv_type = "ADVANCE";
-    await expect(create({ field: "vat" })).rejects.toMatchObject({ statusCode: 400 });
-    await create({ field: "advance" });
-    await create({ field: "other" });
-    expect(prismaMock.tbl_invoice_glosses.create.mock.calls.map((c) => c[0].data.igl_field)).toEqual(["advance", "other"]);
+    await expect(
+      create({
+        fields: [
+          { field: "advance", value: "1" },
+          { field: "vat", value: "1" },
+        ],
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    await create({ fields: [{ field: "advance", value: "1" }] });
+    await create({ fields: [{ field: "other", value: "1" }] });
+    expect(prismaMock.tbl_invoice_glosses.create.mock.calls.map((c) => c[0].data.tbl_invoice_gloss_fields.create[0].igf_field)).toEqual(["advance", "other"]);
   });
 
-  it("al editar, el campo nuevo también se valida contra el tipo", async () => {
-    const input = { statement: "Acta 4", field: "freight", code: "01", value: "35000", description: "Mayor valor cobrado" };
-    await expect(service.updateGloss({ iglId: 50, input, useBy: 9, scope: SCOPE, ctx })).rejects.toMatchObject({ statusCode: 400 });
+  it("al editar, los campos nuevos también se validan contra el tipo", async () => {
+    await expect(update({ fields: [{ field: "freight", value: "35000" }] })).rejects.toMatchObject({ statusCode: 400 });
     expect(prismaMock.tbl_invoice_glosses.update).not.toHaveBeenCalled();
   });
 
-  it("la negativa es una nota crédito", async () => {
-    prismaMock.tbl_invoice_glosses.findMany.mockResolvedValueOnce([openRow(), openRow({ igl_id: 51, igl_value: "-1000.00", igl_field: "vat" })]);
-    const rows = await service.listGlosses({ invId: 70, scope: SCOPE });
-    expect(rows.map((r) => [r.fieldName, r.creditNote])).toEqual([
-      ["VALOR", false],
-      ["IVA", true],
+  it("el valor de la glosa es la suma de sus campos; la negativa es una nota crédito", async () => {
+    prismaMock.tbl_invoice_glosses.findMany.mockResolvedValueOnce([
+      openRow(),
+      openRow({
+        igl_id: 51,
+        tbl_invoice_gloss_fields: [
+          { igf_field: "withholding", igf_value: "-3000.00" },
+          { igf_field: "vat", igf_value: "1000.00" },
+        ],
+      }),
     ]);
+    const rows = await service.listGlosses({ invId: 70, scope: SCOPE });
+    expect(rows.map((r) => [r.fieldName, r.value, r.creditNote])).toEqual([
+      ["VALOR", "35000.00", false],
+      ["RTE FUENTE, IVA", "-2000.00", true],
+    ]);
+    expect(rows[1].fields).toEqual([
+      { field: "withholding", fieldName: "RTE FUENTE", value: "-3000.00" },
+      { field: "vat", fieldName: "IVA", value: "1000.00" },
+    ]);
+    expect(rows[0]).not.toHaveProperty("code");
   });
 });
 
@@ -208,9 +284,7 @@ describe("liberar", () => {
     state.gloss = openRow({ igl_release_inv_id: 71, igl_release_date: new Date("2026-10-20T00:00:00Z") });
     await expect(release()).rejects.toMatchObject({ statusCode: 409, message: "La glosa ya se liberó: solo se consulta." });
     await expect(service.deleteGloss({ iglId: 50, useBy: 9, scope: SCOPE, ctx })).rejects.toMatchObject({ statusCode: 409 });
-    await expect(
-      service.updateGloss({ iglId: 50, input: { statement: "Acta 4", field: "value", value: "1", description: "x" }, useBy: 9, scope: SCOPE, ctx })
-    ).rejects.toMatchObject({ statusCode: 409 });
+    await expect(update({ fields: [{ field: "value", value: "1" }] })).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it("la liberada muestra la factura que la libera y su extracto", async () => {
@@ -269,16 +343,99 @@ describe("facturas con que se libera (selector)", () => {
   });
 });
 
+describe("glosas que puede liberar la factura que se registra (selector)", () => {
+  const releasable = (overrides = {}) => ({
+    igl_id: 50,
+    igl_statement: "Acta 4",
+    igl_affects_total: true,
+    igl_description: "IVA sobre 80 y no sobre 76",
+    igl_create_at: new Date(2026, 9, 20, 10, 0),
+    tbl_invoice_gloss_fields: [
+      { igf_field: "withholding", igf_value: "-1000.00" },
+      { igf_field: "vat", igf_value: "4000.00" },
+    ],
+    tbl_invoices: { inv_id: 70, inv_number: "F-1", inv_type: "NORMAL", inv_state: "APPROVED", tbl_contracts: { ctr_number: "C-15" } },
+    ...overrides,
+  });
+
+  it("de una factura de contrato: las abiertas de la obra y el proveedor de su contrato, con su origen, campos y total", async () => {
+    prismaMock.tbl_invoice_glosses.findMany.mockResolvedValueOnce([releasable()]);
+    const options = await service.selectReleasableGlosses({ ctrId: "30", scope: SCOPE });
+
+    expect(assertContractInScope).toHaveBeenCalledWith(SCOPE, "30");
+    expect(prismaMock.tbl_invoice_glosses.findMany.mock.calls[0][0].where).toEqual({
+      wrk_id: 8,
+      igl_release_date: null,
+      sta_id: { not: 3 },
+      tbl_invoices: { prv_id: 77, sta_id: { not: 3 } },
+    });
+    expect(options).toEqual([
+      {
+        value: 50,
+        invId: 70,
+        invoiceNumber: "F-1",
+        invoiceTypeName: "Normal",
+        invoiceCancelled: false,
+        contractNumber: "C-15",
+        statement: "Acta 4",
+        raisedDate: "2026-10-20",
+        fields: [
+          { field: "withholding", fieldName: "RTE FUENTE", value: "-1000.00" },
+          { field: "vat", fieldName: "IVA", value: "4000.00" },
+        ],
+        glossValue: "3000.00",
+        creditNote: false,
+        affectsTotal: true,
+        description: "IVA sobre 80 y no sobre 76",
+      },
+    ]);
+  });
+
+  it("de una simple: por obra y proveedor, en el alcance (404 fuera); un contrato que no existe, 404", async () => {
+    await service.selectReleasableGlosses({ wrkId: "8", prvId: "77", scope: SCOPE });
+    expect(prismaMock.tbl_invoice_glosses.findMany.mock.calls[0][0].where).toMatchObject({ wrk_id: 8, tbl_invoices: { prv_id: 77 } });
+    expect(assertContractInScope).not.toHaveBeenCalled();
+
+    await expect(service.selectReleasableGlosses({ wrkId: "9", prvId: "77", scope: SCOPE })).rejects.toMatchObject({ statusCode: 404 });
+    state.contract = null;
+    await expect(service.selectReleasableGlosses({ ctrId: "31", scope: SCOPE })).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
 describe("editar y eliminar", () => {
   it("edita una abierta; sin cambios no escribe", async () => {
-    const input = { statement: "Acta 4", field: "value", code: "01", value: "35000", description: "Mayor valor cobrado" };
-    await expect(service.updateGloss({ iglId: 50, input, useBy: 9, scope: SCOPE, ctx })).resolves.toMatchObject({ message: "No hubo cambios en la glosa" });
+    await expect(update()).resolves.toMatchObject({ message: "No hubo cambios en la glosa" });
     expect(prismaMock.tbl_invoice_glosses.update).not.toHaveBeenCalled();
 
-    await service.updateGloss({ iglId: 50, input: { ...input, value: "36000", statement: "Acta 5" }, useBy: 9, scope: SCOPE, ctx });
+    await update({ fields: [{ field: "value", value: "36000" }], statement: "Acta 5" });
     expect(auditRows().map((r) => [r.aud_field, r.aud_old_value, r.aud_new_value])).toEqual([
       ["igl_statement", "Acta 4", "Acta 5"],
-      ["igl_value", "35000.00", "36000.00"],
+      ["igf_value:value", "35000.00", "36000.00"],
+    ]);
+    expect(prismaMock.tbl_invoice_gloss_fields.update).toHaveBeenCalledWith({ where: { igf_id: 500 }, data: expect.objectContaining({ igf_update_by: 9 }) });
+  });
+
+  it("los campos, por diferencial: agrega, quita y conserva sin reescribir", async () => {
+    state.gloss = openRow({
+      tbl_invoice_gloss_fields: [
+        { igf_id: 500, igf_field: "value", igf_value: "35000.00" },
+        { igf_id: 501, igf_field: "vat", igf_value: "100.00" },
+      ],
+    });
+    await update({
+      fields: [
+        { field: "value", value: "35000" },
+        { field: "withholding", value: "-50" },
+      ],
+    });
+    expect(prismaMock.tbl_invoice_gloss_fields.deleteMany).toHaveBeenCalledWith({ where: { igf_id: { in: [501] } } });
+    expect(prismaMock.tbl_invoice_gloss_fields.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ igl_id: 50, igf_field: "withholding", igf_create_by: 9 }),
+    });
+    expect(prismaMock.tbl_invoice_gloss_fields.update).not.toHaveBeenCalled();
+    expect(auditRows().map((r) => [r.aud_field, r.aud_old_value, r.aud_new_value])).toEqual([
+      ["igf_value:vat", "100.00", null],
+      ["igf_value:withholding", null, "-50.00"],
     ]);
   });
 
@@ -326,5 +483,23 @@ describe("glosas de un extracto (reporte)", () => {
       releaseDate: "2026-10-28",
       releasedByName: "Juan Ospina",
     });
+  });
+
+  it("el resumen de varios extractos suma los campos de cada glosa", async () => {
+    prismaMock.tbl_invoice_glosses.findMany.mockResolvedValueOnce([
+      {
+        wrk_id: 8,
+        igl_affects_total: true,
+        igl_statement: "Acta 4",
+        release_invoice: null,
+        tbl_invoice_gloss_fields: [
+          { igf_field: "vat", igf_value: "4000.00" },
+          { igf_field: "withholding", igf_value: "-1000.00" },
+        ],
+      },
+    ]);
+    await expect(service.statementsGlosses({ wrkIds: [8], numbers: ["Acta 4"] })).resolves.toEqual([
+      { wrkId: 8, value: "3000.00", affectsTotal: true, statement: "Acta 4", releaseStatement: null },
+    ]);
   });
 });

@@ -379,19 +379,23 @@ const paidTotalOf = (total, affectingValue) => ({ glossesNet: moneyText(affectin
 /**
  * Glosas del extracto por campo de la factura (DEC-085), en el orden del
  * catálogo: cuánto se levantó, cuánto se liberó y cuánto suma al total
- * pagado (las levantadas que suman).
+ * pagado (las levantadas que suman). Una glosa con varios campos reparte su
+ * valor entre ellos (migración 0129): cada campo suma lo suyo.
  */
 const glossesByField = ({ raised, released }) => {
   const order = Object.keys(GLOSS_FIELD_NAMES);
-  const present = [...new Set([...raised, ...released].map((g) => g.field))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  const linesOf = (list) => list.flatMap((g) => g.fields.map((line) => ({ ...line, affectsTotal: g.affectsTotal })));
+  const raisedLines = linesOf(raised);
+  const releasedLines = linesOf(released);
+  const present = [...new Set([...raisedLines, ...releasedLines].map((line) => line.field))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
   return present.map((field) => {
-    const own = (list) => list.filter((g) => g.field === field);
+    const own = (list) => list.filter((line) => line.field === field);
     return {
       field,
       name: GLOSS_FIELD_NAMES[field] ?? field,
-      raised: sumOf(own(raised), "value"),
-      released: sumOf(own(released), "value"),
-      net: affectingValueOf(own(raised)),
+      raised: sumOf(own(raisedLines), "value"),
+      released: sumOf(own(releasedLines), "value"),
+      net: affectingValueOf(own(raisedLines)),
     };
   });
 };
@@ -481,10 +485,9 @@ const providerGroupsOf = (invoices) => {
 const GLOSS_COLUMNS = [
   { header: "Factura", value: (r) => r.invoiceNumber },
   { header: "Proveedor", value: (r) => r.providerName, width: 2 },
-  { header: "Campo", value: (r) => r.fieldName },
+  { header: "Campos", value: (r) => r.fieldName, width: 2 },
   // Negativa: nota crédito, lo que el proveedor devuelve (DEC-085).
   { header: "Tipo", value: (r) => (r.creditNote ? "Nota crédito" : "Glosa") },
-  { header: "Código", value: (r) => r.code },
   { header: "Descripción", value: (r) => r.description, width: 3 },
   { header: "Valor", value: (r) => r.value, kind: "money" },
   { header: "Suma al total", value: (r) => (r.affectsTotal ? "Sí" : "No") },

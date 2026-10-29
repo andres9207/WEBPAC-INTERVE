@@ -3,33 +3,36 @@ import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.
 import { MAX_ROWS } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { dateOnlyText, todayDateOnly } from "../../../common/utils/term.utils.js";
-import { decimal, moneyText, toMoney } from "../../../common/utils/money.utils.js";
+import { moneyText, toMoney } from "../../../common/utils/money.utils.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
+import { assertInScope } from "../../../common/services/workScope.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, writeAudit } from "../../../common/services/audit.service.js";
 import { INVOICE_STATES, TYPE_NAMES } from "./invoiceTerms.js";
-import { GLOSS_FIELD_NAMES, glossFieldFor, glossPair } from "./glossFields.js";
+import { GLOSS_FIELD_NAMES, GLOSS_LINES_SELECT, glossFieldFor, glossLinesDto, glossPair, glossTotal } from "./glossFields.js";
+import { assertReleaser, findLockedOpenGloss, writeGlossRelease } from "./glossRelease.js";
 import { assertInvoiceVisible, getInvoice } from "./invoices.service.js";
+import { assertContractInScope } from "../../work/contracts/contracts.service.js";
 
 /**
  * Glosas de facturas (DEC-085; documento de alcance, punto 6): errores
  * hallados al registrar una factura recibida, que se controlan hasta su
  * liberación en un extracto posterior. Como la glosa de WebPAC (tblglosas).
  *
- * - De la obra de su factura (FK compuesta). Campo de la factura glosado
- *   (obligatorio: uno del Detalle de su tipo u "Otro", glossFields.js),
- *   código opcional, valor distinto de cero (con signo, como en WebPAC) y
- *   descripción. Una glosa negativa es una nota crédito: lo que el
- *   proveedor devuelve.
+ * - De la obra de su factura (FK compuesta). Uno o varios campos de la
+ *   factura glosados (del Detalle de su tipo u "Otro", glossFields.js), sin
+ *   repetir, cada uno con su valor distinto de cero y con signo (migración
+ *   0129), y descripción. El valor de la glosa es la suma de sus campos,
+ *   distinta de cero; se calcula, nunca se guarda. Una glosa de valor
+ *   negativo es una nota crédito: lo que el proveedor devuelve.
  * - Se levanta en un extracto (texto opcional; el cliente propone el de la
  *   factura) y dice si suma a su total (`igl_affects_total`): lo pagado
  *   difiere de lo registrado, o es un pendiente que llegará en otra factura.
  * - Se libera con la factura que la corrige (migración 0127): del mismo
- *   proveedor y obra, no anulada y con extracto escrito, que es el de la
+ *   proveedor y obra y no anulada; su extracto, si lo tiene, es el de la
  *   liberación. Esa factura ya cuenta en su extracto: la liberación no mueve
- *   el total. Con una observación; la fecha es la del servidor. Su extracto
- *   no puede ser el de origen, sin distinguir mayúsculas ni tildes, como
- *   agrupa la BD.
+ *   el total. Con una observación; la fecha es la del servidor. Se libera
+ *   desde la pestaña Glosas o al registrar esa factura (glossRelease.js).
  * - No bloquea la aprobación de la factura. Abierta, se edita y se elimina
  *   (lógico); liberada, solo se consulta. Una factura anulada no admite
  *   glosas nuevas ni cambios; las abiertas se pueden liberar o eliminar.
@@ -46,22 +49,8 @@ const NOT_FOUND = "No se encontró la glosa.";
 
 const STATEMENT_MAX = 20;
 
-const AUDITED = [
-  "igl_statement",
-  "igl_field",
-  "igl_code",
-  "igl_value",
-  "igl_affects_total",
-  "igl_description",
-  "igl_release_inv_id",
-  "igl_release_date",
-  "igl_release_observation",
-  "sta_id",
-];
-const auditable = (values) =>
-  Object.fromEntries(
-    Object.entries(values).map(([column, value]) => [column, value instanceof Date ? dateOnlyText(value) : column === "igl_value" ? moneyText(value) : value])
-  );
+const AUDITED = ["igl_statement", "igl_affects_total", "igl_description"];
+const auditable = (values) => Object.fromEntries(AUDITED.map((column) => [column, values[column]]));
 
 const requiredText = (value, label) => {
   const result = text(value);
@@ -77,38 +66,63 @@ const statementText = (value, label) => {
   return result;
 };
 
-const requiredField = (value) => {
-  const field = text(value);
-  if (!field) throw httpError(400, "Elige el campo de la factura sobre el que se hace la glosa.");
-  return field;
+/**
+ * Campos de la glosa (migración 0129): al menos uno, sin repetir, cada uno
+ * con su valor distinto de cero; la suma, distinta de cero. Qué campos admite
+ * la factura lo valida assertFieldsFor bajo el bloqueo.
+ */
+const fieldsOf = (input) => {
+  const list = Array.isArray(input) ? input : [];
+  if (list.length === 0) throw httpError(400, "Elige al menos un campo de la factura sobre el que se hace la glosa.");
+  const seen = new Set();
+  const fields = list.map((line) => {
+    const field = text(line?.field);
+    if (!field) throw httpError(400, "Elige el campo de la factura de cada línea de la glosa.");
+    const name = GLOSS_FIELD_NAMES[field] ?? field;
+    if (seen.has(field)) throw httpError(400, `El campo ${name} está repetido en la glosa.`);
+    seen.add(field);
+    const value = toMoney(line?.value);
+    if (value === null || value.isZero()) throw httpError(400, `El valor de la glosa en ${name} es requerido y no puede ser cero.`);
+    return { igf_field: field, igf_value: value };
+  });
+  if (glossTotal(fields).isZero()) throw httpError(400, "La suma de la glosa no puede ser cero.");
+  return fields;
 };
 
-/** 400 si el tipo de la factura no tiene ese campo (glossFields.js). */
-const assertFieldFor = (invoice, field) => {
-  if (!glossFieldFor(invoice.inv_type, field)) throw httpError(400, "La factura no tiene ese campo: elige uno de su Detalle u Otro.");
+/** 400 si el tipo de la factura no tiene alguno de los campos (glossFields.js). */
+const assertFieldsFor = (invoice, fields) => {
+  if (fields.some((line) => !glossFieldFor(invoice.inv_type, line.igf_field))) {
+    throw httpError(400, "La factura no tiene ese campo: elige uno de su Detalle u Otro.");
+  }
 };
 
-const valuesOf = (input) => {
-  const value = toMoney(input?.value);
-  if (value === null || value.isZero()) throw httpError(400, "El valor de la glosa es requerido y no puede ser cero.");
-  return {
+const valuesOf = (input) => ({
+  header: {
     igl_statement: statementText(input?.statement, "de la glosa"),
-    igl_field: requiredField(input?.field),
-    igl_code: optionalText(input?.code),
-    igl_value: value,
     // Sin indicarlo, suma: la glosa de una diferencia de pago (DEC-085).
     igl_affects_total: input?.affectsTotal !== false,
     igl_description: requiredText(input?.description, "descripción"),
-  };
+  },
+  fields: fieldsOf(input?.fields),
+});
+
+/** Campos de la glosa como texto, para la bitácora y la clave de idempotencia: { vat: "4000.00" }. */
+const fieldsText = (fields) => Object.fromEntries(fields.map((line) => [line.igf_field, moneyText(line.igf_value)]));
+
+/** Cambios de los campos para la bitácora: uno por campo agregado, quitado o con otro valor. */
+const fieldChanges = (before, after) => {
+  const old = fieldsText(before);
+  const next = fieldsText(after);
+  return [...new Set([...Object.keys(old), ...Object.keys(next)])]
+    .filter((field) => old[field] !== next[field])
+    .map((field) => ({ field: `igf_value:${field}`, oldValue: old[field] ?? null, newValue: next[field] ?? null }));
 };
 
 const GLOSS_SELECT = {
   igl_id: true,
   inv_id: true,
   igl_statement: true,
-  igl_field: true,
-  igl_code: true,
-  igl_value: true,
+  tbl_invoice_gloss_fields: GLOSS_LINES_SELECT,
   igl_affects_total: true,
   igl_description: true,
   igl_release_inv_id: true,
@@ -122,16 +136,19 @@ const GLOSS_SELECT = {
   released_by_user: USER_NAME_SELECT,
 };
 
-const toDto = (row) => ({
+const toDto = (row) => {
+  const value = glossTotal(row.tbl_invoice_gloss_fields);
+  const fields = glossLinesDto(row.tbl_invoice_gloss_fields);
+  return {
   iglId: row.igl_id,
   invId: row.inv_id,
   statement: row.igl_statement,
-  field: row.igl_field,
-  fieldName: GLOSS_FIELD_NAMES[row.igl_field] ?? row.igl_field,
-  code: row.igl_code,
-  value: moneyText(row.igl_value),
+  // Campos glosados con su valor (migración 0129); el de la glosa es su suma.
+  fields,
+  fieldName: fields.map((line) => line.fieldName).join(", "),
+  value: moneyText(value),
   // Negativa: lo que el proveedor devuelve.
-  creditNote: decimal(row.igl_value).lt(0),
+  creditNote: value.lt(0),
   affectsTotal: row.igl_affects_total,
   description: row.igl_description,
   open: row.igl_release_date === null,
@@ -147,7 +164,8 @@ const toDto = (row) => ({
   updatedAt: row.igl_update_at,
   updatedByName: userFullName(row.updated_by_user),
   releasedByName: userFullName(row.released_by_user),
-});
+  };
+};
 
 /** Factura bloqueada (obra, proveedor, estado, extracto); 404 si no existe o está eliminada. */
 const findLockedInvoice = async (tx, invId, notFound = "No se encontró la factura.") => {
@@ -170,14 +188,6 @@ const assertNotCancelled = (invoice, action) => {
 const glossRef = async (iglId) => {
   const row = await prisma.tbl_invoice_glosses.findUnique({ where: { igl_id: Number(iglId) }, select: { inv_id: true, sta_id: true } });
   if (!row || row.sta_id === DELETED_STATUS) throw httpError(404, NOT_FOUND);
-  return row;
-};
-
-/** Glosa abierta, con su factura ya bloqueada; 404 si no existe o se eliminó, 409 si ya se liberó. */
-const findLockedOpen = async (tx, iglId) => {
-  const row = await tx.tbl_invoice_glosses.findUnique({ where: { igl_id: Number(iglId) } });
-  if (!row || row.sta_id === DELETED_STATUS) throw httpError(404, NOT_FOUND);
-  if (row.igl_release_date !== null) throw httpError(409, "La glosa ya se liberó: solo se consulta.");
   return row;
 };
 
@@ -215,31 +225,33 @@ const IDEMPOTENCY_TARGET = {
   toResult: (row) => ({ message: "Glosa registrada correctamente", iglId: row.igl_id }),
 };
 
-/** Levanta una glosa sobre una factura no anulada, en un extracto (opcional). */
+/** Levanta una glosa sobre una factura no anulada, con sus campos y en un extracto (opcional). */
 export const createGloss = async ({ invId, input, useBy, scope, ctx = { useId: useBy }, idempotencyKey }) => {
   await assertInvoiceVisible({ scope }, invId);
-  const values = valuesOf(input);
+  const { header, fields } = valuesOf(input);
 
   return runIdempotent({
     target: IDEMPOTENCY_TARGET,
     key: idempotencyKey,
     ownerId: useBy,
-    payload: { invId: Number(invId), ...auditable(values) },
+    payload: { invId: Number(invId), ...header, fields: fieldsText(fields) },
     execute: (idempotencyData) =>
       withLockedTransaction(locksFor(invId), async (tx) => {
         const invoice = await findLockedInvoice(tx, invId);
         assertNotCancelled(invoice, "glosas nuevas");
-        assertFieldFor(invoice, values.igl_field);
+        assertFieldsFor(invoice, fields);
 
+        const author = { igf_create_by: Number(useBy), igf_update_by: Number(useBy) };
         const created = await tx.tbl_invoice_glosses.create({
           data: {
             inv_id: invoice.inv_id,
             wrk_id: invoice.wrk_id,
-            ...values,
+            ...header,
             sta_id: ACTIVE_STATUS,
             igl_create_by: Number(useBy),
             igl_update_by: Number(useBy),
             ...idempotencyData,
+            tbl_invoice_gloss_fields: { create: fields.map((line) => ({ ...line, ...author })) },
           },
           select: { igl_id: true },
         });
@@ -248,50 +260,55 @@ export const createGloss = async ({ invId, input, useBy, scope, ctx = { useId: u
           recordId: created.igl_id,
           operation: AUDIT_OPERATIONS.CREATE,
           ctx,
-          changes: [{ field: "inv_id", oldValue: null, newValue: invoice.inv_id }, ...diffFields({}, auditable(values), AUDITED)],
+          changes: [{ field: "inv_id", oldValue: null, newValue: invoice.inv_id }, ...diffFields({}, header, AUDITED), ...fieldChanges([], fields)],
         });
         return { message: "Glosa registrada correctamente", iglId: created.igl_id };
       }),
   });
 };
 
-/** Edita una glosa abierta (extracto, código, valor y descripción). */
+/**
+ * Edita una glosa abierta: extracto, si suma al total, descripción y sus
+ * campos, por diferencial (agrega, quita o cambia el valor de cada campo).
+ */
 export const updateGloss = async ({ iglId, input, useBy, scope, ctx = { useId: useBy } }) => {
   const { inv_id: invId } = await glossRef(iglId);
   await assertInvoiceVisible({ scope }, invId);
-  const values = valuesOf(input);
+  const { header, fields } = valuesOf(input);
 
   return withLockedTransaction(locksFor(invId), async (tx) => {
     const invoice = await findLockedInvoice(tx, invId);
     assertNotCancelled(invoice, "cambios en sus glosas");
-    const before = await findLockedOpen(tx, iglId);
-    const changes = diffFields(auditable(before), auditable(values), AUDITED);
+    const before = await findLockedOpenGloss(tx, iglId);
+    const current = before.tbl_invoice_gloss_fields;
+    const changes = [...diffFields(auditable(before), header, AUDITED), ...fieldChanges(current, fields)];
     if (changes.length === 0) return { message: "No hubo cambios en la glosa", iglId: before.igl_id };
-    assertFieldFor(invoice, values.igl_field);
+    assertFieldsFor(invoice, fields);
 
-    await tx.tbl_invoice_glosses.update({ where: { igl_id: before.igl_id }, data: { ...values, igl_update_by: Number(useBy) } });
+    const byField = new Map(current.map((line) => [line.igf_field, line]));
+    const kept = new Set(fields.map((line) => line.igf_field));
+    const removed = current.filter((line) => !kept.has(line.igf_field)).map((line) => line.igf_id);
+    if (removed.length > 0) await tx.tbl_invoice_gloss_fields.deleteMany({ where: { igf_id: { in: removed } } });
+    for (const line of fields) {
+      const old = byField.get(line.igf_field);
+      if (!old) {
+        await tx.tbl_invoice_gloss_fields.create({ data: { igl_id: before.igl_id, ...line, igf_create_by: Number(useBy), igf_update_by: Number(useBy) } });
+      } else if (moneyText(old.igf_value) !== moneyText(line.igf_value)) {
+        await tx.tbl_invoice_gloss_fields.update({ where: { igf_id: old.igf_id }, data: { igf_value: line.igf_value, igf_update_by: Number(useBy) } });
+      }
+    }
+    await tx.tbl_invoice_glosses.update({ where: { igl_id: before.igl_id }, data: { ...header, igl_update_by: Number(useBy) } });
     await writeAudit(tx, { entity: AUDIT_ENTITIES.INVOICE_GLOSS, recordId: before.igl_id, operation: AUDIT_OPERATIONS.UPDATE, ctx, changes });
     return { message: "Glosa actualizada correctamente", iglId: before.igl_id };
   });
 };
 
 /**
- * 400 si la factura que libera no admite liberar la glosa de `invoice`: debe
- * ser otra (lo valida releaseGloss), de la misma obra y proveedor, y no
- * anulada (409). Su extracto no importa (2026-10-28, pedido del usuario).
- */
-const assertReleaser = (invoice, releaser) => {
-  if (releaser.wrk_id !== invoice.wrk_id || releaser.prv_id !== invoice.prv_id) {
-    throw httpError(400, "La factura que libera la glosa debe ser del mismo proveedor y de la misma obra.");
-  }
-  if (releaser.inv_state === INVOICE_STATES.CANCELLED) throw httpError(409, "La factura que libera la glosa está anulada.");
-};
-
-/**
  * Libera una glosa abierta con la factura que la corrige (migración 0127),
  * de cualquier extracto. El extracto de esa factura, si lo tiene, es el de la
- * liberación, y como la factura ya cuenta en él, la glosa no mueve su total. Con observación; la fecha de liberación es la de
- * hoy (servidor). Bloquea las dos facturas, en orden de id.
+ * liberación, y como la factura ya cuenta en él, la glosa no mueve su total.
+ * Con observación; la fecha de liberación es la de hoy (servidor). Bloquea
+ * las dos facturas, en orden de id.
  */
 export const releaseGloss = async ({ iglId, input, useBy, scope, ctx = { useId: useBy } }) => {
   const { inv_id: invId } = await glossRef(iglId);
@@ -304,21 +321,10 @@ export const releaseGloss = async ({ iglId, input, useBy, scope, ctx = { useId: 
   return withLockedTransaction({ FACTURA: [invId, releaseInvId] }, async (tx) => {
     const invoice = await findLockedInvoice(tx, invId);
     const releaser = await findLockedInvoice(tx, releaseInvId, "No se encontró la factura que libera la glosa.");
-    const before = await findLockedOpen(tx, iglId);
+    const gloss = await findLockedOpenGloss(tx, iglId);
     assertReleaser(invoice, releaser);
-    const values = { igl_release_inv_id: releaser.inv_id, igl_release_date: todayDateOnly(), igl_release_observation: observation };
-    await tx.tbl_invoice_glosses.update({
-      where: { igl_id: before.igl_id },
-      data: { ...values, igl_release_by: Number(useBy), igl_update_by: Number(useBy) },
-    });
-    await writeAudit(tx, {
-      entity: AUDIT_ENTITIES.INVOICE_GLOSS,
-      recordId: before.igl_id,
-      operation: AUDIT_OPERATIONS.UPDATE,
-      ctx,
-      changes: diffFields(auditable(before), auditable(values), AUDITED),
-    });
-    return { message: "Glosa liberada correctamente", iglId: before.igl_id };
+    await writeGlossRelease(tx, { gloss, releaser, observation, useBy, ctx });
+    return { message: "Glosa liberada correctamente", iglId: gloss.igl_id };
   });
 };
 
@@ -329,7 +335,7 @@ export const deleteGloss = async ({ iglId, useBy, scope, ctx = { useId: useBy } 
 
   return withLockedTransaction(locksFor(invId), async (tx) => {
     await findLockedInvoice(tx, invId);
-    const before = await findLockedOpen(tx, iglId);
+    const before = await findLockedOpenGloss(tx, iglId);
     await tx.tbl_invoice_glosses.update({
       where: { igl_id: before.igl_id },
       data: { sta_id: DELETED_STATUS, igl_delete_by: Number(useBy), igl_delete_at: new Date(), igl_update_by: Number(useBy) },
@@ -381,6 +387,70 @@ export const selectReleaseInvoices = async ({ iglId, search, scope }) => {
       contractNumber,
       statement: row.inv_statement,
       date: dateOnlyText(row.inv_date),
+    };
+  });
+};
+
+/**
+ * Glosas que puede liberar una factura que se está registrando (DEC-085,
+ * "Liberación al registrar"): las abiertas de la obra y del proveedor de la
+ * factura, de facturas no eliminadas, de cualquier tipo, contrato y extracto
+ * (también las de una anulada, que se liberan o se eliminan). La factura de
+ * contrato las busca por su contrato (`ctrId`); la simple, por obra y
+ * proveedor. Cada una dice de dónde viene y sobre qué campos y por cuánto se
+ * hizo. Sin paginar, con tope fijo (DEC-018); la más antigua primero. La
+ * validación definitiva la hace el registro de la factura, bajo bloqueo.
+ */
+export const selectReleasableGlosses = async ({ ctrId, wrkId, prvId, scope }) => {
+  let work = Number(wrkId);
+  let provider = Number(prvId);
+  if (Number(ctrId) > 0) {
+    await assertContractInScope(scope, ctrId);
+    const contract = await prisma.tbl_contracts.findUnique({ where: { ctr_id: Number(ctrId) }, select: { wrk_id: true, prv_id: true } });
+    if (!contract) throw httpError(404, "No se encontró el contrato.");
+    work = contract.wrk_id;
+    provider = contract.prv_id;
+  } else {
+    assertInScope(scope, work, "No se encontró la obra.");
+  }
+  const known = work > 0 && provider > 0;
+  if (!known) return [];
+
+  const rows = await prisma.tbl_invoice_glosses.findMany({
+    where: {
+      wrk_id: work,
+      igl_release_date: null,
+      sta_id: { not: DELETED_STATUS },
+      tbl_invoices: { prv_id: provider, sta_id: { not: DELETED_STATUS } },
+    },
+    select: {
+      igl_id: true,
+      igl_statement: true,
+      igl_affects_total: true,
+      igl_description: true,
+      igl_create_at: true,
+      tbl_invoice_gloss_fields: GLOSS_LINES_SELECT,
+      tbl_invoices: { select: { inv_id: true, inv_number: true, inv_type: true, inv_state: true, tbl_contracts: { select: { ctr_number: true } } } },
+    },
+    orderBy: [{ igl_create_at: "asc" }, { igl_id: "asc" }],
+    take: MAX_ROWS,
+  });
+  return rows.map((row) => {
+    const value = glossTotal(row.tbl_invoice_gloss_fields);
+    return {
+      value: row.igl_id,
+      invId: row.tbl_invoices.inv_id,
+      invoiceNumber: row.tbl_invoices.inv_number,
+      invoiceTypeName: TYPE_NAMES[row.tbl_invoices.inv_type],
+      invoiceCancelled: row.tbl_invoices.inv_state === INVOICE_STATES.CANCELLED,
+      contractNumber: row.tbl_invoices.tbl_contracts?.ctr_number ?? null,
+      statement: row.igl_statement,
+      raisedDate: row.igl_create_at ? dateOnlyText(todayDateOnly(row.igl_create_at)) : null,
+      fields: glossLinesDto(row.tbl_invoice_gloss_fields),
+      glossValue: moneyText(value),
+      creditNote: value.lt(0),
+      affectsTotal: row.igl_affects_total,
+      description: row.igl_description,
     };
   });
 };
@@ -437,11 +507,17 @@ export const statementsGlosses = async ({ wrkIds, numbers }) =>
             wrk_id: { in: wrkIds },
             OR: [{ igl_statement: { in: numbers } }, { release_invoice: { is: { inv_statement: { in: numbers } } } }],
           },
-          select: { wrk_id: true, igl_value: true, igl_affects_total: true, igl_statement: true, release_invoice: { select: { inv_statement: true } } },
+          select: {
+            wrk_id: true,
+            tbl_invoice_gloss_fields: GLOSS_LINES_SELECT,
+            igl_affects_total: true,
+            igl_statement: true,
+            release_invoice: { select: { inv_statement: true } },
+          },
         })
       ).map((row) => ({
         wrkId: row.wrk_id,
-        value: moneyText(row.igl_value),
+        value: moneyText(glossTotal(row.tbl_invoice_gloss_fields)),
         affectsTotal: row.igl_affects_total,
         statement: row.igl_statement,
         releaseStatement: row.release_invoice?.inv_statement ?? null,

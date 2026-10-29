@@ -35,6 +35,9 @@ const state = {
   liquidationConcept: null,
   // Glosas enlazadas a la factura por su liberación (migración 0127).
   glossLinks: 0,
+  // Glosas abiertas que libera la factura que se registra, por igl_id (DEC-085), y su factura de origen.
+  glosses: {},
+  originInvoice: null,
 };
 
 const D = (value) => new Prisma.Decimal(value);
@@ -62,7 +65,10 @@ const CONCEPTS = [concept("100000000", 30), concept("20000000", 10)];
 
 const prismaMock = {
   tbl_invoices: {
-    findUnique: jest.fn(async ({ where }) => (where.inv_idempotency_key ? state.invoiceReplay : state.invoice)),
+    findUnique: jest.fn(async ({ where }) => {
+      if (where.inv_idempotency_key) return state.invoiceReplay;
+      return where.inv_id === 60 ? state.originInvoice : state.invoice;
+    }),
     findFirst: jest.fn(async () => state.duplicate),
     create: jest.fn(async () => ({ inv_id: 70 })),
     update: jest.fn(),
@@ -102,7 +108,14 @@ const prismaMock = {
     upsert: jest.fn(),
   },
   tbl_invoice_simple_details: { upsert: jest.fn() },
-  tbl_invoice_glosses: { count: jest.fn(async () => state.glossLinks) },
+  tbl_invoice_glosses: {
+    count: jest.fn(async () => state.glossLinks),
+    findMany: jest.fn(async ({ where }) =>
+      (where.igl_id?.in ?? []).filter((id) => state.glosses[id]).map((id) => ({ igl_id: id, inv_id: state.glosses[id].inv_id }))
+    ),
+    findUnique: jest.fn(async ({ where }) => state.glosses[where.igl_id] ?? null),
+    update: jest.fn(),
+  },
   // Extracto de la obra (DEC-084).
   tbl_statements: { findUnique: jest.fn(async () => state.statement) },
   tbl_audit_log: { createMany: jest.fn() },
@@ -244,6 +257,8 @@ beforeEach(() => {
   state.assignment = assignment();
   state.liquidationConcept = { ccp_id: 41 };
   state.glossLinks = 0;
+  state.glosses = {};
+  state.originInvoice = null;
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
   prismaMock.tbl_providers.findUnique.mockImplementation(async () => ({ prv_name: "Aceros SA", sta_id: 1 }));
   prismaMock.tbl_providers.findFirst.mockResolvedValue({ prv_id: 77 });
@@ -429,6 +444,79 @@ describe("registrar", () => {
 
     await expect(save(contractInput())).resolves.toEqual(first);
     expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("liberar glosas al registrar (DEC-085)", () => {
+  const CAN_MANAGE_GLOSSES = 123;
+  const openGloss = (iglId, overrides = {}) => ({
+    igl_id: iglId,
+    inv_id: 60,
+    wrk_id: 8,
+    igl_release_inv_id: null,
+    igl_release_date: null,
+    igl_release_observation: null,
+    sta_id: 1,
+    tbl_invoice_gloss_fields: [],
+    ...overrides,
+  });
+  const releasing = (overrides = {}) => ({ releaseGlosses: [51, 50, 50], releaseObservation: " Corrige el IVA ", ...overrides });
+
+  beforeEach(() => {
+    state.glosses = { 50: openGloss(50), 51: openGloss(51) };
+    state.originInvoice = storedInvoice({ inv_id: 60, inv_type: "NORMAL", inv_state: "APPROVED", sta_id: 1 });
+  });
+
+  it("una simple libera las glosas elegidas en su misma transacción, bloqueando sus facturas después de obra y proveedor", async () => {
+    await expect(save(simpleInput(releasing()), 0, [CAN_MANAGE_GLOSSES])).resolves.toEqual({
+      message: "Factura registrada correctamente. Liberó 2 glosas.",
+      invId: 70,
+    });
+
+    expect(lockedTables()).toEqual([
+      expect.stringMatching(/tbl_works/),
+      expect.stringMatching(/tbl_providers/),
+      expect.stringMatching(/tbl_invoices/),
+      expect.stringMatching(/tbl_provider_types/),
+    ]);
+    const updates = prismaMock.tbl_invoice_glosses.update.mock.calls.map((c) => c[0]);
+    expect(updates.map((u) => u.where.igl_id)).toEqual([50, 51]);
+    expect(updates[0].data).toMatchObject({ igl_release_inv_id: 70, igl_release_observation: "Corrige el IVA", igl_release_by: 9 });
+    expect(auditRows().filter((r) => r.aud_entity === "GLOSA_FACTURA" && r.aud_field === "igl_release_inv_id")).toHaveLength(2);
+  });
+
+  it("una de contrato bloquea proveedor → contrato → facturas de las glosas", async () => {
+    await save(contractInput(releasing({ releaseGlosses: [50] })), 0, [CAN_MANAGE_GLOSSES]);
+    expect(lockedTables()).toEqual([expect.stringMatching(/tbl_providers/), expect.stringMatching(/tbl_contracts/), expect.stringMatching(/tbl_invoices/)]);
+    expect(prismaMock.tbl_invoice_glosses.update.mock.calls[0][0].data).toMatchObject({ igl_release_inv_id: 70 });
+  });
+
+  it("exige gestionar glosas (403), una observación (400) y que la glosa exista (404), antes de registrar", async () => {
+    await expect(save(simpleInput(releasing()))).rejects.toMatchObject({ statusCode: 403 });
+    await expect(save(simpleInput(releasing({ releaseObservation: " " })), 0, [CAN_MANAGE_GLOSSES])).rejects.toMatchObject({ statusCode: 400 });
+    await expect(save(simpleInput(releasing({ releaseGlosses: [52] })), 0, [CAN_MANAGE_GLOSSES])).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.tbl_invoices.create).not.toHaveBeenCalled();
+  });
+
+  it("bajo el bloqueo: una glosa ya liberada (409) o de otro proveedor (400) hace fallar el registro entero", async () => {
+    state.glosses[51] = openGloss(51, { igl_release_inv_id: 61, igl_release_date: new Date("2026-03-01T00:00:00Z") });
+    await expect(save(simpleInput(releasing()), 0, [CAN_MANAGE_GLOSSES])).rejects.toMatchObject({ statusCode: 409 });
+
+    state.glosses[51] = openGloss(51);
+    state.originInvoice = { ...state.originInvoice, prv_id: 78 };
+    await expect(save(simpleInput(releasing()), 0, [CAN_MANAGE_GLOSSES])).rejects.toMatchObject({
+      statusCode: 400,
+      message: "La factura que libera la glosa debe ser del mismo proveedor y de la misma obra.",
+    });
+  });
+
+  it("sin glosas elegidas no pide permiso ni bloquea facturas; las glosas entran en la clave de idempotencia", async () => {
+    await expect(save(simpleInput({ releaseGlosses: [] }))).resolves.toMatchObject({ message: "Factura registrada correctamente" });
+    expect(prismaMock.tbl_invoice_glosses.update).not.toHaveBeenCalled();
+    const plain = prismaMock.tbl_invoices.create.mock.calls[0][0].data.inv_idempotency_hash;
+
+    await save(simpleInput(releasing()), 0, [CAN_MANAGE_GLOSSES]);
+    expect(prismaMock.tbl_invoices.create.mock.calls[1][0].data.inv_idempotency_hash).not.toBe(plain);
   });
 });
 

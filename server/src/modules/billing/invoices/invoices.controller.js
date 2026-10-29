@@ -69,6 +69,9 @@ const INVOICE_FIELDS = [
   // IVA, retenciones y descuento de materiales de la normal y la liquidación
   // (DEC-075); el % IVA y las retenciones comparten nombre con los de la simple.
   ...Object.keys(CONTRACT_TAX_FIELDS).filter((field) => !SIMPLE_AMOUNT_FIELDS.includes(field)),
+  // Glosas que libera al registrarse (DEC-085): solo al crear.
+  "releaseGlosses",
+  "releaseObservation",
 ];
 
 const grantedOf = async ({ useId, proId }) => new Set(await getEffectivePermissionIds({ useId, proId }));
@@ -323,7 +326,12 @@ export const previewInvoiceGlossController = handle(async (req) => {
 
 export const listInvoiceGlossesController = handle(async (req) => glossesService.listGlosses({ invId: req.query.invId, scope: await workScopeOf(req) }));
 
-const GLOSS_FIELDS = ["statement", "field", "code", "value", "affectsTotal", "description"];
+const GLOSS_FIELDS = ["statement", "fields", "affectsTotal", "description"];
+
+// Glosas que puede liberar la factura que se registra: por su contrato, o por obra y proveedor.
+export const selectReleasableGlossesController = handle(async (req) =>
+  glossesService.selectReleasableGlosses({ ctrId: req.query.ctrId, wrkId: req.query.wrkId, prvId: req.query.prvId, scope: await workScopeOf(req) })
+);
 
 export const selectGlossReleaseInvoicesController = handle(async (req) =>
   glossesService.selectReleaseInvoices({ iglId: req.query.iglId, search: req.query.search, scope: await workScopeOf(req) })

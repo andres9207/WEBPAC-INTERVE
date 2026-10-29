@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-10-28 · **Tipo:** Obligatoria · **ADR:** [0020](../adr/0020-facturacion.md)
 
+> **Desde la migración 0129** (2026-10-29, DEC-085), una glosa tiene uno o varios campos: el importe a la vista, el valor y el % son **de cada campo**, en su propia línea del diálogo. `preview_invoice_gloss` sigue siendo por campo.
+
 Pedido por el usuario el 2026-10-28. Amplía [DEC-085](DEC-085-glosas.md) (campo de la glosa) con lo de [DEC-065](DEC-065-factura-simple-importes.md), «Valor y porcentaje».
 
 ## Contexto

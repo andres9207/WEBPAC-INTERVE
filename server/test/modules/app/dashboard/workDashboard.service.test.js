@@ -448,9 +448,7 @@ describe("getWorkDashboard", () => {
       igl_id: 1,
       inv_id: 1,
       igl_statement: "7",
-      igl_field: "other",
-      igl_code: "G-1",
-      igl_value: "-20.00",
+      tbl_invoice_gloss_fields: [{ igf_field: "other", igf_value: "-20.00" }],
       igl_description: "IVA cobrado de más",
       igl_release_date: null,
       release_invoice: null,
@@ -458,9 +456,21 @@ describe("getWorkDashboard", () => {
       ...overrides,
     });
     prismaMock.tbl_invoice_glosses.findMany.mockResolvedValue([
-      gloss({ igl_id: 3, igl_release_date: new Date("2026-03-01T00:00:00Z"), release_invoice: { inv_number: "F-2", inv_statement: "8" }, igl_value: "15.00" }),
+      gloss({
+        igl_id: 3,
+        igl_release_date: new Date("2026-03-01T00:00:00Z"),
+        release_invoice: { inv_number: "F-2", inv_statement: "8" },
+        tbl_invoice_gloss_fields: [{ igf_field: "other", igf_value: "15.00" }],
+      }),
       gloss(),
-      gloss({ igl_id: 2, igl_value: "5.00" }),
+      // Sobre dos campos (0129): su valor es la suma.
+      gloss({
+        igl_id: 2,
+        tbl_invoice_gloss_fields: [
+          { igf_field: "vat", igf_value: "8.00" },
+          { igf_field: "withholding", igf_value: "-3.00" },
+        ],
+      }),
     ]);
     const { invoices } = await getWorkDashboard({ granted: ALL, scope: OWN });
 
@@ -480,6 +490,7 @@ describe("getWorkDashboard", () => {
       [2, true],
       [3, false],
     ]);
+    expect(invoices.glosses.items[1]).toMatchObject({ value: "5.00", fieldName: "RTE FUENTE, IVA" });
     expect(invoices.glosses.items[2]).toMatchObject({
       invId: 1,
       pvtId: 3,

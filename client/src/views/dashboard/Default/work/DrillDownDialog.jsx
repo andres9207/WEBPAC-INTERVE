@@ -51,7 +51,6 @@ export const glossRows = (items) =>
     primary: `${g.invoiceTypeName} ${g.invoiceNumber} · ${g.description}`,
     secondary: [
       g.fieldName,
-      g.code && `código ${g.code}`,
       g.contractNumber,
       g.providerName,
       g.statement && `levantada en el extracto ${g.statement}`,

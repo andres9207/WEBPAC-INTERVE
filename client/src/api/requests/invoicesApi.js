@@ -132,9 +132,9 @@ export const invoiceFollowUpsApi = {
  */
 export const invoiceGlossesApi = {
   list: (invId) => httpCliente.get('billing/invoices/list_invoice_glosses', { invId }),
-  /** @param {{ invId, statement, code, value, affectsTotal, description }} params */
+  /** @param {{ invId, statement, fields: [{ field, value }], affectsTotal, description }} params */
   create: (params, idempotencyKey) => httpCliente.post('billing/invoices/create_invoice_gloss', params, idempotencyConfig(idempotencyKey)),
-  /** @param {{ iglId, statement, code, value, affectsTotal, description }} params */
+  /** @param {{ iglId, statement, fields: [{ field, value }], affectsTotal, description }} params */
   update: (params) => httpCliente.post('billing/invoices/update_invoice_gloss', params),
   /** @param {{ iglId, releaseInvId, observation }} params  `releaseInvId`: la factura que la libera (migración 0127). */
   release: (params) => httpCliente.post('billing/invoices/release_invoice_gloss', params),
@@ -146,5 +146,7 @@ export const invoiceGlossesApi = {
    * Valor y % de la glosa mientras se escribe (DEC-092): el importe del campo en la factura y los dos lados.
    * @param {{ invId, field, value, pct }} params  `value` o `pct`, el que se escribió.
    */
-  preview: (params) => httpCliente.post('billing/invoices/preview_invoice_gloss', params)
+  preview: (params) => httpCliente.post('billing/invoices/preview_invoice_gloss', params),
+  // Glosas abiertas que puede liberar la factura que se registra (DEC-085): por su contrato, o por obra y proveedor.
+  releasable: (params) => httpCliente.get('billing/invoices/select_releasable_glosses', params)
 };

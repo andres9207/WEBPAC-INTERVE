@@ -111,6 +111,8 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   "uq_invoice_follow_ups_idempotency_key",
   "uq_statements_idempotency_key",
   "uq_invoice_glosses_idempotency_key",
+  // Un campo por glosa (0129): el service rechaza los repetidos
+  "uq_invoice_gloss_fields_field",
   // Apoyo de la FK compuesta glosa → factura de la misma obra (0120)
   "uq_invoices_id_work",
   // Apoyo de la FK compuesta factura → extracto de la misma obra (0119)

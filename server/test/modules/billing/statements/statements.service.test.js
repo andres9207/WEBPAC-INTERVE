@@ -205,8 +205,8 @@ describe("reporte (documento de alcance, punto 7)", () => {
     ];
     state.glosses = {
       raised: [
-        { iglId: 1, invId: 1, field: "value", value: "10.00", affectsTotal: true },
-        { iglId: 2, invId: 1, field: "other", value: "-3.00", creditNote: true, affectsTotal: false },
+        { iglId: 1, invId: 1, fields: [{ field: "value", value: "10.00" }], value: "10.00", affectsTotal: true },
+        { iglId: 2, invId: 1, fields: [{ field: "other", value: "-3.00" }], value: "-3.00", creditNote: true, affectsTotal: false },
       ],
       released: [],
     };
@@ -232,26 +232,34 @@ describe("reporte (documento de alcance, punto 7)", () => {
   it("total pagado: las facturas más las glosas levantadas en el extracto que suman; las liberadas no restan (DEC-085, 0127)", async () => {
     // Anticipo registrado por el máximo (5.052.000) y glosa por lo pagado de más (48.000).
     state.invoices = [invoice({ value: "5052000.00", vat: null, total: "5052000.00" })];
+    const gloss = (iglId, lines, affectsTotal) => ({
+      iglId,
+      fields: lines.map(([field, value]) => ({ field, value })),
+      value: lines.reduce((sum, [, value]) => sum + Number(value), 0).toFixed(2),
+      affectsTotal,
+    });
     state.glosses = {
       raised: [
-        { iglId: 1, field: "advance", value: "48000.00", affectsTotal: true },
-        { iglId: 2, field: "other", value: "-30.00", creditNote: true, affectsTotal: true },
+        gloss(1, [["advance", "48000.00"]], true),
+        gloss(2, [["other", "-30.00"]], true),
         // Un pendiente que llegará en otra factura: no suma.
-        { iglId: 4, field: "advance", value: "900.00", affectsTotal: false },
+        gloss(4, [["advance", "900.00"]], false),
+        // Sobre dos campos (0129): cada campo suma lo suyo.
+        gloss(5, [["advance", "100.00"], ["other", "-40.00"]], true),
       ],
       // La libera una factura de este extracto, que ya cuenta en el total.
-      released: [{ iglId: 3, field: "advance", value: "50.00", affectsTotal: true }],
+      released: [gloss(3, [["advance", "50.00"]], true)],
     };
 
     const { glosses, totals } = await service.getStatementReport({ stmId: 40, scope: OWN });
 
-    expect(glosses).toMatchObject({ raisedValue: "48870.00", releasedValue: "50.00" });
+    expect(glosses).toMatchObject({ raisedValue: "48930.00", releasedValue: "50.00" });
     // Por campo, en el orden del catálogo; `net` es lo que suma al total.
     expect(glosses.byField).toEqual([
-      { field: "advance", name: "ANTICIPO", raised: "48900.00", released: "50.00", net: "48000.00" },
-      { field: "other", name: "OTRO", raised: "-30.00", released: "0.00", net: "-30.00" },
+      { field: "advance", name: "ANTICIPO", raised: "49000.00", released: "50.00", net: "48100.00" },
+      { field: "other", name: "OTRO", raised: "-70.00", released: "0.00", net: "-70.00" },
     ]);
-    expect(totals).toMatchObject({ total: "5052000.00", glossesNet: "47970.00", paidTotal: "5099970.00" });
+    expect(totals).toMatchObject({ total: "5052000.00", glossesNet: "48030.00", paidTotal: "5100030.00" });
   });
 });
 

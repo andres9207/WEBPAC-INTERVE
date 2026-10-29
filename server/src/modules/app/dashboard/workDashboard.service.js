@@ -32,7 +32,7 @@ import {
   TYPE_NAMES as INVOICE_TYPE_NAMES,
   liveGlossesWhere,
 } from "../../billing/invoices/invoiceTerms.js";
-import { GLOSS_FIELD_NAMES } from "../../billing/invoices/glossFields.js";
+import { GLOSS_LINES_SELECT, glossFieldNames, glossLinesDto, glossTotal } from "../../billing/invoices/glossFields.js";
 import { getRuleValues } from "../../admin/businessRules/businessRules.service.js";
 import { BUSINESS_RULES } from "../../admin/businessRules/businessRules.constants.js";
 import { contractAlertWheres } from "../../work/contracts/contractAlerts.js";
@@ -558,9 +558,10 @@ const glossDto = (row) => ({
   contractNumber: row.tbl_invoices.tbl_contracts?.ctr_number ?? null,
   providerName: row.tbl_invoices.tbl_providers?.prv_name ?? null,
   statement: row.igl_statement,
-  fieldName: GLOSS_FIELD_NAMES[row.igl_field] ?? row.igl_field,
-  code: row.igl_code,
-  value: moneyText(row.igl_value),
+  // Campos glosados con su valor; el de la glosa es su suma (migración 0129).
+  fields: glossLinesDto(row.tbl_invoice_gloss_fields),
+  fieldName: glossFieldNames(row.tbl_invoice_gloss_fields),
+  value: moneyText(glossTotal(row.tbl_invoice_gloss_fields)),
   description: row.igl_description,
   open: row.igl_release_date === null,
   releaseInvoiceNumber: row.release_invoice?.inv_number ?? null,
@@ -583,9 +584,7 @@ const glossesBlock = async (wrkId) => {
       igl_id: true,
       inv_id: true,
       igl_statement: true,
-      igl_field: true,
-      igl_code: true,
-      igl_value: true,
+      tbl_invoice_gloss_fields: GLOSS_LINES_SELECT,
       igl_description: true,
       igl_release_date: true,
       release_invoice: { select: { inv_number: true, inv_statement: true } },
@@ -604,7 +603,7 @@ const glossesBlock = async (wrkId) => {
   });
   const open = rows.filter((r) => r.igl_release_date === null);
   const released = rows.filter((r) => r.igl_release_date !== null);
-  const group = (own) => ({ count: own.length, value: moneyText(sumMoney(own.map((r) => r.igl_value))), countPct: pct(own.length, rows.length) });
+  const group = (own) => ({ count: own.length, value: moneyText(sumMoney(own.map((r) => glossTotal(r.tbl_invoice_gloss_fields)))), countPct: pct(own.length, rows.length) });
   return {
     count: rows.length,
     open: group(open),

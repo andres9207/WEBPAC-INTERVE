@@ -189,6 +189,10 @@ export const saveInvoiceSchema = [
   optionalLongText("retentionObservation", "La observación del ajuste del retenido", 1000),
   ...simpleAmountRules(),
   ...contractTaxOnlyRules(),
+  // Glosas que libera al registrarse (DEC-085), con una observación: el service las valida bajo bloqueo.
+  body("releaseGlosses").optional({ values: "null" }).isArray({ max: 100 }).withMessage("releaseGlosses debe ser una lista de hasta 100 glosas."),
+  body("releaseGlosses.*").isInt({ min: 1 }).withMessage("Cada glosa por liberar debe ser un entero positivo."),
+  optionalLongText("releaseObservation", "La observación de la liberación", 1000),
 ];
 
 /** Importes de la factura simple (DEC-065). Su obligatoriedad y sus rangos los decide el service. */
@@ -288,15 +292,21 @@ export const closeInvoiceFollowUpSchema = [
 export const deleteInvoiceFollowUpSchema = [requiredId("ifuId")];
 
 // Glosas (DEC-085). La fecha de liberación la pone el servidor: no se acepta.
+// Uno o varios campos, cada uno con su valor (migración 0129); que no se
+// repitan, que el valor y la suma no sean cero y que la factura tenga el
+// campo, lo verifica el service.
+const GLOSS_FIELDS_MAX = 20;
 const glossRules = () => [
   optionalText("statement", 20),
-  body("field").trim().notEmpty().withMessage("Elige el campo de la factura sobre el que se hace la glosa.").isLength({ max: 30 }).withMessage("Campo no válido."),
-  optionalText("code", 20),
-  // Con signo, como en WebPAC (un valor a favor o en contra); distinto de cero lo verifica el service.
-  body("value")
+  body("fields")
+    .isArray({ min: 1, max: GLOSS_FIELDS_MAX })
+    .withMessage("Elige al menos un campo de la factura sobre el que se hace la glosa."),
+  body("fields.*.field").isString().bail().trim().notEmpty().withMessage("Elige el campo de cada línea de la glosa.").isLength({ max: 30 }).withMessage("Campo no válido."),
+  // Con signo, como en WebPAC (un valor a favor o en contra).
+  body("fields.*.value")
     .customSanitizer((value) => (typeof value === "number" ? String(value) : value))
     .isString()
-    .withMessage("El valor de la glosa es requerido.")
+    .withMessage("El valor de cada campo de la glosa es requerido.")
     .bail()
     .trim()
     .matches(/^-?\d{1,16}(\.\d+)?$/)
@@ -310,6 +320,15 @@ export const listInvoiceGlossesSchema = [query("invId").isInt({ min: 1 }).withMe
 export const createInvoiceGlossSchema = [idempotencyKeyRule(), requiredId("invId"), ...glossRules()];
 
 export const updateInvoiceGlossSchema = [requiredId("iglId"), ...glossRules()];
+
+export const selectReleasableGlossesSchema = [
+  query("ctrId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("ctrId debe ser un entero positivo."),
+  query("wrkId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("wrkId debe ser un entero positivo."),
+  query("prvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("prvId debe ser un entero positivo."),
+  query("ctrId")
+    .custom((value, { req }) => Number(value) > 0 || (Number(req.query.wrkId) > 0 && Number(req.query.prvId) > 0))
+    .withMessage("Indica el contrato, o la obra y el proveedor."),
+];
 
 export const selectGlossReleaseInvoicesSchema = [
   query("iglId").isInt({ min: 1 }).withMessage("iglId es obligatorio y debe ser un entero positivo."),

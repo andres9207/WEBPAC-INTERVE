@@ -12,6 +12,7 @@ import { PERMISSIONS } from "../../../common/constants/permissions.constants.js"
 import { decimal, moneyText, percentFor, percentOf, percentText, ratioText, sumMoney, toMoney, toPercent } from "../../../common/utils/money.utils.js";
 import { reasonsService, REASON_SCOPES } from "../../admin/reasons/reasons.service.js";
 import { glossFieldsFor } from "./glossFields.js";
+import { assertReleaser, findLockedOpenGloss, writeGlossRelease } from "./glossRelease.js";
 import { statementAmounts } from "./statementAmounts.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, getContractFormOptions } from "../../work/contracts/contracts.service.js";
 import { evaluateLiquidation, notifyLiquidated } from "../../work/contracts/contractLiquidation.service.js";
@@ -1846,7 +1847,44 @@ const IDEMPOTENCY_TARGET = {
   toResult: (row) => ({ message: "Factura registrada correctamente", invId: row.inv_id }),
 };
 
-const insertInvoice = async (tx, { values, detail = {}, useBy, ctx, idempotencyData }) => {
+/**
+ * Glosas que libera la factura que se registra (DEC-085, "Liberación al
+ * registrar"), pedidas en `releaseGlosses`, con una observación. null si no
+ * se pidió ninguna. Exige gestionar glosas (403). Lee la factura de cada
+ * glosa (que no cambia) solo para saber qué bloquear; todo se revalida bajo
+ * el bloqueo en releaseGlossesWith.
+ */
+const releaseRequestOf = async (input, granted) => {
+  const iglIds = [...new Set((Array.isArray(input.releaseGlosses) ? input.releaseGlosses : []).map(positiveId).filter(Boolean))].sort((a, b) => a - b);
+  if (iglIds.length === 0) return null;
+  if (!granted?.has(can.manageGlosses)) throw httpError(403, "No tienes permiso para liberar glosas.");
+  const observation = text(input.releaseObservation);
+  if (!observation) throw httpError(400, "La observación de la liberación de las glosas es requerida.");
+  if (observation.length > 1000) throw httpError(400, "La observación de la liberación admite hasta 1000 caracteres.");
+  const rows = await prisma.tbl_invoice_glosses.findMany({ where: { igl_id: { in: iglIds } }, select: { igl_id: true, inv_id: true } });
+  if (rows.length !== iglIds.length) throw httpError(404, "No se encontró una de las glosas por liberar.");
+  return { iglIds, observation, invIds: [...new Set(rows.map((r) => r.inv_id))] };
+};
+
+/** Bloqueo de las facturas de las glosas por liberar (FACTURA, después de obra, proveedor y contrato). */
+const releaseLocksOf = (releases) => (releases ? { FACTURA: releases.invIds } : {});
+
+/**
+ * Libera, con la factura recién creada, las glosas pedidas: cada una
+ * abierta (409 si ya se liberó, 404 si se eliminó), de una factura no
+ * eliminada, de la misma obra y del mismo proveedor (400). En la misma
+ * transacción: si una falla, no se registra la factura.
+ */
+const releaseGlossesWith = async (tx, { releaser, releases, useBy, ctx }) => {
+  for (const iglId of releases.iglIds) {
+    const gloss = await findLockedOpenGloss(tx, iglId);
+    const origin = await findLockedInvoice(tx, gloss.inv_id);
+    assertReleaser(origin, releaser);
+    await writeGlossRelease(tx, { gloss, releaser, observation: releases.observation, useBy, ctx });
+  }
+};
+
+const insertInvoice = async (tx, { values, detail = {}, releases = null, useBy, ctx, idempotencyData }) => {
   await assertUniqueNumber(tx, { prvId: values.prv_id, number: values.inv_number });
   const { to: initialState } = assertTransition("register");
   const created = await tx.tbl_invoices.create({
@@ -1872,6 +1910,12 @@ const insertInvoice = async (tx, { values, detail = {}, useBy, ctx, idempotencyD
       { field: "inv_state", oldValue: null, newValue: initialState },
     ],
   });
+  if (releases) {
+    const releaser = { inv_id: created.inv_id, wrk_id: values.wrk_id, prv_id: values.prv_id, inv_state: initialState };
+    await releaseGlossesWith(tx, { releaser, releases, useBy, ctx });
+    const count = releases.iglIds.length;
+    return { message: `Factura registrada correctamente. Liberó ${count} glosa${count === 1 ? "" : "s"}.`, invId: created.inv_id };
+  }
   return { message: "Factura registrada correctamente", invId: created.inv_id };
 };
 
@@ -1884,7 +1928,7 @@ const insertInvoice = async (tx, { values, detail = {}, useBy, ctx, idempotencyD
  * cambia en medio (DEC-074). La lectura previa solo dice qué bloquear; el
  * tipo se resuelve bajo el bloqueo.
  */
-const createSimpleInvoice = async ({ input, document, useBy, ctx, idempotencyData }) => {
+const createSimpleInvoice = async ({ input, document, releases, useBy, ctx, idempotencyData }) => {
   const wrkId = Number(input.wrkId);
   const prvId = Number(input.prvId);
   const types = positiveId(input.pvtId)
@@ -1892,7 +1936,7 @@ const createSimpleInvoice = async ({ input, document, useBy, ctx, idempotencyDat
     : (await prisma.tbl_work_provider_types.findMany({ where: { wrk_id: wrkId, prv_id: prvId, ...SIMPLE_TYPE_WHERE }, select: { pvt_id: true } })).map(
         (t) => t.pvt_id
       );
-  const locks = { OBRA: wrkId, PROVEEDOR: prvId, ...(types.length > 0 ? { TIPO_PROVEEDOR: types } : {}) };
+  const locks = { OBRA: wrkId, PROVEEDOR: prvId, ...releaseLocksOf(releases), ...(types.length > 0 ? { TIPO_PROVEEDOR: types } : {}) };
   return withLockedTransaction(locks, async (tx) => {
     const wksId = positiveId(input.wksId);
     await assertWork(tx, wrkId);
@@ -1900,7 +1944,7 @@ const createSimpleInvoice = async ({ input, document, useBy, ctx, idempotencyDat
     await assertStage(tx, { wrkId, wksId });
     const values = { inv_type: input.type, pvt_id: pvtId, prv_id: prvId, wrk_id: wrkId, wks_id: wksId, ctr_id: null, ...document };
     // Toda simple nueva lleva sus importes (DEC-065).
-    return insertInvoice(tx, { values, detail: { simple: simpleDetailOf(input) }, useBy, ctx, idempotencyData });
+    return insertInvoice(tx, { values, detail: { simple: simpleDetailOf(input) }, releases, useBy, ctx, idempotencyData });
   });
 };
 
@@ -1913,10 +1957,10 @@ const createSimpleInvoice = async ({ input, document, useBy, ctx, idempotencyDat
  * contrato (DEC-074), que debe facturar con contrato (409 si no). Su forma no
  * cambia mientras tenga contratos: leerla con el contrato bloqueado basta.
  */
-const createContractInvoice = async ({ input, document, granted, useBy, ctx, idempotencyData }) => {
+const createContractInvoice = async ({ input, document, granted, releases, useBy, ctx, idempotencyData }) => {
   const known = await prisma.tbl_contracts.findUnique({ where: { ctr_id: Number(input.ctrId) }, select: { prv_id: true } });
   if (!known) throw httpError(404, "No se encontró el contrato.");
-  return withLockedTransaction({ PROVEEDOR: known.prv_id, CONTRATO: Number(input.ctrId) }, async (tx) => {
+  return withLockedTransaction({ PROVEEDOR: known.prv_id, CONTRATO: Number(input.ctrId), ...releaseLocksOf(releases) }, async (tx) => {
     const contract = await findLockedContract(tx, input.ctrId);
     if (contract.prv_id !== known.prv_id) {
       throw httpError(409, "El proveedor del contrato cambió mientras se registraba la factura. Vuelve a intentarlo.");
@@ -1938,7 +1982,7 @@ const createContractInvoice = async ({ input, document, granted, useBy, ctx, ide
     }
     const values = { inv_type: input.type, pvt_id: contract.pvt_id, prv_id: contract.prv_id, wrk_id: contract.wrk_id, ctr_id: contract.ctr_id, ...document };
     const detail = await resolveDetail(tx, { type: input.type, ctrId: contract.ctr_id, input, granted });
-    return insertInvoice(tx, { values, detail, useBy, ctx, idempotencyData });
+    return insertInvoice(tx, { values, detail, releases, useBy, ctx, idempotencyData });
   });
 };
 
@@ -2036,6 +2080,8 @@ export const saveInvoice = async ({ invId, input, useBy, granted, scope, ctx = {
   if (Number(invId) > 0) return updateInvoice({ invId: Number(invId), input, document, granted, useBy: Number(useBy), ctx });
 
   if (!TYPE_NAMES[input.type]) throw httpError(400, "El tipo de factura no es válido.");
+  // Glosas que libera al registrarse (DEC-085): solo al crear.
+  const releases = await releaseRequestOf(input, granted);
   const create = hasContract(input.type) ? createContractInvoice : createSimpleInvoice;
   const target = hasContract(input.type)
     ? { type: input.type, ctrId: Number(input.ctrId), pvtId: positiveId(input.pvtId) }
@@ -2055,8 +2101,11 @@ export const saveInvoice = async ({ invId, input, useBy, granted, scope, ctx = {
       retentionObservation: optionalText(input.retentionObservation),
       // Importes de la simple (DEC-065): la misma clave con otros importes es otra petición.
       ...Object.fromEntries(Object.keys(SIMPLE_FIELDS).filter((field) => field !== "value").map((field) => [field, optionalText(input[field])])),
+      // Las glosas que libera: la misma clave con otras glosas es otra petición.
+      releaseGlosses: releases?.iglIds ?? [],
+      releaseObservation: releases?.observation ?? null,
     },
-    execute: (idempotencyData) => create({ input, document, granted, useBy: Number(useBy), ctx, idempotencyData }),
+    execute: (idempotencyData) => create({ input, document, granted, releases, useBy: Number(useBy), ctx, idempotencyData }),
   });
 };
 

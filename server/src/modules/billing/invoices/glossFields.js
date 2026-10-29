@@ -1,13 +1,14 @@
 import { CONTRACT_LINES } from "./contractInvoiceTerms.js";
 import { SIMPLE_LINES } from "./simpleInvoiceTerms.js";
 import { INVOICE_TYPES } from "./invoiceTerms.js";
-import { decimal, moneyText, percentOf, percentText, toMoney, toPercent } from "../../../common/utils/money.utils.js";
+import { decimal, moneyText, percentOf, percentText, sumMoney, toMoney, toPercent } from "../../../common/utils/money.utils.js";
 
 /**
- * Campo de la factura sobre el que se levanta una glosa (DEC-085, campo de la
- * glosa): uno del panel Detalle de su tipo de factura, o "Otro" para lo que
- * no es un campo. Dominio cerrado: la clave es la línea del Detalle y la BD
- * lo repite con un `CHECK` (migración 0126). Sin base de datos: la usan el
+ * Campos de la factura sobre los que se levanta una glosa (DEC-085, campos de
+ * la glosa): del panel Detalle de su tipo de factura, u "Otro" para lo que
+ * no es un campo. Una glosa tiene uno o varios, cada uno con su valor
+ * (migración 0129). Dominio cerrado: la clave es la línea del Detalle y la
+ * BD lo repite con un `CHECK`. Sin base de datos: la usan el
  * service de glosas, el detalle de la factura y el reporte del extracto.
  *
  * Las sumas y los totales del Detalle (SUBTOTAL, VALOR + IVA) no son campos:
@@ -74,3 +75,21 @@ export const glossPair = ({ amount, value, pct }) => {
   if (money === null) return { value: null, pct: null };
   return { value: moneyText(money), pct: base ? percentText(toPercent(money.dividedBy(base).times(100))) : null };
 };
+
+// ─── Campos de una glosa (migración 0129) ────────────────────────────────────
+
+/** Selección de los campos de una glosa (tbl_invoice_gloss_fields), para un `select` de Prisma. */
+export const GLOSS_LINES_SELECT = { select: { igf_field: true, igf_value: true } };
+
+const CATALOG_ORDER = Object.keys(GLOSS_FIELD_NAMES);
+const byCatalog = (a, b) => CATALOG_ORDER.indexOf(a.igf_field) - CATALOG_ORDER.indexOf(b.igf_field);
+
+/** Campos de una glosa en el orden del catálogo, con su nombre y su valor. */
+export const glossLinesDto = (rows = []) =>
+  [...rows].sort(byCatalog).map((row) => ({ field: row.igf_field, fieldName: GLOSS_FIELD_NAMES[row.igf_field] ?? row.igf_field, value: moneyText(row.igf_value) }));
+
+/** Valor de la glosa: la suma de sus campos. Se calcula, nunca se guarda. */
+export const glossTotal = (rows = []) => sumMoney(rows.map((row) => row.igf_value));
+
+/** Nombres de los campos de una glosa, para una columna de reporte: "IVA, RTE FUENTE". */
+export const glossFieldNames = (rows = []) => glossLinesDto(rows).map((line) => line.fieldName).join(", ");

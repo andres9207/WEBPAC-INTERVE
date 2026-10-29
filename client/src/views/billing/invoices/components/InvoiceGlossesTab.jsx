@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Controller, useForm, useWatch } from 'react-hook-form';
+import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -10,11 +10,13 @@ import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import FormHelperText from '@mui/material/FormHelperText';
+import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { IconCheck, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconCheck, IconEdit, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
 
 import AmountPercentField from 'ui-component/extended/AmountPercentField';
 import BaseDialog from 'ui-component/extended/BaseDialog';
@@ -29,11 +31,13 @@ import { newIdempotencyKey } from 'utils/idempotency';
 
 /**
  * Glosas de una factura (DEC-085): errores hallados al registrarla, que se
- * controlan hasta su liberación con la factura que las corrige. Llevan código
- * (opcional), valor con signo y descripción; se levantan en un extracto (se
- * propone el de la factura; se escribe, como en la factura, DEC-084). Cada
- * glosa es sobre un campo de la factura (los de su Detalle u Otro, que da el
- * servidor); la negativa es una nota crédito: lo que el proveedor devuelve.
+ * controlan hasta su liberación con la factura que las corrige. Se levantan
+ * en un extracto (se propone el de la factura; se escribe, como en la
+ * factura, DEC-084), con descripción. Cada glosa es sobre uno o varios campos
+ * de la factura (los de su Detalle u Otro, que da el servidor), cada uno con
+ * su valor con signo (migración 0129); el valor de la glosa es su suma, que
+ * da el servidor. La negativa es una nota crédito: lo que el proveedor
+ * devuelve.
  *
  * Al levantarla se dice si suma al total pagado de su extracto (lo pagado
  * difiere de lo registrado) o es un pendiente que llegará en otra factura.
@@ -44,9 +48,9 @@ import { newIdempotencyKey } from 'utils/idempotency';
  * aprobación. Abiertas se editan y se eliminan; liberadas, solo se
  * consultan. Las reglas las repite el servidor.
  *
- * Al elegir el campo se ve su importe en la factura, y el valor de la glosa
- * se escribe en pesos o como % de ese importe, con signo (DEC-092, como
- * DEC-065 "Valor y porcentaje"): el servidor convierte y se guarda el valor.
+ * Al elegir cada campo se ve su importe en la factura, y su valor se escribe
+ * en pesos o como % de ese importe, con signo (DEC-092, como DEC-065 "Valor
+ * y porcentaje"): el servidor convierte y se guarda el valor.
  */
 
 const TEXT_MAX = 1000;
@@ -85,32 +89,32 @@ function useReleaseInvoices(iglId) {
   return { ...state, search: search.trim(), setSearch };
 }
 
-function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
-  const [saving, setSaving] = useState(false);
-  const [idempotencyKey, setIdempotencyKey] = useState(null);
-  const releasing = mode === 'release';
-  const { control, handleSubmit, reset, setValue } = useForm({
-    defaultValues: {
-      statement: '',
-      field: '',
-      code: '',
-      value: '',
-      affectsTotal: true,
-      description: '',
-      releaseInvId: '',
-      observation: ''
-    }
-  });
-  const releaseOptions = useReleaseInvoices(open && releasing ? gloss?.iglId : null);
+const emptyLine = () => ({ field: '', value: '' });
 
+/** Valor de un campo de la glosa: con signo, hasta dos decimales y no cero (sin pasar por Number, DEC-045). */
+const validateLineValue = (current) => {
+  const value = current.trim();
+  if (!VALUE_PATTERN.test(value)) return 'Escribe el valor; negativo si es nota crédito (lo que el proveedor devuelve).';
+  if (/^-?0+(\.0+)?$/.test(value)) return 'No puede ser cero.';
+  return true;
+};
+
+/**
+ * Un campo de la glosa: el campo de la factura (sin los que ya eligieron las
+ * otras líneas) y su valor en pesos o en % de su importe, que convierte el
+ * servidor (DEC-092).
+ */
+function GlossFieldLine({ control, index, invoice, taken, canRemove, onRemove, setValue }) {
+  const name = `fields.${index}`;
+  const [fieldName, value] = useWatch({ control, name: [`${name}.field`, `${name}.value`] });
   // Importe del campo y el otro lado (el %), del servidor; lo escrito en % hasta que lo convierte.
-  const [fieldName, value] = useWatch({ control, name: ['field', 'value'] });
   const [altPct, setAltPct] = useState(null);
   const [pair, setPair] = useState({});
-  const fieldOption = (invoice.glossFields ?? []).find((option) => option.value === fieldName);
+  const options = invoice.glossFields ?? [];
+  const fieldOption = options.find((option) => option.value === fieldName);
 
   useEffect(() => {
-    if (!open || releasing || !fieldName) {
+    if (!fieldName) {
       setPair({});
       return undefined;
     }
@@ -125,7 +129,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
             setPair(data);
             // Lo escrito en % pasa al valor, que es lo que se guarda.
             if (sent !== null) {
-              setValue('value', data.value ?? '', { shouldDirty: true, shouldValidate: true });
+              setValue(`${name}.value`, data.value ?? '', { shouldDirty: true, shouldValidate: true });
               setAltPct((current) => (current === sent ? null : current));
             }
           })
@@ -136,18 +140,114 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [open, releasing, fieldName, value, altPct, invoice.invId, setValue]);
+  }, [fieldName, value, altPct, invoice.invId, name, setValue]);
+
+  return (
+    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+      <Controller
+        name={`${name}.field`}
+        control={control}
+        rules={{ required: 'Elige el campo de la factura.' }}
+        render={({ field, fieldState }) => (
+          <TextField
+            {...field}
+            select
+            label="Campo de la factura"
+            size="small"
+            fullWidth
+            required
+            sx={{ flex: { sm: 2 } }}
+            error={!!fieldState.error}
+            helperText={
+              fieldState.error?.message ??
+              (fieldOption?.amount != null ? `En la factura: ${fMoneyText(fieldOption.amount)}.` : 'Sobre qué campo del Detalle es.')
+            }
+          >
+            {options
+              .filter((option) => option.value === field.value || !taken.includes(option.value))
+              .map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.amount != null ? `${option.label} · ${fMoneyText(option.amount)}` : option.label}
+                </MenuItem>
+              ))}
+          </TextField>
+        )}
+      />
+      <Controller
+        name={`${name}.value`}
+        control={control}
+        rules={{ validate: validateLineValue }}
+        render={({ field, fieldState }) => (
+          <Box sx={{ width: '100%', flex: { sm: 3 } }}>
+            <AmountPercentField
+              storedAs="money"
+              signed
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              derived={pair.pct ?? ''}
+              onAltChange={setAltPct}
+              label="Valor"
+              required
+              error={fieldState.error?.message}
+              helperText={
+                fieldOption && fieldOption.amount == null
+                  ? 'Este campo no tiene importe en la factura: escribe el valor.'
+                  : 'Negativo si es nota crédito. El % es del valor del campo.'
+              }
+            />
+          </Box>
+        )}
+      />
+      {canRemove && (
+        <Tooltip title="Quitar este campo">
+          <IconButton size="small" color="error" onClick={onRemove} sx={{ mt: 0.5 }} aria-label="Quitar este campo">
+            <IconX size={18} />
+          </IconButton>
+        </Tooltip>
+      )}
+    </Stack>
+  );
+}
+
+GlossFieldLine.propTypes = {
+  control: PropTypes.object.isRequired,
+  index: PropTypes.number.isRequired,
+  invoice: PropTypes.object.isRequired,
+  /** Campos elegidos en las otras líneas: no se repiten. */
+  taken: PropTypes.arrayOf(PropTypes.string).isRequired,
+  canRemove: PropTypes.bool,
+  onRemove: PropTypes.func.isRequired,
+  setValue: PropTypes.func.isRequired
+};
+
+function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
+  const [saving, setSaving] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState(null);
+  const releasing = mode === 'release';
+  const { control, handleSubmit, reset, setValue } = useForm({
+    defaultValues: {
+      statement: '',
+      fields: [emptyLine()],
+      affectsTotal: true,
+      description: '',
+      releaseInvId: '',
+      observation: ''
+    }
+  });
+  const releaseOptions = useReleaseInvoices(open && releasing ? gloss?.iglId : null);
+
+  const lines = useFieldArray({ control, name: 'fields' });
+  const chosen = useWatch({ control, name: 'fields' }) ?? [];
+  const allFields = invoice.glossFields ?? [];
 
   useEffect(() => {
     if (!open) return;
     setIdempotencyKey(mode === 'create' ? newIdempotencyKey() : null);
-    setAltPct(null);
     reset({
       // Una glosa nueva propone el extracto de la factura.
       statement: gloss ? (gloss.statement ?? '') : (invoice.statement ?? ''),
-      field: gloss?.field ?? '',
-      code: gloss?.code ?? '',
-      value: gloss?.value ?? '',
+      fields: gloss?.fields?.length ? gloss.fields.map((line) => ({ field: line.field, value: line.value })) : [emptyLine()],
       // Una glosa nueva suma al total: la de una diferencia de pago.
       affectsTotal: gloss ? gloss.affectsTotal : true,
       description: gloss?.description ?? '',
@@ -161,9 +261,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
     try {
       const values = {
         statement: form.statement.trim() || null,
-        field: form.field,
-        code: form.code.trim(),
-        value: form.value.trim(),
+        fields: form.fields.map((line) => ({ field: line.field, value: line.value.trim() })),
         affectsTotal: form.affectsTotal,
         description: form.description.trim()
       };
@@ -198,7 +296,7 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
       open={open}
       onClose={onClose}
       title={title}
-      maxWidth="sm"
+      maxWidth="md"
       fullScreenOnMobile
       actions={
         <>
@@ -215,8 +313,8 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
         {releasing ? (
           <>
             <Alert severity="info">
-              {gloss?.code ? `${gloss.code} · ` : ''}
-              {fMoneyText(gloss?.value)}: {gloss?.description}. Se libera con la fecha de hoy y después solo se consulta.
+              {gloss?.fieldName} · {fMoneyText(gloss?.value)}: {gloss?.description}. Se libera con la fecha de hoy y después solo se
+              consulta.
             </Alert>
             <Controller
               name="releaseInvId"
@@ -279,86 +377,36 @@ function GlossDialog({ open, mode, invoice, gloss, onClose, onSaved }) {
                 />
               )}
             />
-            <Controller
-              name="field"
-              control={control}
-              rules={{ required: 'Elige el campo de la factura.' }}
-              render={({ field, fieldState }) => (
-                <TextField
-                  {...field}
-                  select
-                  label="Campo de la factura"
+            <Stack spacing={1.5}>
+              <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="subtitle2">Campos de la factura</Typography>
+                <Button
                   size="small"
-                  fullWidth
-                  required
-                  error={!!fieldState.error}
-                  helperText={
-                    fieldState.error?.message ??
-                    (fieldOption?.amount != null
-                      ? `En la factura: ${fMoneyText(fieldOption.amount)}. La glosa es en cuánto se equivocó.`
-                      : 'Sobre qué campo del Detalle es la glosa.')
-                  }
+                  startIcon={<IconPlus size={16} />}
+                  onClick={() => lines.append(emptyLine())}
+                  disabled={lines.fields.length >= allFields.length}
                 >
-                  {(invoice.glossFields ?? []).map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.amount != null ? `${option.label} · ${fMoneyText(option.amount)}` : option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              )}
-            />
-            {/* El valor con su % necesita más ancho que el código. */}
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: 'flex-start' }}>
-              <Controller
-                name="code"
-                control={control}
-                rules={{ maxLength: { value: 20, message: 'Máximo 20 caracteres.' } }}
-                render={({ field, fieldState }) => (
-                  <TextField
-                    {...field}
-                    label="Código"
-                    size="small"
-                    fullWidth
-                    sx={{ flex: { sm: 1 } }}
-                    error={!!fieldState.error}
-                    helperText={fieldState.error?.message}
-                    slotProps={{ htmlInput: { maxLength: 20 } }}
-                  />
-                )}
-              />
-              <Controller
-                name="value"
-                control={control}
-                rules={{
-                  validate: (value) =>
-                    !VALUE_PATTERN.test(value.trim())
-                      ? 'Escribe el valor; negativo si es nota crédito (lo que el proveedor devuelve).'
-                      : Number(value) === 0
-                        ? 'No puede ser cero.'
-                        : true
-                }}
-                render={({ field, fieldState }) => (
-                  <Box sx={{ width: '100%', flex: { sm: 2 } }}>
-                    <AmountPercentField
-                      storedAs="money"
-                      signed
-                      value={field.value}
-                      onChange={field.onChange}
-                      onBlur={field.onBlur}
-                      derived={pair.pct ?? ''}
-                      onAltChange={setAltPct}
-                      label="Valor"
-                      required
-                      error={fieldState.error?.message}
-                      helperText={
-                        fieldOption && fieldOption.amount == null
-                          ? 'Este campo no tiene importe en la factura: escribe el valor.'
-                          : 'Negativo si es nota crédito. El % es del valor del campo.'
-                      }
-                    />
-                  </Box>
-                )}
-              />
+                  Agregar campo
+                </Button>
+              </Stack>
+              {lines.fields.map((line, index) => (
+                <GlossFieldLine
+                  key={line.id}
+                  control={control}
+                  index={index}
+                  invoice={invoice}
+                  taken={chosen
+                    .filter((_, other) => other !== index)
+                    .map((item) => item?.field)
+                    .filter(Boolean)}
+                  canRemove={lines.fields.length > 1}
+                  onRemove={() => lines.remove(index)}
+                  setValue={setValue}
+                />
+              ))}
+              <FormHelperText sx={{ mt: 0 }}>
+                Cada campo con su valor. El valor de la glosa es la suma de sus campos y no puede ser cero.
+              </FormHelperText>
             </Stack>
             <Controller
               name="affectsTotal"
@@ -512,10 +560,7 @@ export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
                 />
                 {row.creditNote && <Chip size="small" label="Nota crédito" color="info" variant="outlined" />}
                 {!row.affectsTotal && <Chip size="small" label="No suma al total" variant="outlined" />}
-                <Typography variant="subtitle1">
-                  {row.fieldName} · {row.code ? `${row.code} · ` : ''}
-                  {fMoneyText(row.value)}
-                </Typography>
+                <Typography variant="subtitle1">{fMoneyText(row.value)}</Typography>
                 <Typography variant="caption" color="text.secondary">
                   {row.statement ? `Extracto ${row.statement} · ` : ''}por {row.createdByName ?? '—'}
                 </Typography>
@@ -540,6 +585,12 @@ export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
                     </Button>
                   </Stack>
                 )}
+              </Stack>
+              {/* Cada campo con su valor; el de la glosa es su suma (migración 0129). */}
+              <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75 }}>
+                {row.fields.map((line) => (
+                  <Chip key={line.field} size="small" variant="outlined" label={`${line.fieldName} · ${fMoneyText(line.value)}`} />
+                ))}
               </Stack>
               <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
                 {row.description}

@@ -19,6 +19,7 @@ import SearchSelect from 'ui-component/extended/SearchSelect';
 import AdvanceAmountsSection from './components/AdvanceAmountsSection';
 import ContractBalanceCards from './components/ContractBalanceCards';
 import InvoiceDetailPanel from './components/InvoiceDetailPanel';
+import ReleaseGlossesSection from './components/ReleaseGlossesSection';
 import SimpleAmountsSection, { SIMPLE_AMOUNT_FIELDS } from './components/SimpleAmountsSection';
 import useContractTaxFields, { CONTRACT_TAX_FIELDS } from './components/ContractTaxesSection';
 import {
@@ -66,6 +67,9 @@ import { ALL_WORKS } from 'utils/workScope';
  * - Anticipo, liquidación y devolución de retenido llevan sus importes
  *   (DEC-044, DEC-051, AdvanceAmountsSection). Los de una aprobada no se
  *   envían: no cambian.
+ * - Al registrar, con el permiso de gestionar glosas, se eligen las glosas
+ *   abiertas del proveedor en la obra que esta factura libera (DEC-085,
+ *   ReleaseGlossesSection); se liberan en la misma transacción.
  */
 
 const EMPTY_FORM = {
@@ -97,7 +101,10 @@ const EMPTY_FORM = {
   earlyPaymentDiscount: '',
   // De la normal y la liquidación (DEC-075); % IVA y retenciones son los de arriba.
   utilityPct: '',
-  materialsDiscount: ''
+  materialsDiscount: '',
+  // Glosas que libera al registrarse (DEC-085), con la observación de la liberación.
+  releaseGlosses: [],
+  releaseObservation: ''
 };
 
 const DOCUMENT_FIELDS = ['type', 'ctrId', 'wrkId', 'prvId', 'wksId', 'number', 'date', 'voucherNumber', 'statement', 'description'];
@@ -142,7 +149,9 @@ const toPayload = (invId, form, sendAmounts, pvtId) => ({
   statement: text(form.statement),
   description: text(form.description),
   ...(sendAmounts && hasAmounts(form.type) ? amountsPayload(form) : {}),
-  ...(sendAmounts && isSimple(form.type) ? Object.fromEntries(SIMPLE_AMOUNT_FIELDS.map((field) => [field, form[field]])) : {})
+  ...(sendAmounts && isSimple(form.type) ? Object.fromEntries(SIMPLE_AMOUNT_FIELDS.map((field) => [field, form[field]])) : {}),
+  // Solo al registrar: las glosas que libera y su observación.
+  ...(!invId && form.releaseGlosses.length > 0 ? { releaseGlosses: form.releaseGlosses, releaseObservation: text(form.releaseObservation) } : {})
 });
 
 /**
@@ -250,6 +259,8 @@ export default function InvoiceFormPage() {
   const { permissionsCatalog, hasPermission } = useAuth();
   const adjustRetentionPermission = permissionsCatalog.billing?.invoices?.adjustRetention;
   const canAdjustRetention = adjustRetentionPermission != null && hasPermission(adjustRetentionPermission);
+  const manageGlossesPermission = permissionsCatalog.billing?.invoices?.manageGlosses;
+  const canManageGlosses = manageGlossesPermission != null && hasPermission(manageGlossesPermission);
   const [searchParams] = useSearchParams();
   const presetType = fixedType || (typeOptions.some((o) => o.value === searchParams.get('type')) ? searchParams.get('type') : '');
   const presetCtrId = Number(searchParams.get('ctrId')) || '';
@@ -306,9 +317,9 @@ export default function InvoiceFormPage() {
     load();
   }, [isEdit, invId, reset, navigate, listPath, presetType, presetCtrId, presetWrkId, presetPrvId]);
 
-  const [type, ctrId, prvId, wrkId, value] = useWatch({
+  const [type, ctrId, prvId, wrkId, value, number] = useWatch({
     control,
-    name: ['type', 'ctrId', 'prvId', 'wrkId', 'value']
+    name: ['type', 'ctrId', 'prvId', 'wrkId', 'value', 'number']
   });
   const simple = isSimple(type);
   // Menús de contrato: proveedor, contrato y tipo, en ese orden; el tipo no filtra los anteriores.
@@ -887,6 +898,15 @@ export default function InvoiceFormPage() {
                   taxField={isBillingInvoiceType(type) ? taxField : undefined}
                 />
               )}
+              <ReleaseGlossesSection
+                control={control}
+                setValue={setValue}
+                ctrId={simple ? undefined : ctrId}
+                wrkId={simple ? wrkId : undefined}
+                prvId={simple ? prvId : undefined}
+                invoiceNumber={number}
+                enabled={!isEdit && canManageGlosses && Boolean(type)}
+              />
             </Stack>
           </Grid>
           {type && (

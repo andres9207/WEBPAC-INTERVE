@@ -128,9 +128,8 @@ const GLOSS_COLUMNS = [
     )
   },
   { id: 'providerName', label: 'Proveedor' },
-  { id: 'fieldName', label: 'Campo' },
+  { id: 'fieldName', label: 'Campos' },
   { id: 'creditNote', label: 'Tipo', render: (row) => (row.creditNote ? 'Nota crédito' : 'Glosa') },
-  { id: 'code', label: 'Código', render: (row) => row.code ?? '—' },
   { id: 'description', label: 'Descripción' },
   { id: 'value', label: 'Valor', align: 'right', render: (row) => fMoneyText(row.value) },
   { id: 'affectsTotal', label: 'Suma al total', render: (row) => (row.affectsTotal ? 'Sí' : 'No') },

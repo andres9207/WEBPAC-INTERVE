@@ -33,6 +33,7 @@ import {
   updateInvoiceGlossSchema,
   releaseInvoiceGlossSchema,
   selectGlossReleaseInvoicesSchema,
+  selectReleasableGlossesSchema,
   deleteInvoiceGlossSchema,
 } from "./invoices.validation.js";
 import {
@@ -66,6 +67,7 @@ import {
   updateInvoiceGlossController,
   releaseInvoiceGlossController,
   selectGlossReleaseInvoicesController,
+  selectReleasableGlossesController,
   deleteInvoiceGlossController,
 } from "./invoices.controller.js";
 
@@ -162,6 +164,16 @@ invoicesRoutes.get(
   selectGlossReleaseInvoicesSchema,
   validate,
   selectGlossReleaseInvoicesController
+);
+// Glosas que libera la factura que se registra (DEC-085, "Liberación al registrar").
+invoicesRoutes.get(
+  "/select_releasable_glosses",
+  verifyToken,
+  canView,
+  canManageGlosses,
+  selectReleasableGlossesSchema,
+  validate,
+  selectReleasableGlossesController
 );
 invoicesRoutes.post("/release_invoice_gloss", verifyToken, canView, canManageGlosses, releaseInvoiceGlossSchema, validate, releaseInvoiceGlossController);
 invoicesRoutes.post("/delete_invoice_gloss", verifyToken, canView, canManageGlosses, deleteInvoiceGlossSchema, validate, deleteInvoiceGlossController);
