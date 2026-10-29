@@ -573,6 +573,69 @@ describe("paginationContracts", () => {
     expect(file.extension).toBe("xlsx");
   });
 
+  it("reporte: datos del contrato, todos los importes y, con permiso, las pólizas", async () => {
+    const { default: ExcelJS } = await import("exceljs");
+    const concept = (ccp_id, ccp_type, ccp_direct_cost) => ({
+      ccp_id,
+      ccp_type,
+      ccp_direct_cost,
+      ccp_admin_pct: "0",
+      ccp_contingency_pct: "0",
+      ccp_profit_pct: "0",
+      ccp_vat_pct: "19",
+      ccp_advance_pct: "10",
+      ccp_retention_pct: "5",
+      sta_id: 1,
+    });
+    const row = {
+      ctr_id: 1,
+      ctr_number: "C-001",
+      ctr_name: "Suministro",
+      ctr_start_date: new Date("2026-01-01T00:00:00Z"),
+      ctr_end_date: new Date("2026-12-31T00:00:00Z"),
+      ctr_term: 12,
+      ctr_term_unit: "MES",
+      ctr_state: "IN_PROGRESS",
+      ctr_suspended_days: 4,
+      ctr_aiu_requested: false,
+      ctr_observation: "Nota",
+      tbl_works: { wrk_code: "OB-1", wrk_name: "Obra" },
+      tbl_providers: { prv_name: "Aceros SAS" },
+      tbl_work_provider_types: { tbl_provider_types: { pvt_name: "Contratista" } },
+      tbl_contract_concepts: [concept(1, "INITIAL", "1000000"), concept(2, "AMENDMENT", "500000")],
+      tbl_policies: [{ ccp_id: 1, pol_base: "TOTAL_VALUE", pol_percentage: "10", pol_end_date: null }],
+    };
+    const headersOf = async (canViewPolicies) => {
+      prismaMock.tbl_contracts.count.mockResolvedValue(1);
+      prismaMock.tbl_contracts.findMany.mockResolvedValue([row]);
+      const file = await service.exportContracts({ format: "xlsx", canViewPolicies });
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(file.buffer);
+      const sheet = workbook.worksheets[0];
+      let values = null;
+      sheet.eachRow((r) => {
+        if (!values && r.getCell(1).value === "Proveedor") values = { header: r.values.slice(1), data: sheet.getRow(r.number + 1).values.slice(1) };
+      });
+      return { ...values, select: prismaMock.tbl_contracts.findMany.mock.calls.at(-1)[0].select };
+    };
+
+    const seen = await headersOf(true);
+    const cell = (header) => seen.data[seen.header.indexOf(header)];
+    expect(seen.header).toEqual(expect.arrayContaining(["Tipo de proveedor", "Plazo", "Valor inicial", "Valor otrosíes", "Costo directo", "IVA", "Anticipo", "Retenido", "Pólizas"]));
+    expect(cell("Plazo")).toBe("12 mes(es)");
+    expect(cell("Otrosíes")).toBe("1");
+    expect(cell("Valor inicial")).toBe(1190000);
+    expect(cell("Valor otrosíes")).toBe(595000);
+    expect(cell("Valor vigente")).toBe(1785000);
+    expect(cell("Anticipo")).toBe(150000);
+    expect(cell("Pólizas")).toBe("Pólizas sin fecha de vigencia");
+    expect(seen.select.tbl_policies).toBeDefined();
+
+    const hidden = await headersOf(false);
+    expect(hidden.header).not.toContain("Pólizas");
+    expect(hidden.select).not.toHaveProperty("tbl_policies");
+  });
+
   it("reporte con más filas que el tope: 422 sin leerlas", async () => {
     prismaMock.tbl_contracts.count.mockResolvedValue(5001);
     prismaMock.tbl_contracts.findMany.mockClear();

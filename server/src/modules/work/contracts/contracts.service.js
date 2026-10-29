@@ -35,10 +35,10 @@ import {
   totalExtensions,
 } from "./contractTerms.js";
 import { ACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
-import { CONTRACT_POLICY_STATUS_NAMES, assertPolicyStatus, uncoveredContractsWhere } from "./policyTerms.js";
+import { CONTRACT_POLICY_STATUS_NAMES, assertPolicyStatus, contractPolicyStatus, uncoveredContractsWhere } from "./policyTerms.js";
 // Importación circular a propósito: contractPolicies usa los helpers de este
 // archivo y este, insertPolicy. Ninguno de los dos los usa al cargarse.
-import { contractPolicyStatuses, insertPolicy, policyValuesOf } from "./contractPolicies.service.js";
+import { POLICY_STATUS_SELECT, contractPolicyStatuses, insertPolicy, policyValuesOf } from "./contractPolicies.service.js";
 import { contractAlertWheres } from "./contractAlerts.js";
 import { getRuleValues } from "../../admin/businessRules/businessRules.service.js";
 import { BUSINESS_RULES } from "../../admin/businessRules/businessRules.constants.js";
@@ -530,20 +530,72 @@ export const paginationContracts = async ({ rows, first, ...filters }) => {
   return { ...page, results: page.results.map(toListDto), statusCounts, alertCounts, expiringDays };
 };
 
-// Columnas del reporte: las de la tabla del listado (DEC-070).
+const TERM_UNIT_NAMES = Object.freeze({ DIA: "día(s)", MES: "mes(es)", ANIO: "año(s)" });
+
+// Importes del reporte (DEC-070): la composición vigente con conceptAmounts, el valor inicial y lo de los otrosíes; nunca guardados.
+const EXPORT_AMOUNTS = ["directCost", "administration", "contingency", "profit", "base", "vat", "value", "advance", "retention"];
+
+const exportAmountsOf = (concepts) => {
+  const live = (concepts ?? []).filter((c) => c.sta_id !== DELETED_STATUS);
+  const amendments = live.filter((c) => c.ccp_type !== CONCEPT_TYPES.INITIAL);
+  const valueOf = (list) => moneyText(sumMoney(list.map((c) => conceptAmounts(c).value)));
+  const amounts = live.map(conceptAmounts);
+  return {
+    ...Object.fromEntries(EXPORT_AMOUNTS.map((key) => [key, moneyText(sumMoney(amounts.map((a) => a[key])))])),
+    initialValue: valueOf(live.filter((c) => c.ccp_type === CONCEPT_TYPES.INITIAL)),
+    amendmentsValue: valueOf(amendments),
+    amendmentsCount: amendments.length,
+  };
+};
+
+// Fila del reporte: la del listado con los datos del contrato, sus importes y, si se ven, sus pólizas.
+const exportRowOf = (row, policyDays) => ({
+  ...toListDto(row),
+  ...exportAmountsOf(row.tbl_contract_concepts),
+  suspendedDays: row.ctr_suspended_days,
+  aiuRequested: row.ctr_aiu_requested,
+  observation: row.ctr_observation,
+  policyStatus: row.tbl_policies
+    ? CONTRACT_POLICY_STATUS_NAMES[contractPolicyStatus(row.tbl_policies, row.tbl_contract_concepts ?? [], { days: policyDays })]
+    : null,
+  currentPolicies: row.tbl_policies?.length ?? null,
+});
+
+const money = (header, field, width = 1.2) => ({ header, value: (r) => r[field], kind: "money", width });
+
+// Columnas del reporte (DEC-070): los datos del contrato, la obra con el proveedor y su tipo, todos los importes y las pólizas.
 const EXPORT_COLUMNS = [
   { header: "Número", value: (r) => r.number },
-  { header: "Tipo de contrato", value: (r) => r.contractType },
   { header: "Contrato", value: (r) => r.name, width: 2 },
   { header: "Proveedor", value: (r) => r.providerName, width: 2 },
   { header: "Tipo de proveedor", value: (r) => r.providerTypeName },
   { header: "Obra", value: (r) => [r.workCode, r.workName].filter(Boolean).join(" — "), width: 2 },
+  { header: "Tipo de contrato", value: (r) => r.contractType },
   { header: "Etapa", value: (r) => r.stageName },
-  { header: "Valor vigente", value: (r) => r.currentValue, kind: "money", width: 1.3 },
-  { header: "Fecha inicio", value: (r) => r.startDate, kind: "date" },
-  { header: "Fecha fin", value: (r) => (r.endDate && r.endDateProvisional ? `${r.endDate} (provisional)` : r.endDate), kind: "date" },
   { header: "Estado", value: (r) => r.stateName },
+  { header: "Fecha inicio", value: (r) => r.startDate, kind: "date" },
+  { header: "Plazo", value: (r) => (r.term !== null && r.term !== undefined ? `${r.term} ${TERM_UNIT_NAMES[r.termUnit] ?? r.termUnit}` : null) },
+  { header: "Días suspendidos", value: (r) => r.suspendedDays, width: 0.8 },
+  { header: "Fecha fin", value: (r) => (r.endDate && r.endDateProvisional ? `${r.endDate} (provisional)` : r.endDate), kind: "date" },
+  { header: "AIU", value: (r) => (r.aiuRequested ? "Sí" : "No"), width: 0.6 },
+  { header: "Otrosíes", value: (r) => r.amendmentsCount, width: 0.7 },
+  money("Valor inicial", "initialValue"),
+  money("Valor otrosíes", "amendmentsValue"),
+  money("Costo directo", "directCost"),
+  money("Administración", "administration"),
+  money("Imprevistos", "contingency"),
+  money("Utilidad", "profit"),
+  money("Valor antes de IVA", "base"),
+  money("IVA", "vat"),
+  money("Valor vigente", "currentValue", 1.3),
+  money("Anticipo", "advance"),
+  money("Retenido", "retention"),
+  { header: "Pólizas", value: (r) => r.policyStatus, width: 1.3, policies: true },
+  { header: "Pólizas vigentes", value: (r) => r.currentPolicies, width: 0.8, policies: true },
+  { header: "Observación", value: (r) => r.observation, width: 2 },
 ];
+
+const EXPORT_TOTAL_FIELDS = [...EXPORT_AMOUNTS.filter((key) => key !== "value"), "initialValue", "amendmentsValue", "currentValue"];
 
 // Líneas de los filtros aplicados, para el encabezado del reporte.
 export const exportFilterLines = async ({
@@ -598,13 +650,26 @@ export const exportFilterLines = async ({
  */
 export const exportContracts = async ({ format, ...filters }) => {
   const { where, orderBy } = await contractListQuery(filters);
-  const rows = (await findExportRows(prisma.tbl_contracts, { where, select: LIST_SELECT, orderBy })).map(toListDto);
-  const totals = (own, label) => ({ number: label, currentValue: moneyText(sumMoney(own.map((r) => r.currentValue))) });
+  // Las pólizas, solo para quien puede verlas (ADR-0018), con la regla única de DEC-064.
+  const policies = filters.canViewPolicies === true;
+  const select = {
+    ...LIST_SELECT,
+    ctr_suspended_days: true,
+    ctr_aiu_requested: true,
+    ctr_observation: true,
+    ...(policies ? { tbl_policies: { where: { pol_is_current: true }, select: POLICY_STATUS_SELECT } } : {}),
+  };
+  const policyDays = policies ? (await getRuleValues())[BUSINESS_RULES.POLICY_EXPIRING_DAYS] : null;
+  const rows = (await findExportRows(prisma.tbl_contracts, { where, select, orderBy })).map((row) => exportRowOf(row, policyDays));
+  const totals = (own, label) => ({
+    number: label,
+    ...Object.fromEntries(EXPORT_TOTAL_FIELDS.map((field) => [field, moneyText(sumMoney(own.map((r) => r[field])))])),
+  });
   return renderExport({
     format,
     title: "Contratos",
     filters: await exportFilterLines(filters),
-    columns: EXPORT_COLUMNS,
+    columns: policies ? EXPORT_COLUMNS : EXPORT_COLUMNS.filter((c) => !c.policies),
     rows,
     // Como los reportes del sistema que se migra: la obra arriba y los contratos por proveedor, con su subtotal.
     rowGroups: { ...REPORT_GROUPS, column: "Proveedor", subtotal: (own) => totals(own, "Subtotal") },

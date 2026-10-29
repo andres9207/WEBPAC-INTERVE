@@ -1,7 +1,9 @@
 # Integración continua (DEC-095): en cada push y PR a main y develop valida
 # que el servidor pase el lint (DEC-097) y sus tests, y que el cliente pase el
 # lint y compile. Cada job publica un resumen con gráficos en la página de la
-# ejecución (.github/scripts/ci-summary.mjs, DEC-098).
+# ejecución (.github/scripts/ci-summary.mjs, DEC-098). El job de base de datos
+# arma una BD vacía con todas las migraciones y comprueba que schema.prisma la
+# describa (DEC-100).
 # Instala con `npm ci` sobre los package-lock.json versionados, igual que el
 # servidor de Hostinger (npm install). La versión de Node sale del campo
 # "volta" de cada package.json, la misma que en local.
@@ -23,6 +25,72 @@ permissions:
   contents: read
 
 jobs:
+  database:
+    name: Base de datos · migraciones y Prisma
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # MySQL temporal y vacío, solo de este job: nace y muere con la ejecución.
+    # El CI no tiene credenciales de desarrollo ni de producción (DEC-100).
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci
+          MYSQL_DATABASE: webpac_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+    env:
+      DATABASE_URL: mysql://root:ci@127.0.0.1:3306/webpac_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: server/package.json
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Instalar dependencias
+        working-directory: server
+        run: npm ci --no-audit --no-fund
+
+      # Igual que una instalación nueva (database/migrations/README.md): el
+      # esquema base y todas las migraciones, en orden numérico. Una que falle
+      # detiene el paso y queda marcada en el archivo.
+      - name: Aplicar esquema base y migraciones
+        run: |
+          count=0
+          for f in database/bdtemplate.sql $(ls database/migrations/[0-9]*.sql | sort); do
+            echo "::group::$f"
+            mysql -h 127.0.0.1 -uroot -pci --default-character-set=utf8mb4 webpac_ci < "$f" \
+              || { echo "::error file=$f::No se pudo aplicar $f en una BD nueva"; exit 1; }
+            echo "::endgroup::"
+            count=$((count + 1))
+          done
+          echo "Aplicados $count archivos."
+          echo "### Base de datos ✅" >> "$GITHUB_STEP_SUMMARY"
+          echo "Esquema base y $((count - 1)) migraciones aplicados sin errores en una BD MySQL 8.0 nueva." >> "$GITHUB_STEP_SUMMARY"
+
+      # Solo lectura: compara la estructura de la BD recién armada con
+      # schema.prisma. Falla si una migración no se reflejó con `prisma db pull`
+      # o si schema.prisma se editó sin migración. NO ACTION y RESTRICT cuentan
+      # como la misma regla (.github/scripts/prisma-drift.mjs).
+      - name: schema.prisma coincide con las migraciones
+        working-directory: server
+        run: |
+          if node ../.github/scripts/prisma-drift.mjs; then
+            echo "schema.prisma coincide con las migraciones ✅" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error file=server/prisma/schema.prisma::schema.prisma no coincide con las migraciones. Aplica la migración en tu BD de desarrollo y corre 'npx prisma db pull' en server/ (o agrega la migración que falta)."
+            echo "❌ schema.prisma no coincide con las migraciones: ver el detalle en el log del paso." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
   server:
     name: Servidor · lint y tests
     runs-on: ubuntu-latest

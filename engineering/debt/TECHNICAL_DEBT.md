@@ -6,6 +6,9 @@ Lista única. Convenciones en [`README.md`](README.md). Estado verificado al 202
 
 | Pendiente | Prioridad | Origen |
 | --- | --- | --- |
+| Antes de instalar en Hostinger con `npm ci --omit=dev`, mover `prisma` a `dependencies` en `server/package.json`: hoy está en `devDependencies`, y el `postinstall` (`prisma generate`) fallaría sin él. Con `npm install` completo, como hoy, funciona | Alta | DEC-100 |
+| Confirmar el motor y la versión de la BD de producción en Hostinger (el CI usa MySQL 8.0, como desarrollo, 8.0.45) y su `lower_case_table_names`: el CI corre como Linux (distingue mayúsculas en nombres de tabla) y desarrollo en Windows no | Media | DEC-100 |
+| `db:check-invariants` en el CI: necesita filas de las que partir, y en la BD vacía del job queda "sin datos". Sembrar antes datos mínimos (perfil, usuario, obra, contrato) o hacer que el chequeo cree los suyos | Media | DEC-100 |
 | Activar en GitHub la protección de `main` y `develop` que exija el CI en verde (jobs «Servidor · tests» y «Cliente · lint y build») antes de fusionar. Es configuración del repositorio, no código; la hace quien administre `andres9207/WEBPAC-INTERVE` | Alta | DEC-095 |
 | Confirmar en Hostinger: la versión de Node (el CI usa la de Volta, 20.20.2), que se instale con `npm ci` sobre el `package-lock.json` versionado en lugar de `npm install`, y la URL pública del health check detrás del proxy (previsiblemente `/interadminpro/api/app/health`). Configurar ahí el monitor que la consulte | Alta | DEC-095 |
 | Aplicar las migraciones `0115` a `0121` **junto con** su código y en orden, y después `npx prisma generate` y `yarn db:seed` (permisos 117 a 124). La `0119` convierte el texto `inv_statement` en extractos y **elimina la columna**: el código anterior la lee. En desarrollo ya están aplicadas (2026-10-26) | Alta | DEC-082 a DEC-085 |
