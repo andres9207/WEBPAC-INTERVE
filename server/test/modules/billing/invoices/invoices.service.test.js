@@ -1407,15 +1407,24 @@ describe("anticipo y amortización (DEC-044)", () => {
     await expect(service.getContractAdvance({ ctrId: "31" })).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it("información del contrato: % utilidad por defecto, la U del valor inicial si el contrato solicita AIU", async () => {
+  it("información del contrato: % utilidad por defecto, la U del último otrosí que la tenga o la del valor inicial, si el contrato solicita AIU", async () => {
     const utility = (row) => {
       prismaMock.tbl_contracts.findFirst.mockResolvedValueOnce(row);
       return service.getContractAdvance({ ctrId: "30" }).then((r) => r.defaultUtilityPct);
     };
-    await expect(utility({ ctr_id: 30, ctr_aiu_requested: true, tbl_contract_concepts: [{ ccp_profit_pct: D("5") }] })).resolves.toBe("5.00");
-    await expect(utility({ ctr_id: 30, ctr_aiu_requested: false, tbl_contract_concepts: [{ ccp_profit_pct: D("5") }] })).resolves.toBeNull();
-    await expect(utility({ ctr_id: 30, ctr_aiu_requested: true, tbl_contract_concepts: [] })).resolves.toBeNull();
-    expect(prismaMock.tbl_contracts.findFirst.mock.calls.at(-1)[0].select.tbl_contract_concepts.where).toMatchObject({ ccp_type: "INITIAL" });
+    const concept = (type, pct) => ({ ccp_type: type, ccp_profit_pct: D(pct) });
+    const aiu = (concepts) => ({ ctr_id: 30, ctr_aiu_requested: true, tbl_contract_concepts: concepts });
+    // Del más reciente al más antiguo.
+    await expect(utility(aiu([concept("INITIAL", "5")]))).resolves.toBe("5.00");
+    await expect(utility(aiu([concept("AMENDMENT", "8"), concept("INITIAL", "5")]))).resolves.toBe("8.00");
+    // Un otrosí sin U no la cambia: se busca el anterior que la tenga.
+    await expect(utility(aiu([concept("AMENDMENT", "0"), concept("AMENDMENT", "7"), concept("INITIAL", "5")]))).resolves.toBe("7.00");
+    await expect(utility(aiu([concept("AMENDMENT", "0"), concept("INITIAL", "5")]))).resolves.toBe("5.00");
+    await expect(utility(aiu([concept("LIQUIDATION", "6"), concept("AMENDMENT", "8"), concept("INITIAL", "5")]))).resolves.toBe("6.00");
+    await expect(utility({ ...aiu([concept("AMENDMENT", "8"), concept("INITIAL", "5")]), ctr_aiu_requested: false })).resolves.toBeNull();
+    await expect(utility(aiu([]))).resolves.toBeNull();
+    const { select } = prismaMock.tbl_contracts.findFirst.mock.calls.at(-1)[0];
+    expect(select.tbl_contract_concepts).toMatchObject({ where: { sta_id: { not: 3 } }, orderBy: { ccp_id: "desc" } });
   });
 
   it("información del contrato: anticipo por aprobar sin contar la factura que se edita", async () => {

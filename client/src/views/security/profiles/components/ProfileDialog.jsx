@@ -1,4 +1,4 @@
-import React, { useState, forwardRef, useImperativeHandle } from 'react';
+import { useState, forwardRef, useImperativeHandle } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { showSuccess, showError } from 'services/ToastService';
 import { getModulesAPI, saveProfileAPI } from 'api/requests/profilesApi';

@@ -19,7 +19,16 @@ const prismaMock = {
     groupBy: jest.fn(async () => []),
   },
   tbl_works: { findUnique: jest.fn(async () => state.work), findMany: jest.fn(async () => state.works) },
-  tbl_invoices: { count: jest.fn(async () => 0), groupBy: jest.fn(async () => state.invoiceGroups) },
+  // Los filtros de fechas y de comprobante piden otra agrupación, con su condición en `AND`.
+  tbl_invoices: {
+    count: jest.fn(async () => 0),
+    groupBy: jest.fn(async ({ where }) => {
+      const extra = where.AND?.[1];
+      if (extra?.inv_date) return state.dateGroups;
+      if (extra?.inv_state) return state.voucherGroups;
+      return state.invoiceGroups;
+    }),
+  },
   tbl_invoice_glosses: { count: jest.fn(async () => 0) },
   tbl_audit_log: { createMany: jest.fn() },
   ...transactionRawMocks(),
@@ -35,6 +44,7 @@ jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoices.serv
 jest.unstable_mockModule("../../../../src/modules/billing/invoices/invoiceGlosses.service.js", () => ({
   statementGlosses: jest.fn(async () => state.glosses),
   statementsGlosses: jest.fn(async () => state.pageGlosses),
+  statementsWithGlosses: jest.fn(async () => state.glossedStatements),
 }));
 const { statementGlosses } = await import("../../../../src/modules/billing/invoices/invoiceGlosses.service.js");
 
@@ -266,6 +276,75 @@ describe("extractos escritos en las facturas (solo lectura)", () => {
     const page = await service.paginationStatementGroups({ scope: OWN, rows: 1, first: 0, sortField: "number", sortOrder: 1 });
     expect(page).toMatchObject({ total: 2, totalPages: 2 });
     expect(page.results.map((g) => g.number)).toEqual(["EXT-9"]);
+  });
+
+  describe("filtros", () => {
+    const numbers = (page) => page.results.map((g) => g.number);
+    beforeEach(() => {
+      state.invoiceGroups = [
+        group(8, "EXT-2", 1, "2026-09-01", "2026-09-01"),
+        group(8, "EXT-9", 2, "2026-09-05", "2026-10-05"),
+        group(8, "EXT-10", 1, "2026-10-01", "2026-10-01"),
+        group(8, "EXT-25", 1, "2026-10-20", "2026-10-20"),
+      ];
+      state.works = [{ wrk_id: 8, wrk_code: "OB-8", wrk_name: "Vía" }];
+      state.invoices = [];
+      state.pageGlosses = [];
+    });
+    const list = (filters) => service.paginationStatementGroups({ scope: OWN, rows: 10, first: 0, sortField: "number", sortOrder: 1, ...filters });
+
+    it("rango de número, como se ordena: natural y sin distinguir mayúsculas", async () => {
+      expect(numbers(await list({ numberFrom: "ext-9", numberTo: "EXT-10" }))).toEqual(["EXT-9", "EXT-10"]);
+      expect(numbers(await list({ numberFrom: "EXT-10" }))).toEqual(["EXT-10", "EXT-25"]);
+      expect(numbers(await list({ numberTo: " EXT-9 " }))).toEqual(["EXT-2", "EXT-9"]);
+    });
+
+    it("rango de fechas: los extractos con alguna factura en el rango, completos", async () => {
+      state.dateGroups = [{ wrk_id: 8, inv_statement: "ext-9" }];
+      const page = await list({ dateFrom: "2026-10-01", dateTo: "2026-10-10" });
+
+      const dated = prismaMock.tbl_invoices.groupBy.mock.calls.find(([args]) => args.where.AND?.[1]?.inv_date)[0];
+      expect(dated.where.AND[1]).toEqual({ inv_date: { gte: new Date("2026-10-01T00:00:00.000Z"), lte: new Date("2026-10-10T00:00:00.000Z") } });
+      // El alcance va también en la agrupación por fechas.
+      expect(dated.where.AND[0]).toMatchObject({ wrk_id: { in: [8] }, inv_statement: { not: null } });
+      expect(numbers(page)).toEqual(["EXT-9"]);
+      expect(page.results[0]).toMatchObject({ invoicesCount: 2, firstDate: "2026-09-05", lastDate: "2026-10-05" });
+    });
+
+    it("comprobante: con aprobadas sin comprobante, o sin ninguna", async () => {
+      state.voucherGroups = [{ wrk_id: 8, inv_statement: "EXT-10" }];
+      expect(numbers(await list({ voucher: "MISSING" }))).toEqual(["EXT-10"]);
+      const unpaid = prismaMock.tbl_invoices.groupBy.mock.calls.find(([args]) => args.where.AND?.[1]?.inv_state)[0];
+      expect(unpaid.where.AND[1]).toEqual({ inv_state: "APPROVED", OR: [{ inv_voucher_number: null }, { inv_voucher_number: "" }] });
+      expect(numbers(await list({ voucher: "NONE" }))).toEqual(["EXT-2", "EXT-9", "EXT-25"]);
+    });
+
+    it("glosas: con glosas levantadas en él, o sin ninguna, por obra y texto", async () => {
+      const { statementsWithGlosses } = await import("../../../../src/modules/billing/invoices/invoiceGlosses.service.js");
+      state.glossedStatements = [
+        { wrkId: 8, statement: "ext-2" },
+        { wrkId: 9, statement: "EXT-25" },
+      ];
+      expect(numbers(await list({ gloss: "WITH" }))).toEqual(["EXT-2"]);
+      expect(statementsWithGlosses).toHaveBeenLastCalledWith([8]);
+      expect(numbers(await list({ gloss: "WITHOUT" }))).toEqual(["EXT-9", "EXT-10", "EXT-25"]);
+    });
+
+    it("los filtros se combinan, y el total es el de los filtrados", async () => {
+      state.voucherGroups = [{ wrk_id: 8, inv_statement: "EXT-2" }, { wrk_id: 8, inv_statement: "EXT-25" }];
+      const page = await list({ numberFrom: "EXT-9", voucher: "MISSING" });
+      expect(numbers(page)).toEqual(["EXT-25"]);
+      expect(page.total).toBe(1);
+    });
+
+    it("sin filtros no pide las agrupaciones de los filtros", async () => {
+      const { statementsWithGlosses } = await import("../../../../src/modules/billing/invoices/invoiceGlosses.service.js");
+      prismaMock.tbl_invoices.groupBy.mockClear();
+      statementsWithGlosses.mockClear();
+      await list({});
+      expect(prismaMock.tbl_invoices.groupBy).toHaveBeenCalledTimes(1);
+      expect(statementsWithGlosses).not.toHaveBeenCalled();
+    });
   });
 
   it("el reporte pide las facturas y las glosas de la obra con ese texto", async () => {

@@ -101,8 +101,23 @@ export const exportStatementController = handleExport(async (req) =>
 
 // Extractos escritos en las facturas (solo lectura): agrupados por obra y texto.
 export const paginationStatementGroupsController = handle(async (req) => {
-  const { search, wrkId, number, rows, first, sortField, sortOrder } = req.body;
-  return statementsService.paginationStatementGroups({ search, wrkId, number, rows, first, sortField, sortOrder, scope: await workScopeOf(req) });
+  const { search, wrkId, number, numberFrom, numberTo, dateFrom, dateTo, voucher, gloss, rows, first, sortField, sortOrder } = req.body;
+  return statementsService.paginationStatementGroups({
+    search,
+    wrkId,
+    number,
+    numberFrom,
+    numberTo,
+    dateFrom,
+    dateTo,
+    voucher,
+    gloss,
+    rows,
+    first,
+    sortField,
+    sortOrder,
+    scope: await workScopeOf(req),
+  });
 });
 
 export const getStatementGroupReportController = handle(async (req) =>

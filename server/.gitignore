@@ -5,7 +5,7 @@
 
 # dependencies
 /node_modules
-package-lock.json
+# package-lock.json se versiona: el CI y el servidor instalan con npm ci (DEC-095).
 /.yarn/install-state.gz
 /.pnp.*
 

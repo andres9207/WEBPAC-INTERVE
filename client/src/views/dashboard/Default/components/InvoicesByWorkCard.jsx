@@ -1,12 +1,10 @@
 import PropTypes from 'prop-types';
-import { useNavigate } from 'react-router-dom';
 import Chart from 'react-apexcharts';
 
 import { useTheme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 
 import MainCard from 'ui-component/cards/MainCard';
-import { invoicePath } from 'utils/constants';
 import useSchemePalette from 'hooks/useSchemePalette';
 
 /**
@@ -15,16 +13,18 @@ import useSchemePalette from 'hooks/useSchemePalette';
  * tiene importes. Dos series con leyenda; colores validados contra el fondo
  * claro (orange.dark y primary.800, contraste ≥ 3:1 y separables con
  * daltonismo). Cuentan todos los menús: la simple también tiene obra
- * (DEC-058). El clic en una barra lleva a las facturas de esa obra en
- * `pvtId`, el primer menú visible (DEC-074).
+ * (DEC-058). El clic abre en el tablero las facturas de esa obra, de todos
+ * los menús (`onOpen`): en un segmento, las de su estado; en el nombre de la
+ * obra, las dos.
  */
-export default function InvoicesByWorkCard({ byWork, pvtId }) {
+const SERIES_STATES = ['REGISTERED', 'APPROVED'];
+
+export default function InvoicesByWorkCard({ byWork, onOpen }) {
   const theme = useTheme();
   const palette = useSchemePalette();
-  const navigate = useNavigate();
-  const open = (index) => {
+  const open = (index, state) => {
     const work = byWork[index];
-    if (work && pvtId) navigate(`${invoicePath(pvtId)}?wrkId=${work.wrkId}&label=${encodeURIComponent(work.workCode ?? '')}`);
+    if (work) onOpen(work, state);
   };
 
   const options = {
@@ -34,7 +34,7 @@ export default function InvoicesByWorkCard({ byWork, pvtId }) {
       toolbar: { show: false },
       fontFamily: theme.typography.fontFamily,
       events: {
-        dataPointSelection: (_e, _c, { dataPointIndex }) => open(dataPointIndex),
+        dataPointSelection: (_e, _c, { dataPointIndex, seriesIndex }) => open(dataPointIndex, SERIES_STATES[seriesIndex]),
         xAxisLabelClick: (_e, _c, { labelIndex }) => open(labelIndex)
       }
     },
@@ -85,6 +85,6 @@ export default function InvoicesByWorkCard({ byWork, pvtId }) {
 
 InvoicesByWorkCard.propTypes = {
   byWork: PropTypes.arrayOf(PropTypes.object).isRequired,
-  /** Menú (tipo de proveedor) al que lleva el clic (DEC-074); sin él, no navega. */
-  pvtId: PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+  /** Abre el detalle: `(work, state?)`, sin estado las registradas y las aprobadas. */
+  onOpen: PropTypes.func.isRequired
 };

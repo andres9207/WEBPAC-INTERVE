@@ -446,3 +446,18 @@ export const statementsGlosses = async ({ wrkIds, numbers }) =>
         statement: row.igl_statement,
         releaseStatement: row.release_invoice?.inv_statement ?? null,
       }));
+
+/**
+ * Extractos con glosas levantadas en ellos, de facturas no eliminadas, en las
+ * obras dadas: `{ wrkId, statement }` por obra y texto, para el filtro "Con
+ * glosas" del listado de extractos. Quien llama compara el texto como agrupa.
+ */
+export const statementsWithGlosses = async (wrkIds) =>
+  wrkIds.length === 0
+    ? []
+    : (
+        await prisma.tbl_invoice_glosses.groupBy({
+          by: ["wrk_id", "igl_statement"],
+          where: { ...LIVE, wrk_id: { in: wrkIds }, igl_statement: { not: null } },
+        })
+      ).map((row) => ({ wrkId: row.wrk_id, statement: row.igl_statement }));

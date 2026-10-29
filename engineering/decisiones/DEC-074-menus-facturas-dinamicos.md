@@ -14,7 +14,7 @@ Decidido por el usuario el 2026-10-23. Reemplaza lo que [DEC-054](DEC-054-vistas
 
 - **Tipo de proveedor** (migración `0109`):
   - `pvt_invoice_mode`: forma de facturar. `SIMPLE` (la factura simple: sin contrato, en una etapa de la obra) o `CONTRACT` (anticipo, normal, liquidación y devolución de retenido contra un contrato firmado bajo el tipo). `NULL`: el tipo no factura. `CHECK` de dominio.
-  - `pvt_invoice_menu`: casilla "Va al menú de facturas". Exige forma (`CHECK`, y 400 en el service con mensaje).
+  - `pvt_invoice_menu`: casilla "Aplica para facturas". Exige forma (`CHECK`, y 400 en el service con mensaje).
   - Datos: `MAJOR` y `SUBCONTRACTOR` pasan a `CONTRACT`, `SIMPLE` a `SIMPLE`; los que tenían menú quedan con la casilla. Se retira `pvt_invoice_view`.
   - **La forma no cambia** mientras el tipo tenga contratos o facturas, también eliminados o anulados (409, `beforeUpdate` del maestro, con el tipo bloqueado). Para otra forma se crea otro tipo.
 - **Menú lateral:** dentro del grupo "Facturas" (página 18), una entrada por tipo **activo** con la casilla, por nombre. Las arma `app.service.js` (`listInvoiceMenus`); no son páginas. Sin el permiso de ver facturas o sin ninguna entrada, el grupo no se muestra. Las páginas 21 a 23 se retiran; quien tenía alguna conserva la 18.

@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Link as RouterLink } from 'react-router-dom';
 
+import LinearProgress from '@mui/material/LinearProgress';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
@@ -23,13 +24,18 @@ import { dashboardTo, plural } from './workDashboard.utils';
 
 const num = { fontVariantNumeric: 'tabular-nums' };
 
-/** Facturas del tablero (`invoices.items`) como filas del detalle. */
-export const invoiceRows = (items) =>
+/**
+ * Facturas del tablero (`invoices.items`) como filas del detalle. `withWork`:
+ * con el código de la obra (el tablero general junta varias).
+ */
+export const invoiceRows = (items, { withWork = false } = {}) =>
   items.map((inv) => ({
     key: `inv-${inv.invId}`,
     to: dashboardTo.invoice(inv.invId),
     primary: `${inv.typeName} ${inv.number}`,
-    secondary: [inv.contractNumber, inv.providerName, fDateOnly(inv.date), inv.stateName].filter(Boolean).join(' · '),
+    secondary: [withWork && inv.workCode, inv.contractNumber, inv.providerName, fDateOnly(inv.date), inv.stateName]
+      .filter(Boolean)
+      .join(' · '),
     value: inv.value === null ? 'Sin importes' : fMoneyText(inv.value)
   }));
 
@@ -110,22 +116,36 @@ export const contractRows = (items, valueOf = (c) => c.currentValue) =>
     value: fMoneyText(valueOf(c))
   }));
 
-function DrillDownDialog({ drill, onClose }) {
-  const count = drill?.rows.length ?? 0;
+// Tablero general (DEC-052): las filas llegan del servidor por páginas.
+// `loading`: se está pidiendo una página; las filas anteriores siguen a la
+// vista, atenuadas, hasta que llega. `count`: el total de la cifra (el de
+// todas las páginas). `toolbar` (filtros) va arriba de la lista y `footer`
+// (la paginación), debajo.
+export function DrillDownDialog({ drill, onClose, toolbar = null, footer = null }) {
+  const shown = drill?.rows.length ?? 0;
+  const count = drill?.count ?? shown;
   const noun = drill?.noun ?? ['registro', 'registros'];
   return (
-    <BaseDialog open={Boolean(drill)} onClose={onClose} title={drill?.title}>
+    <BaseDialog open={Boolean(drill)} onClose={onClose} title={drill?.title} maxWidth={toolbar ? 'md' : 'sm'}>
       {drill && (
         <Stack spacing={1.5}>
           <Typography variant="body2" color="text.secondary">
-            {[drill.subtitle, plural(count, ...noun), drill.total && fMoneyText(drill.total)].filter(Boolean).join(' · ')}
+            {[drill.subtitle, !(drill.loading && shown === 0) && plural(count, ...noun), drill.total && fMoneyText(drill.total)]
+              .filter(Boolean)
+              .join(' · ')}
           </Typography>
-          {count === 0 ? (
+          {toolbar}
+          {drill.loading && <LinearProgress aria-label="Cargando" />}
+          {drill.loading && shown === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              Cargando…
+            </Typography>
+          ) : shown === 0 ? (
             <Typography variant="body2" color="text.secondary">
               {drill.emptyText ?? 'No hay registros para mostrar.'}
             </Typography>
           ) : (
-            <List disablePadding aria-label={drill.title}>
+            <List disablePadding aria-label={drill.title} sx={{ opacity: drill.loading ? 0.5 : 1 }}>
               {drill.rows.map((r) => (
                 <ListItemButton key={r.key} component={RouterLink} to={r.to} divider sx={{ gap: 1.5, px: 1, alignItems: 'flex-start' }}>
                   <ListItemText
@@ -140,6 +160,7 @@ function DrillDownDialog({ drill, onClose }) {
               ))}
             </List>
           )}
+          {footer}
         </Stack>
       )}
     </BaseDialog>
@@ -151,11 +172,15 @@ DrillDownDialog.propTypes = {
     title: PropTypes.string.isRequired,
     subtitle: PropTypes.string,
     total: PropTypes.string,
+    count: PropTypes.number,
+    loading: PropTypes.bool,
     noun: PropTypes.arrayOf(PropTypes.string),
     rows: PropTypes.arrayOf(PropTypes.object).isRequired,
     emptyText: PropTypes.string
   }),
-  onClose: PropTypes.func.isRequired
+  onClose: PropTypes.func.isRequired,
+  toolbar: PropTypes.node,
+  footer: PropTypes.node
 };
 
 /**

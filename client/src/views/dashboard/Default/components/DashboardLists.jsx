@@ -18,10 +18,13 @@ import Typography from '@mui/material/Typography';
 
 import MainCard from 'ui-component/cards/MainCard';
 import { fDateOnly } from 'utils/formatTime';
-import { INVOICE_STATE_COLORS, invoicePath } from 'utils/constants';
+import { INVOICE_STATE_COLORS } from 'utils/constants';
+
+import { dashboardTo } from '../work/workDashboard.utils';
 
 // Bloques de lista del tablero (DEC-052). Todo lo cuenta el servidor; aquí
-// solo se presenta y se enlaza al registro o al listado filtrado.
+// solo se presenta. Cada registro abre su expediente encima del tablero
+// (dashboardTo); al cerrarlo, se vuelve aquí.
 
 const VALIDITY_COLORS = { NO_DATE: 'default', ACTIVE: 'success', EXPIRING: 'warning', EXPIRED: 'error' };
 const num = { fontVariantNumeric: 'tabular-nums' };
@@ -62,9 +65,9 @@ export function WorksActivityCard({ works }) {
           </TableHead>
           <TableBody>
             {works.map((w) => (
-              <TableRow key={w.wrkId} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/work/works/${w.wrkId}`)}>
+              <TableRow key={w.wrkId} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(dashboardTo.work(w.wrkId))}>
                 <TableCell sx={{ pl: 3 }}>
-                  <Link component={RouterLink} to={`/work/works/${w.wrkId}`} underline="hover" onClick={(e) => e.stopPropagation()}>
+                  <Link component={RouterLink} to={dashboardTo.work(w.wrkId)} underline="hover" onClick={(e) => e.stopPropagation()}>
                     {w.workCode}
                   </Link>
                   <Typography variant="caption" color="text.secondary" component="div">
@@ -151,7 +154,7 @@ export function LatestInvoicesCard({ invoices, allPath }) {
       ) : (
         <List disablePadding aria-label="Últimas facturas registradas">
           {invoices.map((inv) => (
-            <ListItemButton key={inv.invId} component={RouterLink} to={invoicePath(inv.pvtId, inv.invId)} sx={{ borderRadius: 1, gap: 1 }}>
+            <ListItemButton key={inv.invId} component={RouterLink} to={dashboardTo.invoice(inv.invId)} sx={{ borderRadius: 1, gap: 1 }}>
               <ListItemText
                 primary={`${inv.typeName} ${inv.number}`}
                 secondary={[inv.providerName, inv.workCode, fDateOnly(inv.date)].filter(Boolean).join(' · ')}
@@ -183,7 +186,7 @@ export function UpcomingPoliciesCard({ policies, expiringDays }) {
       ) : (
         <List disablePadding aria-label="Pólizas vencidas o por vencer">
           {policies.map((p) => (
-            <ListItemButton key={p.polId} component={RouterLink} to={`/work/contracts/${p.ctrId}`} sx={{ borderRadius: 1, gap: 1 }}>
+            <ListItemButton key={p.polId} component={RouterLink} to={dashboardTo.contract(p.ctrId)} sx={{ borderRadius: 1, gap: 1 }}>
               <ListItemText
                 primary={`${p.number} · ${p.typeName ?? ''}`}
                 secondary={`Contrato ${p.contractNumber} · ${p.workCode} · vence ${fDateOnly(p.endDate)}`}

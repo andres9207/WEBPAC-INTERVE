@@ -46,12 +46,12 @@ const ROWS_PER_PAGE_OPTIONS = [5, 10, 25, 50];
 const NO_FIELDS = [];
 
 // La vista elegida (tarjetas o tabla) se recuerda por listado en el navegador.
-// Es una preferencia: si el almacenamiento falla, se usan las tarjetas.
+// Por defecto, la tabla; también si el almacenamiento falla.
 const readView = (key) => {
   try {
-    return window.localStorage.getItem(key) === 'table' ? 'table' : 'cards';
+    return window.localStorage.getItem(key) === 'cards' ? 'cards' : 'table';
   } catch {
-    return 'cards';
+    return 'table';
   }
 };
 const saveView = (key, value) => {
@@ -284,7 +284,9 @@ export default function MasterPage({
     if (navigation) {
       return [
         { label: 'Ver detalle', icon: <IconEye size={16} />, command: () => navigation.view(row), tone: 'info' },
-        ...(can.edit && navigation.edit ? [{ label: 'Editar', icon: <IconEdit size={16} />, command: () => navigation.edit(row), tone: 'edit' }] : []),
+        ...(can.edit && navigation.edit
+          ? [{ label: 'Editar', icon: <IconEdit size={16} />, command: () => navigation.edit(row), tone: 'edit' }]
+          : []),
         ...(extraActions ? extraActions(row) : [])
       ];
     }

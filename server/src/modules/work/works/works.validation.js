@@ -3,6 +3,7 @@ import {
   paginationRules,
   optionalText,
   optionalId,
+  optionalDate,
   requiredId,
   idempotencyKeyRule,
   moneyRule,
@@ -36,8 +37,17 @@ export const paginationWorksSchema = [
   optionalText("code", 30),
   optionalText("name", 200),
   optionalId("cncId"),
+  optionalId("cttId"),
   optionalId("sptId"),
   body("state").optional({ values: "falsy" }).isIn(["IN_PROGRESS", "FINISHED"]).withMessage("El estado debe ser en curso o finalizada."),
+  // Por rango: los importes guardados y la fecha de inicio.
+  ...["initialValue", "extendedValue", "maxServiceOrderValue", "directCost"].flatMap((key) =>
+    [`${key}From`, `${key}To`].map((field) => moneyRule(field, `filtro ${field}`, { optional: true }))
+  ),
+  optionalDate("startDateFrom"),
+  optionalDate("startDateTo"),
+  optionalId("useId"),
+  optionalId("prvId"),
 ];
 
 // Reporte del listado (DEC-070): los mismos filtros, sin paginar, y el formato.
@@ -58,6 +68,17 @@ export const previewWorkEndDateSchema = [
 
 export const selectWorkManagersSchema = [
   query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres."),
+];
+
+// Opciones de los filtros Responsable y Proveedor del listado.
+const filterSearch = () => query("search").optional({ values: "falsy" }).isString().isLength({ max: 100 }).withMessage("search admite hasta 100 caracteres.");
+export const selectWorkFilterManagersSchema = [
+  filterSearch(),
+  query("includeUseId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includeUseId debe ser un entero positivo."),
+];
+export const selectWorkFilterProvidersSchema = [
+  filterSearch(),
+  query("includePrvId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("includePrvId debe ser un entero positivo."),
 ];
 
 export const saveWorkSchema = [

@@ -14,3 +14,10 @@ export const getDashboardSummaryAPI = () => httpCliente.get('app/dashboard/get_s
  * los bloques llegan en null.
  */
 export const getWorkDashboardAPI = () => httpCliente.get('app/dashboard/get_work_summary');
+
+/**
+ * Detalle de una cifra del tablero general (DEC-052): las filas de las que
+ * sale, con el tope de los listados y el total. `params`: `metric` y, según
+ * ella, `state`, `policyStatus`, `wrkId` o `invoiceState`.
+ */
+export const getDashboardDetailAPI = (params) => httpCliente.get('app/dashboard/get_summary_detail', params);

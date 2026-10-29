@@ -8,14 +8,16 @@ import { IconReportAnalytics, IconSearch } from '@tabler/icons-react';
 
 import MainCard from 'ui-component/cards/MainCard';
 import DataTable from 'ui-component/extended/DataTable';
+import FilterButton from 'ui-component/extended/FilterButton';
 import StatementReportDialog from './components/StatementReportDialog';
 import { paginationStatementGroupsAPI } from 'api/requests/statementsApi';
 import { useAuth } from 'contexts/AuthContext';
-import { useWorkScope } from 'contexts/WorkScopeContext';
+import { useWorkFilterField, useWorkScope } from 'contexts/WorkScopeContext';
+import useListFilters from 'hooks/useListFilters';
 import { showError } from 'services/ToastService';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly } from 'utils/formatTime';
-import { STATEMENTS_PATH } from 'utils/constants';
+import { STATEMENT_GLOSS_FILTER_OPTIONS, STATEMENT_VOUCHER_FILTER_OPTIONS, STATEMENTS_PATH } from 'utils/constants';
 import { ALL_WORKS } from 'utils/workScope';
 
 // Extractos (DEC-084): solo lectura. El extracto es un texto libre de la
@@ -24,7 +26,9 @@ import { ALL_WORKS } from 'utils/workScope';
 // glosas (levantadas en él, menos liberadas en él). "Reporte" abre sus facturas,
 // los totales por menú y el chequeo de comprobantes de egreso, y se exporta.
 // Con una obra elegida en el encabezado, los de esa obra; con "Ver todo",
-// todos, con la columna de obra. Una factura del reporte se abre encima, en
+// todos, con la columna y el filtro de obra. Filtros (DEC-048): rango de
+// número (como se ordena: "9" antes que "10"), rango de fechas (alguna factura
+// en el rango), comprobante de egreso y glosas. Una factura del reporte se abre encima, en
 // el `Outlet` (ruta hija, como en el tablero); al cerrarla se vuelve al
 // reporte, que se recarga si la factura cambió.
 
@@ -51,6 +55,14 @@ const WORK_COLUMN = { id: 'workCode', label: 'Obra', sortable: true, render: (ro
 
 const rowKey = (row) => `${row.wrkId}|${row.number}`;
 
+const FILTER_FIELDS = [
+  { key: 'numberFrom', type: 'input', label: 'Extracto desde', props: { maxLength: 20 }, grid: { xs: 12, sm: 6 } },
+  { key: 'numberTo', type: 'input', label: 'Extracto hasta', props: { maxLength: 20 }, grid: { xs: 12, sm: 6 } },
+  { key: 'date', type: 'calendar-range', label: 'Fecha de sus facturas' },
+  { key: 'voucher', type: 'dropdown', label: 'Comprobante', props: { options: STATEMENT_VOUCHER_FILTER_OPTIONS }, grid: { xs: 12, sm: 6 } },
+  { key: 'gloss', type: 'dropdown', label: 'Glosas', props: { options: STATEMENT_GLOSS_FILTER_OPTIONS }, grid: { xs: 12, sm: 6 } }
+];
+
 export default function StatementsPage() {
   const { permissionsCatalog, hasPermission } = useAuth();
   const { activeWork } = useWorkScope();
@@ -67,6 +79,10 @@ export default function StatementsPage() {
   const [reporting, setReporting] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const outletContext = useMemo(() => ({ returnTo: STATEMENTS_PATH, refresh: () => setReloadKey((k) => k + 1) }), []);
+  const workFilter = useWorkFilterField();
+  const filterFields = useMemo(() => (workFilter ? [...FILTER_FIELDS, workFilter] : FILTER_FIELDS), [workFilter]);
+  const backToFirstPage = useCallback(() => setPage(0), []);
+  const filters = useListFilters(filterFields, backToFirstPage);
 
   // Se busca al dejar de escribir, desde la primera página.
   useEffect(() => {
@@ -82,6 +98,7 @@ export default function StatementsPage() {
     setLoading(true);
     paginationStatementGroupsAPI({
       search: appliedSearch,
+      ...filters.params,
       first: page * rowsPerPage,
       rows: rowsPerPage,
       sortField: sort.field,
@@ -93,7 +110,7 @@ export default function StatementsPage() {
     return () => {
       cancelled = true;
     };
-  }, [appliedSearch, page, rowsPerPage, sort, activeWork, reloadKey]);
+  }, [appliedSearch, filters.params, page, rowsPerPage, sort, activeWork, reloadKey]);
 
   const columns = useMemo(() => (allWorks ? [WORK_COLUMN, ...BASE_COLUMNS] : BASE_COLUMNS), [allWorks]);
   const closeReport = useCallback(() => setReporting(null), []);
@@ -107,22 +124,25 @@ export default function StatementsPage() {
       <MainCard
         title="Extractos"
         secondary={
-          <TextField
-            size="small"
-            placeholder="Buscar extracto"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            slotProps={{
-              htmlInput: { maxLength: 20, 'aria-label': 'Buscar extracto' },
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <IconSearch size={16} />
-                  </InputAdornment>
-                )
-              }
-            }}
-          />
+          <Stack direction="row" spacing={1} alignItems="center">
+            <FilterButton fields={filterFields} values={filters.values} setValues={filters.setValues} active={filters.active} />
+            <TextField
+              size="small"
+              placeholder="Buscar extracto"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              slotProps={{
+                htmlInput: { maxLength: 20, 'aria-label': 'Buscar extracto' },
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <IconSearch size={16} />
+                    </InputAdornment>
+                  )
+                }
+              }}
+            />
+          </Stack>
         }
       >
         <Stack spacing={1}>
@@ -150,8 +170,8 @@ export default function StatementsPage() {
               { label: 'Reporte', icon: <IconReportAnalytics size={16} />, command: () => setReporting(row), tone: 'info' }
             ]}
             emptyMessage={
-              appliedSearch
-                ? 'Ningún extracto coincide con la búsqueda.'
+              appliedSearch || filters.hasFilters
+                ? 'Ningún extracto coincide con la búsqueda o los filtros.'
                 : 'Todavía no hay facturas con extracto. Se escribe en el formulario de la factura.'
             }
           />

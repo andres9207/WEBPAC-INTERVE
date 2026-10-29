@@ -52,9 +52,9 @@ export const providerTypesConfig = defineMaster({
       filter: true,
       sortable: true,
     },
-    { name: "invoiceMenu", column: "pvt_invoice_menu", label: "va al menú de facturas", boolean: true, required: false, sortable: true },
+    { name: "invoiceMenu", column: "pvt_invoice_menu", label: "aplica para facturas", boolean: true, required: false, sortable: true },
     // Entrada propia del menú "Contratos" (DEC-077): solo para tipos que facturan con contrato.
-    { name: "contractMenu", column: "pvt_contract_menu", label: "va al menú de contratos", boolean: true, required: false, sortable: true },
+    { name: "contractMenu", column: "pvt_contract_menu", label: "aplica para contratos", boolean: true, required: false, sortable: true },
   ],
   defaultSort: "name",
   selectOrder: "name",
@@ -64,10 +64,10 @@ export const providerTypesConfig = defineMaster({
   // El CHECK de la BD es la garantía; esto da el mensaje.
   assertValues: (values) => {
     if (values.pvt_invoice_menu && !values.pvt_invoice_mode) {
-      throw httpError(400, "Para que el tipo vaya al menú de facturas, elige su forma de facturar.");
+      throw httpError(400, "Para que el tipo aplique para facturas, elige su forma de facturar.");
     }
     if (values.pvt_contract_menu && values.pvt_invoice_mode !== INVOICE_MODES.CONTRACT) {
-      throw httpError(400, "Solo un tipo que factura con contrato puede ir al menú de contratos.");
+      throw httpError(400, "Solo un tipo que factura con contrato puede aplicar para contratos.");
     }
   },
   beforeUpdate: assertModeUnchangedInUse,

@@ -425,7 +425,7 @@ const contractsBlock = async (wrkId, { withPolicies, policyOptions, workValue, c
 
 // ─── Facturas ────────────────────────────────────────────────────────────────
 
-const INVOICE_SELECT = {
+export const INVOICE_SELECT = {
   inv_id: true,
   inv_type: true,
   pvt_id: true,
@@ -453,7 +453,7 @@ const invoiceValue = (row) =>
   row.tbl_invoice_retention_refund_details?.irr_value ??
   (row.tbl_invoice_simple_details ? composeSimpleInvoice(row.tbl_invoice_simple_details).billed : null);
 
-const invoiceDto = (row) => ({
+export const invoiceDto = (row) => ({
   invId: row.inv_id,
   // Menú de la factura (DEC-074): el cliente arma con él su dirección.
   pvtId: row.pvt_id,

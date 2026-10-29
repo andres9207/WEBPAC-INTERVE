@@ -1,8 +1,8 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { PERMISSIONS } from "../../../common/constants/permissions.constants.js";
-import { paginate, MAX_ROWS, countByStatus, containsFilter, idFilter, filtersWhere } from "../../../common/utils/pagination.utils.js";
+import { paginate, MAX_ROWS, countByStatus, containsFilter, dateRangeFilter, idFilter, filtersWhere } from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
-import { toMoney, moneyText, sumMoney } from "../../../common/utils/money.utils.js";
+import { decimal, toMoney, moneyText, sumMoney } from "../../../common/utils/money.utils.js";
 import {
   addTerm,
   dateOnlyText,
@@ -21,6 +21,7 @@ import { constructionCompaniesService } from "../../admin/constructionCompanies/
 import { contractTypesService } from "../../admin/contractTypes/contractTypes.service.js";
 import { supervisionTypesService } from "../../admin/supervisionTypes/supervisionTypes.service.js";
 import { defineContacts } from "../../admin/addressTypes/addressTypes.contacts.js";
+import { providerSelectOptions } from "../providers/providers.service.js";
 import { contractTermFor } from "../contracts/contractTerms.js";
 import { ACTIVE_STATUS, INACTIVE_STATUS, DELETED_STATUS } from "../../../common/constants/status.constants.js";
 
@@ -173,12 +174,45 @@ const searchWhereOf = (search) => {
   };
 };
 
+/** Rango de un importe guardado de la obra, con los extremos incluidos, o null. Los extremos ya vienen validados. */
+const moneyRange = (column, from, to) => {
+  const range = { ...(String(from ?? "").trim() ? { gte: decimal(from) } : {}), ...(String(to ?? "").trim() ? { lte: decimal(to) } : {}) };
+  return Object.keys(range).length > 0 ? { [column]: range } : null;
+};
+
 /**
- * `scope`: alcance por obra de la petición (DEC-047). `code`, `name`, `cncId`
- * `sptId` y `state`: filtros por campo del listado (DEC-048), también en los conteos.
+ * `scope`: alcance por obra de la petición (DEC-047). Filtros por campo del
+ * listado (DEC-048), también en los conteos: `code`, `name`, `cncId`, `cttId`,
+ * `sptId`, `state`; por rango, los importes guardados (valor inicial y
+ * ampliado, valor máximo de orden de servicio y costo directo) y la fecha de
+ * inicio; `useId`, uno de sus responsables, y `prvId`, un proveedor asignado.
  */
 // Filtros, orden y alcance del listado: los mismos para la página y para el reporte (DEC-070).
-const workListQuery = ({ search, staId, code, name, cncId, sptId, state, sortField, sortOrder, scope }) => {
+const workListQuery = ({
+  search,
+  staId,
+  code,
+  name,
+  cncId,
+  cttId,
+  sptId,
+  state,
+  initialValueFrom,
+  initialValueTo,
+  extendedValueFrom,
+  extendedValueTo,
+  maxServiceOrderValueFrom,
+  maxServiceOrderValueTo,
+  directCostFrom,
+  directCostTo,
+  startDateFrom,
+  startDateTo,
+  useId,
+  prvId,
+  sortField,
+  sortOrder,
+  scope,
+}) => {
   const order = Number(sortOrder) === 1 ? "asc" : "desc";
   const orderBy = (SORT_FIELDS[sortField] ?? SORT_FIELDS.updatedAt)(order);
 
@@ -190,9 +224,17 @@ const workListQuery = ({ search, staId, code, name, cncId, sptId, state, sortFie
       containsFilter(code, (c) => ({ wrk_code: c })),
       containsFilter(name, (c) => ({ wrk_name: c })),
       idFilter(cncId, (id) => ({ cnc_id: id })),
+      idFilter(cttId, (id) => ({ ctt_id: id })),
       idFilter(sptId, (id) => ({ spt_id: id })),
       // Ciclo de vida (DEC-083): en curso o finalizada.
       WORK_STATES[state] ? { wrk_state: state } : null,
+      moneyRange("wrk_initial_value", initialValueFrom, initialValueTo),
+      moneyRange("wrk_extended_value", extendedValueFrom, extendedValueTo),
+      moneyRange("wrk_max_service_order_value", maxServiceOrderValueFrom, maxServiceOrderValueTo),
+      moneyRange("wrk_direct_cost", directCostFrom, directCostTo),
+      dateRangeFilter("wrk_start_date", startDateFrom, startDateTo),
+      idFilter(useId, (id) => ({ tbl_work_managers: { some: { use_id: id } } })),
+      idFilter(prvId, (id) => ({ tbl_work_providers: { some: { prv_id: id } } })),
     ]),
   };
   const where = staId ? { ...baseWhere, AND: [...(baseWhere.AND ?? []), { sta_id: Number(staId) }] } : baseWhere;
@@ -231,19 +273,35 @@ const EXPORT_COLUMNS = [
 const TERM_UNIT_NAMES = Object.freeze({ DIA: "día(s)", MES: "mes(es)", ANIO: "año(s)" });
 
 /** Líneas del encabezado: los filtros aplicados, con los nombres de lo elegido. */
-const exportFilterLines = async ({ search, staId, code, name, cncId, sptId, state }) => {
-  const [company, supervision] = await Promise.all([
+const exportFilterLines = async (filters) => {
+  const { search, staId, code, name, cncId, cttId, sptId, state, useId, prvId } = filters;
+  const [company, contractType, supervision, manager, provider] = await Promise.all([
     Number(cncId) > 0 ? prisma.tbl_construction_companies.findUnique({ where: { cnc_id: Number(cncId) }, select: { cnc_description: true } }) : null,
+    Number(cttId) > 0 ? prisma.tbl_contract_types.findUnique({ where: { ctt_id: Number(cttId) }, select: { ctt_name: true } }) : null,
     Number(sptId) > 0 ? prisma.tbl_supervision_types.findUnique({ where: { spt_id: Number(sptId) }, select: { spt_name: true } }) : null,
+    Number(useId) > 0 ? prisma.tbl_users.findUnique({ where: { use_id: Number(useId) }, select: USER_NAME_SELECT }) : null,
+    Number(prvId) > 0 ? prisma.tbl_providers.findUnique({ where: { prv_id: Number(prvId) }, select: { prv_name: true } }) : null,
   ]);
+  const range = (key) => {
+    const [from, to] = [String(filters[`${key}From`] ?? "").trim(), String(filters[`${key}To`] ?? "").trim()];
+    return from || to ? `${from || "…"} a ${to || "…"}` : "";
+  };
   const lines = [
     ["Estado", Number(staId) === ACTIVE_STATUS ? "Activas" : Number(staId) === INACTIVE_STATUS ? "Inactivas" : "Todas"],
     ["Búsqueda", String(search ?? "").trim()],
     ["Código contiene", String(code ?? "").trim()],
     ["Nombre contiene", String(name ?? "").trim()],
     ["Constructora", company?.cnc_description],
+    ["Tipo de contrato", contractType?.ctt_name],
     ["Interventoría", supervision?.spt_name],
     ["Ciclo", WORK_STATE_NAMES[state]],
+    ["Valor inicial", range("initialValue")],
+    ["Valor ampliado", range("extendedValue")],
+    ["Valor máximo orden de servicio", range("maxServiceOrderValue")],
+    ["Costo directo", range("directCost")],
+    ["Fecha de inicio", range("startDate")],
+    ["Responsable", manager && userFullName(manager)],
+    ["Proveedor", provider?.prv_name],
   ].filter(([, value]) => value);
   return [`Filtros: ${lines.map(([label, value]) => `${label}: ${value}`).join(" · ")}`];
 };
@@ -420,6 +478,39 @@ export const getWork = async ({ wrkId, scope }) => {
     contractsCount: row._count?.tbl_contracts ?? 0,
   };
 };
+
+const FILTER_USER_SELECT = { use_id: true, use_name: true, use_last_name: true };
+
+/**
+ * Filtro Responsable del listado: usuarios que son responsables de alguna
+ * obra no eliminada del alcance, aunque estén inactivos, por nombre y con
+ * tope (DEC-018). `includeUseId`, el ya elegido, vuelve aunque la búsqueda lo
+ * deje fuera.
+ */
+export const selectWorkFilterManagers = async ({ search, includeUseId, scope } = {}) => {
+  const admitted = { work_managers: { some: { tbl_works: { sta_id: { not: DELETED_STATUS }, ...scopeWhere(scope) } } } };
+  const text = String(search ?? "").trim();
+  const rows = await prisma.tbl_users.findMany({
+    where: { ...admitted, ...(text ? { OR: [{ use_name: { contains: text } }, { use_last_name: { contains: text } }] } : {}) },
+    select: FILTER_USER_SELECT,
+    orderBy: [{ use_name: "asc" }, { use_last_name: "asc" }],
+    take: MAX_ROWS,
+  });
+  const includeId = Number(includeUseId) > 0 ? Number(includeUseId) : null;
+  if (includeId && !rows.some((row) => row.use_id === includeId)) {
+    const included = await prisma.tbl_users.findFirst({ where: { ...admitted, use_id: includeId }, select: FILTER_USER_SELECT });
+    if (included) rows.unshift(included);
+  }
+  return rows.map((row) => ({ value: row.use_id, label: userFullName(row) }));
+};
+
+/** Filtro Proveedor del listado: los asignados a alguna obra no eliminada del alcance, con tope (DEC-018). */
+export const selectWorkFilterProviders = async ({ search, includePrvId, scope } = {}) =>
+  providerSelectOptions({
+    admitted: { sta_id: { not: DELETED_STATUS }, tbl_work_providers: { some: { tbl_works: { sta_id: { not: DELETED_STATUS }, ...scopeWhere(scope) } } } },
+    search,
+    includePrvId,
+  });
 
 /**
  * Candidatos a responsable (DEC-029): usuarios activos, ordenados por nombre,

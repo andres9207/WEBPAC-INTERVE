@@ -21,7 +21,8 @@ export const getMyWorksSelectAPI = () => httpCliente.get('work/works/select_my_w
  * @param {object} params  los del listado, sin paginación
  * @param {'xlsx'|'pdf'} format
  */
-export const exportWorksAPI = (params, format) => httpCliente.post('work/works/export_works', { ...params, format }, { responseType: 'blob' });
+export const exportWorksAPI = (params, format) =>
+  httpCliente.post('work/works/export_works', { ...params, format }, { responseType: 'blob' });
 
 /** Indicadores del listado de obras (DEC-033): conteos, valor vigente total y avance. */
 export const getWorksSummaryAPI = () => httpCliente.get('work/works/summary_works');
@@ -31,6 +32,18 @@ export const getWorksSummaryAPI = () => httpCliente.get('work/works/summary_work
  * @param {string} [search]  texto para filtrar por nombre
  */
 export const getWorkManagersSelectAPI = (search) => httpCliente.get('work/works/select_work_managers', search ? { search } : {});
+
+/**
+ * Opciones del filtro Responsable del listado: los responsables de las obras del alcance.
+ * @param {{ search?: string, includeUseId?: number }} params  `includeUseId`: el ya elegido
+ */
+export const getWorkFilterManagersAPI = (params) => httpCliente.get('work/works/select_work_filter_managers', params);
+
+/**
+ * Opciones del filtro Proveedor del listado: los asignados a las obras del alcance.
+ * @param {{ search?: string, includePrvId?: number }} params  `includePrvId`: el ya elegido
+ */
+export const getWorkFilterProvidersAPI = (params) => httpCliente.get('work/works/select_work_filter_providers', params);
 
 /**
  * Fecha final mientras se edita la obra: la calcula el servidor (FRONTEND_STANDARD, regla 9).

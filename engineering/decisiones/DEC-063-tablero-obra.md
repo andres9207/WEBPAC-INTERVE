@@ -30,7 +30,7 @@ El usuario decidió el 2026-10-15:
 
 ## Detalle de cada cifra (2026-10-22)
 
-El usuario pidió el drill-down de los elementos y gráficos del tablero de la obra, y eligió un **panel dentro del tablero** (no navegar al listado), solo en el tablero de la obra; el general sigue llevando al listado (DEC-052).
+El usuario pidió el drill-down de los elementos y gráficos del tablero de la obra, y eligió un **panel dentro del tablero** (no navegar al listado), solo en el tablero de la obra; el general sigue llevando al listado (DEC-052). Desde el 2026-10-29 el general también abre un panel, con las filas pedidas al servidor (DEC-052, "Detalle de cada cifra").
 
 - **Por qué un panel y no el listado:** una cifra de facturas junta filas de varias vistas (simples, contrato mayor y subcontratistas, DEC-054), y cada vista es un listado distinto con su permiso. El panel las muestra juntas, y cada fila abre su expediente con su vista.
 - **Las mismas filas, el mismo criterio:** `invoices.items` trae las facturas de las que salen las cifras: las no anuladas de la obra en las vistas del usuario, con el valor con que entran en las sumas. Reemplaza a `marks`, que eran solo las de contrato. El cliente filtra esas filas con el predicado de la cifra (mes por la fecha de la factura y estado, tipo, contrato), y los contratos, sobre `contracts.items` (estado, etapa, con anticipo facturado, con retenido por devolver). **El total del panel es el de la cifra del servidor**; el cliente no suma importes.
@@ -57,6 +57,7 @@ El usuario pidió en el Resumen, entre las cifras y los contratos de la obra, la
 - **Ejecutado:** las facturas **aprobadas** de la obra, de los **cinco tipos** (también anticipo y devolución de retenido), con el valor con que ya suman en el tablero (`invoiceValue`: el capturado en las de contrato y el total facturado en la simple, DEC-065). Una simple sin importes cuenta en la cantidad (`unpriced`) y no en el valor.
 - **Por tipo** es por **menú de facturas** (el tipo de proveedor de la factura, DEC-074), no por tipo de factura: lo que agrupa el sistema que se migra. De mayor a menor; los colores, por posición, con las claves de DEC-063.
 - **Estado de costos:** ejecutado frente al **valor vigente de la obra** (el ampliado si existe). Pendiente = valor vigente − ejecutado, sin bajar de 0; lo que pasa del valor vigente va en `exceeded` y se muestra como fila, no como porción. Solo si el usuario ve la obra y las facturas.
+- **Colores** (2026-10-29): las dos donas usan primero las series de esta ficha. Los menús van por posición en `primary.800`, `orange.dark`, `cyan.main`, `success.dark`, `secondary.main` y `grey.600`. En el estado de costos, ejecutado va en `primary.800` y pendiente en `orange.dark`. Antes había dos azules (`primary.800` y `primary.200`) y, en el modo oscuro, el pendiente (`#26406b`) se confundía con el fondo de la tarjeta.
 - **Servidor:** `invoices.executed` (`value`, `count`, `byMenu` y `status`), calculado con `sumMoney` y `ratioPercent`. **Cliente:** `work/WorkCosts.jsx`. Lo ejecutado y cada menú abren sus facturas aprobadas en el detalle; lo pendiente no tiene filas.
 
 ## Pestañas de contratos en el resumen (2026-10-27)

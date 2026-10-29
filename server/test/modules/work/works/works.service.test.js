@@ -22,7 +22,8 @@ const prismaMock = {
   tbl_work_stages: { findMany: jest.fn(), deleteMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
   tbl_work_contacts: { findMany: jest.fn(), deleteMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
   tbl_address_types: { findUnique: jest.fn() },
-  tbl_users: { findMany: jest.fn() },
+  tbl_users: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
+  tbl_providers: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
   tbl_contracts: { findMany: jest.fn(), count: jest.fn() },
   tbl_invoices: { findMany: jest.fn(), count: jest.fn() },
   tbl_construction_companies: { findUnique: jest.fn() },
@@ -35,6 +36,7 @@ const prismaMock = {
 
 jest.unstable_mockModule("../../../../src/common/configs/prismaClient.js", () => ({ prisma: prismaMock }));
 
+const { Prisma } = await import("@prisma/client");
 const { PERMISSIONS } = await import("../../../../src/common/constants/permissions.constants.js");
 const service = await import("../../../../src/modules/work/works/works.service.js");
 
@@ -609,6 +611,71 @@ describe("paginationWorks y selectWorkManagers", () => {
     const filters = [{ wrk_code: { contains: "OB" } }, { wrk_name: { contains: "torre" } }, { cnc_id: 4 }, { spt_id: 2 }];
     expect(prismaMock.tbl_works.findMany.mock.calls[0][0].where.AND).toEqual([...filters, { sta_id: 1 }]);
     expect(prismaMock.tbl_works.groupBy.mock.calls[0][0].where.AND).toEqual(filters);
+  });
+
+  it("filtra por tipo de contrato, rangos de importes y de fecha de inicio, responsable y proveedor", async () => {
+    prismaMock.tbl_works.findMany.mockResolvedValue([]);
+    prismaMock.tbl_works.count.mockResolvedValue(0);
+    prismaMock.tbl_works.groupBy.mockResolvedValue([]);
+
+    await service.paginationWorks({
+      cttId: "3",
+      initialValueFrom: "1000",
+      initialValueTo: "5000.50",
+      extendedValueFrom: "2000",
+      maxServiceOrderValueTo: "300",
+      directCostFrom: "10",
+      directCostTo: "20",
+      startDateFrom: "2026-01-01",
+      startDateTo: "2026-06-30",
+      useId: "7",
+      prvId: 12,
+    });
+
+    const conditions = prismaMock.tbl_works.findMany.mock.calls[0][0].where.AND;
+    const plain = JSON.parse(JSON.stringify(conditions));
+    expect(plain).toEqual([
+      { ctt_id: 3 },
+      { wrk_initial_value: { gte: "1000", lte: "5000.5" } },
+      { wrk_extended_value: { gte: "2000" } },
+      { wrk_max_service_order_value: { lte: "300" } },
+      { wrk_direct_cost: { gte: "10", lte: "20" } },
+      { wrk_start_date: { gte: "2026-01-01T00:00:00.000Z", lte: "2026-06-30T00:00:00.000Z" } },
+      { tbl_work_managers: { some: { use_id: 7 } } },
+      { tbl_work_providers: { some: { prv_id: 12 } } },
+    ]);
+    // Los extremos son Decimal, no números de coma flotante (DEC-045).
+    expect(conditions[1].wrk_initial_value.gte).toBeInstanceOf(Prisma.Decimal);
+    // Los conteos de las pestañas llevan los mismos filtros.
+    expect(prismaMock.tbl_works.groupBy.mock.calls[0][0].where.AND).toHaveLength(8);
+  });
+
+  it("filtro Responsable: los responsables de obras del alcance, aunque estén inactivos, y el elegido vuelve", async () => {
+    prismaMock.tbl_users.findMany.mockResolvedValue([{ use_id: 5, use_name: "Ana", use_last_name: "Paz" }]);
+    prismaMock.tbl_users.findFirst.mockResolvedValue({ use_id: 9, use_name: "Luis", use_last_name: "Gil" });
+
+    const options = await service.selectWorkFilterManagers({ search: " an ", includeUseId: "9", scope: { all: false, wrkId: 8 } });
+
+    expect(options).toEqual([
+      { value: 9, label: "Luis Gil" },
+      { value: 5, label: "Ana Paz" },
+    ]);
+    const { where, take } = prismaMock.tbl_users.findMany.mock.calls[0][0];
+    expect(where.work_managers).toEqual({ some: { tbl_works: { sta_id: { not: 3 }, wrk_id: { in: [8] } } } });
+    expect(where).not.toHaveProperty("sta_id");
+    expect(where.OR).toEqual([{ use_name: { contains: "an" } }, { use_last_name: { contains: "an" } }]);
+    expect(take).toBe(100);
+    expect(prismaMock.tbl_users.findFirst.mock.calls[0][0].where).toMatchObject({ use_id: 9, work_managers: where.work_managers });
+  });
+
+  it("filtro Proveedor: los asignados a obras del alcance", async () => {
+    prismaMock.tbl_providers.findMany.mockResolvedValue([{ prv_id: 4, prv_name: "Ferretería", prv_identification: "900" }]);
+
+    await expect(service.selectWorkFilterProviders({ scope: { all: true } })).resolves.toEqual([{ value: 4, label: "Ferretería — 900" }]);
+    expect(prismaMock.tbl_providers.findMany.mock.calls[0][0].where).toEqual({
+      sta_id: { not: 3 },
+      tbl_work_providers: { some: { tbl_works: { sta_id: { not: 3 } } } },
+    });
   });
 
   it("un campo de orden fuera de la lista blanca usa el de por defecto", async () => {

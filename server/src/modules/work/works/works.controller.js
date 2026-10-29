@@ -50,39 +50,40 @@ const INPUT_FIELDS = [
   "contacts",
 ];
 
+// Filtros, búsqueda, pestaña y orden del listado: los mismos para la página y el reporte (DEC-070).
+const WORK_LIST_FIELDS = [
+  "search",
+  "staId",
+  "code",
+  "name",
+  "cncId",
+  "cttId",
+  "sptId",
+  "state",
+  "initialValueFrom",
+  "initialValueTo",
+  "extendedValueFrom",
+  "extendedValueTo",
+  "maxServiceOrderValueFrom",
+  "maxServiceOrderValueTo",
+  "directCostFrom",
+  "directCostTo",
+  "startDateFrom",
+  "startDateTo",
+  "useId",
+  "prvId",
+  "sortField",
+  "sortOrder",
+];
+const workListFilters = (body) => Object.fromEntries(WORK_LIST_FIELDS.map((field) => [field, body[field]]));
+
 export const paginationWorksController = handle(async (req) => {
-  const { search, staId, code, name, cncId, sptId, state, rows, first, sortField, sortOrder } = req.body;
-  return worksService.paginationWorks({
-    search,
-    staId,
-    code,
-    name,
-    cncId,
-    sptId,
-    state,
-    rows,
-    first,
-    sortField,
-    sortOrder,
-    scope: await workScopeOf(req),
-  });
+  const { rows, first } = req.body;
+  return worksService.paginationWorks({ ...workListFilters(req.body), rows, first, scope: await workScopeOf(req) });
 });
 
 export const exportWorksController = handleExport(async (req) => {
-  const { search, staId, code, name, cncId, sptId, state, sortField, sortOrder, format } = req.body;
-  return worksService.exportWorks({
-    search,
-    staId,
-    code,
-    name,
-    cncId,
-    sptId,
-    state,
-    sortField,
-    sortOrder,
-    format,
-    scope: await workScopeOf(req),
-  });
+  return worksService.exportWorks({ ...workListFilters(req.body), format: req.body.format, scope: await workScopeOf(req) });
 });
 
 export const summaryWorksController = handle(async (req) => worksService.summaryWorks({ scope: await workScopeOf(req) }));
@@ -98,6 +99,14 @@ export const previewWorkEndDateController = handle((req) => {
 });
 
 export const selectWorkManagersController = handle((req) => worksService.selectWorkManagers({ search: req.query.search }));
+
+export const selectWorkFilterManagersController = handle(async (req) =>
+  worksService.selectWorkFilterManagers({ search: req.query.search, includeUseId: req.query.includeUseId, scope: await workScopeOf(req) })
+);
+
+export const selectWorkFilterProvidersController = handle(async (req) =>
+  worksService.selectWorkFilterProviders({ search: req.query.search, includePrvId: req.query.includePrvId, scope: await workScopeOf(req) })
+);
 
 export const saveWorkController = handle(async (req) => {
   const { useId, proId } = req.user;

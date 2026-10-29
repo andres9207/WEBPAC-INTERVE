@@ -21,8 +21,8 @@ import { INVOICE_MODES, INVOICE_MODE_OPTIONS, invoiceModeName } from 'utils/cons
 const COLUMNS = [
   { id: 'name', label: 'Nombre', sortable: true },
   { id: 'invoiceMode', label: 'Forma de facturar', sortable: true, render: (row) => invoiceModeName(row.invoiceMode) },
-  { id: 'invoiceMenu', label: 'Menú de facturas', sortable: true, render: (row) => (row.invoiceMenu ? 'Sí' : 'No') },
-  { id: 'contractMenu', label: 'Menú de contratos', sortable: true, render: (row) => (row.contractMenu ? 'Sí' : 'No') }
+  { id: 'invoiceMenu', label: 'Aplica para facturas', sortable: true, render: (row) => (row.invoiceMenu ? 'Sí' : 'No') },
+  { id: 'contractMenu', label: 'Aplica para contratos', sortable: true, render: (row) => (row.contractMenu ? 'Sí' : 'No') }
 ];
 
 const FORM_FIELDS = [
@@ -46,20 +46,22 @@ const FORM_FIELDS = [
   {
     name: 'invoiceMenu',
     type: 'checkbox',
-    label: 'Va al menú de facturas',
+    label: 'Aplica para facturas',
     defaultValue: false,
     // El servidor lo vuelve a verificar (y la BD, con su CHECK).
-    validation: { validate: (value, form) => !value || Boolean(form.invoiceMode) || 'Elige la forma de facturar para que vaya al menú' },
+    validation: {
+      validate: (value, form) => !value || Boolean(form.invoiceMode) || 'Elige la forma de facturar para que aplique para facturas'
+    },
     grid: { xs: 12, sm: 6 }
   },
   {
     name: 'contractMenu',
     type: 'checkbox',
-    label: 'Va al menú de contratos',
+    label: 'Aplica para contratos',
     defaultValue: false,
     validation: {
       validate: (value, form) =>
-        !value || form.invoiceMode === INVOICE_MODES.CONTRACT || 'Solo un tipo que factura con contrato va al menú de contratos'
+        !value || form.invoiceMode === INVOICE_MODES.CONTRACT || 'Solo un tipo que factura con contrato aplica para contratos'
     },
     grid: { xs: 12, sm: 6 }
   }

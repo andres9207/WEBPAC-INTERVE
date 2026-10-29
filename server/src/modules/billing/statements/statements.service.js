@@ -1,6 +1,16 @@
 import { prisma } from "../../../common/configs/prismaClient.js";
 import { ACTIVE_STATUS, DELETED_STATUS, INACTIVE_STATUS } from "../../../common/constants/status.constants.js";
-import { MAX_ROWS, countByStatus, containsFilter, filtersWhere, idFilter, paginate, resolvePagination, searchWhere } from "../../../common/utils/pagination.utils.js";
+import {
+  MAX_ROWS,
+  countByStatus,
+  containsFilter,
+  dateRangeFilter,
+  filtersWhere,
+  idFilter,
+  paginate,
+  resolvePagination,
+  searchWhere,
+} from "../../../common/utils/pagination.utils.js";
 import { USER_NAME_SELECT, userFullName } from "../../../common/utils/user.utils.js";
 import { dateOnlyText, toDateOnly } from "../../../common/utils/term.utils.js";
 import { decimal, moneyText, sumMoney } from "../../../common/utils/money.utils.js";
@@ -12,8 +22,9 @@ import { renderDocument } from "../../../common/services/export.service.js";
 import { INVOICE_STATES } from "../invoices/invoiceTerms.js";
 import { statementInvoices, statementsInvoices } from "../invoices/invoices.service.js";
 import { STATEMENT_AMOUNTS } from "../invoices/statementAmounts.js";
-import { statementGlosses, statementsGlosses } from "../invoices/invoiceGlosses.service.js";
+import { statementGlosses, statementsGlosses, statementsWithGlosses } from "../invoices/invoiceGlosses.service.js";
 import { GLOSS_FIELD_NAMES } from "../invoices/glossFields.js";
+import { STATEMENT_GLOSS_FILTERS, STATEMENT_VOUCHER_FILTERS } from "./statementFilters.js";
 
 /**
  * Extractos de la obra (DEC-084): el acta de WebPAC. Número único en la obra
@@ -562,13 +573,40 @@ const compareBy = (key) => (a, b) => {
   return typeof x === "number" ? x - y : String(x).localeCompare(String(y), "es", { numeric: true, sensitivity: "base" });
 };
 
+/** Número del extracto frente a un extremo del rango, como se ordena: natural ("9" antes que "10"), sin mayúsculas ni tildes. */
+const compareNumber = (a, b) => String(a).localeCompare(String(b), "es", { numeric: true, sensitivity: "base" });
+
+const keySet = (rows, statementOf) => new Set(rows.map((row) => groupKey(row.wrk_id ?? row.wrkId, statementOf(row))));
+
+/** `keep(inSet)` según el filtro: con, sin o sin filtro (null). */
+const presenceFilter = (value, withValue, withoutValue) => (value === withValue ? (has) => has : value === withoutValue ? (has) => !has : null);
+
 /**
  * Extractos escritos en las facturas del alcance (DEC-047), uno por obra y
  * texto, con cuántas facturas lo usan, sus fechas y, para la página, sus
  * totales (sin las anuladas). Pocos textos distintos por obra: se agrupan en
- * la BD y se ordenan y paginan aquí.
+ * la BD y se filtran, ordenan y paginan aquí.
+ *
+ * Filtros: obra, texto, rango de número (como se ordena), rango de fechas
+ * (alguna factura del extracto en el rango; el extracto se muestra completo),
+ * aprobadas sin comprobante de egreso y glosas levantadas en él.
  */
-export const paginationStatementGroups = async ({ search, wrkId, number, rows, first, sortField, sortOrder, scope }) => {
+export const paginationStatementGroups = async ({
+  search,
+  wrkId,
+  number,
+  numberFrom,
+  numberTo,
+  dateFrom,
+  dateTo,
+  voucher,
+  gloss,
+  rows,
+  first,
+  sortField,
+  sortOrder,
+  scope,
+}) => {
   const where = {
     sta_id: { not: DELETED_STATUS },
     inv_statement: { not: null },
@@ -579,13 +617,45 @@ export const paginationStatementGroups = async ({ search, wrkId, number, rows, f
       containsFilter(search, (c) => ({ inv_statement: c })),
     ]),
   };
-  const groups = await prisma.tbl_invoices.groupBy({
-    by: ["wrk_id", "inv_statement"],
-    where,
-    _count: { _all: true },
-    _min: { inv_date: true },
-    _max: { inv_date: true },
+  const byDate = dateRangeFilter("inv_date", dateFrom, dateTo);
+  const withVoucher = presenceFilter(voucher, STATEMENT_VOUCHER_FILTERS.MISSING, STATEMENT_VOUCHER_FILTERS.NONE);
+  const withGloss = presenceFilter(gloss, STATEMENT_GLOSS_FILTERS.WITH, STATEMENT_GLOSS_FILTERS.WITHOUT);
+  const [groups, inDates, missingVoucher] = await Promise.all([
+    prisma.tbl_invoices.groupBy({
+      by: ["wrk_id", "inv_statement"],
+      where,
+      _count: { _all: true },
+      _min: { inv_date: true },
+      _max: { inv_date: true },
+    }),
+    byDate ? prisma.tbl_invoices.groupBy({ by: ["wrk_id", "inv_statement"], where: { AND: [where, byDate] } }) : null,
+    withVoucher
+      ? prisma.tbl_invoices.groupBy({
+          by: ["wrk_id", "inv_statement"],
+          where: { AND: [where, { inv_state: INVOICE_STATES.APPROVED, OR: [{ inv_voucher_number: null }, { inv_voucher_number: "" }] }] },
+        })
+      : null,
+  ]);
+  const glossed = withGloss ? keySet(await statementsWithGlosses([...new Set(groups.map((g) => g.wrk_id))]), (r) => r.statement) : null;
+  const dated = inDates && keySet(inDates, (r) => r.inv_statement);
+  const unpaid = missingVoucher && keySet(missingVoucher, (r) => r.inv_statement);
+  const from = text(numberFrom);
+  const to = text(numberTo);
+  const kept = groups.filter((g) => {
+    const key = groupKey(g.wrk_id, g.inv_statement);
+    return (
+      (!from || compareNumber(g.inv_statement, from) >= 0) &&
+      (!to || compareNumber(g.inv_statement, to) <= 0) &&
+      (!dated || dated.has(key)) &&
+      (!unpaid || withVoucher(unpaid.has(key))) &&
+      (!glossed || withGloss(glossed.has(key)))
+    );
   });
+  return pageOfGroups(kept, { rows, first, sortField, sortOrder });
+};
+
+/** Ordena y pagina los grupos ya filtrados, con los totales de la página. */
+const pageOfGroups = async (groups, { rows, first, sortField, sortOrder }) => {
   const works = await prisma.tbl_works.findMany({
     where: { wrk_id: { in: [...new Set(groups.map((g) => g.wrk_id))] } },
     select: { wrk_id: true, wrk_code: true, wrk_name: true },

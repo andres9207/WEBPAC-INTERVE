@@ -168,6 +168,15 @@ export const INVOICE_GLOSS_FILTER_OPTIONS = [
   { value: 'ANY', label: 'Con glosas' },
   { value: 'NONE', label: 'Sin glosas' }
 ];
+// Filtros "Comprobante" y "Glosas" del listado de extractos (statementFilters.js del servidor).
+export const STATEMENT_VOUCHER_FILTER_OPTIONS = [
+  { value: 'MISSING', label: 'Con aprobadas sin comprobante' },
+  { value: 'NONE', label: 'Ninguna aprobada sin comprobante' }
+];
+export const STATEMENT_GLOSS_FILTER_OPTIONS = [
+  { value: 'WITH', label: 'Con glosas levantadas' },
+  { value: 'WITHOUT', label: 'Sin glosas' }
+];
 export const CONTRACT_ADVANCE_FILTER_OPTIONS = [
   { value: 'WITH_ADVANCE', label: 'Con anticipo pactado' },
   { value: 'TO_INVOICE', label: 'Anticipo por facturar' },

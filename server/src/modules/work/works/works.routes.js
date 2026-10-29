@@ -9,6 +9,8 @@ import {
   getWorkSchema,
   previewWorkEndDateSchema,
   selectWorkManagersSchema,
+  selectWorkFilterManagersSchema,
+  selectWorkFilterProvidersSchema,
   saveWorkSchema,
   changeWorkStatusSchema,
   changeWorkStateSchema,
@@ -22,6 +24,8 @@ import {
   getWorkController,
   previewWorkEndDateController,
   selectWorkManagersController,
+  selectWorkFilterManagersController,
+  selectWorkFilterProvidersController,
   saveWorkController,
   changeWorkStatusController,
   changeWorkStateController,
@@ -61,6 +65,23 @@ worksRoutes.get(
   selectWorkManagersSchema,
   validate,
   selectWorkManagersController
+);
+// Opciones de los filtros Responsable y Proveedor del listado: los de las obras del alcance.
+worksRoutes.get(
+  "/select_work_filter_managers",
+  verifyToken,
+  requirePermission(can.view),
+  selectWorkFilterManagersSchema,
+  validate,
+  selectWorkFilterManagersController
+);
+worksRoutes.get(
+  "/select_work_filter_providers",
+  verifyToken,
+  requirePermission(can.view),
+  selectWorkFilterProvidersSchema,
+  validate,
+  selectWorkFilterProvidersController
 );
 // save_work sirve crear (wrkId 0) y editar. Asignar o retirar responsables y
 // gestionar etapas los exige el service, según lo que cambia.

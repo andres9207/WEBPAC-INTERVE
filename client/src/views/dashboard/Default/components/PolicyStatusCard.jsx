@@ -1,5 +1,4 @@
 import PropTypes from 'prop-types';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import Chart from 'react-apexcharts';
 
 import { useTheme } from '@mui/material/styles';
@@ -16,21 +15,20 @@ import useSchemePalette from 'hooks/useSchemePalette';
  * Estado de pólizas por contrato (ADR-0002, DEC-052, DEC-064): cada contrato
  * en una sola categoría, por su póliza vigente de mayor valor asegurado; la suma es el
  * total. Una sola serie: barras en un solo color, cada una con su nombre. La
- * lista de al lado es la vista en texto y lleva al listado de contratos con
- * el mismo predicado que produjo la cifra.
+ * lista de al lado es la vista en texto. La barra y la lista abren en el
+ * tablero los contratos de la categoría (`onOpen`), con el mismo predicado
+ * que produjo la cifra; "Con conceptos sin póliza", `onOpenUncovered`.
  */
-export default function PolicyStatusCard({ policies, expiringDays }) {
+export default function PolicyStatusCard({ policies, expiringDays, onOpen, onOpenUncovered }) {
   const theme = useTheme();
   const palette = useSchemePalette();
-  const navigate = useNavigate();
-  const linkTo = (status) => `/work/contracts?policyStatus=${status}`;
 
   const options = {
     chart: {
       type: 'bar',
       toolbar: { show: false },
       fontFamily: theme.typography.fontFamily,
-      events: { dataPointSelection: (_e, _c, { dataPointIndex }) => navigate(linkTo(policies.byStatus[dataPointIndex].status)) }
+      events: { dataPointSelection: (_e, _c, { dataPointIndex }) => onOpen(policies.byStatus[dataPointIndex]) }
     },
     plotOptions: { bar: { horizontal: true, borderRadius: 4, borderRadiusApplication: 'end', barHeight: '60%' } },
     colors: [palette.primary[800]],
@@ -58,7 +56,7 @@ export default function PolicyStatusCard({ policies, expiringDays }) {
           <List dense disablePadding aria-label="Contratos por estado de pólizas">
             {policies.byStatus.map((s) => (
               <ListItem key={s.status} disableGutters sx={{ justifyContent: 'space-between', gap: 1 }}>
-                <Link component={RouterLink} to={linkTo(s.status)} underline="hover" variant="body2">
+                <Link component="button" type="button" onClick={() => onOpen(s)} underline="hover" variant="body2">
                   {s.name}
                 </Link>
                 <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
@@ -73,7 +71,7 @@ export default function PolicyStatusCard({ policies, expiringDays }) {
               </Typography>
             </ListItem>
             <ListItem disableGutters sx={{ justifyContent: 'space-between', gap: 1 }}>
-              <Link component={RouterLink} to="/work/contracts?uncovered=true" underline="hover" variant="body2">
+              <Link component="button" type="button" onClick={onOpenUncovered} underline="hover" variant="body2">
                 Con conceptos sin póliza
               </Link>
               <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
@@ -90,4 +88,10 @@ export default function PolicyStatusCard({ policies, expiringDays }) {
   );
 }
 
-PolicyStatusCard.propTypes = { policies: PropTypes.object.isRequired, expiringDays: PropTypes.number.isRequired };
+PolicyStatusCard.propTypes = {
+  policies: PropTypes.object.isRequired,
+  expiringDays: PropTypes.number.isRequired,
+  /** Abre el detalle de una categoría (`byStatus[i]`). */
+  onOpen: PropTypes.func.isRequired,
+  onOpenUncovered: PropTypes.func.isRequired
+};

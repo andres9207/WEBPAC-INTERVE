@@ -144,7 +144,7 @@ Referencia: `ui-component/extended/RouteDialog.jsx`, `views/work/works/WorkDetai
 Referencia: `views/work/works/WorksPage.jsx`, `components/WorksSummary.jsx` y `WorkCard.jsx`.
 
 - **Indicadores** arriba del listado (`MasterPage`, prop `header`): hasta 4, cada uno con ícono en un tono de `ACTION_TONES`, etiqueta, cifra y una línea que explica qué cuenta. Todas las cifras las calcula el servidor; mientras cargan, "—".
-- **Tarjetas** (`renderCard`): selector Tarjetas | Tabla junto a las pestañas, recordado por listado. Mismos filtros, pestañas, paginación y acciones que la tabla. La tarjeta de obra lleva una franja de estado arriba, el nombre como enlace al detalle, el importe principal en `h3` con `tabular-nums`, la barra de avance (color por el nivel que manda el servidor: `primary.800`, `orange.dark`, `error.dark`; gris si está inactiva) y las acciones abajo.
+- **Tarjetas** (`renderCard`): selector Tarjetas | Tabla junto a las pestañas, recordado por listado; sin elección, la tabla. Mismos filtros, pestañas, paginación y acciones que la tabla. La tarjeta de obra lleva una franja de estado arriba, el nombre como enlace al detalle, el importe principal en `h3` con `tabular-nums`, la barra de avance (color por el nivel que manda el servidor: `primary.800`, `orange.dark`, `error.dark`; gris si está inactiva) y las acciones abajo.
 - Un importe en un indicador va completo (`fMoneyText`), nunca abreviado.
 
 ## Patrones que vienen

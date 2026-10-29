@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "contexts/AuthContext";
 import { showSuccess, showError, showPromise } from "services/ToastService";
 import { formatNotificationDateTime } from "utils/formatTime";
@@ -6,7 +6,6 @@ import { paginationDocsApi } from "api/requests/documentsAPI";
 import { uploadFile, deleteFileByPath } from "api/firebase/handleFirebaseDocs";
 
 import Box from "@mui/material/Box";
-import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
@@ -21,7 +20,6 @@ import Tooltip from "@mui/material/Tooltip";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import ImageIcon from "@mui/icons-material/Image";
 import DeleteIcon from "@mui/icons-material/Delete";
-import VisibilityIcon from "@mui/icons-material/Visibility";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DescriptionIcon from "@mui/icons-material/Description";
 

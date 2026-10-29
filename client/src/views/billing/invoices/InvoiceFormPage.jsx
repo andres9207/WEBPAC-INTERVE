@@ -407,7 +407,8 @@ export default function InvoiceFormPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, contractView, contractBalances, type, defaultType, enabledTypes.join()]);
 
-  // % utilidad por defecto en la normal y la liquidación: la U del valor inicial del contrato con AIU; se puede cambiar.
+  // % utilidad por defecto en la normal y la liquidación, del contrato con AIU: la U del último otrosí que la
+  // tenga o, si ninguno, la del valor inicial (la decide el servidor); se puede cambiar.
   const defaultUtilityPct = contractBalances?.defaultUtilityPct;
   useEffect(() => {
     // Una U de 0 no se escribe: el campo queda vacío, como los demás impuestos.

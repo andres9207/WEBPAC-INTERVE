@@ -1,5 +1,6 @@
 import { body, query } from "express-validator";
-import { paginationRules, optionalText, optionalId, requiredId, idempotencyKeyRule, exportFormatRule } from "../../../common/utils/validation.utils.js";
+import { paginationRules, optionalText, optionalId, optionalDate, requiredId, idempotencyKeyRule, exportFormatRule } from "../../../common/utils/validation.utils.js";
+import { STATEMENT_GLOSS_FILTERS, STATEMENT_VOUCHER_FILTERS } from "./statementFilters.js";
 
 // Forma y tipo de cada campo (ENDPOINT_STANDARD, paso 3). La obra del alcance,
 // el número único en la obra y que no se elimine en uso, en el service (DEC-084).
@@ -52,7 +53,20 @@ export const getStatementReportSchema = [statementIdQuery];
 export const exportStatementSchema = [requiredId("stmId"), exportFormatRule()];
 
 // Extractos escritos en las facturas: la obra y el texto identifican el grupo.
-export const paginationStatementGroupsSchema = [...paginationRules(), optionalText("search", 100), optionalId("wrkId"), optionalText("number", 20)];
+// Filtros: rango de número (texto, como se ordena), de fechas de sus
+// facturas, comprobante de egreso y glosas.
+export const paginationStatementGroupsSchema = [
+  ...paginationRules(),
+  optionalText("search", 100),
+  optionalId("wrkId"),
+  optionalText("number", 20),
+  optionalText("numberFrom", 20),
+  optionalText("numberTo", 20),
+  optionalDate("dateFrom"),
+  optionalDate("dateTo"),
+  body("voucher").optional({ values: "falsy" }).isIn(Object.values(STATEMENT_VOUCHER_FILTERS)).withMessage("El filtro de comprobante no es válido."),
+  body("gloss").optional({ values: "falsy" }).isIn(Object.values(STATEMENT_GLOSS_FILTERS)).withMessage("El filtro de glosas no es válido."),
+];
 
 export const getStatementGroupReportSchema = [
   query("wrkId").isInt({ min: 1 }).withMessage("wrkId es obligatorio y debe ser un entero positivo."),

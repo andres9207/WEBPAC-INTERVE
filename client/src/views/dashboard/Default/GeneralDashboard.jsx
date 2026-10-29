@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 
 import Grid from '@mui/material/Grid';
@@ -29,13 +29,14 @@ import { ACTION_TONES } from 'ui-component/extended/ActionButton';
 import { showError } from 'services/ToastService';
 import { gridSpacing } from 'store/constant';
 import { fDateOnly } from 'utils/formatTime';
-import { STATUS, invoicePath } from 'utils/constants';
+import { invoicePath } from 'utils/constants';
 import { useInvoiceMenus } from 'hooks/useInvoiceMenus';
 
 import DashboardCards from './components/DashboardCards';
 import PolicyStatusCard from './components/PolicyStatusCard';
 import InvoicesByWorkCard from './components/InvoicesByWorkCard';
 import { AlertsCard, LatestInvoicesCard, QuickAccessCard, UpcomingPoliciesCard, WorksActivityCard } from './components/DashboardLists';
+import useSummaryDrill from './components/useSummaryDrill';
 import { daysOpenText, followUpsDrill, useDrillDown } from './work/DrillDownDialog';
 import { dashboardTo } from './work/workDashboard.utils';
 
@@ -45,8 +46,10 @@ import { dashboardTo } from './work/workDashboard.utils';
  * (FRONTEND_STANDARD, regla 9) en el alcance de la obra elegida en el
  * encabezado: cambiar de obra vuelve a montar la vista y recarga. Cada bloque
  * llega en null si el usuario no puede ver su módulo, y entonces no se
- * dibuja. El clic en una cifra lleva al listado con el mismo filtro que la
- * produjo, aplicado en la petición (useLinkedFilters).
+ * dibuja. El clic en una cifra, una barra o una alerta abre su detalle en el
+ * tablero (DEC-052, "Detalle de cada cifra"): las filas las pide al servidor
+ * con el mismo predicado que la produjo (useSummaryDrill), y cada una abre su
+ * expediente encima del tablero.
  *
  * Estilo Berry, solo tema claro (DEC-052): los colores salen de la paleta.
  */
@@ -59,8 +62,10 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
   const { activeWork, works } = useWorkScope();
   const [summary, setSummary] = useState(null);
   const [failed, setFailed] = useState(false);
-  // Detalle de "Seguimientos abiertos" (DEC-076): las facturas, sin salir del tablero.
+  // Detalle de cada cifra, sin salir del tablero: las de seguimientos (DEC-076)
+  // y contratos por liquidar llegan con el resumen; las demás, al abrirlo.
   const { openDrill, dialog } = useDrillDown();
+  const { openMetric, dialog: metricDialog } = useSummaryDrill();
 
   useEffect(() => {
     let active = true;
@@ -83,6 +88,25 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
   // Menús de facturas visibles (DEC-074): los enlaces generales van al primero.
   const invoiceMenus = useInvoiceMenus();
   const firstMenu = invoiceMenus[0]?.pvtId;
+  const openContracts = useCallback((title, params) => openMetric({ title, noun: ['contrato', 'contratos'], params }), [openMetric]);
+  const openPolicyStatus = useCallback(
+    (policyStatus, title) => openContracts(title, { metric: 'CONTRACTS_POLICY_STATUS', policyStatus }),
+    [openContracts]
+  );
+  const openUncovered = useCallback(
+    () => openContracts('Contratos con conceptos sin póliza', { metric: 'CONTRACTS_UNCOVERED' }),
+    [openContracts]
+  );
+  const openWorkInvoices = useCallback(
+    (work, invoiceState) =>
+      openMetric({
+        title: `Facturas de ${work.workCode}`,
+        noun: ['factura', 'facturas'],
+        params: { metric: 'INVOICES_BY_WORK', wrkId: work.wrkId, ...(invoiceState ? { invoiceState } : {}) },
+        emptyText: 'La obra no tiene facturas registradas ni aprobadas.'
+      }),
+    [openMetric]
+  );
   const cards = useMemo(() => {
     if (!summary) return [];
     const items = [];
@@ -93,7 +117,7 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
         hint: 'Proyectos en curso',
         icon: IconBuildingCommunity,
         tone: ACTION_TONES.info,
-        to: `/work/works?status=${STATUS.ACTIVE}`
+        onClick: () => openMetric({ title: 'Obras activas', noun: ['obra', 'obras'], params: { metric: 'WORKS_ACTIVE' } })
       });
     }
     if (s.providers) {
@@ -103,7 +127,8 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
         hint: 'Asignados a las obras',
         icon: IconTruck,
         tone: ACTION_TONES.edit,
-        to: `/work/providers?status=${STATUS.ACTIVE}`
+        onClick: () =>
+          openMetric({ title: 'Proveedores activos', noun: ['proveedor', 'proveedores'], params: { metric: 'PROVIDERS_ACTIVE' } })
       });
     }
     if (s.contracts) {
@@ -113,7 +138,7 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
         hint: `De ${s.contracts.total} contratos`,
         icon: IconFileText,
         tone: ACTION_TONES.success,
-        to: '/work/contracts?status=IN_PROGRESS'
+        onClick: () => openContracts('Contratos en ejecución', { metric: 'CONTRACTS_BY_STATE', state: 'IN_PROGRESS' })
       });
     }
     if (s.invoices?.followUps) {
@@ -136,11 +161,12 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
         value: String(s.policies.currentPolicies),
         hint: 'Sin contar versiones anteriores ni anuladas',
         icon: IconShieldCheck,
-        tone: ACTION_TONES.neutral
+        tone: ACTION_TONES.neutral,
+        onClick: () => openMetric({ title: 'Pólizas vigentes', noun: ['póliza', 'pólizas'], params: { metric: 'CURRENT_POLICIES' } })
       });
     }
     return items;
-  }, [summary, s.works, s.providers, s.contracts, s.policies, s.invoices, openDrill]);
+  }, [summary, s.works, s.providers, s.contracts, s.policies, s.invoices, openDrill, openMetric, openContracts]);
 
   const alerts = useMemo(() => {
     if (!summary) return [];
@@ -154,7 +180,7 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
           hint: 'Renovar o anular desde el expediente',
           icon: IconShieldX,
           tone: ACTION_TONES.danger,
-          to: '/work/contracts?policyStatus=EXPIRED'
+          onClick: () => openPolicyStatus('EXPIRED', 'Contratos con póliza vencida')
         },
         {
           key: 'expiring',
@@ -163,7 +189,7 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
           hint: `En los próximos ${s.expiringDays} días`,
           icon: IconClockHour4,
           tone: ACTION_TONES.danger,
-          to: '/work/contracts?policyStatus=EXPIRING'
+          onClick: () => openPolicyStatus('EXPIRING', 'Contratos con póliza por vencer')
         },
         {
           key: 'uncovered',
@@ -172,27 +198,23 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
           hint: 'Algún concepto sin póliza vigente',
           icon: IconAlertTriangle,
           tone: ACTION_TONES.info,
-          to: '/work/contracts?uncovered=true'
+          onClick: openUncovered
         }
       );
     }
     if (s.invoices) {
-      // Una alerta por menú con pendientes (DEC-074): cada menú es un listado
-      // propio, y la cifra tiene que ser la del listado al que lleva
-      // (PRO-FE-15, criterio 3).
+      // Una sola alerta con las de todos los menús (DEC-074): el detalle las
+      // junta, y el texto dice cuántas son de cada menú.
       const pending = (s.invoices.pendingByMenu ?? []).filter((p) => p.count > 0);
-      const menus = pending.length > 0 ? pending : firstMenu ? [{ pvtId: firstMenu, count: 0 }] : [];
-      for (const p of menus) {
-        list.push({
-          key: `pending-${p.pvtId}`,
-          count: p.count,
-          label: 'factura(s) por aprobar',
-          hint: menus.length > 1 ? p.name : 'Registradas, pendientes de aprobación',
-          icon: IconReceipt,
-          tone: ACTION_TONES.edit,
-          to: `${invoicePath(p.pvtId)}?status=REGISTERED`
-        });
-      }
+      list.push({
+        key: 'pending',
+        count: s.invoices.pendingApproval,
+        label: 'factura(s) por aprobar',
+        hint: pending.length > 1 ? pending.map((p) => `${p.name}: ${p.count}`).join(' · ') : 'Registradas, pendientes de aprobación',
+        icon: IconReceipt,
+        tone: ACTION_TONES.edit,
+        onClick: () => openMetric({ title: 'Facturas por aprobar', noun: ['factura', 'facturas'], params: { metric: 'INVOICES_PENDING' } })
+      });
     }
     if (s.contracts) {
       list.push({
@@ -202,7 +224,7 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
         hint: 'En ejecución con la fecha fin ya pasada',
         icon: IconCalendarX,
         tone: ACTION_TONES.danger,
-        to: '/work/contracts?alert=EXPIRED'
+        onClick: () => openContracts('Contratos vencidos', { metric: 'CONTRACTS_EXPIRED' })
       });
       list.push({
         key: 'suspended',
@@ -211,7 +233,7 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
         hint: 'Esperan el otrosí que los reanuda',
         icon: IconPlayerPause,
         tone: ACTION_TONES.neutral,
-        to: '/work/contracts?status=SUSPENDED'
+        onClick: () => openContracts('Contratos suspendidos', { metric: 'CONTRACTS_BY_STATE', state: 'SUSPENDED' })
       });
       // Obras finalizadas con contratos por liquidar (DEC-083): el detalle lista cada contrato con su obra.
       const finished = s.contracts.finishedWorksToLiquidate;
@@ -232,7 +254,9 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
                   key: `ctr-${c.ctrId}`,
                   to: dashboardTo.contract(c.ctrId),
                   primary: `${c.number} · ${c.name}`,
-                  secondary: [`${w.code} (finalizada el ${fDateOnly(w.finishDate)})`, c.providerName, c.stateName].filter(Boolean).join(' · '),
+                  secondary: [`${w.code} (finalizada el ${fDateOnly(w.finishDate)})`, c.providerName, c.stateName]
+                    .filter(Boolean)
+                    .join(' · '),
                   value: ''
                 }))
               )
@@ -241,7 +265,7 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
       }
     }
     return list;
-  }, [summary, s.policies, s.invoices, s.contracts, s.expiringDays, firstMenu, openDrill]);
+  }, [summary, s.policies, s.invoices, s.contracts, s.expiringDays, openDrill, openMetric, openContracts, openPolicyStatus, openUncovered]);
 
   // Accesos rápidos según permisos (experiencia de uso: el servidor vuelve a verificar).
   const canDo = (perId) => perId != null && hasPermission(perId);
@@ -321,7 +345,12 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
             <Grid container spacing={gridSpacing}>
               {s.policies && (
                 <Grid size={{ xs: 12, lg: 8 }}>
-                  <PolicyStatusCard policies={s.policies} expiringDays={s.expiringDays} />
+                  <PolicyStatusCard
+                    policies={s.policies}
+                    expiringDays={s.expiringDays}
+                    onOpen={(category) => openPolicyStatus(category.status, `Contratos: ${category.name.toLowerCase()}`)}
+                    onOpenUncovered={openUncovered}
+                  />
                 </Grid>
               )}
               {alerts.length > 0 && (
@@ -341,7 +370,7 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
               )}
               {s.invoices && (
                 <Grid size={{ xs: 12, lg: s.worksActivity ? 7 : 12 }}>
-                  <InvoicesByWorkCard byWork={s.invoices.byWork} pvtId={firstMenu} />
+                  <InvoicesByWorkCard byWork={s.invoices.byWork} onOpen={openWorkInvoices} />
                 </Grid>
               )}
             </Grid>
@@ -367,6 +396,7 @@ export default function GeneralDashboard({ reloadKey = 0 }) {
         </>
       )}
       {dialog}
+      {metricDialog}
     </Stack>
   );
 }

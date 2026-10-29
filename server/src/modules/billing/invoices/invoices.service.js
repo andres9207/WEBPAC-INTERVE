@@ -490,15 +490,14 @@ export const getContractAdvance = async ({ ctrId, invId, value, amortization, am
       ctr_id: true,
       ctr_aiu_requested: true,
       tbl_contract_concepts: {
-        where: { ccp_type: CONCEPT_TYPES.INITIAL, sta_id: { not: DELETED_STATUS } },
-        select: { ccp_profit_pct: true },
-        take: 1,
+        where: { sta_id: { not: DELETED_STATUS } },
+        select: { ccp_type: true, ccp_profit_pct: true },
+        orderBy: { ccp_id: "desc" },
       },
     },
   });
   if (!contract) throw httpError(404, "No se encontró el contrato.");
-  // % utilidad por defecto de la normal y la liquidación: la U del valor inicial, si el contrato solicita AIU (DEC-046, DEC-075).
-  const initialConcept = contract.ctr_aiu_requested ? contract.tbl_contract_concepts?.[0] : null;
+  const utilityConcept = contract.ctr_aiu_requested ? defaultUtilityConcept(contract.tbl_contract_concepts ?? []) : null;
   const balances = await contractBalances(prisma, contract.ctr_id);
   const pending = await pendingAdvanceOf(contract.ctr_id, invId);
   const afterPending = balances.advance.toInvoice.minus(pending.invoiced);
@@ -518,9 +517,21 @@ export const getContractAdvance = async ({ ctrId, invId, value, amortization, am
     },
     retentionPair: amountPairOf(amount, retention, retentionPct),
     billing: billingDto(balances.billing),
-    defaultUtilityPct: initialConcept ? percentText(initialConcept.ccp_profit_pct) : null,
+    defaultUtilityPct: utilityConcept ? percentText(utilityConcept.ccp_profit_pct) : null,
   };
 };
+
+/**
+ * Concepto del que sale el % utilidad por defecto de la normal y la
+ * liquidación, si el contrato solicita AIU (DEC-046, DEC-075): el último
+ * otrosí (también el de liquidación) con U mayor que 0; si ninguno la tiene,
+ * el valor inicial. `concepts`, del más reciente al más antiguo. Quien
+ * registra la puede cambiar; las facturas registradas conservan la suya.
+ */
+const defaultUtilityConcept = (concepts) =>
+  concepts.find((c) => c.ccp_type !== CONCEPT_TYPES.INITIAL && decimal(c.ccp_profit_pct).gt(0)) ??
+  concepts.find((c) => c.ccp_type === CONCEPT_TYPES.INITIAL) ??
+  null;
 
 /** Tipos con detalle que mueve saldos del contrato: los de contrato. */
 const hasDetail = (type) => type === INVOICE_TYPES.ADVANCE || type === INVOICE_TYPES.RETENTION_REFUND || isBillingType(type);

@@ -2,6 +2,7 @@ import { getEffectivePermissionIds } from "../../../common/services/effectivePer
 import { workScopeOf } from "../../../common/services/workScope.service.js";
 import * as dashboardService from "./dashboard.service.js";
 import * as workDashboardService from "./workDashboard.service.js";
+import * as dashboardDetailService from "./dashboardDetail.service.js";
 
 // Solo leen la petición y delegan. Los permisos efectivos deciden qué bloques
 // se calculan (ADR-0002, decisión 8) y el alcance por obra, sobre qué
@@ -29,3 +30,20 @@ export const getWorkDashboardController = handle(async (req) =>
     scope: await workScopeOf(req),
   })
 );
+
+// Detalle de una cifra del tablero general (DEC-052): las filas, en el alcance de la petición.
+export const getDashboardDetailController = handle(async (req) => {
+  const { metric, state, policyStatus, wrkId, invoiceState, search, page, limit } = req.query;
+  return dashboardDetailService.getDashboardDetail({
+    granted: new Set(await getEffectivePermissionIds(req.user)),
+    scope: await workScopeOf(req),
+    metric,
+    state,
+    policyStatus,
+    wrkId,
+    invoiceState,
+    search,
+    page,
+    limit,
+  });
+});

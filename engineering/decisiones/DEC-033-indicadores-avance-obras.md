@@ -13,7 +13,7 @@ El prototipo de vistas aprobado con el área usuaria pide un listado de obras m�
 - **Nivel del avance** (`progressLevel`): `NORMAL`, `WARNING` desde el 70 % y `CRITICAL` desde el 90 %. Los umbrales viven solo en el servidor; la pantalla elige el color por el nivel.
 - **El listado** (`pagination_works`) devuelve además, por obra: `progressPercent`, `progressLevel`, `extendedValue`, `activeManagers` y `stages` (nombre y estado, en orden).
 - **Indicadores** en `GET /api/work/works/summary_works`, con el permiso de ver obras: total, activas, inactivas, valor vigente total (suma en `Decimal`, DEC-028), avance promedio de las activas con fechas, cuántas activas están en `WARNING` o más, y el umbral (`closingThreshold`) para que la pantalla lo nombre sin repetirlo. Son de todas las obras no eliminadas: no cambian con la búsqueda ni con la pestaña.
-- **Vista de tarjetas en `MasterPage`**: `header` (contenido arriba del listado) y `renderCard(row, actions)` (activa el selector Tarjetas | Tabla). Las tarjetas comparten búsqueda, pestañas, paginación y acciones con la tabla; una acción con `confirm` pasa por `ConfirmDialog`. La vista elegida se recuerda por listado en el navegador.
+- **Vista de tarjetas en `MasterPage`**: `header` (contenido arriba del listado) y `renderCard(row, actions)` (activa el selector Tarjetas | Tabla). Las tarjetas comparten búsqueda, pestañas, paginación y acciones con la tabla; una acción con `confirm` pasa por `ConfirmDialog`. La vista elegida se recuerda por listado en el navegador; sin elección, la tabla (pedido del usuario, 2026-10-29; antes, las tarjetas).
 
 ## Descartado
 

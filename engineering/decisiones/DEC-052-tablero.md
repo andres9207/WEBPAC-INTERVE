@@ -38,7 +38,7 @@ El usuario decidió el 2026-10-08:
 
   Filtrar el listado de contratos por estado de pólizas exige también el permiso 99: si falta, 403.
 - **Alcance por obra (DEC-047):** todas las consultas llevan el alcance de la petición. El controller del tablero entra en la prueba de arquitectura que lo exige (`workScope.guard.test.js`).
-- **Clic en una cifra:** lleva al listado con el filtro en la URL (`/work/contracts?policyStatus=EXPIRED`, `?uncovered=true`, `?status=IN_PROGRESS`; `/billing/invoices?status=REGISTERED`, `?wrkId=…`). El listado lo lee una vez (`useLinkedFilters`), lo envía en la petición y muestra un aviso para quitarlo (`LinkedFilterNotice`). `MasterPage` acepta la pestaña inicial (`initialStatus`).
+- **Clic en una cifra:** *desde el 2026-10-29 abre su detalle en el tablero; ver "Detalle de cada cifra". Lo que sigue queda para los listados, que siguen leyendo el filtro de la URL.* Llevaba al listado con el filtro en la URL (`/work/contracts?policyStatus=EXPIRED`, `?uncovered=true`, `?status=IN_PROGRESS`; `/billing/invoices?status=REGISTERED`, `?wrkId=…`). El listado lo lee una vez (`useLinkedFilters`), lo envía en la petición y muestra un aviso para quitarlo (`LinkedFilterNotice`). `MasterPage` acepta la pestaña inicial (`initialStatus`).
 - **Gráficos** con `react-apexcharts`, ya instalado. Colores por clave de la paleta, nunca hex:
   - Estado de pólizas: una sola serie, barras horizontales en `primary.800`, cada una con su nombre. La lista de al lado es la vista en texto.
   - Facturas por obra: dos series apiladas, registradas en `orange.dark` y aprobadas en `primary.800`, con leyenda. Validadas contra el fondo claro: contraste ≥ 3:1 y separables con daltonismo (ΔE 24,8).
@@ -51,6 +51,35 @@ El usuario decidió el 2026-10-08:
 - **La póliza de mayor valor asegurado como la que manda:** exigía calcular el valor asegurado en la consulta. Manda el peor estado.
 - **Clasificar en JavaScript y contar en memoria:** obligaría a cargar todos los contratos con sus pólizas. El filtro Prisma cuenta en la base de datos, y el test cruzado lo mantiene igual a la regla.
 - **Colores de estado en las barras de pólizas:** rojo y naranja no se distinguen (ΔE 6,3) y los grises no tienen color suficiente. Una serie va en un color.
+
+## Detalle de cada cifra (2026-10-29)
+
+El usuario pidió en el tablero general el drill-down del tablero de la obra ([DEC-063](DEC-063-tablero-obra.md), "Detalle de cada cifra"). Decidió: **panel dentro del tablero**, con las filas pedidas al servidor al abrirlo, en **todos** los elementos (cifras, estado de pólizas, alertas, facturas por obra y listas).
+
+- **Endpoint de lectura nuevo:** `GET /api/app/dashboard/get_summary_detail?metric=…` (`dashboardDetail.service.js`). Las filas no llegan con el resumen, como en el de la obra, porque con "Ver todo" pueden ser las de todo el sistema. Se piden al abrir el panel, **por páginas** (`paginate`: `page` y `limit`, 10 por defecto, tope 100), con el total.
+- **Métricas**, cada una con el **mismo predicado** que su cifra del resumen, en el alcance de la petición (DEC-047):
+
+  | Métrica | Elemento | Parámetro | Exige |
+  | --- | --- | --- | --- |
+  | `WORKS_ACTIVE` | Obras activas | — | 52 |
+  | `PROVIDERS_ACTIVE` | Proveedores activos | — | 60 |
+  | `CONTRACTS_BY_STATE` | Contratos en ejecución, alerta de suspendidos | `state` | 68 |
+  | `CONTRACTS_EXPIRED` | Alerta de contratos vencidos (`expiredContractsWhere`) | — | 68 |
+  | `CONTRACTS_POLICY_STATUS` | Barras y lista del estado de pólizas, alertas de póliza vencida y por vencer (`contractPolicyStatuses`, DEC-064) | `policyStatus` | 68 y 99 |
+  | `CONTRACTS_UNCOVERED` | "Con conceptos sin póliza" y su alerta (`uncoveredContractsWhere`) | — | 68 y 99 |
+  | `CURRENT_POLICIES` | Pólizas vigentes | — | 68 y 99 |
+  | `INVOICES_PENDING` | Alerta de facturas por aprobar | — | 115 |
+  | `INVOICES_BY_WORK` | Barras y nombre de cada obra en "Facturas recibidas por obra" | `wrkId`, `invoiceState` opcional | 115 |
+
+- **Paginación y filtros (2026-10-29, pedido del usuario):** el primer panel traía 100 filas de una vez y tardaba en abrir; ahora trae 10 y pagina en el servidor (`TablePagination`). Dos filtros se suman al predicado de la cifra, nunca lo reemplazan:
+  - `search`: texto en las columnas que fija el service por tipo de fila (obras: código y nombre; proveedores: nombre e identificación; contratos: número, nombre, proveedor y obra; pólizas: número, tipo y contrato; facturas: número, proveedor y contrato).
+  - `wrkId`: una obra, dentro del alcance. Se ofrece solo con "Ver todo", como el filtro de obra de los listados (DEC-048), y no en obras activas ni en las facturas de una barra, que ya son de una obra. En `INVOICES_BY_WORK` el mismo parámetro es la obra de la barra y es obligatorio.
+  - Cambiar un filtro vuelve a la primera página; la búsqueda espera a que se deje de escribir (400 ms). Mientras llega una página, la anterior sigue a la vista, atenuada.
+- **Permisos:** la ruta lleva solo `verifyToken`, como `get_summary`; el service exige los permisos de la métrica y responde **403** si falta alguno, sin consultar. Una obra (`wrkId`) fuera del alcance no devuelve filas: el alcance va siempre en el `where`.
+- **Facturas por aprobar, una sola alerta:** antes había una por menú, porque cada una llevaba a su listado (DEC-074). El panel junta las de todos los menús, como el de la obra, y el texto de la alerta dice cuántas son de cada menú.
+- **Facturas por obra:** el segmento abre las de su estado (registradas o aprobadas); el nombre de la obra, las dos. De todos los menús; antes iba solo al primero.
+- **Cada fila abre su expediente encima del tablero** (`dashboardTo`, DEC-063), también las filas de obras en seguimiento, últimas facturas y pólizas por vencer. "Ver todas" de las últimas facturas sigue llevando al listado cuando hay un solo menú.
+- **Cliente:** `components/useSummaryDrill.jsx` guarda la cifra, la página y los filtros, pide cada página y dibuja el `DrillDownDialog` del tablero de la obra, que ahora admite `loading`, `count` (el total de todas las páginas), `toolbar` (los filtros) y `footer` (la paginación). Una respuesta que llega después de otro cambio o de cerrar el panel se descarta.
 
 ## Rendimiento (PRO-BD-24)
 
@@ -80,7 +109,7 @@ El usuario decidió el 2026-10-08:
 ## Dónde
 
 - Servidor:
-  - `server/src/modules/app/dashboard/` (routes, controller, service).
+  - `server/src/modules/app/dashboard/` (routes, controller, service, `dashboardDetail.service.js` y `dashboard.validation.js`).
   - `server/src/modules/work/contracts/policyTerms.js`: `contractPolicyStatus`, `contractPolicyStatusWhere`, `uncoveredContractsWhere`.
   - `contracts.service.js` / `.controller.js` / `.validation.js`: filtros `policyStatus` y `uncovered` del listado.
 - Cliente:
@@ -89,5 +118,5 @@ El usuario decidió el 2026-10-08:
   - Los listados de contratos, facturas, obras y proveedores leen el filtro del tablero.
 - Tests:
   - `server/test/modules/work/contracts/policyTerms.test.js`: el cruce de la regla con el filtro.
-  - `server/test/modules/app/dashboard/dashboard.service.test.js`.
+  - `server/test/modules/app/dashboard/dashboard.service.test.js` y `dashboardDetail.service.test.js`.
   - `server/test/common/workScope.guard.test.js`, que ahora incluye el tablero.
