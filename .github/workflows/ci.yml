@@ -1,6 +1,7 @@
 # Integración continua (DEC-095): en cada push y PR a main y develop valida
 # que el servidor pase el lint (DEC-097) y sus tests, y que el cliente pase el
-# lint y compile.
+# lint y compile. Cada job publica un resumen con gráficos en la página de la
+# ejecución (.github/scripts/ci-summary.mjs, DEC-098).
 # Instala con `npm ci` sobre los package-lock.json versionados, igual que el
 # servidor de Hostinger (npm install). La versión de Node sale del campo
 # "volta" de cada package.json, la misma que en local.
@@ -50,11 +51,19 @@ jobs:
       - name: Validar el esquema de Prisma
         run: npx prisma validate
 
+      # Los resultados van en JSON para el resumen (DEC-098). Si el lint falla,
+      # se repite en el formato legible para que el log muestre los errores.
       - name: Lint
-        run: npm run lint
+        run: npm run lint -- -f json -o "$RUNNER_TEMP/eslint-server.json" || { npm run lint -- --quiet; exit 1; }
 
       - name: Tests
-        run: npm test -- --ci
+        run: npm test -- --ci --json --outputFile="$RUNNER_TEMP/jest-server.json"
+
+      # También cuando un paso anterior falló: entonces es cuando más sirve.
+      - name: Resumen
+        if: ${{ !cancelled() }}
+        working-directory: .
+        run: node .github/scripts/ci-summary.mjs server --jest "$RUNNER_TEMP/jest-server.json" --eslint "$RUNNER_TEMP/eslint-server.json"
 
   client:
     name: Cliente · lint y build
@@ -81,7 +90,12 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Lint
-        run: npm run lint
+        run: npm run lint -- -f json -o "$RUNNER_TEMP/eslint-client.json" || { npm run lint -- --quiet; exit 1; }
 
       - name: Build
         run: npm run build
+
+      - name: Resumen
+        if: ${{ !cancelled() }}
+        working-directory: .
+        run: node .github/scripts/ci-summary.mjs client --eslint "$RUNNER_TEMP/eslint-client.json" --dist client/dist
