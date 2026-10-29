@@ -2310,9 +2310,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/work/providers/providers.service.js": {
-    "mtime": 1793296206.4521642,
-    "seen": 1793296426.1380334,
-    "ast_hash": "a940336ed7ffb05fed16249b96f25442",
+    "mtime": 1793300042.2327797,
+    "seen": 1793301036.4144523,
+    "ast_hash": "aea77b348f06c8b32b30957e8afa2b4c",
     "semantic_hash": ""
   },
   "server/src/modules/work/providers/providers.validation.js": {
@@ -2328,9 +2328,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/work/providers/providers.service.test.js": {
-    "mtime": 1793296260.4971561,
-    "seen": 1793296426.138149,
-    "ast_hash": "1de22ba9cd7241b5abfd5e337fb86e16",
+    "mtime": 1793300042.2347867,
+    "seen": 1793301036.4145725,
+    "ast_hash": "4e9478eed81568bc679b1351731012cd",
     "semantic_hash": ""
   },
   "client/src/views/work/works/components/WorkCard.jsx": {
@@ -4212,9 +4212,9 @@
     "semantic_hash": ""
   },
   ".github/scripts/ci-summary.mjs": {
-    "mtime": 1793296528.20665,
-    "seen": 1793299170.1200745,
-    "ast_hash": "67a781499942ef84d8dcac1ce977bf95",
+    "mtime": 1793300936.0886424,
+    "seen": 1793301036.41368,
+    "ast_hash": "cbf2247d0174dcf8b7bc877931dcb6af",
     "semantic_hash": ""
   },
   "database/migrations/0128_seed_providers_export_permission.sql": {
